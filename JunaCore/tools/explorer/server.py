@@ -1,13 +1,22 @@
 #!/usr/bin/env python3
-"""JUNA-Lite explorer - a chain-centric workbench for the migrated package.
+"""JUNA-Lite explorer - unified workbench for the migrated package.
 
-Serves http://127.0.0.1:8772/ with tabs Home | Tests | Map | Chain | Source |
-Coverage | Progress. Fresh design for this package (not a fork of the source
-repository's workbench): the data models are the repository's own truths -
-suites.json exported from test/runtests.jl, chain.json (declared stage map,
-contract-verified), the vendored static analyzer, and source_coverage's
-static reference scan. Static references are always labelled as such, never
-as runtime coverage.
+Serves http://127.0.0.1:8772/ with pages Home | Tests | Map | Chain |
+Source | Coverage | Health | Progress, all rendered by one shell, plus a
+JSON API layer (/api/*) wrapping every response in a provenance envelope
+{commit, working_tree_dirty, generated_at, schema_version, data}.
+
+Architecture: authoritative inputs (test/runtests.jl SUITES registry via
+suites.json, chain.json stage semantics) feed a Python data layer (the
+vendored source analyzer, the static coverage scanner, git state, run and
+health managers); pages are server-rendered from the same data functions
+the APIs expose, with small vanilla-JS modules (static/) for interactivity.
+The vendored analyzer's own HTML page remains available at /source-legacy;
+the /source tab is this product's unified page.
+
+Evidence taxonomy (formal, used by API and UI): static call edge ·
+interface implementation · direct test reference · suite-wide association ·
+runtime result. Static evidence is never presented as execution.
 
 Run:  python3 tools/explorer/server.py [--port 8772]
 """
@@ -20,6 +29,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -30,9 +40,23 @@ import source_coverage  # noqa: E402
 import source_symbol_explorer as source_symbols  # noqa: E402
 
 SOURCE_SHA = "d49fff0"  # sonique research/JunaCore provenance (see README.md)
+SONIQUE_CORE = "/home/gabiel/Documents/GitHub/BP/sonique/research/JunaCore"
+SCHEMA_VERSION = 1
 NAV = [("/", "Home"), ("/tests", "Tests"), ("/map", "Map"),
        ("/chain", "Chain"), ("/source", "Source"), ("/coverage", "Coverage"),
-       ("/progress", "Progress")]
+       ("/health", "Health"), ("/progress", "Progress")]
+INTERFACE_METHODS = {"init", "modulate", "demodulate", "bitspersymbol",
+                     "signallength", "payload_rate", "refinement_objective",
+                     "frameblockcount", "framepayloadbits"}
+TAXONOMY = [("Static call edge", "the analyzer found a lexical call"),
+            ("Interface implementation",
+             "the method extends the public Modulations contract"),
+            ("Direct test reference", "a suite explicitly names the symbol"),
+            ("Suite-wide association",
+             "declared through a chain stage, not named directly"),
+            ("Runtime result",
+             "browser-recorded run outcome - separate from static evidence")]
+TAXONOMY_NOTE = "Static edges and references never imply the code executed."
 
 # ---------------------------------------------------------------- data layer
 
@@ -78,6 +102,42 @@ COVERAGE_CACHE = _Cache(lambda: source_coverage.scan(ROOT),
                          for f in sorted(os.listdir(os.path.join(ROOT, "test")))
                          if f.endswith(".jl")])
 
+_GIT_STATE = {"stamp": 0.0, "value": None}
+
+
+def git_state():
+    now = time.time()
+    if _GIT_STATE["value"] is not None and now - _GIT_STATE["stamp"] < 2.0:
+        return _GIT_STATE["value"]
+    try:
+        head = subprocess.run(["git", "log", "-1", "--format=%h\t%s"],
+                              capture_output=True, text=True, cwd=ROOT,
+                              timeout=5).stdout.strip()
+        sha, _, subject = head.partition("\t")
+        porcelain = subprocess.run(["git", "status", "--porcelain", "--", "."],
+                                   capture_output=True, text=True, cwd=ROOT,
+                                   timeout=5).stdout.splitlines()
+    except Exception:
+        sha, subject, porcelain = "", "(git unavailable)", []
+    modified = [ln[3:] for ln in porcelain if ln and not ln.startswith("??")]
+    untracked = [ln[3:] for ln in porcelain if ln.startswith("??")]
+    value = {"head": sha, "subject": subject,
+             "dirty": bool(modified or untracked),
+             "modified": modified, "untracked": untracked}
+    _GIT_STATE.update(stamp=now, value=value)
+    return value
+
+
+def envelope(data):
+    gs = git_state()
+    return json.dumps({
+        "commit": gs["head"],
+        "working_tree_dirty": gs["dirty"],
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "schema_version": SCHEMA_VERSION,
+        "data": data,
+    })
+
 
 def suites_stale():
     reg = os.path.getmtime(os.path.join(ROOT, "test", "runtests.jl"))
@@ -108,13 +168,146 @@ def last_run_by_key():
     return out
 
 
-def git_head():
+_FILE_LINES = {}
+
+
+def _file_lines(rel):
+    path = os.path.join(ROOT, "src", rel)
+    mtime = os.path.getmtime(path) if os.path.exists(path) else 0
+    cached = _FILE_LINES.get(rel)
+    if cached and cached[0] == mtime:
+        return cached[1]
     try:
-        return subprocess.run(["git", "log", "-1", "--format=%h %s"],
-                              capture_output=True, text=True, cwd=ROOT,
-                              timeout=5).stdout.strip()
-    except Exception:
-        return "(git unavailable)"
+        with open(path) as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        lines = []
+    _FILE_LINES[rel] = (mtime, lines)
+    return lines
+
+
+def _extract_doc(sym):
+    """Docstring immediately above the definition, or None. Honest: no
+    editorial prose is ever synthesized."""
+    if sym.get("doc"):
+        return sym["doc"]
+    lines = _file_lines(sym["file"])
+    j = sym["line"] - 2  # 0-based line above the definition
+    while j >= 0 and not lines[j].strip():
+        j -= 1
+    if j < 0 or not lines[j].rstrip().endswith('"""'):
+        return None
+    if lines[j].strip() != '"""' and lines[j].strip().count('"""') == 2:
+        return lines[j].strip().strip('"')
+    k = j - 1
+    while k >= 0 and '"""' not in lines[k]:
+        k -= 1
+    if k < 0:
+        return None
+    body = lines[k:j + 1]
+    body[0] = body[0].split('"""', 1)[1]
+    body[-1] = body[-1].rsplit('"""', 1)[0]
+    text = "\n".join(body).strip()
+    return text or None
+
+
+def _symbol_index():
+    data = ANALYZE_CACHE.get()
+    by_id = {s["id"]: s for s in data["symbols"]}
+    by_name = {}
+    for s in data["symbols"]:
+        by_name.setdefault(s["name"], []).append(s)
+    return data, by_id, by_name
+
+
+def _symbol_lookup(token):
+    _data, by_id, by_name = _symbol_index()
+    if token.isdigit() and int(token) in by_id:
+        return by_id[int(token)]
+    matches = by_name.get(token)
+    if not matches:
+        return None
+    for m in matches:
+        if m["kind"] in ("function", "type", "struct"):
+            return m
+    return matches[0]
+
+
+def _ref(by_id, sid):
+    s = by_id.get(sid)
+    return {"id": s["id"], "name": s["name"], "kind": s["kind"]} if s else None
+
+
+def symbol_detail(sym):
+    _data, by_id, by_name = _symbol_index()
+    chain = CHAIN_CACHE.get()
+    report = COVERAGE_CACHE.get()
+    last = last_run_by_key()
+
+    calls = [r for r in (_ref(by_id, i) for i in sym.get("calls", [])) if r]
+    callers = [r for r in (_ref(by_id, i) for i in sym.get("callers", [])) if r]
+    overloads = [{"id": s["id"], "sig": s["sig"], "file": s["file"],
+                  "line": s["line"]}
+                 for s in by_name.get(sym["name"], [])]
+    stages = [{"id": st["id"], "title": st["title"]}
+              for st in chain["stages"] if sym["name"] in st["symbols"]]
+
+    direct = []
+    for key, entry in report["suites"].items():
+        lines = entry.get("direct", {}).get(sym["name"])
+        if lines:
+            direct.append({"suite": key, "lines": lines[:12]})
+    direct_keys = {d["suite"] for d in direct}
+    suite_wide = sorted({key for st in chain["stages"]
+                         if sym["name"] in st["symbols"]
+                         for key in st["suites"]} - direct_keys)
+    involved = sorted(direct_keys | set(suite_wide))
+    runtime = [{"suite": k, "status": last[k].get("status"),
+                "ended": last[k].get("ended")}
+               for k in involved if k in last]
+
+    iface = (f"extends the public Modulations interface method "
+             f"'{sym['name']}'" if sym["name"] in INTERFACE_METHODS else False)
+
+    return {
+        "id": sym["id"], "name": sym["name"], "qual": sym.get("qual"),
+        "kind": sym["kind"], "module": sym["module"], "file": sym["file"],
+        "line": sym["line"], "sig": sym["sig"], "src": sym.get("src"),
+        "super": sym.get("super"), "recv": sym.get("recv"),
+        "doc": _extract_doc(sym),
+        "overloads": overloads, "calls": calls, "callers": callers,
+        "chain_stages": stages,
+        "evidence": {
+            "static_call_edges": {"calls": len(calls), "callers": len(callers)},
+            "interface_implementation": iface,
+            "direct_test_references": direct,
+            "suite_wide_associations": suite_wide,
+            "runtime_results": runtime,
+            "note": TAXONOMY_NOTE,
+        },
+    }
+
+
+def palette_index():
+    items = [{"label": label, "kind": "page", "href": href, "hint": "page"}
+             for href, label in NAV]
+    for s in SUITES_CACHE.get():
+        items.append({"label": s["key"], "kind": "suite",
+                      "href": f"/tests#{s['key']}", "hint": s["title"]})
+    for st in CHAIN_CACHE.get()["stages"]:
+        items.append({"label": st["title"], "kind": "stage",
+                      "href": f"/chain#{st['id']}", "hint": st["kind"]})
+    data = ANALYZE_CACHE.get()
+    for m in data["modules"]:
+        items.append({"label": m["name"], "kind": "module", "href": "/source",
+                      "hint": f"{m['count']} symbols"})
+    for s in data["symbols"]:
+        if s["kind"] == "module":
+            continue
+        items.append({"label": s["name"], "kind": "symbol",
+                      "href": f"/source#sym={urllib.parse.quote(s['name'])}",
+                      "hint": f"{s['kind']} · {s['module']} · {s['file']}"})
+    return items
 
 # ---------------------------------------------------------------- run manager
 
@@ -142,7 +335,9 @@ class Run:
         record = {"key": self.key, "file": self.file,
                   "started": round(self.started, 2),
                   "ended": round(time.time(), 2),
-                  "returncode": self.returncode, "status": self.status}
+                  "returncode": self.returncode, "status": self.status,
+                  "commit": git_state()["head"],
+                  "dirty": git_state()["dirty"]}
         os.makedirs(os.path.join(ROOT, "bench"), exist_ok=True)
         with open(os.path.join(ROOT, "bench", "test_runs.jsonl"), "a") as fh:
             fh.write(json.dumps(record) + "\n")
@@ -157,6 +352,129 @@ class Run:
 
 RUNS = {}
 RUNS_LOCK = threading.Lock()
+
+# --------------------------------------------------------------- health layer
+
+HEALTH_CHECKS = [
+    ("provenance-pins", "Provenance pins",
+     ["julia", "--project=.", "test/provenance_contract.jl"]),
+    ("explorer-data", "Explorer data C1-C7",
+     ["python3", "tools/explorer/explorer_contract.py"]),
+    ("server-behavior", "Explorer server S1-S13",
+     ["python3", "tools/explorer/server_contract.py"]),
+    ("package-load", "Package load",
+     ["julia", "--project=.", "-e", 'using JunaCore; println("load OK")']),
+    ("pkg-test", "Full Pkg.test",
+     ["julia", "--project=.", "-e", "using Pkg; Pkg.test()"]),
+    ("parity-migrated", "Parity digest (this repo)",
+     ["julia", "--project=.", "tools/parity_check.jl"]),
+    ("parity-source", "Parity digest (source repo)",
+     ["julia", "--project=" + SONIQUE_CORE, "tools/parity_check.jl"]),
+]
+HEALTH_BATTERY = ["provenance-pins", "explorer-data", "server-behavior",
+                  "package-load"]
+HEALTH_TIMEOUT_S = 1800
+HEALTH = {"run": None}
+HEALTH_LOCK = threading.Lock()
+
+
+class HealthRun:
+    """Runs an allowlisted subset of HEALTH_CHECKS sequentially, streaming
+    output and appending one record per check to bench/health_runs.jsonl."""
+
+    def __init__(self, names):
+        self.names = names
+        self.lines = []
+        self.status = "running"
+        self.current = None
+        threading.Thread(target=self._work, daemon=True).start()
+
+    def _work(self):
+        by_name = {n: (label, argv) for n, label, argv in HEALTH_CHECKS}
+        ok = True
+        for name in self.names:
+            label, argv = by_name[name]
+            self.current = name
+            self.lines.append(f"==> {name}: {' '.join(argv)}\n")
+            started = time.time()
+            digest = None
+            try:
+                proc = subprocess.Popen(argv, cwd=ROOT,
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.STDOUT, text=True)
+                timer = threading.Timer(HEALTH_TIMEOUT_S, proc.terminate)
+                timer.start()
+                for line in proc.stdout:
+                    self.lines.append(line)
+                    m = re.search(r"parity digest: ([0-9a-f]{64})", line)
+                    if m:
+                        digest = m.group(1)
+                proc.wait()
+                timer.cancel()
+                rc = proc.returncode
+            except Exception as exc:
+                self.lines.append(f"launcher error: {exc}\n")
+                rc = -1
+            record = {"check": name, "status": "passed" if rc == 0 else "failed",
+                      "returncode": rc,
+                      "seconds": round(time.time() - started, 1),
+                      "started": round(started, 2),
+                      "ended": round(time.time(), 2),
+                      "commit": git_state()["head"],
+                      "dirty": git_state()["dirty"]}
+            if digest:
+                record["digest"] = digest
+            os.makedirs(os.path.join(ROOT, "bench"), exist_ok=True)
+            with open(os.path.join(ROOT, "bench", "health_runs.jsonl"),
+                      "a") as fh:
+                fh.write(json.dumps(record) + "\n")
+            ok = ok and rc == 0
+            self.lines.append(f"<== {name}: "
+                              f"{'PASS' if rc == 0 else 'FAIL'}\n\n")
+        self.status = "passed" if ok else "failed"
+        self.current = None
+
+
+def health_records():
+    path = os.path.join(ROOT, "bench", "health_runs.jsonl")
+    out = {}
+    if os.path.exists(path):
+        with open(path) as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    try:
+                        rec = json.loads(line)
+                        out[rec.get("check")] = rec
+                    except json.JSONDecodeError:
+                        pass
+    return out
+
+
+def health_data():
+    recs = health_records()
+    head = git_state()["head"]
+    run = HEALTH["run"]
+    checks = []
+    for name, label, _argv in HEALTH_CHECKS:
+        last = recs.get(name)
+        stale = bool(last) and (last.get("commit") != head or
+                                last.get("dirty"))
+        checks.append({"name": name, "label": label, "last": last,
+                       "stale": stale,
+                       "running": bool(run and run.status == "running" and
+                                       run.current == name)})
+    pm, ps = recs.get("parity-migrated"), recs.get("parity-source")
+    if pm and ps and pm.get("digest") and ps.get("digest"):
+        parity = {"migrated": pm["digest"], "source": ps["digest"],
+                  "match": pm["digest"] == ps["digest"]}
+    else:
+        parity = {"migrated": pm.get("digest") if pm else None,
+                  "source": ps.get("digest") if ps else None,
+                  "match": None}
+    return {"checks": checks,
+            "running": run.current if run and run.status == "running" else None,
+            "parity": parity}
 
 # ---------------------------------------------------------------- rendering
 
@@ -173,18 +491,19 @@ body { margin:0; font:15px/1.55 system-ui, sans-serif; background:var(--bg);
        color:var(--fg); }
 nav { display:flex; flex-wrap:wrap; gap:.25rem; padding:.6rem 1rem;
       border-bottom:1px solid var(--line); position:sticky; top:0;
-      background:var(--bg); }
+      background:var(--bg); z-index:5; }
 nav a { text-decoration:none; color:var(--muted); padding:.25rem .7rem;
         border-radius:6px; }
 nav a.active, nav a:hover { color:var(--fg); background:var(--card); }
-main { max-width:72rem; margin:0 auto; padding:1.2rem 1rem 3rem; }
+nav .spacer { flex:1; }
+main { max-width:76rem; margin:0 auto; padding:1.2rem 1rem 3rem; }
 h1 { font-size:1.35rem; } h2 { font-size:1.1rem; margin-top:1.6rem; }
 .card { background:var(--card); border:1px solid var(--line);
-        border-radius:8px; padding: .9rem 1rem; margin:.7rem 0; }
+        border-radius:8px; padding:.9rem 1rem; margin:.7rem 0; }
 table { border-collapse:collapse; width:100%; }
 .wrap { overflow-x:auto; }
-th, td { text-align:left; padding:.4rem .6rem; border-bottom:1px solid var(--line);
-         vertical-align:top; }
+th, td { text-align:left; padding:.4rem .6rem;
+         border-bottom:1px solid var(--line); vertical-align:top; }
 th { color:var(--muted); font-weight:600; }
 code, pre { font:13px/1.5 ui-monospace, monospace; }
 pre { background:var(--card); border:1px solid var(--line); border-radius:8px;
@@ -195,6 +514,10 @@ a { color:var(--accent); }
 .badge.ok { color:var(--ok); border-color:var(--ok); }
 .badge.bad { color:var(--bad); border-color:var(--bad); }
 .badge.warn { color:var(--warn); border-color:var(--warn); }
+.chip { display:inline-block; margin:.1rem .15rem 0 0; padding:.02rem .45rem;
+        border:1px solid var(--line); border-radius:99px; font-size:.75rem;
+        text-decoration:none; color:var(--muted); }
+.chip:hover { border-color:var(--accent); color:var(--accent); }
 .stage { border:1px solid var(--line); border-left:4px solid var(--accent);
          border-radius:8px; padding:.6rem .9rem; margin:.45rem 0;
          cursor:pointer; background:var(--card); }
@@ -202,16 +525,34 @@ a { color:var(--accent); }
 .stage .kind { float:right; }
 .arrow { text-align:center; color:var(--muted); margin:-.1rem 0; }
 #detail { position:sticky; top:3.2rem; }
-.grid2 { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+.grid2 { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
          gap:1rem; }
-@media (max-width: 60rem) { .grid2 { grid-template-columns: 1fr; } }
+@media (max-width:60rem) { .grid2 { grid-template-columns:1fr; } }
 .note { border-left:4px solid var(--warn); padding:.5rem .8rem;
         background:var(--card); border-radius:0 8px 8px 0; margin:.7rem 0; }
+.banner-dirty { border-left:4px solid var(--bad); background:var(--card);
+                padding:.5rem 1rem; margin:0; font-size:.9rem; }
 button { font:inherit; padding:.3rem .8rem; border-radius:6px;
          border:1px solid var(--line); background:var(--card);
          color:var(--fg); cursor:pointer; }
 button:hover { border-color:var(--accent); }
 .dot { font-size:1rem; }
+.grid-source { display:grid;
+               grid-template-columns:17rem minmax(0,1fr) 24rem; gap:1rem; }
+@media (max-width:75rem) { .grid-source { grid-template-columns:1fr; } }
+#symlist { max-height:75vh; overflow-y:auto; font-size:.86rem; }
+#symlist details { margin:.2rem 0; }
+#symlist summary { color:var(--muted); cursor:pointer; }
+.symlink { display:block; padding:.06rem .3rem; text-decoration:none;
+           font-family:ui-monospace, monospace; font-size:.8rem;
+           color:var(--fg); border-radius:4px; }
+.symlink:hover { background:var(--card); color:var(--accent); }
+#egograph { min-height:26rem; border:1px solid var(--line);
+            border-radius:8px; background:var(--card); }
+#inspector { position:sticky; top:3.2rem; max-height:85vh; overflow-y:auto; }
+#symsearch { width:100%; padding:.35rem .6rem; margin-bottom:.4rem;
+             border:1px solid var(--line); border-radius:6px;
+             background:var(--bg); color:var(--fg); font:inherit; }
 """
 
 
@@ -220,12 +561,24 @@ def shell(title, active, body):
     for href, label in NAV:
         cls = ' class="active"' if href == active else ""
         parts.append(f'<a href="{href}"{cls}>{label}</a>')
+    parts.append('<span class="spacer"></span>')
+    parts.append('<a href="#" id="palette-open" title="Ctrl-K">⌘K</a>')
     nav = "".join(parts)
+    gs = git_state()
+    banner = ""
+    if gs["dirty"]:
+        banner = (f'<div class="banner-dirty"><b>UNCOMMITTED PACKAGE STATE'
+                  f"</b> — Results describe working-tree code, not commit "
+                  f"<code>{esc(gs['head'])}</code>. "
+                  f"{len(gs['modified'])} tracked files modified · "
+                  f"{len(gs['untracked'])} untracked package files</div>")
     return (f"<!DOCTYPE html><html><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · JUNA-Lite explorer</title>"
             f"<style>{CSS}</style></head><body>"
-            f"<nav>{nav}</nav><main>{body}</main></body></html>")
+            f"<nav>{nav}</nav>{banner}<main>{body}</main>"
+            f'<script type="module" src="/static/palette.js"></script>'
+            f"</body></html>")
 
 
 def esc(s):
@@ -248,11 +601,19 @@ def stale_banner():
     return ""
 
 
+def suite_stage_chips(key):
+    chain = CHAIN_CACHE.get()
+    chips = "".join(
+        f'<a class="chip" data-stage="{esc(st["id"])}" '
+        f'href="/chain#{esc(st["id"])}">{esc(st["title"])}</a>'
+        for st in chain["stages"] if key in st["suites"])
+    return chips
+
+
 def page_home():
     suites = SUITES_CACHE.get()
     chain = CHAIN_CACHE.get()
     last = last_run_by_key()
-    ran = [k for k in last]
     strip = " → ".join(
         f'<a href="/chain#{esc(st["id"])}">{esc(st["title"])}</a>'
         for st in chain["stages"])
@@ -261,18 +622,25 @@ def page_home():
         f"<td>{status_badge(r)}</td>"
         f"<td>{time.strftime('%H:%M:%S', time.localtime(r['ended']))}</td></tr>"
         for r in run_history()[-5:][::-1])
+    hd = health_data()
+    hbad = [c["name"] for c in hd["checks"]
+            if c["last"] and c["last"].get("status") == "failed"]
+    hsum = (f'<span class="badge bad">{len(hbad)} failing</span>' if hbad else
+            '<span class="badge ok">no recorded failures</span>')
     body = f"""
 <h1>JUNA-Lite explorer</h1>
 <div class="card">Standalone home of the JUNA-Lite receiver, migrated from
 sonique <code>research/JunaCore @ {SOURCE_SHA}</code>. Three public facades:
-Standard OFDM, Partial-FFT, JUNA-Lite. HEAD: <code>{esc(git_head())}</code></div>
+Standard OFDM, Partial-FFT, JUNA-Lite. HEAD:
+<code>{esc(git_state()['head'])} {esc(git_state()['subject'])}</code></div>
 {stale_banner()}
 <h2>Receiver chain</h2>
 <div class="card">{strip}</div>
 <div class="grid2">
 <div><h2>Test surface</h2><div class="card">{len(suites)} suites in the
-<a href="/tests">registry</a> · {len(ran)} with recorded runs ·
-static <a href="/coverage">reference coverage</a></div></div>
+<a href="/tests">registry</a> · {len(last)} with recorded runs ·
+static <a href="/coverage">reference coverage</a> ·
+<a href="/health">health</a> {hsum}</div></div>
 <div><h2>Recent runs</h2><div class="wrap"><table>
 <tr><th>suite</th><th>status</th><th>ended</th></tr>{rows or
 '<tr><td colspan="3">none recorded yet</td></tr>'}</table></div></div>
@@ -280,7 +648,7 @@ static <a href="/coverage">reference coverage</a></div></div>
 <h2>Verification</h2>
 <div class="card"><code>julia --project=. -e 'using Pkg; Pkg.test()'</code>
  · parity vs source repo: <code>julia --project=. tools/parity_check.jl</code>
- · data contracts: <code>python3 tools/explorer/explorer_contract.py</code></div>"""
+ · contracts: <a href="/health">run from the Health page</a></div>"""
     return shell("Home", "/", body)
 
 
@@ -290,22 +658,28 @@ def page_tests():
     rows = ""
     for s in suites:
         rec = last.get(s["key"])
-        rows += (f'<tr id="{esc(s["key"])}"><td><code>{esc(s["key"])}</code></td>'
-                 f'<td><b>{esc(s["title"])}</b><br><span style="color:var(--muted)">'
-                 f'{esc(s["claim"])}</span><br>'
-                 f'<span class="badge">{esc(s["provenance"])}</span></td>'
+        chips = suite_stage_chips(s["key"])
+        chips_html = (f"<br>{chips}" if chips else "")
+        rows += (f'<tr id="{esc(s["key"])}"><td><code>{esc(s["key"])}</code>'
+                 f'</td>'
+                 f'<td><b>{esc(s["title"])}</b><br>'
+                 f'<span style="color:var(--muted)">{esc(s["claim"])}</span>'
+                 f'<br><span class="badge">{esc(s["provenance"])}</span>'
+                 f'{chips_html}</td>'
                  f'<td><code>{esc(s["file"])}</code></td>'
                  f'<td>{status_badge(rec)}</td>'
-                 f'<td><a href="/run/{esc(s["key"])}"><button>run</button></a>'
-                 f'</td></tr>')
+                 f'<td><a href="/run/{esc(s["key"])}"><button>run</button>'
+                 f'</a></td></tr>')
     body = f"""
 <h1>Test suites</h1>
 <div class="card">Generated from the authoritative registry in
-<code>test/runtests.jl</code> via <code>suites.json</code>; a suite absent
-here cannot run in Pkg.test either (contract C3).</div>
+<code>test/runtests.jl</code> via <code>suites.json</code>. Stage chips are
+the reverse traversal of <code>chain.json</code>: they mark which receiver
+stages each suite protects.</div>
 {stale_banner()}
 <div class="wrap"><table>
-<tr><th>key</th><th>title / claim</th><th>file</th><th>last run</th><th></th></tr>
+<tr><th>key</th><th>title / claim / protected stages</th><th>file</th>
+<th>last run</th><th></th></tr>
 {rows}</table></div>"""
     return shell("Tests", "/tests", body)
 
@@ -335,8 +709,9 @@ requirement of LDPC.jl - see THIRD_PARTY_NOTICES.md) ·
 <code>tools/explorer</code>: this server, analyzer, coverage scanner,
 contracts · <code>tools/parity_check.jl</code>: cross-repo parity gate.</div>
 <h2>bench/ <span class="badge">run history</span></h2>
-<div class="card"><code>bench/test_runs.jsonl</code>: appended by browser-
-triggered runs (gitignored).</div>"""
+<div class="card"><code>bench/test_runs.jsonl</code> and
+<code>bench/health_runs.jsonl</code>: appended by browser-triggered runs
+(gitignored).</div>"""
     return shell("Map", "/map", body)
 
 
@@ -394,6 +769,48 @@ if (location.hash) show(location.hash.slice(1));
 
 
 def page_source():
+    data = ANALYZE_CACHE.get()
+    per_file = {}
+    for s in data["symbols"]:
+        if s["kind"] == "module":
+            continue
+        per_file.setdefault(s["file"], []).append(s)
+    groups = ""
+    for f in sorted(per_file):
+        entries = "".join(
+            f'<a class="symlink" data-id="{s["id"]}" '
+            f'data-name="{esc(s["name"])}" '
+            f'href="#sym={urllib.parse.quote(s["name"])}">{esc(s["name"])}'
+            f"</a>"
+            for s in sorted(per_file[f], key=lambda s: (s["name"], s["line"])))
+        groups += (f'<details class="symgroup" open><summary>{esc(f)} '
+                   f"({len(per_file[f])})</summary>{entries}</details>")
+    legend = "".join(
+        f"<li><b>{esc(term)}</b>: {esc(meaning)}</li>"
+        for term, meaning in TAXONOMY)
+    body = f"""
+<h1>Source</h1>
+<div class="card">Unified source view over the vendored analyzer's data
+(<code>/api/symbols</code>, <code>/api/symbol/&lt;name&gt;</code>). Click a
+symbol for the persistent inspector; the graph shows the selection's direct
+static call neighborhood. The vendored analyzer's own full page remains at
+<a href="/source-legacy">/source-legacy</a>.</div>
+<div class="grid-source">
+<div><input id="symsearch" placeholder="filter symbols…" autocomplete="off">
+<div id="symlist">{groups}</div></div>
+<div id="egograph"></div>
+<div id="inspector"><div class="card">
+<p>Select a symbol to inspect it. Evidence taxonomy used here:</p>
+<ul>{legend}</ul>
+<p class="note">{esc(TAXONOMY_NOTE)}</p>
+</div></div>
+</div>
+<script src="/static/vendor/vis-network.min.js"></script>
+<script type="module" src="/static/source.js"></script>"""
+    return shell("Source", "/source", body)
+
+
+def page_source_legacy():
     analyzed = ANALYZE_CACHE.get()
     return source_symbols.render_html(False, analyzed,
                                       os.path.join(ROOT, "src"), locked=True)
@@ -406,8 +823,8 @@ def page_coverage():
     last = last_run_by_key()
     keys = [s["key"] for s in suites]
     head = "".join(
-        f"<th><a href='/tests#{esc(k)}'>{esc(k)}</a><br>{status_badge(last.get(k))}</th>"
-        for k in keys)
+        f"<th><a href='/tests#{esc(k)}'>{esc(k)}</a><br>"
+        f"{status_badge(last.get(k))}</th>" for k in keys)
     rows = ""
     for st in chain["stages"]:
         cells = ""
@@ -465,6 +882,39 @@ which is not recorded here).</div>
 '<tr><td colspan="4">none - every qualified reference resolves</td></tr>'}
 </table></div>"""
     return shell("Coverage", "/coverage", body)
+
+
+def page_health():
+    rows = ""
+    for name, label, argv in HEALTH_CHECKS:
+        rows += (f'<tr data-check="{esc(name)}"><td><b>{esc(label)}</b><br>'
+                 f'<code style="font-size:.75rem">{esc(" ".join(argv))}'
+                 f"</code></td>"
+                 f'<td class="h-status"><span class="badge">—</span></td>'
+                 f'<td class="h-commit">—</td>'
+                 f'<td class="h-seconds">—</td>'
+                 f'<td class="h-ended">—</td>'
+                 f'<td><button class="h-run" data-check="{esc(name)}">run'
+                 f"</button></td></tr>")
+    body = f"""
+<h1>Health</h1>
+<div class="card">Fixed command allowlist - nothing here executes arbitrary
+input. One run at a time; each check appends a record (with commit and
+dirty-state) to <code>bench/health_runs.jsonl</code>, kept separate from
+browser test runs. STALE means the last result predates the current commit
+or was recorded on a dirty tree.
+<button id="health-run-all">run health battery</button>
+<span style="color:var(--muted)">(battery = provenance-pins, explorer-data,
+server-behavior, package-load; the long checks run individually)</span></div>
+<div class="wrap"><table>
+<tr><th>check</th><th>status</th><th>commit</th><th>run time</th>
+<th>ended</th><th></th></tr>
+{rows}</table></div>
+<div id="health-parity" class="card">Cross-repository parity: run both
+parity checks to compare digests.</div>
+<pre id="health-log">(no health run this session)</pre>
+<script type="module" src="/static/health.js"></script>"""
+    return shell("Health", "/health", body)
 
 
 def page_progress():
@@ -527,10 +977,12 @@ poll();
 
 # ---------------------------------------------------------------- handler
 
+STATIC_FILES = {"palette.js", "source.js", "health.js"}
+
 
 class Handler(BaseHTTPRequestHandler):
     def _send(self, text, code=200, ctype="text/html; charset=utf-8"):
-        data = text.encode()
+        data = text.encode() if isinstance(text, str) else text
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
@@ -540,9 +992,80 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    def _api(self, path, query):
+        if path == "/api/repository":
+            gs = git_state()
+            return envelope({"root": ROOT, "package": "JunaCore",
+                             "head": gs["head"], "subject": gs["subject"],
+                             "dirty": gs["dirty"],
+                             "modified": gs["modified"],
+                             "untracked": gs["untracked"],
+                             "suites_json_stale": suites_stale()})
+        if path == "/api/suites":
+            last = last_run_by_key()
+            return envelope([dict(s, last_run=last.get(s["key"]))
+                             for s in SUITES_CACHE.get()])
+        if path == "/api/chain":
+            return envelope(CHAIN_CACHE.get())
+        if path == "/api/symbols":
+            return envelope([{k: s[k] for k in
+                              ("id", "name", "kind", "module", "file", "line")}
+                             for s in ANALYZE_CACHE.get()["symbols"]])
+        if path == "/api/coverage":
+            return envelope(COVERAGE_CACHE.get())
+        if path == "/api/runs":
+            return envelope(run_history())
+        if path == "/api/health":
+            return envelope(health_data())
+        if path == "/api/palette":
+            return envelope(palette_index())
+        if path == "/api/health/output":
+            frm = 0
+            qm = re.search(r"from=(\d+)", query or "")
+            if qm:
+                frm = int(qm.group(1))
+            run = HEALTH["run"]
+            if run is None:
+                return json.dumps({"text": "", "seen": 0, "status": "idle"})
+            lines = run.lines[frm:]
+            return json.dumps({"text": "".join(lines),
+                               "seen": frm + len(lines),
+                               "status": run.status,
+                               "check": run.current})
+        m = re.fullmatch(r"/api/symbol/(.+)", path)
+        if m:
+            token = urllib.parse.unquote(m.group(1))
+            sym = _symbol_lookup(token)
+            if sym is None:
+                return None
+            return envelope(symbol_detail(sym))
+        return None
+
     def do_GET(self):
         path, _, query = self.path.partition("?")
         try:
+            if path.startswith("/static/vendor/"):
+                name = os.path.basename(path)
+                full = os.path.join(HERE, "vendor", name)
+                if name == "vis-network.min.js" and os.path.isfile(full):
+                    with open(full, "rb") as fh:
+                        return self._send(fh.read(),
+                                          ctype="application/javascript")
+                return self._send("not found", 404, "text/plain")
+            if path.startswith("/static/"):
+                name = os.path.basename(path)
+                full = os.path.join(HERE, "static", name)
+                if name in STATIC_FILES and os.path.isfile(full):
+                    with open(full, "rb") as fh:
+                        return self._send(fh.read(),
+                                          ctype="application/javascript")
+                return self._send("not found", 404, "text/plain")
+            if path.startswith("/api/"):
+                out = self._api(path, query)
+                if out is None:
+                    return self._send('{"error": "not found"}', 404,
+                                      "application/json")
+                return self._send(out, ctype="application/json")
             if path == "/":
                 return self._send(page_home())
             if path == "/tests":
@@ -553,8 +1076,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(page_chain())
             if path == "/source":
                 return self._send(page_source())
+            if path == "/source-legacy":
+                return self._send(page_source_legacy())
             if path == "/coverage":
                 return self._send(page_coverage())
+            if path == "/health":
+                return self._send(page_health())
             if path == "/progress":
                 return self._send(page_progress())
             if path == "/favicon.ico":
@@ -565,8 +1092,8 @@ class Handler(BaseHTTPRequestHandler):
             if m:
                 page = page_run(m.group(1))
                 if page is None:
-                    return self._send(shell("404", "", "<h1>unknown suite</h1>"),
-                                      404)
+                    return self._send(shell("404", "",
+                                            "<h1>unknown suite</h1>"), 404)
                 return self._send(page)
             m = re.fullmatch(r"/run/([a-z0-9-]+)/output", path)
             if m:
@@ -595,6 +1122,29 @@ class Handler(BaseHTTPRequestHandler):
                                     f"</pre>"), 500)
 
     def do_POST(self):
+        if self.path == "/api/health/run":
+            length = int(self.headers.get("Content-Length") or 0)
+            body = self.rfile.read(length).decode() if length else "{}"
+            try:
+                req = json.loads(body or "{}")
+            except json.JSONDecodeError:
+                return self._send('{"error": "bad json"}', 400,
+                                  "application/json")
+            known = {n for n, _l, _a in HEALTH_CHECKS}
+            if "check" in req:
+                if req["check"] not in known:
+                    return self._send('{"error": "unknown check"}', 400,
+                                      "application/json")
+                names = [req["check"]]
+            else:
+                names = HEALTH_BATTERY
+            with HEALTH_LOCK:
+                run = HEALTH["run"]
+                if run is not None and run.status == "running":
+                    return self._send('{"error": "a check is running"}', 409,
+                                      "application/json")
+                HEALTH["run"] = HealthRun(names)
+            return self._send('{"started": true}', 200, "application/json")
         m = re.fullmatch(r"/run/([a-z0-9-]+)/(start|cancel)", self.path)
         if not m:
             return self._send("{}", 404, "application/json")

@@ -97,7 +97,7 @@ julia --project=. -e 'using JunaCore'            # load gate: pruned closure com
 julia --project=. -e 'using Pkg; Pkg.test()'     # full suite registry
 julia --project=. tools/parity_check.jl          # digest must match source repo
 python3 tools/explorer/explorer_contract.py      # data contracts C1-C7
-python3 tools/explorer/server_contract.py        # explorer behavior S1-S7
+python3 tools/explorer/server_contract.py        # explorer behavior S1-S13
 ```
 
 For changes touching encode/decode behavior, LDPC integration,
