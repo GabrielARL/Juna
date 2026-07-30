@@ -4,10 +4,13 @@ Standalone home of the **JUNA-Lite** underwater-acoustic OFDM/LDPC receiver and
 the two paper baselines it is measured against.
 
 Migrated from `sonique/research/JunaCore` @ `d49fff0127732af4fad3862628fd93a96e2e75e9`
-(branch `juna-dev`). The algorithm files `src/juna/common.jl` and
-`src/juna/lite.jl`, the modem interface, the LDPC wrapper, and the `tools/ldpc`
-helper binaries are byte-identical to that commit; only the wrappers
-(`src/JunaCore.jl`, `src/Juna.jl`) and `Project.toml` are pruned.
+(branch `juna-dev`). The algorithm files `src/juna/common.jl`,
+`src/juna/frame_wide_ldpc.jl` (frame-stateful Lite deployment), and
+`src/juna/lite.jl`, the modem interface, the LDPC wrapper, and the
+`tools/ldpc` helper binaries are byte-identical to that commit; only the
+wrappers (`src/JunaCore.jl`, `src/Juna.jl`) and `Project.toml` are pruned.
+Cross-repo parity: `julia --project=. tools/parity_check.jl` prints a digest
+that must match when run under both repositories.
 
 ## Public facades
 
@@ -40,9 +43,29 @@ decoded = metrics .> 0
 ## Tests
 
 ```bash
-julia --project=. test/phase1_smoke.jl   # clean-channel roundtrip, all facades
+julia --project=. -e 'using Pkg; Pkg.test()'   # all suites
+julia --project=. test/runtests.jl list        # print the suite map
+julia --project=. test/runtests.jl lite        # selector-matched suites
+julia --project=. test/phase1_smoke.jl         # any file runs standalone
 ```
 
-The behavioral suites (Lite refinement, feedback-mode arms, partial-FFT seed,
-iteration sweeps) migrate in phase 2 and will be wired into `Pkg.test()` with a
-keyed suite registry. Phase 3 adds the chain-centric explorer on port 8772.
+The keyed `SUITES` registry in `test/runtests.jl` is the authoritative
+catalog; the explorer consumes it via `tools/explorer/suites.json`
+(regenerate with `julia tools/explorer/export_suites.jl`). The replay-
+campaign sweeps (Red/Yellow iteration evidence) deliberately stay in the
+source repository — they depend on its benchmark harness and Zenodo
+captures.
+
+## Explorer
+
+```bash
+python3 tools/explorer/server.py   # http://127.0.0.1:8772/
+```
+
+Chain-centric workbench: Home | Tests | Map | Chain | Source | Coverage |
+Progress. The Chain tab renders the declared stage map
+(`tools/explorer/chain.json`); Coverage shows static source-to-test
+references (never presented as runtime coverage) plus last recorded runs.
+Data contracts: `python3 tools/explorer/explorer_contract.py` (C1–C7) and
+`python3 tools/explorer/server_contract.py` (S1–S7). The source repository's
+explorer remains the home of the full nine-receiver family on port 8771.

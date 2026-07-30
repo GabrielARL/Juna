@@ -55,8 +55,14 @@ and ask whether the change should also land in sonique before proceeding. If
 paper claims and this code disagree, never silently reconcile either side —
 ask which is authoritative.
 
-A chain-reference gate (the Lite receiver-chain document served by the
-phase-3 explorer on port 8772) will be added when that explorer lands.
+## Chain-Reference Gate
+
+Before implementing any source change, read the declared receiver chain at
+`http://127.0.0.1:8772/chain` (data: `tools/explorer/chain.json`) and ask
+the user whether the change alters a documented stage. Any change to a
+stage's symbols must update `chain.json` in the same change —
+`tools/explorer/explorer_contract.py` fails on renamed or missing symbols,
+stale `suites.json`, unregistered suites, and overstated evidence.
 
 ## Verification Gate
 
@@ -64,12 +70,19 @@ Default checks for this Julia package:
 
 ```bash
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
-julia --project=. -e 'using JunaCore'          # load gate: pruned closure complete
-julia --project=. test/phase1_smoke.jl         # clean-channel roundtrip, all facades
+julia --project=. -e 'using JunaCore'            # load gate: pruned closure complete
+julia --project=. -e 'using Pkg; Pkg.test()'     # full suite registry
+julia --project=. tools/parity_check.jl          # digest must match source repo
+python3 tools/explorer/explorer_contract.py      # data contracts C1-C7
+python3 tools/explorer/server_contract.py        # explorer behavior S1-S7
 ```
 
-Once the phase-2 suites land, `julia --project=. -e 'using Pkg; Pkg.test()'`
-becomes the broadest regression check.
+For changes touching encode/decode behavior, LDPC integration,
+synchronization, or receiver logic, also run:
+
+```bash
+julia --project=. test/runtests.jl roundtrip
+```
 
 ## Done Means
 

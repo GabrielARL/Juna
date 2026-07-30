@@ -1,0 +1,149 @@
+{
+  "note": [
+    "Declared JUNA-Lite receiver chain: stage -> implementing symbols -> protecting suites.",
+    "A static call graph cannot recover these conceptual stages, so this file is the",
+    "authoritative mapping. tools/explorer/explorer_contract.py verifies every symbol",
+    "against the analyzer's symbol table and every suite key against suites.json",
+    "(exported from test/runtests.jl), so a renamed function or a dropped suite fails",
+    "loudly instead of leaving the chain page stale.",
+    "kind: shared = infrastructure both baselines also use; seed = runs once to produce",
+    "the starting candidate; iterative = inside the Lite refinement loop;",
+    "deployment = frame-stateful wrapping of the per-block receiver.",
+    "evidence: direct = at least one declared suite textually names a stage symbol",
+    "(contract-enforced against the coverage scan); behavioral = the declared suites",
+    "exercise the stage through the public API without naming internals - rendered",
+    "as declared-only on the coverage page, never as a direct reference."
+  ],
+  "stages": [
+    {
+      "id": "acquisition",
+      "title": "Acquisition and block setup",
+      "detail": "Synchronization (LFM or rpchan preamble), guard handling, and partial-FFT branch spectra yparts.",
+      "symbols": [
+        "_rpchan_preamble",
+        "_rpchan_acquire",
+        "_branch_observations"
+      ],
+      "suites": [
+        "layout",
+        "interface",
+        "contract"
+      ],
+      "kind": "shared",
+      "evidence": "direct"
+    },
+    {
+      "id": "seed",
+      "title": "Partial-FFT seed candidate",
+      "detail": "Pilot-trained per-band combining (with the standard one-tap branch as fallback comparator) equalizes and BP-decodes the initial candidate. Lite starts where Partial-FFT+FEC ends; a valid seed returns immediately.",
+      "symbols": [
+        "_seed_candidate",
+        "_front_end_seed_candidate",
+        "_select_front_end_seed",
+        "_demodulate_block_partial",
+        "_standard_candidate"
+      ],
+      "suites": [
+        "pfft",
+        "adaptive-lite",
+        "smoke"
+      ],
+      "kind": "seed",
+      "evidence": "behavioral"
+    },
+    {
+      "id": "posterior",
+      "title": "Posterior interpretation",
+      "detail": "BP posterior log-metrics become symbol decisions and per-tone confidences.",
+      "symbols": [
+        "_posterior_symbols",
+        "_posterior_confidence"
+      ],
+      "suites": [
+        "lite",
+        "feedback-modes"
+      ],
+      "kind": "iterative",
+      "evidence": "direct"
+    },
+    {
+      "id": "anchors",
+      "title": "Feedback anchor selection",
+      "detail": "Pilots always anchor; confident data decisions join up to the anchor cap. The :frozen/:genie/:graded arms swap decision anchors for nothing or for (corrupted) truth without changing the code path.",
+      "symbols": [
+        "_juna_anchor_targets",
+        "_genie_block",
+        "corrupt_feedback_symbols"
+      ],
+      "suites": [
+        "lite",
+        "feedback-modes"
+      ],
+      "kind": "iterative",
+      "evidence": "direct"
+    },
+    {
+      "id": "refit",
+      "title": "Confidence-weighted combiner refit",
+      "detail": "Weighted ridge refit of the partial-FFT combiner W toward the anchors. Lite refits W only; the physical response C is never formed.",
+      "symbols": [
+        "_equalize_from_targets"
+      ],
+      "suites": [
+        "lite",
+        "smoke"
+      ],
+      "kind": "iterative",
+      "evidence": "behavioral"
+    },
+    {
+      "id": "redecode",
+      "title": "Re-equalize and re-decode",
+      "detail": "The refit combiner re-equalizes the branch spectra and BP re-decodes into a fresh candidate; payload extraction credits correct bits.",
+      "symbols": [
+        "_candidate_from_equalized",
+        "_payload_from_metrics"
+      ],
+      "suites": [
+        "lite",
+        "sizing"
+      ],
+      "kind": "iterative",
+      "evidence": "direct"
+    },
+    {
+      "id": "keep-best",
+      "title": "Candidate selection and stopping",
+      "detail": "Keep the best candidate by validity then syndrome; stop on success, non-improvement, or the iteration limit.",
+      "symbols": [
+        "_juna_better",
+        "_juna_step",
+        "_juna_lite_candidate",
+        "_juna_lite"
+      ],
+      "suites": [
+        "lite",
+        "smoke",
+        "contract"
+      ],
+      "kind": "iterative",
+      "evidence": "direct"
+    },
+    {
+      "id": "frame",
+      "title": "Frame-stateful deployment",
+      "detail": "The per-block Lite receiver deployed across a frame-wide LDPC graph (frame_receiver = :lite / :stateful_lite), as the mechanism suites exercise it.",
+      "symbols": [
+        "FrameWideLDPCModulation",
+        "_modulate_frame_wide_ldpc",
+        "_demodulate_frame_wide_ldpc"
+      ],
+      "suites": [
+        "feedback-modes",
+        "adaptive-lite"
+      ],
+      "kind": "deployment",
+      "evidence": "direct"
+    }
+  ]
+}

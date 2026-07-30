@@ -1,2 +1,4 @@
 .migration_progress.log
 bench/
+__pycache__/
+*.pyc
