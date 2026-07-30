@@ -2,7 +2,7 @@
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "ab68789ae68bf7e6a8e115e0b6fbd7b28535f482"
+project_hash = "44be61b5fe0563b5fd018e4e21d7f8c0195c473a"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "0a81a018463de6c3f4f2c9360121c562e5add9e4"
@@ -446,7 +446,7 @@ uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
 version = "1.12.0"
 
 [[deps.JunaCore]]
-deps = ["FFTW", "LinearAlgebra", "Random", "SignalAnalysis", "Statistics"]
+deps = ["FFTW", "LinearAlgebra", "Random", "SHA", "SignalAnalysis", "Statistics"]
 path = "."
 uuid = "e8c075c8-8666-4c2a-95ff-0f14d3eeaa3c"
 version = "0.1.0"

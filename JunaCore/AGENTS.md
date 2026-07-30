@@ -48,12 +48,35 @@ Tokens   [███████░░░░░░░░░░░░░]  ~35k / 
 
 This package is a migrated subset of `sonique/research/JunaCore` (see
 README.md for the source commit). The migrated algorithm files
-(`src/juna/common.jl`, `src/juna/lite.jl`, `src/Modulations.jl`,
-`src/LDPC.jl`) are byte-identical to their source commit. Any edit to them
-here forks the algorithm from the source repository: surface that to the user
-and ask whether the change should also land in sonique before proceeding. If
-paper claims and this code disagree, never silently reconcile either side —
-ask which is authoritative.
+(`src/juna/common.jl`, `src/juna/frame_wide_ldpc.jl`, `src/juna/lite.jl`,
+`src/Modulations.jl`, `src/LDPC.jl`) and the `tools/ldpc` helper binaries
+are byte-identical to their source commit. Any edit to them here forks the
+algorithm from the source repository: surface that to the user and ask
+whether the change should also land in sonique before proceeding. If paper
+claims and this code disagree, never silently reconcile either side — ask
+which is authoritative.
+
+This claim is executable: `test/provenance_contract.jl` pins the sha256
+digest of every byte-identical file and fails with fork instructions on any
+drift, and `tools/parity_check.jl` prints a sha256 decision digest that
+must match under both repositories. Never update a pin to make a test pass.
+
+Git safety rules for all agents live at the repository root: `../AGENTS.md`.
+
+## Generated Files And Server Processes
+
+- `tools/explorer/suites.json` is generated from the `SUITES` registry in
+  `test/runtests.jl`. Never hand-edit it; regenerate with
+  `julia tools/explorer/export_suites.jl` (explorer contract C1 fails
+  otherwise).
+- `tools/explorer/chain.json` evidence fields are measured against the
+  coverage scan; promote or demote them only as explorer contract C5
+  directs, never to make a page look better.
+- `bench/` and `.migration_progress.log` are gitignored runtime artifacts;
+  never commit them.
+- The Lite explorer runs permanently on port 8772; the source repository's
+  explorer keeps 8771. Before launching a server, check the port is free
+  (`ss -ltnp`); stop processes by PID only — never `pkill -f`.
 
 ## Chain-Reference Gate
 

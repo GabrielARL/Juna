@@ -8,9 +8,18 @@
 # migrated facades. Decisions (metric signs), not raw metrics, are hashed so
 # the check is robust by construction; a digest mismatch means the migration
 # changed behavior and must be investigated, not papered over.
+#
+# The digest is SHA-256 (archival interchange format, stable across Julia
+# versions) - Julia's general-purpose hash() carries no such guarantee. The
+# SHA stdlib is loaded by UUID via Base.require because this script must run
+# under BOTH projects and the source repository's Project.toml does not
+# declare SHA (and is not edited from here).
 
 using JunaCore
 using Random
+
+const PC_SHA = Base.require(Base.PkgId(
+    Base.UUID("ea8e919c-243c-51af-8825-aaa63cd721ce"), "SHA"))
 
 const PC_Modulations = JunaCore.Modulations
 const PC_FC = 24_000.0
@@ -36,5 +45,5 @@ for (label, factory) in (
             sum((metrics .> 0) .== bits), "/", nbits, " bits correct")
   end
 end
-println("parity digest: ", string(hash(decisions), base = 16),
-        " (", length(decisions), " decision bytes)")
+println("parity digest: ", bytes2hex(PC_SHA.sha256(decisions)),
+        " (", length(decisions), " decision bytes; sha256)")
