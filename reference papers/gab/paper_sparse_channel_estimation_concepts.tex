@@ -9,12 +9,12 @@
   {IEEE Transactions on Signal Processing, 2010}
   {sparse_channel_estimation_ofdm_uwa.pdf}
 
-\begin{frame}{1. Core Problem}
+\begin{frame}{1. Core problem}
 \twocolmodel{
   \begin{itemize}\setlength{\itemsep}{0.45em}
-    \item UWA channels are long in delay but often sparse in physical paths.
-    \item Doppler spread makes OFDM subcarriers interfere.
-    \item Estimating a dense time-varying channel costs too many pilots.
+    \item UWA channels are long in delay, sparse in paths
+    \item Doppler spread makes OFDM subcarriers interfere
+    \item A dense time-varying channel costs too many pilots
   \end{itemize}
 }{
   \[
@@ -29,28 +29,28 @@
     L \ll \text{delay-Doppler grid size}
   \]
 }{
-  Sparsity is the bridge between rich acoustic physics and tractable OFDM estimation.
+  Sparsity makes rich acoustic physics tractable for OFDM estimation.
 }{
   Estimate a few paths, not every possible tap.
 }
 \end{frame}
 
-\begin{frame}{2. Estimation Families}
+\begin{frame}{2. Estimation families}
 \begin{columns}[T,onlytextwidth]
 \begin{column}{0.49\textwidth}
 \textbf{\color{accentblue}Subspace}
 \begin{itemize}\setlength{\itemsep}{0.35em}
-  \item Root-MUSIC and ESPRIT estimate structured path parameters.
-  \item Works best for limited Doppler spread and clean model order.
-  \item Gives high-resolution path estimates.
+  \item Root-MUSIC and ESPRIT estimate path parameters
+  \item Suits limited Doppler spread, clean model order
+  \item High-resolution path estimates
 \end{itemize}
 \end{column}
 \begin{column}{0.49\textwidth}
 \textbf{\color{accentgreen}Compressed Sensing}
 \begin{itemize}\setlength{\itemsep}{0.35em}
-  \item OMP and basis pursuit search an overcomplete dictionary.
-  \item More robust for significant Doppler spread.
-  \item Naturally supports sparse delay-Doppler channels.
+  \item OMP and basis pursuit search an overcomplete dictionary
+  \item More robust under significant Doppler spread
+  \item Supports sparse delay-Doppler channels
 \end{itemize}
 \end{column}
 \end{columns}
@@ -62,9 +62,10 @@
   \argmin_{\valpha}\norm{\vy_{\mathcal P}-\vA_{\mathcal P}\valpha}_2^2
   +\lambda\norm{\valpha}_1 .
 \]
+\bottomnote{While the subspace methods resolve paths more finely, they require a model order that severe Doppler spread makes unreliable.}
 \end{frame}
 
-\begin{frame}{3. Receiver Skeleton}
+\begin{frame}{3. Receiver skeleton}
 \begin{center}
 \begin{tikzpicture}[x=1cm,y=1cm]
   \node[flowbox] (pilot) at (-5.0,0) {Pilot\\tones};
@@ -76,20 +77,20 @@
   \draw[flowarr] (sparse) -- (eq);
 \end{tikzpicture}
 \end{center}
-\bottomnote{The important move is to estimate the channel in a physical basis, then convert it into the OFDM ICI pattern.\\Channel estimation and equalization are linked through the delay-Doppler model.}
+\bottomnote{The channel is estimated in a physical basis, then converted into the OFDM ICI pattern.\\Channel estimation and equalization are linked through the delay-Doppler model.}
 \end{frame}
 
-\begin{frame}{4. JUNA Connection}
+\begin{frame}{4. JUNA connection}
 \begin{itemize}\setlength{\itemsep}{0.5em}
-  \item JUNA can use sparse support selection as an explicit step, then optimize soft symbols against the selected model.
-  \item The local branch model can inherit a sparse prior:
+  \item Sparse support selection becomes an explicit step
+  \item The local branch model inherits a sparse prior:
   \[
     \vY_k=\sum_{q\in\mathcal B(k)}\bm c_{kq}s_q+\vn_k,
     \qquad
     \bm c_{kq}\text{ comes from few delay-Doppler paths.}
   \]
-  \item Do not gradient-descent support indices; choose supports by OMP/BP/candidates, then refine continuous coefficients.
-  \item Reliable decoded carriers can become decision-directed pilots in later iterations.
+  \item Supports come from OMP, basis pursuit, or candidates; coefficients are refined afterwards
+  \item Reliable decoded carriers become decision-directed pilots
 \end{itemize}
 \end{frame}
 

@@ -9,12 +9,12 @@
   {IEEE Transactions on Signal Processing, 2012}
   {clustered_channel_adaptation_ofdm_uwa.pdf}
 
-\begin{frame}{1. Core Problem}
+\begin{frame}{1. Core problem}
 \twocolmodel{
   \begin{itemize}\setlength{\itemsep}{0.45em}
-    \item UWA paths are sparse, but they are not isolated one by one.
-    \item Paths form clusters from refraction, surface bounce, and bottom bounce routes.
-    \item Different clusters evolve differently across OFDM blocks.
+    \item UWA paths are sparse, but not isolated one by one
+    \item Refraction, surface bounce, and bottom bounce form clusters
+    \item Clusters evolve differently across OFDM blocks
   \end{itemize}
 }{
   \[
@@ -26,13 +26,13 @@
     \Delta_g=(\Delta a_g,\Delta \tau_g,\Delta \alpha_g)
   \]
 }{
-  The paper adds memory across blocks without forcing the whole channel to move as one object.
+  The paper carries memory across blocks without requiring the whole channel to move as one object.
 }{
-  Cluster-level variation is the compromise between dense re-estimation and one global update.
+  Cluster-level variation sits between dense re-estimation and a single global update.
 }
 \end{frame}
 
-\begin{frame}{2. Adaptation Model}
+\begin{frame}{2. Adaptation model}
 \begin{center}
 \begin{tikzpicture}[x=1cm,y=1cm]
   \node[flowbox] (prev) at (-5.0,0) {Previous\\sparse channel};
@@ -51,30 +51,30 @@
   \norm{\vy_{\mathcal P}^{(b)}
   -\vA_{\mathcal P}\big(\mathcal C_g+\Delta_g\big)\valpha_g}_2^2
 \]
-\bottomnote{Use last block's channel as a structured prior, then let each cluster drift on its own.}
+\bottomnote{The previous block's channel becomes a structured prior, and each cluster then drifts on its own.}
 \end{frame}
 
-\begin{frame}{3. Hybrid Estimator}
+\begin{frame}{3. Hybrid estimator}
 \begin{itemize}\setlength{\itemsep}{0.48em}
-  \item Keep sparse path knowledge from the previous OFDM block.
-  \item Estimate cluster-specific amplitude, delay, and Doppler changes from current pilots.
-  \item Combine adapted prior paths with new pilot evidence.
-  \item Outperform purely block-by-block pilot estimation when coherence exists.
+  \item Keep sparse path knowledge from the previous block
+  \item Estimate cluster amplitude, delay, and Doppler changes
+  \item Combine adapted prior paths with new pilot evidence
+  \item Beat block-by-block pilot estimation where coherence exists
 \end{itemize}
-\bottomnote{The estimator uses memory, but it avoids the fragile assumption that every path shares the same motion.}
+\bottomnote{While the estimator uses memory across blocks, it does not assume that every path shares the same motion.}
 \end{frame}
 
-\begin{frame}{4. JUNA Connection}
+\begin{frame}{4. JUNA connection}
 \begin{itemize}\setlength{\itemsep}{0.5em}
-  \item JUNA can regularize branch coefficients by cluster:
+  \item Regularize branch coefficients by cluster:
   \[
     \bm c_{kq}^{(b)}
     \approx
     \bm c_{kq}^{(b-1)}+\text{cluster drift}.
   \]
-  \item Cluster identity is a discrete structure; estimate it explicitly or by candidates.
-  \item Low-dimensional cluster offsets are reasonable continuous refinement variables.
-  \item This paper is a strong guide for temporal smoothing in a self-calibrating receiver.
+  \item Cluster identity is discrete; estimate it explicitly or by candidates
+  \item Low-dimensional cluster offsets suit continuous refinement
+  \item A guide for temporal smoothing in a self-calibrating receiver
 \end{itemize}
 \end{frame}
 
