@@ -37,6 +37,35 @@ const PROV_PINNED = [
      "1f573dab0d4de11ca77054700b32943ec389806929305836b223457620919d53"),
 ]
 
+# The cowork procedure is authored in the sonique repository at
+# research/JunaCoreTests/SOP_HUMAN_AI_COWORK.md and copied to the Juna root.
+# Approved as D4 on 2026-07-31. Pinned here so a change to one copy that does
+# not land in the other fails the suite. The same fork protocol applies: do not
+# update this digest to make a failure pass.
+const COWORK_SOP_REL = "../SOP_HUMAN_AI_COWORK.md"
+const COWORK_SOP_SHA =
+    "d2abef22ab29cf2c9bcb7aa7950bad198640880b1a9c7649b4cea74fc314eac2"
+
+@testset "Provenance: cowork procedure matches the sonique copy" begin
+    path = normpath(joinpath(PROV_ROOT, COWORK_SOP_REL))
+    @test isfile(path)
+    if isfile(path)
+        actual = bytes2hex(SHA.sha256(read(path)))
+        if actual != COWORK_SOP_SHA
+            println("=" ^ 72)
+            println("COWORK PROCEDURE FORK DETECTED: ", COWORK_SOP_REL)
+            println("  pinned : ", COWORK_SOP_SHA)
+            println("  actual : ", actual)
+            println("  This file is claimed byte-identical to sonique")
+            println("  research/JunaCoreTests/SOP_HUMAN_AI_COWORK.md (D4).")
+            println("  Do NOT update the pin to make this pass. Land the change")
+            println("  in both copies in one reviewed change.")
+            println("=" ^ 72)
+        end
+        @test actual == COWORK_SOP_SHA
+    end
+end
+
 @testset "Provenance: byte-identical migrated files" begin
     for (rel, pinned) in PROV_PINNED
         path = joinpath(PROV_ROOT, rel)
