@@ -52,6 +52,10 @@ S16 a real headless browser observes painted canvas pixels for both a
 S17 Source alone opts into a full-viewport main area; its three-column grid
     gives compact bounded sidebars to a fluid center graph and retains the
     existing narrow-screen collapse.
+S18 receiver graphs disclose complexity progressively: the default is the
+    declared stage DAG, stage drill-down groups overloads and omits disconnected
+    symbols, an explicit show-all mode restores every implementation symbol,
+    and the page explains its node and edge semantics.
 """
 import json
 import os
@@ -382,6 +386,52 @@ def check():
         if marker not in server_text:
             problems.append(f"S17: fluid Source layout lost '{marker}'")
 
+    # S18
+    code, text = fetch(base, "/api/graph?receiver=lite")
+    stage_graph = json.loads(text).get("data", {}) if code == 200 else {}
+    expected_stage_ids = {
+        "stage:" + stage_id
+        for receiver in chain["receivers"] if receiver["id"] == "lite"
+        for stage_id in receiver["path"] + receiver.get("optional_stages", [])
+    }
+    if stage_graph.get("view") != "stages":
+        problems.append("S18: receiver graph does not default to stage view")
+    if {node.get("id") for node in stage_graph.get("nodes", [])} != expected_stage_ids:
+        problems.append("S18: default Lite graph does not match its declared stage DAG")
+    if any(node.get("kind") != "stage" for node in stage_graph.get("nodes", [])):
+        problems.append("S18: default receiver graph contains raw symbol nodes")
+
+    code, text = fetch(
+        base, "/api/graph?receiver=lite&stage=seed&view=symbols")
+    symbol_graph = json.loads(text).get("data", {}) if code == 200 else {}
+    if symbol_graph.get("view") != "symbols":
+        problems.append("S18: stage drill-down did not enter symbol view")
+    if not symbol_graph.get("nodes"):
+        problems.append("S18: stage drill-down has no implementation symbols")
+    if any(node.get("kind") == "stage" for node in symbol_graph.get("nodes", [])):
+        problems.append("S18: stage drill-down still contains stage nodes")
+    if len({(n.get("module"), n.get("name"))
+            for n in symbol_graph.get("nodes", [])}) != len(
+                symbol_graph.get("nodes", [])):
+        problems.append("S18: overloads were not grouped in symbol view")
+
+    code, text = fetch(
+        base, "/api/graph?receiver=lite&stage=seed&view=all")
+    all_graph = json.loads(text).get("data", {}) if code == 200 else {}
+    if all_graph.get("view") != "all":
+        problems.append("S18: show-all graph did not report all mode")
+    if len(all_graph.get("nodes", [])) < len(symbol_graph.get("nodes", [])):
+        problems.append("S18: show-all graph lost focused implementation symbols")
+
+    for marker in ('id="graph-show-all"', 'id="graph-legend"',
+                   "Stage — declared receiver step",
+                   "Function — grouped source implementation"):
+        if marker not in graph_page:
+            problems.append(f"S18: Source graph lost progressive control '{marker}'")
+    for marker in ("openStage", "toggleShowAll", "overload_count"):
+        if marker not in source_js:
+            problems.append(f"S18: Source graph interaction lost '{marker}'")
+
     httpd.shutdown()
     return problems
 
@@ -393,4 +443,4 @@ if __name__ == "__main__":
         for p in problems:
             print("  -", p)
         sys.exit(1)
-    print("server contract: PASS (S1-S17)")
+    print("server contract: PASS (S1-S18)")

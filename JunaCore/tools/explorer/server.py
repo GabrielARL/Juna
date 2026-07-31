@@ -351,6 +351,7 @@ def _struct_fields(sym):
 def graph_data(query):
     """Context-filtered static graph. Edges are lexical, never runtime."""
     params = urllib.parse.parse_qs(query or "")
+    requested_view = params.get("view", [None])[0]
     analyzed, by_id, by_name = _symbol_index()
     symbols = [s for s in analyzed["symbols"] if s["kind"] != "module"]
     chosen = None
@@ -378,6 +379,8 @@ def graph_data(query):
                    "stage", stage_id, stage["title"])
 
     receiver_id = params.get("receiver", [None])[0]
+    receiver = None
+    catalog = None
     if receiver_id:
         receiver = next((r for r in chain["receivers"]
                          if r["id"] == receiver_id), None)
@@ -409,22 +412,85 @@ def graph_data(query):
             ids = {sym["id"], *sym.get("calls", []), *sym.get("callers", [])}
             narrow(ids, "symbol", token, f"Symbol: {sym['name']}")
 
+    # A receiver is a conceptual stage DAG before it is a source call graph.
+    # Keep that architecture visible by default and disclose implementation
+    # symbols only after a stage is selected.
+    stage_view = (
+        receiver is not None
+        and requested_view in (None, "stages")
+        and not any((file_name, stage_id, suite_key, token))
+    )
+    if stage_view:
+        stage_ids = receiver["path"] + receiver.get("optional_stages", [])
+        stages = {stage["id"]: stage for stage in chain["stages"]
+                  if stage["id"] in stage_ids}
+        nodes = []
+        for stage_id_ in stage_ids:
+            stage = stages[stage_id_]
+            implementation_ids = {
+                sym["id"] for name in stage["symbols"]
+                for sym in by_name.get(name, [])
+            }
+            nodes.append({
+                "id": f"stage:{stage_id_}",
+                "stage_id": stage_id_,
+                "name": stage["title"],
+                "kind": "stage",
+                "stage_kind": stage["kind"],
+                "detail": stage["detail"],
+                "symbol_count": len(implementation_ids),
+            })
+        edges = [{
+            "from": f"stage:{edge['from']}",
+            "to": f"stage:{edge['to']}",
+            "kind": "declared_stage_flow",
+            "condition": edge.get("condition"),
+        } for edge in chain.get("edges", [])
+            if edge.get("receiver") == receiver_id
+            and edge["from"] in stages and edge["to"] in stages]
+        return {"context": context, "view": "stages", "nodes": nodes,
+                "edges": edges, "note": TAXONOMY_NOTE}
+
     selected = {s["id"] for s in symbols} if chosen is None else chosen
-    nodes = [{"id": s["id"], "name": s["name"], "kind": s["kind"],
-              "module": s["module"], "file": s["file"], "line": s["line"]}
-             for s in symbols if s["id"] in selected]
+    selected_symbols = [s for s in symbols if s["id"] in selected]
+
+    # Multiple Julia methods with the same module/name are one visual concept.
+    groups = {}
+    for sym in selected_symbols:
+        groups.setdefault((sym["module"], sym["name"]), []).append(sym)
+    representative = {
+        sym["id"]: min(group, key=lambda item: (item["line"], item["id"]))["id"]
+        for group in groups.values() for sym in group
+    }
+    nodes = []
+    for group in groups.values():
+        first = min(group, key=lambda item: (item["line"], item["id"]))
+        nodes.append({
+            "id": first["id"], "name": first["name"], "kind": first["kind"],
+            "module": first["module"], "file": first["file"],
+            "line": first["line"], "overload_count": len(group),
+        })
+
     edges = []
     seen = set()
     for s in symbols:
         if s["id"] not in selected:
             continue
         for target in s.get("calls", []):
-            edge = (s["id"], target)
-            if target in selected and edge not in seen:
+            if target not in selected:
+                continue
+            edge = (representative[s["id"]], representative[target])
+            if edge[0] != edge[1] and edge not in seen:
                 seen.add(edge)
-                edges.append({"from": s["id"], "to": target,
+                edges.append({"from": edge[0], "to": edge[1],
                               "kind": "static_call"})
-    return {"context": context, "nodes": nodes, "edges": edges,
+
+    view = "all" if requested_view == "all" else "symbols"
+    if view == "symbols" and edges:
+        connected = {endpoint for edge in edges
+                     for endpoint in (edge["from"], edge["to"])}
+        nodes = [node for node in nodes if node["id"] in connected]
+    return {"context": context, "view": view, "nodes": nodes, "edges": edges,
             "note": TAXONOMY_NOTE}
 
 
@@ -706,6 +772,8 @@ button:hover { border-color:var(--accent); }
                                           border-color:var(--accent);
                                           background:var(--card); }
 #source-context:empty { display:none; }
+#graph-controls { display:flex; flex-wrap:wrap; align-items:center; gap:.5rem; }
+#graph-legend { display:flex; flex-wrap:wrap; gap:.35rem; margin-left:auto; }
 """
 
 
@@ -1022,6 +1090,16 @@ def page_source(mode="inspector"):
         for term, meaning in TAXONOMY)
     inspector_active = " active" if mode == "inspector" else ""
     graph_active = " active" if mode == "graph" else ""
+    graph_controls = """
+<div id="graph-controls" class="card">
+<button id="graph-back-stages" type="button">Receiver stages</button>
+<button id="graph-show-all" type="button">Show all implementation symbols</button>
+<span id="graph-legend">
+<span class="badge">Stage — declared receiver step</span>
+<span class="badge">Function — grouped source implementation</span>
+<span class="badge">Arrow — declared flow or static call, never runtime</span>
+</span>
+</div>""" if mode == "graph" else ""
     body = f"""
 <h1>Source</h1>
 <div class="source-mode-tabs">
@@ -1034,6 +1112,7 @@ selected symbol to chain meaning and evidence. Advanced Graph accepts
 receiver, stage, suite, file, and symbol context while preserving the same
 inspector. Static graph edges never claim runtime execution.</div>
 <div id="source-context" class="card"></div>
+{graph_controls}
 <div class="grid-source" data-source-mode="{esc(mode)}">
 <div><input id="symsearch" placeholder="filter symbols…" autocomplete="off">
 <div id="symlist">{groups}</div></div>
