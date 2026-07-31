@@ -26,6 +26,22 @@ applies to root-level work too.
 - Check a port is free before launching (`ss -ltnp`); stop processes by
   PID only — never `pkill -f`.
 
+## Writing Rules
+
+Any writing or rewriting of a document in this repository — paper, note,
+tutorial, or slide deck — follows `.claude/skills/mandar/SKILL.md`. Read it
+before writing. Its three hard rules bind every agent, whatever tool it runs
+under:
+
+1. Use only words that appear in the source material.
+2. Never introduce a word or name of your own. If something has no name,
+   stop, say so, propose candidates with their sources, and wait.
+3. Explain the proposed change in plain words and get agreement before
+   writing.
+
+Mechanical checks: `python3 .claude/skills/mandar/style_check.py FILE.tex`.
+The checker cannot verify rules 1 to 3; a human must.
+
 ## Git Rules For Agents
 
 - Never push, never merge, never merge a pull request. Commit only when
