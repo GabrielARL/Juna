@@ -641,6 +641,7 @@ nav a { text-decoration:none; color:var(--muted); padding:.25rem .7rem;
 nav a.active, nav a:hover { color:var(--fg); background:var(--card); }
 nav .spacer { flex:1; }
 main { max-width:76rem; margin:0 auto; padding:1.2rem 1rem 3rem; }
+main.wide { max-width:none; padding-left:1.5rem; padding-right:1.5rem; }
 h1 { font-size:1.35rem; } h2 { font-size:1.1rem; margin-top:1.6rem; }
 .card { background:var(--card); border:1px solid var(--line);
         border-radius:8px; padding:.9rem 1rem; margin:.7rem 0; }
@@ -682,7 +683,8 @@ button { font:inherit; padding:.3rem .8rem; border-radius:6px;
 button:hover { border-color:var(--accent); }
 .dot { font-size:1rem; }
 .grid-source { display:grid;
-               grid-template-columns:17rem minmax(0,1fr) 24rem; gap:1rem; }
+               grid-template-columns:minmax(12rem,15rem) minmax(0,1fr) minmax(18rem,22rem);
+               gap:1rem; align-items:start; }
 @media (max-width:75rem) { .grid-source { grid-template-columns:1fr; } }
 #symlist { max-height:75vh; overflow-y:auto; font-size:.86rem; }
 #symlist details { margin:.2rem 0; }
@@ -707,7 +709,7 @@ button:hover { border-color:var(--accent); }
 """
 
 
-def shell(title, active, body):
+def shell(title, active, body, wide=False):
     parts = []
     for href, label in NAV:
         cls = ' class="active"' if href == active else ""
@@ -715,6 +717,7 @@ def shell(title, active, body):
     parts.append('<span class="spacer"></span>')
     parts.append('<a href="#" id="palette-open" title="Ctrl-K">⌘K</a>')
     nav = "".join(parts)
+    main_class = ' class="wide"' if wide else ""
     gs = git_state()
     banner = ""
     if gs["dirty"]:
@@ -727,7 +730,7 @@ def shell(title, active, body):
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
             f"<title>{html.escape(title)} · JUNA-Lite explorer</title>"
             f"<style>{CSS}</style></head><body>"
-            f"<nav>{nav}</nav>{banner}<main>{body}</main>"
+            f"<nav>{nav}</nav>{banner}<main{main_class}>{body}</main>"
             f'<script type="module" src="/static/palette.js"></script>'
             f"</body></html>")
 
@@ -1043,7 +1046,7 @@ inspector. Static graph edges never claim runtime execution.</div>
 </div>
 <script src="/static/vendor/vis-network.min.js"></script>
 <script type="module" src="/static/source.js"></script>"""
-    return shell("Source", "/source", body)
+    return shell("Source", "/source", body, wide=True)
 
 
 def page_source_legacy():

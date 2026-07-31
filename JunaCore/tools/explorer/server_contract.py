@@ -49,6 +49,9 @@ S15 Source has seamless Inspector and Advanced Graph modes; the graph API
 S16 a real headless browser observes painted canvas pixels for both a
     receiver-context graph and a selected symbol's ego graph. API/DOM-only
     success cannot satisfy this visual contract.
+S17 Source alone opts into a full-viewport main area; its three-column grid
+    gives compact bounded sidebars to a fluid center graph and retains the
+    existing narrow-screen collapse.
 """
 import json
 import os
@@ -367,6 +370,18 @@ def check():
         elif 'data-graph-paint="painted"' not in dom:
             problems.append(f"S16: {label} painted no canvas pixels")
 
+    # S17
+    if '<main class="wide">' not in graph_page:
+        problems.append("S17: Source graph does not use the wide page shell")
+    if '<main class="wide">' in pages.get("/", ""):
+        problems.append("S17: wide page shell leaked outside Source")
+    server_text = open(os.path.join(HERE, "server.py")).read()
+    for marker in ("main.wide { max-width:none;",
+                   "grid-template-columns:minmax(12rem,15rem) minmax(0,1fr) "
+                   "minmax(18rem,22rem)"):
+        if marker not in server_text:
+            problems.append(f"S17: fluid Source layout lost '{marker}'")
+
     httpd.shutdown()
     return problems
 
@@ -378,4 +393,4 @@ if __name__ == "__main__":
         for p in problems:
             print("  -", p)
         sys.exit(1)
-    print("server contract: PASS (S1-S16)")
+    print("server contract: PASS (S1-S17)")
