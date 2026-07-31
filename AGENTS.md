@@ -12,9 +12,11 @@ applies to root-level work too.
 - The git root is `/home/gabiel/Documents/GitHub/Juna`.
 - The Julia package lives under `JunaCore/`. Package commands run after
   `cd JunaCore`, or with `--project=JunaCore`.
-- `reference papers/` is deliberately untracked. Never stage, delete,
-  reorganize, or treat it as a package dependency without explicit
-  approval.
+- `reference papers/` is tracked, not untracked; seventy files under it are
+  in the index. It holds third-party PDFs alongside authored notes. Never
+  delete, reorganize, or treat it as a package dependency without explicit
+  approval, and do not commit a newly downloaded PDF without approval —
+  redistributing someone else's paper is not this repository's decision.
 - Do not create new top-level directories without explicit approval.
 
 ## Explorers
