@@ -69,6 +69,22 @@
 \maketitle
 
 \begin{center}
+\fcolorbox{codeframe}{warnbg}{%
+\begin{minipage}{0.92\linewidth}
+\textbf{Replaced. Do not build from this document.}\\[0.3em]
+This specification has been superseded by \texttt{scjuna\_manual\_gradient\_plan.tex},
+which is the document to implement from. Three differences with the deployed
+receiver were the reason: this specification steps the bit latents directly
+(\code{state.z .-= cfg.z_stepsize .* grad_z}) while the deployed receiver uses
+Adam, as the manual gradient plan requires; the LLR erasure stage described here
+is not present in the deployed receiver; and the shared constants here
+(\code{RHO_MAX}, \code{LAMBDA_P_MAX}, ramp constants) differ from the manual
+gradient plan and are applied to a loss that is normalized differently, so the
+two sets of numbers are not comparable. Marked on 31 July 2026.
+\end{minipage}}
+\end{center}
+
+\begin{center}
 \fbox{\begin{minipage}{0.93\linewidth}
 \textbf{Purpose.} This is a code-generation specification, not a research exposition. It deliberately removes ambiguous derivation-first prose and replaces it with exact defaults, data shapes, edge rules, file schemas, concrete receiver APIs, deterministic candidate selection, manual gradients, and golden-vector tests. Version 1 assumes one aligned CP-included OFDM block per packet. Preamble acquisition is not implemented here.
 \end{minipage}}

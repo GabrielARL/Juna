@@ -1542,9 +1542,10 @@ and reruns the same RLS update with desired responses equal to the known pilots
 on $\mathcal P_b$ and the posterior means $\widetilde x_{k,s}$ on the selected
 data anchors. The default receiver therefore trains toward posterior means---not
 hard decisions---keeps pilots in the anchor set, caps the data anchors, and can
-reject a refinement. Selected data anchors enter the reported RLS update with the
-same sample weight; the confidence value is used for gating/ranking, not as a
-per-sample RLS multiplier. In the reported benchmark profile $c_{\min}=0$, so the
+reject a refinement. Pilots enter the reported RLS update with unit weight, and
+each selected data anchor enters with a weight equal to its confidence
+$c_{d,s}$, so a less certain anchor pulls the fit less than a pilot or a
+confident anchor does. In the reported benchmark profile $c_{\min}=0$, so the
 confidence threshold itself is disabled; when the anchor cap binds, confidence is
 used to rank anchors, and otherwise all data tones are eligible.
 
@@ -1606,7 +1607,14 @@ and, for QPSK,
 Other modulations use the same weighted tie MSE after mapping LLRs to
 constellation posterior means. The term $w_{\rm synd}$ is the syndrome weight
 divided by the number of parity checks, and
-$\overline{|L^{\rm post}|}$ is the mean posterior-LLR magnitude. Lower
+$\overline{|L^{\rm post}|}$ is the mean posterior-LLR magnitude. In the
+deployed receiver $M_{\rm pilot}$ is inactive and takes the same value for
+every candidate: residual pilot equalization divides each pilot carrier by a
+response measured on that carrier, so $\widehat x_{p,s}=P_{p,s}$ to numerical
+precision. The score therefore separates candidates through $M_{\rm tie}$,
+$w_{\rm synd}$, and $\overline{|L^{\rm post}|}$; $M_{\rm pilot}$ is retained in
+the reported form because it would separate candidates for any receiver that
+scored the combiner output before residual pilot equalization. Lower
 $S_{\rm cand}$ is better only after the decoder-first validity and syndrome
 tests above, so the scalar score does not override a valid codeword with an
 invalid one. The profiled replay runs enable a second, CRC-surrogate mode: the
