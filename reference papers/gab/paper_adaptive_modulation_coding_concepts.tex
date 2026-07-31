@@ -1,0 +1,83 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+\input{paper_note_style.tex}
+
+\begin{document}
+
+\papercover
+  {Adaptive Modulation and Coding}
+  {Wan, Hao Zhou, Xu, Huang, Shengli Zhou, Shi, and Cui}
+  {IEEE Journal of Oceanic Engineering, 2015}
+  {adaptive_modulation_coding_ofdm_uwa.pdf}
+
+\begin{frame}{1. Core Problem}
+\twocolmodel{
+  \begin{itemize}\setlength{\itemsep}{0.45em}
+    \item UWA channels vary with location, time, and sea conditions.
+    \item Fixed modulation and coding either waste rate or fail in bad fades.
+    \item The receiver needs a performance metric that predicts decoding success.
+  \end{itemize}
+}{
+  \[
+    \text{mode}
+    \in
+    \{(M_1,R_1),\ldots,(M_5,R_5)\}
+  \]
+  \[
+    \widehat{\text{mode}}
+    =
+    f(\text{channel quality})
+  \]
+}{
+  The system adapts the transmission mode to the channel, but only from a finite practical menu.
+}{
+  The key metric is effective SNR after receiver processing, not just input SNR.
+}
+\end{frame}
+
+\begin{frame}{2. Effective SNR}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[flowbox] (pilot) at (-5.0,0) {Pilots and\\received data};
+  \node[method,minimum width=3.0cm] (ce) at (-1.8,0) {Channel\\estimation};
+  \node[method,minimum width=3.0cm] (dec) at (1.6,0) {Equalization\\and decoding};
+  \node[flowbox] (esnr) at (4.9,0) {Effective\\SNR};
+  \draw[flowarr] (pilot) -- (ce);
+  \draw[flowarr] (ce) -- (dec);
+  \draw[flowarr] (dec) -- (esnr);
+\end{tikzpicture}
+\end{center}
+\[
+  \mathrm{ESNR}
+  \approx
+  \frac{\text{post-processing signal energy}}
+       {\text{noise + channel-estimation error + residual distortion}}
+\]
+\bottomnote{ESNR is closer to the decoder's lived reality than raw input SNR or pilot SNR.}
+\end{frame}
+
+\begin{frame}{3. AMC Loop}
+\begin{enumerate}\setlength{\itemsep}{0.45em}
+  \item Define a small set of tested modulation/coding modes.
+  \item Estimate channel quality using recent packet reception.
+  \item Compute ESNR after channel estimation and decoding.
+  \item Select the highest-rate mode expected to meet the reliability target.
+  \item Validate in real-time sea experiments rather than only simulation.
+\end{enumerate}
+\bottomnote{This paper is system-facing: it asks how receiver evidence should change the next transmission.}
+\end{frame}
+
+\begin{frame}{4. JUNA Connection}
+\begin{itemize}\setlength{\itemsep}{0.5em}
+  \item JUNA can expose a richer reliability metric than one-tap SNR:
+  \[
+    \mathrm{JUNA\ score}
+    =
+    g(\text{residual},\text{parity},\text{pilot fit},\text{ICI energy}).
+  \]
+  \item That score can drive AMC mode choice or packet-level erasure marking.
+  \item Mode selection should stay finite and conservative, even if the receiver internals are sophisticated.
+  \item The lesson: a receiver is also a channel-quality sensor for the transmitter.
+\end{itemize}
+\end{frame}
+
+\end{document}

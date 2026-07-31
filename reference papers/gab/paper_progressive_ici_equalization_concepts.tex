@@ -1,0 +1,78 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+\input{paper_note_style.tex}
+
+\begin{document}
+
+\papercover
+  {Progressive ICI Equalization}
+  {Jianzhong Huang, Zhou, Jie Huang, Berger, and Willett}
+  {IEEE Journal of Selected Topics in Signal Processing, 2011}
+  {progressive_ici_equalization_ofdm_uwa.pdf}
+
+\begin{frame}{1. Core Problem}
+\twocolmodel{
+  \begin{itemize}\setlength{\itemsep}{0.45em}
+    \item Mild channels can be decoded with a narrow ICI model.
+    \item Severe Doppler spread needs a wider ICI span and higher complexity.
+    \item A fixed worst-case receiver wastes effort in easy conditions.
+  \end{itemize}
+}{
+  \[
+    Y_k
+    =
+    \sum_{q=k-B}^{k+B}
+    H_{kq}X_q+n_k
+  \]
+  \[
+    B \;\text{small first, larger only if needed}
+  \]
+}{
+  The receiver adapts the model complexity during decoding.
+}{
+  It is a turbo receiver whose channel model grows progressively.
+}
+\end{frame}
+
+\begin{frame}{2. Progressive Loop}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[flowbox] (small) at (-4.8,0.7) {Start with\\small ICI span};
+  \node[method,minimum width=2.8cm] (est) at (-1.4,0.7) {Sparse channel\\estimation};
+  \node[method,minimum width=2.6cm] (eq) at (1.7,0.7) {MAP/MMSE/\\MCMC equalizer};
+  \node[flowbox] (dec) at (4.7,0.7) {Decoder};
+  \node[issue,minimum width=3.4cm] (grow) at (0,-1.1) {If decoding fails,\\increase ICI span};
+  \draw[flowarr] (small) -- (est);
+  \draw[flowarr] (est) -- (eq);
+  \draw[flowarr] (eq) -- (dec);
+  \draw[softarr] (dec.south) |- (grow.east);
+  \draw[softarr] (grow.west) -| (est.south);
+\end{tikzpicture}
+\end{center}
+\bottomnote{The receiver spends complexity only after the decoder says the current model is insufficient.}
+\end{frame}
+
+\begin{frame}{3. Algorithm Skeleton}
+\begin{enumerate}\setlength{\itemsep}{0.45em}
+  \item Initialize with a narrow ICI band and pilot-aided sparse channel estimate.
+  \item Equalize using a soft-input method and pass LLRs to the decoder.
+  \item If the decoder succeeds, stop.
+  \item If it fails, enlarge the ICI span and reuse decoder soft information.
+  \item Repeat until decoding succeeds or the maximum span is reached.
+\end{enumerate}
+\bottomnote{The model is not sacred. It is an adaptive working hypothesis driven by decoder feedback.}
+\end{frame}
+
+\begin{frame}{4. JUNA Connection}
+\begin{itemize}\setlength{\itemsep}{0.5em}
+  \item JUNA can use progressive ICI half-width as a discrete model-selection variable.
+  \item Start cheap:
+  \[
+    \mathcal B_1(k)\subset\mathcal B_2(k)\subset\cdots
+  \]
+  and expand only when residual energy or parity checks demand it.
+  \item Decoder soft information should feed back into channel/nonideality estimation.
+  \item This paper is philosophically close to JUNA: inference improves by changing the model during iterations.
+\end{itemize}
+\end{frame}
+
+\end{document}

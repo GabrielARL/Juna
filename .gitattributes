@@ -1,0 +1,2 @@
+"reference papers/**/*.pdf" binary
+"reference papers/**/*.tex" -whitespace
