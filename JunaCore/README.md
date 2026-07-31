@@ -64,20 +64,23 @@ python3 tools/explorer/server.py   # http://127.0.0.1:8772/
 
 Unified workbench: Home | Tests | Map | Chain | Source | Coverage | Health |
 Progress, all served by one shell with a command palette (Ctrl-K) and an
-uncommitted-state banner. The Source tab is a unified page (symbol list,
-static call-neighborhood graph, persistent inspector with the five-way
-evidence taxonomy); the vendored analyzer's own page remains at
-`/source-legacy`. The Health tab runs a fixed allowlist of verification
+uncommitted-state banner. Source has two integrated modes:
+`/source` is the evidence inspector, and `/source/graph` is the advanced
+context graph entered from receiver, stage, suite, file, and symbol links
+throughout the workbench. The original self-contained analyzer is retained at
+`/source-advanced` (with `/source-legacy` as a compatibility alias) and carries
+an Explorer bridge bar. The Health tab runs a fixed allowlist of verification
 commands and records results (with commit and dirty-state) separately from
 browser test runs.
 
 JSON API layer (`/api/repository`, `/api/suites`, `/api/chain`,
-`/api/symbols`, `/api/symbol/<name>`, `/api/coverage`, `/api/runs`,
-`/api/health`, `/api/palette`): every response carries the provenance
+`/api/receivers`, `/api/symbols`, `/api/symbol/<name>`, `/api/graph`,
+`/api/coverage`, `/api/runs`, `/api/health`, `/api/palette`): every response
+carries the provenance
 envelope `{commit, working_tree_dirty, generated_at, schema_version, data}`.
 Any future frontend builds against these APIs, not against page HTML.
 
-Data contracts: `python3 tools/explorer/explorer_contract.py` (C1–C7) and
-`python3 tools/explorer/server_contract.py` (S1–S13). The source
+Data contracts: `python3 tools/explorer/explorer_contract.py` (C1–C10) and
+`python3 tools/explorer/server_contract.py` (S1–S15). The source
 repository's explorer remains the home of the full nine-receiver family on
 port 8771.

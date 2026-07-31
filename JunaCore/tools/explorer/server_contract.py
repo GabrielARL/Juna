@@ -12,7 +12,7 @@ S3  /chain embeds every stage declared in chain.json.
 S4  /tests lists every suite key; inverse chain chips (data-stage
     attributes) reference only real chain.json stage ids, and at least one
     chip is rendered.
-S5  /source-legacy is the vendored analyzer page; /source is the unified
+S5  /source-advanced is the retained analyzer page; /source is the unified
     Source page: server-rendered symbol list, persistent inspector
     container, the five-way evidence taxonomy labels, and a link to the
     legacy page.
@@ -39,6 +39,13 @@ S12 /static/palette.js, /static/source.js, /static/health.js are served,
 S13 legacy-vs-API parity: /api/symbols count and edge count equal a direct
     analyze() of src/, and every chain.json symbol resolves by name via
     /api/symbol/.
+S14 /chain renders a selector for all catalog receivers, comparison controls,
+    and explicit conditional-edge labels; /api/receivers returns the
+    generated Julia catalog.
+S15 Source has seamless Inspector and Advanced Graph modes; the graph API
+    accepts receiver/stage/suite/file contexts; every navigation tab emits a
+    contextual Source entry; and the retained original analyzer has the
+    Explorer bridge bar instead of becoming an orphan application.
 """
 import json
 import os
@@ -58,7 +65,8 @@ NAV_LABELS = ["Home", "Tests", "Map", "Chain", "Source", "Coverage",
               "Health", "Progress"]
 API_ENDPOINTS = ["/api/repository", "/api/suites", "/api/chain",
                  "/api/symbols", "/api/coverage", "/api/runs",
-                 "/api/health", "/api/palette"]
+                 "/api/health", "/api/palette", "/api/receivers",
+                 "/api/graph"]
 TAXONOMY = ["Static call edge", "Interface implementation",
             "Direct test reference", "Suite-wide association",
             "Runtime result"]
@@ -131,7 +139,7 @@ def check():
             problems.append(f"S4: chip references unknown stage '{chip}'")
 
     # S5
-    legacy_code, legacy = fetch(base, "/source-legacy")
+    legacy_code, legacy = fetch(base, "/source-advanced")
     if legacy_code != 200 or "_juna_lite" not in legacy:
         problems.append("S5: /source-legacy is not the analyzer page")
     src_page = pages.get("/source", "")
@@ -142,8 +150,8 @@ def check():
     for label in TAXONOMY:
         if label not in src_page:
             problems.append(f"S5: /source lost taxonomy label '{label}'")
-    if "/source-legacy" not in src_page:
-        problems.append("S5: /source lost the legacy-page link")
+    if "/source-advanced" not in src_page:
+        problems.append("S5: /source lost the original-analyzer link")
 
     # S6
     for path in ["/benchmark", "/history", "/reproduce",
@@ -267,6 +275,72 @@ def check():
                 problems.append(f"S13: chain symbol '{sym}' does not "
                                 "resolve via /api/symbol/")
 
+    # S14
+    chain_page = pages.get("/chain", "")
+    with open(os.path.join(HERE, "receivers.json")) as fh:
+        receivers = json.load(fh)["receivers"]
+    if 'id="receiver-select"' not in chain_page:
+        problems.append("S14: /chain lost receiver selector")
+    if 'id="compare-select"' not in chain_page:
+        problems.append("S14: /chain lost comparison selector")
+    for receiver in receivers:
+        if receiver["display_name"] not in chain_page:
+            problems.append(
+                f"S14: /chain lost receiver '{receiver['id']}'")
+    for edge in chain.get("edges", []):
+        condition = edge.get("condition")
+        if condition and condition not in chain_page:
+            problems.append(
+                f"S14: /chain lost edge condition '{condition}'")
+
+    # S15
+    graph_code, graph_page = fetch(base, "/source/graph?receiver=lite")
+    if graph_code != 200:
+        problems.append(f"S15: /source/graph returned {graph_code}")
+    for text in ("Evidence Inspector", "Advanced Graph", "Original Analyzer",
+                 'data-source-mode="graph"', 'id="source-context"'):
+        if text not in graph_page:
+            problems.append(f"S15: graph mode lost '{text}'")
+    for query in ("receiver=lite", "stage=seed", "suite=pfft",
+                  "file=juna%2Flite.jl"):
+        code, text = fetch(base, "/api/graph?" + query)
+        if code != 200:
+            problems.append(f"S15: /api/graph?{query} returned {code}")
+            continue
+        data = json.loads(text).get("data", {})
+        if not data.get("nodes") or "edges" not in data:
+            problems.append(f"S15: /api/graph?{query} lacks nodes/edges")
+        if not data.get("context"):
+            problems.append(f"S15: /api/graph?{query} lacks context")
+    for path in ("/", "/tests", "/map", "/chain", "/coverage", "/health",
+                 "/progress"):
+        if "/source/graph?" not in pages.get(path, ""):
+            problems.append(f"S15: {path} has no contextual Source entry")
+    legacy_code, legacy = fetch(base, "/source-advanced")
+    if legacy_code != 200 or "Explorer source bridge" not in legacy:
+        problems.append("S15: retained analyzer lacks Explorer source bridge")
+    for href in ("/source", "/source/graph", "/chain", "/tests",
+                 "/coverage"):
+        if f'href="{href}"' not in legacy:
+            problems.append(f"S15: retained analyzer bridge lost '{href}'")
+    code, text = fetch(base, "/api/symbol/Juna.Modulation")
+    if code != 200:
+        problems.append("S15: qualified Juna.Modulation does not resolve")
+    else:
+        detail = json.loads(text)["data"]
+        if len(detail.get("fields", [])) < 20:
+            problems.append("S15: Juna.Modulation field inspector is incomplete")
+        if not detail.get("interface_methods"):
+            problems.append("S15: type inspector lacks interface implementations")
+        if {f["name"] for f in detail.get("facades", [])} != {
+                "JunaStandard", "JunaPartialFFT", "JunaLite"}:
+            problems.append("S15: type inspector lacks the three public facades")
+    source_js = open(os.path.join(HERE, "static", "source.js")).read()
+    for marker in ("Static call edge", "doubleClick", "Fields (",
+                   "Open in original analyzer"):
+        if marker not in source_js:
+            problems.append(f"S15: source interaction lost '{marker}'")
+
     httpd.shutdown()
     return problems
 
@@ -278,4 +352,4 @@ if __name__ == "__main__":
         for p in problems:
             print("  -", p)
         sys.exit(1)
-    print("server contract: PASS (S1-S13)")
+    print("server contract: PASS (S1-S15)")

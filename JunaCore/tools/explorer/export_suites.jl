@@ -25,6 +25,8 @@ function _emit(io, suites)
     for (i, s) in enumerate(suites)
         print(io, "    {\"key\": \"", _json_escape(s.key), "\", ",
               "\"file\": \"", _json_escape(s.file), "\", ",
+              "\"tier\": \"", _json_escape(s.tier), "\", ",
+              "\"receivers\": \"", _json_escape(s.receivers), "\", ",
               "\"title\": \"", _json_escape(s.title), "\", ",
               "\"claim\": \"", _json_escape(s.claim), "\", ",
               "\"provenance\": \"", _json_escape(s.provenance), "\"}")

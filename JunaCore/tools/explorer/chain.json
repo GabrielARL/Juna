@@ -1,6 +1,7 @@
 {
+  "schema_version": 2,
   "note": [
-    "Declared JUNA-Lite receiver chain: stage -> implementing symbols -> protecting suites.",
+    "Declared receiver DAG: receiver path -> shared stage -> implementing symbols -> protecting suites.",
     "A static call graph cannot recover these conceptual stages, so this file is the",
     "authoritative mapping. tools/explorer/explorer_contract.py verifies every symbol",
     "against the analyzer's symbol table and every suite key against suites.json",
@@ -13,6 +14,37 @@
     "(contract-enforced against the coverage scan); behavioral = the declared suites",
     "exercise the stage through the public API without naming internals - rendered",
     "as declared-only on the coverage page, never as a direct reference."
+  ],
+  "receivers": [
+    {
+      "id": "standard",
+      "facade": "JunaStandard",
+      "path": ["acquisition", "standard"]
+    },
+    {
+      "id": "partial-fft",
+      "facade": "JunaPartialFFT",
+      "path": ["acquisition", "seed"]
+    },
+    {
+      "id": "lite",
+      "facade": "JunaLite",
+      "path": ["acquisition", "seed", "posterior", "anchors", "refit", "redecode", "keep-best"],
+      "optional_stages": ["frame"]
+    }
+  ],
+  "edges": [
+    {"receiver": "standard", "from": "acquisition", "to": "standard"},
+    {"receiver": "partial-fft", "from": "acquisition", "to": "seed"},
+    {"receiver": "lite", "from": "acquisition", "to": "seed"},
+    {"receiver": "lite", "from": "seed", "to": "keep-best", "condition": "valid seed: return without refinement"},
+    {"receiver": "lite", "from": "seed", "to": "posterior", "condition": "invalid seed: enter refinement"},
+    {"receiver": "lite", "from": "posterior", "to": "anchors"},
+    {"receiver": "lite", "from": "anchors", "to": "refit"},
+    {"receiver": "lite", "from": "refit", "to": "redecode"},
+    {"receiver": "lite", "from": "redecode", "to": "keep-best"},
+    {"receiver": "lite", "from": "keep-best", "to": "posterior", "condition": "improved invalid candidate and iterations remain"},
+    {"receiver": "lite", "from": "frame", "to": "acquisition", "condition": "frame-wide deployment wrapper selected"}
   ],
   "stages": [
     {
@@ -31,6 +63,21 @@
       ],
       "kind": "shared",
       "evidence": "direct"
+    },
+    {
+      "id": "standard",
+      "title": "Standard OFDM equalization and FEC",
+      "detail": "Pilot-interpolated one-tap equalization produces the Standard baseline candidate and FEC result, with no partial-FFT combining or refinement.",
+      "symbols": [
+        "_standard_candidate"
+      ],
+      "suites": [
+        "pfft",
+        "smoke",
+        "contract"
+      ],
+      "kind": "seed",
+      "evidence": "behavioral"
     },
     {
       "id": "seed",

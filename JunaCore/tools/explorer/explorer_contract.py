@@ -26,6 +26,16 @@ C7  vendored analyzer health: analyze() sees exactly the migrated source
     link route present. (The analyzer's full authoritative contract runs in
     the source repository it is vendored from; this is the migrated-scope
     check.)
+C8  receivers.json freshness and integrity: it is exported from the Julia
+    receiver catalog; receiver ids/facades are unique and exactly match the
+    receivers declared by chain.json.
+C9  multi-receiver DAG integrity: schema version 2, every receiver path and
+    edge references real stages, paths start at acquisition, the three
+    package facades are represented, and conditional edges carry labels.
+C10 suite applicability is explicit and computable: each registry entry is
+    structural, all receivers, one receiver, or a DAG stage; stage-scoped
+    suites are declared on that stage; each receiver has universal coverage
+    and either a receiver-specific suite or a justified exemption.
 """
 import json
 import os
@@ -112,6 +122,118 @@ def check():
                 problems.append(f"C4: stage '{st['id']}' suite '{key}' is "
                                 "absent from suites.json")
 
+    # C8 receiver catalog freshness and integrity
+    fd, tmp = tempfile.mkstemp(suffix=".json")
+    os.close(fd)
+    try:
+        run = subprocess.run(
+            ["julia", "--project=.", os.path.join(HERE,
+                                                  "export_receivers.jl"), tmp],
+            capture_output=True, text=True, cwd=ROOT)
+        if run.returncode != 0:
+            problems.append("C8: export_receivers.jl failed: " +
+                            run.stderr.strip()[-300:])
+        else:
+            with open(tmp) as fh:
+                fresh = fh.read()
+            with open(os.path.join(HERE, "receivers.json")) as fh:
+                committed = fh.read()
+            if fresh != committed:
+                problems.append(
+                    "C8: receivers.json is stale relative to "
+                    "receiver_catalog.jl - rerun: julia --project=. "
+                    "tools/explorer/export_receivers.jl")
+    finally:
+        os.unlink(tmp)
+    with open(os.path.join(HERE, "receivers.json")) as fh:
+        receivers = json.load(fh)["receivers"]
+    receiver_ids = [r["id"] for r in receivers]
+    facades = [r["facade"] for r in receivers]
+    if len(set(receiver_ids)) != len(receiver_ids):
+        problems.append("C8: duplicate receiver ids")
+    if len(set(facades)) != len(facades):
+        problems.append("C8: duplicate receiver facades")
+
+    # C9 shared stage DAG integrity
+    if chain.get("schema_version") != 2:
+        problems.append("C9: chain schema_version must be 2")
+    chain_receivers = chain.get("receivers", [])
+    chain_ids = [r.get("id") for r in chain_receivers]
+    if set(chain_ids) != set(receiver_ids):
+        problems.append("C9: chain receiver ids do not match receivers.json")
+    if set(facades) != {"JunaStandard", "JunaPartialFFT", "JunaLite"}:
+        problems.append("C9: catalog must expose the three package facades")
+    stage_ids = set(ids)
+    for receiver in chain_receivers:
+        path = receiver.get("path", [])
+        if not path or path[0] != "acquisition":
+            problems.append(
+                f"C9: receiver '{receiver.get('id')}' must start at acquisition")
+        for stage_id in path:
+            if stage_id not in stage_ids:
+                problems.append(
+                    f"C9: receiver '{receiver.get('id')}' references unknown "
+                    f"stage '{stage_id}'")
+        for stage_id in receiver.get("optional_stages", []):
+            if stage_id not in stage_ids:
+                problems.append(
+                    f"C9: receiver '{receiver.get('id')}' optional stage "
+                    f"'{stage_id}' is unknown")
+        catalog_receiver = next(
+            (r for r in receivers if r["id"] == receiver.get("id")), None)
+        if catalog_receiver and catalog_receiver["chain_path"] != path:
+            problems.append(
+                f"C9: receiver '{receiver.get('id')}' path differs between "
+                "chain.json and receivers.json")
+    conditional = 0
+    for edge in chain.get("edges", []):
+        if edge.get("from") not in stage_ids or edge.get("to") not in stage_ids:
+            problems.append(f"C9: edge references unknown stage: {edge}")
+        if edge.get("condition"):
+            conditional += 1
+    if conditional < 2:
+        problems.append("C9: DAG must declare Lite's conditional exit/refine edges")
+
+    # C10 executable test tiers and applicability
+    allowed_tiers = {"structural", "universal", "mechanism",
+                     "receiver-specific"}
+    for suite in suites:
+        tier = suite.get("tier")
+        scope = suite.get("receivers", "")
+        if tier not in allowed_tiers:
+            problems.append(f"C10: suite '{suite['key']}' has invalid tier "
+                            f"'{tier}'")
+        if scope in {"structural", "all"}:
+            continue
+        prefix, sep, target = scope.partition(":")
+        if sep != ":" or prefix not in {"stage", "receiver"}:
+            problems.append(f"C10: suite '{suite['key']}' has invalid receiver "
+                            f"scope '{scope}'")
+        elif prefix == "stage":
+            if target not in stage_ids:
+                problems.append(f"C10: suite '{suite['key']}' references "
+                                f"unknown stage '{target}'")
+            else:
+                stage = next(st for st in stages if st["id"] == target)
+                if suite["key"] not in stage["suites"]:
+                    problems.append(f"C10: stage-scoped suite '{suite['key']}' "
+                                    f"is absent from stage '{target}'")
+        elif target not in receiver_ids:
+            problems.append(f"C10: suite '{suite['key']}' references unknown "
+                            f"receiver '{target}'")
+    if not any(s.get("tier") == "universal" and
+               s.get("receivers") == "all" for s in suites):
+        problems.append("C10: no universal all-receiver suite exists")
+    specific = {s.get("receivers", "").split(":", 1)[1]
+                for s in suites
+                if s.get("tier") == "receiver-specific" and
+                s.get("receivers", "").startswith("receiver:")}
+    for receiver in receivers:
+        if (receiver["id"] not in specific and
+                not receiver.get("specific_suite_exemption")):
+            problems.append(f"C10: receiver '{receiver['id']}' has neither a "
+                            "receiver-specific suite nor an exemption")
+
     # C5 evidence honesty
     report = source_coverage.scan(ROOT)
     evidence = source_coverage.stage_evidence(ROOT, report)
@@ -163,4 +285,4 @@ if __name__ == "__main__":
         for p in problems:
             print("  -", p)
         sys.exit(1)
-    print("explorer contract: PASS (C1-C7)")
+    print("explorer contract: PASS (C1-C10)")

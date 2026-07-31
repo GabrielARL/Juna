@@ -90,9 +90,15 @@ def _load_chain():
     with open(os.path.join(HERE, "chain.json")) as fh:
         return json.load(fh)
 
+def _load_receivers():
+    with open(os.path.join(HERE, "receivers.json")) as fh:
+        return json.load(fh)["receivers"]
+
 
 SUITES_CACHE = _Cache(_load_suites, [os.path.join(HERE, "suites.json")])
 CHAIN_CACHE = _Cache(_load_chain, [os.path.join(HERE, "chain.json")])
+RECEIVERS_CACHE = _Cache(_load_receivers,
+                         [os.path.join(HERE, "receivers.json")])
 ANALYZE_CACHE = _Cache(lambda: source_symbols.analyze(os.path.join(ROOT, "src")),
                        _src_files())
 COVERAGE_CACHE = _Cache(lambda: source_coverage.scan(ROOT),
@@ -224,6 +230,15 @@ def _symbol_lookup(token):
     _data, by_id, by_name = _symbol_index()
     if token.isdigit() and int(token) in by_id:
         return by_id[int(token)]
+    if "." in token:
+        module, _, name = token.rpartition(".")
+        qualified = [s for s in by_name.get(name, [])
+                     if s.get("module") == module]
+        if qualified:
+            for match in qualified:
+                if match["kind"] in ("function", "type", "struct"):
+                    return match
+            return qualified[0]
     matches = by_name.get(token)
     if not matches:
         return None
@@ -268,6 +283,28 @@ def symbol_detail(sym):
 
     iface = (f"extends the public Modulations interface method "
              f"'{sym['name']}'" if sym["name"] in INTERFACE_METHODS else False)
+    type_methods = []
+    facades = []
+    if sym["kind"] in ("struct", "type"):
+        type_methods = [
+            {"id": candidate["id"], "name": candidate["name"],
+             "kind": candidate["kind"]}
+            for candidate in _data["symbols"]
+            if candidate["name"] in INTERFACE_METHODS and
+            candidate.get("recv") == sym["name"] and
+            (candidate["module"] == sym["module"] or
+             sym["module"] == "Modulations")
+        ]
+        if sym["module"] == "Juna" and sym["name"] == "Modulation":
+            facades = [
+                {"id": candidate["id"], "name": candidate["module"],
+                 "kind": "facade"}
+                for candidate in _data["symbols"]
+                if candidate["name"] == "Modulation" and
+                candidate["kind"] == "const" and
+                candidate["module"] in
+                {"JunaStandard", "JunaPartialFFT", "JunaLite"}
+            ]
 
     return {
         "id": sym["id"], "name": sym["name"], "qual": sym.get("qual"),
@@ -275,6 +312,9 @@ def symbol_detail(sym):
         "line": sym["line"], "sig": sym["sig"], "src": sym.get("src"),
         "super": sym.get("super"), "recv": sym.get("recv"),
         "doc": _extract_doc(sym),
+        "fields": _struct_fields(sym),
+        "interface_methods": type_methods,
+        "facades": facades,
         "overloads": overloads, "calls": calls, "callers": callers,
         "chain_stages": stages,
         "evidence": {
@@ -287,6 +327,106 @@ def symbol_detail(sym):
         },
     }
 
+def _struct_fields(sym):
+    """Extract declared struct fields without inventing documentation."""
+    if sym.get("kind") != "struct":
+        return []
+    fields = []
+    for line in (sym.get("src") or "").splitlines()[1:]:
+        stripped = line.strip()
+        if not stripped or stripped == "end" or stripped.startswith("#"):
+            continue
+        code, _, comment = stripped.partition("#")
+        match = re.match(
+            r"([A-Za-z_][A-Za-z0-9_!]*)\s*::\s*([^=]+?)(?:\s*=\s*(.*))?$",
+            code.strip())
+        if match:
+            fields.append({"name": match.group(1),
+                           "type": match.group(2).strip(),
+                           "default": (match.group(3) or "").strip() or None,
+                           "comment": comment.strip() or None})
+    return fields
+
+
+def graph_data(query):
+    """Context-filtered static graph. Edges are lexical, never runtime."""
+    params = urllib.parse.parse_qs(query or "")
+    analyzed, by_id, by_name = _symbol_index()
+    symbols = [s for s in analyzed["symbols"] if s["kind"] != "module"]
+    chosen = None
+    context = []
+
+    def narrow(ids, kind, value, label):
+        nonlocal chosen
+        ids = set(ids)
+        chosen = ids if chosen is None else chosen & ids
+        context.append({"kind": kind, "value": value, "label": label})
+
+    file_name = params.get("file", [None])[0]
+    if file_name:
+        narrow((s["id"] for s in symbols if s["file"] == file_name),
+               "file", file_name, f"src/{file_name}")
+
+    chain = CHAIN_CACHE.get()
+    stage_id = params.get("stage", [None])[0]
+    if stage_id:
+        stage = next((s for s in chain["stages"] if s["id"] == stage_id),
+                     None)
+        if stage:
+            narrow((s["id"] for name in stage["symbols"]
+                    for s in by_name.get(name, [])),
+                   "stage", stage_id, stage["title"])
+
+    receiver_id = params.get("receiver", [None])[0]
+    if receiver_id:
+        receiver = next((r for r in chain["receivers"]
+                         if r["id"] == receiver_id), None)
+        catalog = next((r for r in RECEIVERS_CACHE.get()
+                        if r["id"] == receiver_id), None)
+        if receiver and catalog:
+            stage_ids = receiver["path"] + receiver.get("optional_stages", [])
+            names = {name for st in chain["stages"] if st["id"] in stage_ids
+                     for name in st["symbols"]}
+            ids = {s["id"] for name in names for s in by_name.get(name, [])}
+            ids.update(s["id"] for s in symbols
+                       if s.get("module") == catalog["facade"])
+            narrow(ids, "receiver", receiver_id, catalog["display_name"])
+
+    suite_key = params.get("suite", [None])[0]
+    if suite_key:
+        report = COVERAGE_CACHE.get()
+        direct = report["suites"].get(suite_key, {}).get("direct", {})
+        names = set(direct)
+        names.update(name for st in chain["stages"]
+                     if suite_key in st["suites"] for name in st["symbols"])
+        narrow((s["id"] for name in names for s in by_name.get(name, [])),
+               "suite", suite_key, f"Suite: {suite_key}")
+
+    token = params.get("symbol", [None])[0]
+    if token:
+        sym = _symbol_lookup(token)
+        if sym:
+            ids = {sym["id"], *sym.get("calls", []), *sym.get("callers", [])}
+            narrow(ids, "symbol", token, f"Symbol: {sym['name']}")
+
+    selected = {s["id"] for s in symbols} if chosen is None else chosen
+    nodes = [{"id": s["id"], "name": s["name"], "kind": s["kind"],
+              "module": s["module"], "file": s["file"], "line": s["line"]}
+             for s in symbols if s["id"] in selected]
+    edges = []
+    seen = set()
+    for s in symbols:
+        if s["id"] not in selected:
+            continue
+        for target in s.get("calls", []):
+            edge = (s["id"], target)
+            if target in selected and edge not in seen:
+                seen.add(edge)
+                edges.append({"from": s["id"], "to": target,
+                              "kind": "static_call"})
+    return {"context": context, "nodes": nodes, "edges": edges,
+            "note": TAXONOMY_NOTE}
+
 
 def palette_index():
     items = [{"label": label, "kind": "page", "href": href, "hint": "page"}
@@ -297,6 +437,10 @@ def palette_index():
     for st in CHAIN_CACHE.get()["stages"]:
         items.append({"label": st["title"], "kind": "stage",
                       "href": f"/chain#{st['id']}", "hint": st["kind"]})
+    for receiver in RECEIVERS_CACHE.get():
+        items.append({"label": receiver["display_name"], "kind": "receiver",
+                      "href": f"/chain?receiver={receiver['id']}",
+                      "hint": receiver["facade"]})
     data = ANALYZE_CACHE.get()
     for m in data["modules"]:
         items.append({"label": m["name"], "kind": "module", "href": "/source",
@@ -553,6 +697,13 @@ button:hover { border-color:var(--accent); }
 #symsearch { width:100%; padding:.35rem .6rem; margin-bottom:.4rem;
              border:1px solid var(--line); border-radius:6px;
              background:var(--bg); color:var(--fg); font:inherit; }
+.source-mode-tabs { display:flex; flex-wrap:wrap; gap:.35rem; margin:.5rem 0; }
+.source-mode { border:1px solid var(--line); border-radius:7px;
+               padding:.35rem .75rem; text-decoration:none; color:var(--muted); }
+.source-mode.active, .source-mode:hover { color:var(--fg);
+                                          border-color:var(--accent);
+                                          background:var(--card); }
+#source-context:empty { display:none; }
 """
 
 
@@ -614,9 +765,11 @@ def page_home():
     suites = SUITES_CACHE.get()
     chain = CHAIN_CACHE.get()
     last = last_run_by_key()
+    lite = next(r for r in RECEIVERS_CACHE.get() if r["id"] == "lite")
+    by_stage = {st["id"]: st for st in chain["stages"]}
     strip = " → ".join(
         f'<a href="/chain#{esc(st["id"])}">{esc(st["title"])}</a>'
-        for st in chain["stages"])
+        for st in (by_stage[stage_id] for stage_id in lite["chain_path"]))
     rows = "".join(
         f"<tr><td><a href='/run/{esc(r['key'])}'>{esc(r['key'])}</a></td>"
         f"<td>{status_badge(r)}</td>"
@@ -632,7 +785,11 @@ def page_home():
 <div class="card">Standalone home of the JUNA-Lite receiver, migrated from
 sonique <code>research/JunaCore @ {SOURCE_SHA}</code>. Three public facades:
 Standard OFDM, Partial-FFT, JUNA-Lite. HEAD:
-<code>{esc(git_state()['head'])} {esc(git_state()['subject'])}</code></div>
+<code>{esc(git_state()['head'])} {esc(git_state()['subject'])}</code><br>
+Explore source:
+<a href="/source/graph?receiver=standard">Standard</a> ·
+<a href="/source/graph?receiver=partial-fft">Partial-FFT</a> ·
+<a href="/source/graph?receiver=lite">JUNA-Lite</a></div>
 {stale_banner()}
 <h2>Receiver chain</h2>
 <div class="card">{strip}</div>
@@ -666,7 +823,9 @@ def page_tests():
                  f'<span style="color:var(--muted)">{esc(s["claim"])}</span>'
                  f'<br><span class="badge">{esc(s["provenance"])}</span>'
                  f'{chips_html}</td>'
-                 f'<td><code>{esc(s["file"])}</code></td>'
+                 f'<td><code>{esc(s["file"])}</code><br>'
+                 f'<a href="/source/graph?suite={esc(s["key"])}">'
+                 f"source graph</a></td>"
                  f'<td>{status_badge(rec)}</td>'
                  f'<td><a href="/run/{esc(s["key"])}"><button>run</button>'
                  f'</a></td></tr>')
@@ -691,7 +850,9 @@ def page_map():
     for s in analyzed["symbols"]:
         per_file[s["file"]] = per_file.get(s["file"], 0) + 1
     src_rows = "".join(
-        f"<tr><td><code>src/{esc(f)}</code></td><td>{n} symbols</td></tr>"
+        f'<tr><td><a href="/source/graph?file='
+        f'{urllib.parse.quote(f)}"><code>src/{esc(f)}</code></a></td>'
+        f"<td>{n} symbols</td></tr>"
         for f, n in sorted(per_file.items()))
     body = f"""
 <h1>Repository map</h1>
@@ -717,35 +878,89 @@ contracts · <code>tools/parity_check.jl</code>: cross-repo parity gate.</div>
 
 def page_chain():
     chain = CHAIN_CACHE.get()
-    payload = json.dumps(chain["stages"]).replace("</", "<\\/")
-    boxes = ""
-    for i, st in enumerate(chain["stages"]):
-        if i:
-            boxes += '<div class="arrow">↓</div>'
-        boxes += (f'<div class="stage" id="{esc(st["id"])}" '
-                  f'onclick="show(\'{esc(st["id"])}\')">'
-                  f'<span class="badge kind">{esc(st["kind"])}</span>'
-                  f'<b>{esc(st["title"])}</b><br>'
-                  f'<span style="color:var(--muted)">'
-                  f'{esc(", ".join(st["symbols"][:3]))}'
-                  f'{"…" if len(st["symbols"]) > 3 else ""}</span></div>')
+    receivers = RECEIVERS_CACHE.get()
+    optional = {r["id"]: r.get("optional_stages", [])
+                for r in chain["receivers"]}
+    payload = json.dumps({"stages": chain["stages"],
+                          "receivers": receivers,
+                          "edges": chain["edges"],
+                          "optionalStages": optional}).replace("</", "<\\/")
+    options = "".join(
+        f'<option value="{esc(r["id"])}"'
+        f'{" selected" if r["id"] == "lite" else ""}>'
+        f'{esc(r["display_name"])}</option>' for r in receivers)
+    compare_options = ('<option value="">None</option>' + "".join(
+        f'<option value="{esc(r["id"])}">{esc(r["display_name"])}</option>'
+        for r in receivers))
+    conditions = "".join(
+        f'<li><code>{esc(edge["from"])}</code> → '
+        f'<code>{esc(edge["to"])}</code>: {esc(edge["condition"])}</li>'
+        for edge in chain["edges"] if edge.get("condition"))
     body = f"""
-<h1>JUNA-Lite receiver chain</h1>
-<div class="card">Declared in <code>tools/explorer/chain.json</code> and
-contract-verified against the analyzer and the suite registry. Lite refits
-the combiner <b>W</b> only - the physical response C is never formed - and
-stops on success, non-improvement, or the iteration limit.</div>
-<div class="grid2"><div>{boxes}</div>
+<h1>Receiver chains</h1>
+<div class="card">The two baselines and JUNA-Lite are views over one shared,
+contract-verified stage DAG. A baseline is a complete comparison receiver,
+not an incomplete implementation. Lite extends its Partial-FFT seed only
+when that seed is invalid.</div>
+<div class="card"><label>Receiver:
+<select id="receiver-select">{options}</select></label>
+&nbsp; <label>Compare with:
+<select id="compare-select">{compare_options}</select></label>
+<div id="receiver-purpose" style="margin-top:.7rem"></div></div>
+<div class="grid2"><div id="chain-boxes"></div>
 <div id="detail"><div class="card">Click a stage for its symbols, suites,
 and evidence.</div></div></div>
+<h2>Conditional execution</h2>
+<div class="card"><ul>{conditions}</ul></div>
 <script>
-var STAGES = {payload};
+var MODEL = {payload};
+var STAGES = MODEL.stages;
+function receiver(id) {{
+  return MODEL.receivers.find(function(r) {{ return r.id === id; }});
+}}
+function renderChain() {{
+  var selected = receiver(document.getElementById('receiver-select').value);
+  var compared = receiver(document.getElementById('compare-select').value);
+  var comparedPath = compared ? compared.chain_path : [];
+  document.getElementById('receiver-purpose').innerHTML =
+    '<b>' + selected.display_name + '</b> · <code>' + selected.facade +
+    '</code> · ' + selected.purpose;
+  document.getElementById('chain-boxes').innerHTML =
+    selected.chain_path.map(function(id, index) {{
+      var st = STAGES.find(function(s) {{ return s.id === id; }});
+      var shared = comparedPath.indexOf(id) >= 0;
+      var marker = compared ? (shared ? 'shared' : 'selected only') : st.kind;
+      return (index ? '<div class="arrow">↓</div>' : '') +
+        '<div class="stage" id="' + st.id + '" data-stage="' + st.id + '">' +
+        '<span class="badge kind">' + marker + '</span><b>' + st.title +
+        '</b><br><span style="color:var(--muted)">' +
+        st.symbols.slice(0, 3).join(', ') +
+        (st.symbols.length > 3 ? '…' : '') + '</span></div>';
+    }}).join('') +
+    (MODEL.optionalStages[selected.id] || []).map(function(id) {{
+      var st = STAGES.find(function(s) {{ return s.id === id; }});
+      return '<div class="arrow">optional deployment wrapper</div>' +
+        '<div class="stage" id="' + st.id + '" data-stage="' + st.id + '">' +
+        '<span class="badge kind">optional</span><b>' + st.title +
+        '</b><br><span style="color:var(--muted)">' +
+        st.symbols.slice(0, 3).join(', ') + '</span></div>';
+    }}).join('');
+  document.querySelectorAll('#chain-boxes .stage').forEach(function(node) {{
+    node.addEventListener('click', function() {{ show(node.dataset.stage); }});
+  }});
+  var url = new URL(location.href);
+  url.searchParams.set('receiver', selected.id);
+  if (compared) url.searchParams.set('compare', compared.id);
+  else url.searchParams.delete('compare');
+  history.replaceState(null, '', url.pathname + url.search + location.hash);
+}}
 function show(id) {{
   var st = STAGES.find(function(s) {{ return s.id === id; }});
   if (!st) return;
   var evCls = st.evidence === "direct" ? "ok" : "warn";
   var syms = st.symbols.map(function(s) {{
-    return '<a href="/source#sym=' + encodeURIComponent(s) + '"><code>' +
+    return '<a href="/source/graph?stage=' + encodeURIComponent(st.id) +
+           '#sym=' + encodeURIComponent(s) + '"><code>' +
            s + '</code></a>'; }}).join(" · ");
   var suites = st.suites.map(function(k) {{
     return '<a href="/tests#' + k + '">' + k + '</a> (<a href="/run/' + k +
@@ -761,14 +976,28 @@ function show(id) {{
       'this stage through the public API without naming its internals - ' +
       'see the <a href="/coverage">coverage legend</a>.</p>' : '') +
     '</div>';
-  if (history.replaceState) history.replaceState(null, '', '#' + id);
+  if (history.replaceState) {{
+    var url = new URL(location.href);
+    url.hash = id;
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+  }}
 }}
+var params = new URLSearchParams(location.search);
+if (receiver(params.get('receiver'))) {{
+  document.getElementById('receiver-select').value = params.get('receiver');
+}}
+if (receiver(params.get('compare'))) {{
+  document.getElementById('compare-select').value = params.get('compare');
+}}
+document.getElementById('receiver-select').addEventListener('change', renderChain);
+document.getElementById('compare-select').addEventListener('change', renderChain);
+renderChain();
 if (location.hash) show(location.hash.slice(1));
 </script>"""
     return shell("Chain", "/chain", body)
 
 
-def page_source():
+def page_source(mode="inspector"):
     data = ANALYZE_CACHE.get()
     per_file = {}
     for s in data["symbols"]:
@@ -788,14 +1017,21 @@ def page_source():
     legend = "".join(
         f"<li><b>{esc(term)}</b>: {esc(meaning)}</li>"
         for term, meaning in TAXONOMY)
+    inspector_active = " active" if mode == "inspector" else ""
+    graph_active = " active" if mode == "graph" else ""
     body = f"""
 <h1>Source</h1>
-<div class="card">Unified source view over the vendored analyzer's data
-(<code>/api/symbols</code>, <code>/api/symbol/&lt;name&gt;</code>). Click a
-symbol for the persistent inspector; the graph shows the selection's direct
-static call neighborhood. The vendored analyzer's own full page remains at
-<a href="/source-legacy">/source-legacy</a>.</div>
-<div class="grid-source">
+<div class="source-mode-tabs">
+<a class="source-mode{inspector_active}" href="/source">Evidence Inspector</a>
+<a class="source-mode{graph_active}" href="/source/graph">Advanced Graph</a>
+<a class="source-mode" href="/source-advanced">Original Analyzer</a>
+</div>
+<div class="card">One analyzer, two Explorer views. Inspector connects a
+selected symbol to chain meaning and evidence. Advanced Graph accepts
+receiver, stage, suite, file, and symbol context while preserving the same
+inspector. Static graph edges never claim runtime execution.</div>
+<div id="source-context" class="card"></div>
+<div class="grid-source" data-source-mode="{esc(mode)}">
 <div><input id="symsearch" placeholder="filter symbols…" autocomplete="off">
 <div id="symlist">{groups}</div></div>
 <div id="egograph"></div>
@@ -812,8 +1048,33 @@ static call neighborhood. The vendored analyzer's own full page remains at
 
 def page_source_legacy():
     analyzed = ANALYZE_CACHE.get()
-    return source_symbols.render_html(False, analyzed,
+    page = source_symbols.render_html(False, analyzed,
                                       os.path.join(ROOT, "src"), locked=True)
+    bridge_css = """
+<style>
+#explorer-source-bridge{position:fixed;left:0;right:0;bottom:0;z-index:99999;
+display:flex;align-items:center;gap:8px;padding:8px 14px;background:#0b1220;
+border-top:1px solid #334155;color:#cbd5e1;font:13px system-ui,sans-serif}
+#explorer-source-bridge a{color:#7dd3fc;text-decoration:none;padding:3px 7px}
+#explorer-source-bridge a:hover{background:#1e293b;border-radius:5px}
+#explorer-source-bridge .spacer{flex:1}
+body{padding-bottom:46px!important}
+</style>"""
+    bridge = """
+<div id="explorer-source-bridge" aria-label="Explorer source bridge">
+<b>Explorer source bridge</b>
+<a href="/source">Evidence Inspector</a>
+<a href="/source/graph">Advanced Graph</a>
+<span class="spacer"></span>
+<a href="/chain">Chain</a><a href="/tests">Tests</a>
+<a href="/coverage">Coverage</a>
+</div>"""
+    if "</head>" in page:
+        page = page.replace("</head>", bridge_css + "</head>", 1)
+    if "<body" in page:
+        body_end = page.find(">", page.find("<body"))
+        page = page[:body_end + 1] + bridge + page[body_end + 1:]
+    return page
 
 
 def page_coverage():
@@ -841,7 +1102,8 @@ def page_coverage():
                 cell = '<span style="color:var(--muted)">·</span>'
             cells += f"<td>{cell}</td>"
         rows += (f'<tr><td><a href="/chain#{esc(st["id"])}">{esc(st["title"])}'
-                 f"</a></td>{cells}</tr>")
+                 f'</a><br><a href="/source/graph?stage={esc(st["id"])}">'
+                 f"source graph</a></td>{cells}</tr>")
     unresolved = report["unresolved"]
     unresolved_rows = "".join(
         f"<tr><td>{esc(u['suite'])}</td><td>{esc(u.get('line', ''))}</td>"
@@ -855,7 +1117,9 @@ def page_coverage():
         if not direct:
             continue
         items = "".join(
-            f"<tr><td><a href='/source#sym={esc(n)}'><code>{esc(n)}</code></a>"
+            f"<tr><td><a href='/source/graph?suite={esc(k)}"
+            f"&symbol={urllib.parse.quote(n)}#sym={urllib.parse.quote(n)}'>"
+            f"<code>{esc(n)}</code></a>"
             f"</td><td>{esc(', '.join(map(str, lines[:12])))}"
             f"{'…' if len(lines) > 12 else ''}</td></tr>"
             for n, lines in direct.items())
@@ -911,7 +1175,9 @@ server-behavior, package-load; the long checks run individually)</span></div>
 <th>ended</th><th></th></tr>
 {rows}</table></div>
 <div id="health-parity" class="card">Cross-repository parity: run both
-parity checks to compare digests.</div>
+parity checks to compare digests. Inspect the
+<a href="/source/graph?file=juna%2Fcommon.jl">shared receiver substrate</a>.
+</div>
 <pre id="health-log">(no health run this session)</pre>
 <script type="module" src="/static/health.js"></script>"""
     return shell("Health", "/health", body)
@@ -928,7 +1194,8 @@ def page_progress():
 <h1>Live progress log</h1>
 <div class="card">Tail of <code>.migration_progress.log</code>; the page
 refreshes every 5 s. Terminal equivalent:
-<code>tail -f .migration_progress.log</code></div>
+<code>tail -f .migration_progress.log</code> ·
+<a href="/source/graph?receiver=lite">open the Lite source context</a></div>
 <pre>{esc(tail)}</pre>
 <script>setTimeout(function() {{ location.reload(); }}, 5000);</script>"""
     return shell("Progress", "/progress", body)
@@ -1007,6 +1274,10 @@ class Handler(BaseHTTPRequestHandler):
                              for s in SUITES_CACHE.get()])
         if path == "/api/chain":
             return envelope(CHAIN_CACHE.get())
+        if path == "/api/receivers":
+            return envelope(RECEIVERS_CACHE.get())
+        if path == "/api/graph":
+            return envelope(graph_data(query))
         if path == "/api/symbols":
             return envelope([{k: s[k] for k in
                               ("id", "name", "kind", "module", "file", "line")}
@@ -1076,7 +1347,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(page_chain())
             if path == "/source":
                 return self._send(page_source())
-            if path == "/source-legacy":
+            if path == "/source/graph":
+                return self._send(page_source("graph"))
+            if path in ("/source-advanced", "/source-legacy"):
                 return self._send(page_source_legacy())
             if path == "/coverage":
                 return self._send(page_coverage())

@@ -5,6 +5,10 @@ const STYLE_ID = "jx-source-style";
 
 let currentData = null;
 let network = null; // active vis.Network instance, if any
+const PAGE_ROOT = document.querySelector("[data-source-mode]");
+const PAGE_MODE =
+  (PAGE_ROOT && PAGE_ROOT.dataset && PAGE_ROOT.dataset.sourceMode) ||
+  "inspector";
 
 function injectStyle() {
   if (document.getElementById(STYLE_ID)) return;
@@ -48,6 +52,15 @@ function injectStyle() {
     .jx-src-action-btn:hover { border-color: var(--accent, #4a9eff); color: var(--accent, #4a9eff); }
     .jx-src-error { color: var(--bad, #e74c3c); padding: 12px 0; }
     .jx-src-details summary { cursor: pointer; color: var(--muted, #888888); font-size: 12px; margin-bottom: 4px; }
+    .jx-src-field-search {
+      width: 100%; padding: 5px 8px; margin-bottom: 7px;
+      border: 1px solid var(--line, #333333); border-radius: 6px;
+      background: var(--bg, #161616); color: var(--fg, #eeeeee);
+    }
+    .jx-src-field {
+      padding: 5px 0; border-bottom: 1px solid var(--line, #333333);
+      font-size: 12px;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -214,6 +227,44 @@ function buildDefinedAtSection(data) {
   return section("Defined at", content);
 }
 
+function buildFieldsSection(data) {
+  const fields = Array.isArray(data.fields) ? data.fields : [];
+  if (!fields.length) return null;
+  const content = document.createElement("div");
+  const search = document.createElement("input");
+  search.className = "jx-src-field-search";
+  search.placeholder = "filter " + fields.length + " fields…";
+  const list = document.createElement("div");
+  fields.forEach((field) => {
+    const row = document.createElement("div");
+    row.className = "jx-src-field";
+    row.dataset.search = [
+      field.name, field.type, field.default, field.comment,
+    ].filter(Boolean).join(" ").toLowerCase();
+    const declaration = document.createElement("code");
+    declaration.textContent =
+      field.name + "::" + field.type +
+      (field.default ? " = " + field.default : "");
+    row.appendChild(declaration);
+    if (field.comment) {
+      const comment = document.createElement("div");
+      comment.className = "jx-src-muted";
+      comment.textContent = field.comment;
+      row.appendChild(comment);
+    }
+    list.appendChild(row);
+  });
+  search.addEventListener("input", () => {
+    const query = search.value.trim().toLowerCase();
+    list.querySelectorAll(".jx-src-field").forEach((row) => {
+      row.hidden = Boolean(query) && !row.dataset.search.includes(query);
+    });
+  });
+  content.appendChild(search);
+  content.appendChild(list);
+  return section("Fields (" + fields.length + ")", content);
+}
+
 function buildChainSection(data) {
   return buildLinkListSection(
     "Chain role",
@@ -238,6 +289,25 @@ function buildRefsSection(title, refs) {
     text: r.name || String(r.id),
     title: r.kind,
   }));
+}
+
+function buildFacadesSection(data) {
+  return buildLinkListSection(
+    "Public constructor facades",
+    data.facades,
+    "jx-src-chip",
+    (facade) => ({
+      href: "/source/graph?receiver=" +
+        encodeURIComponent(
+          {
+            JunaStandard: "standard",
+            JunaPartialFFT: "partial-fft",
+            JunaLite: "lite",
+          }[facade.name] || ""
+        ) + "#sym=" + encodeURIComponent(facade.id),
+      text: facade.name,
+    })
+  );
 }
 
 function buildEvidenceSection(evidence) {
@@ -303,10 +373,28 @@ function buildActionsSection(data) {
   const stages = Array.isArray(data.chain_stages) ? data.chain_stages : [];
   const chainHref = stages.length > 0 ? "/chain#" + stages[0].id : "/chain";
 
-  wrap.appendChild(actionLink("Open definition", "/source-legacy#sym=" + encodeURIComponent(data.name || "")));
+  wrap.appendChild(actionLink(
+    "Open in original analyzer",
+    "/source-advanced#sym=" +
+      encodeURIComponent(
+        [data.module, data.name].filter(Boolean).join(".")
+      )
+  ));
   wrap.appendChild(focusBtn);
-  wrap.appendChild(actionLink("Show tests", "/coverage"));
+  const evidence = data.evidence || {};
+  const direct = evidence.direct_test_references || [];
+  const suites = evidence.suite_wide_associations || [];
+  const suite = (direct[0] && direct[0].suite) || suites[0];
+  wrap.appendChild(actionLink(
+    "Show evidence",
+    "/coverage" + (suite ? "?suite=" + encodeURIComponent(suite) : "")
+  ));
   wrap.appendChild(actionLink("Show chain", chainHref));
+  wrap.appendChild(actionLink(
+    "Open graph context",
+    "/source/graph?symbol=" + encodeURIComponent(data.name || "") +
+      "#sym=" + encodeURIComponent(data.name || "")
+  ));
   return wrap;
 }
 
@@ -321,7 +409,10 @@ function renderInspector(data) {
     buildPreSection("Signature", data.sig),
     buildPurposeSection(data),
     buildDefinedAtSection(data),
+    buildFieldsSection(data),
     buildChainSection(data),
+    buildFacadesSection(data),
+    buildRefsSection("Interface implementations", data.interface_methods),
     buildDispatchSection(data),
     buildRefsSection("Calls (static)", data.calls),
     buildRefsSection("Called by (static)", data.callers),
@@ -331,7 +422,7 @@ function renderInspector(data) {
     if (node) inspector.appendChild(node);
   });
 
-  focusGraph(data);
+  if (PAGE_MODE !== "graph") focusGraph(data);
 }
 
 function setInspectorMessage(text) {
@@ -459,6 +550,104 @@ function focusGraph(data) {
   network.on("doubleClick", onSelect);
 }
 
+function renderContextGraph(data) {
+  const container = document.getElementById("egograph");
+  const contextBox = document.getElementById("source-context");
+  if (!container) return;
+  clearEgograph();
+  if (contextBox) {
+    contextBox.innerHTML = "";
+    const prefix = document.createElement("b");
+    prefix.textContent = "Graph context: ";
+    contextBox.appendChild(prefix);
+    const contexts = Array.isArray(data.context) ? data.context : [];
+    if (!contexts.length) {
+      contextBox.appendChild(document.createTextNode(
+        "all source symbols · narrow from Home, Tests, Map, Chain, or Coverage"
+      ));
+    }
+    contexts.forEach((ctx) => {
+      const chip = document.createElement("span");
+      chip.className = "jx-src-chip";
+      chip.textContent = ctx.label;
+      contextBox.appendChild(chip);
+    });
+    contextBox.appendChild(document.createTextNode(
+      " · " + data.nodes.length + " symbols · " + data.edges.length +
+      " static calls"
+    ));
+  }
+  if (typeof vis === "undefined") {
+    container.textContent = "diagram library unavailable";
+    return;
+  }
+  const fontColor = getComputedStyle(document.body).color;
+  const nodes = data.nodes.map((item) => nodeFor(item, fontColor));
+  const nodeIndex = new Map(data.nodes.map((node) => [node.id, node]));
+  const edges = data.edges.map((edge, index) => ({
+    id: "edge-" + index, from: edge.from, to: edge.to, arrows: "to",
+    title: "Static call edge — not runtime execution",
+  }));
+  const edgeIndex = new Map(edges.map((edge) => [edge.id, edge]));
+  network = new vis.Network(
+    container,
+    { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) },
+    {
+      physics: { stabilization: { iterations: 220 } },
+      edges: { color: { color: cssVar("--line", "#666666") } },
+      interaction: { hover: true, navigationButtons: true },
+    }
+  );
+  network.once("stabilizationIterationsDone", () => {
+    if (network) network.setOptions({ physics: false });
+  });
+  network.on("click", (params) => {
+    const id = params.nodes && params.nodes[0];
+    if (id !== undefined) {
+      location.hash = "#sym=" + encodeURIComponent(id);
+      return;
+    }
+    const edgeId = params.edges && params.edges[0];
+    if (edgeId !== undefined) {
+      const edge = edgeIndex.get(edgeId);
+      const from = nodeIndex.get(edge.from);
+      const to = nodeIndex.get(edge.to);
+      const inspector = document.getElementById("inspector");
+      inspector.innerHTML =
+        '<div class="jx-src-section"><div class="jx-src-name">' +
+        'Static call edge</div><div class="jx-src-sub">lexical evidence</div>' +
+        '</div><div class="jx-src-section"><div class="jx-src-heading">' +
+        'Relationship</div><a class="jx-src-chip" href="#sym=' +
+        encodeURIComponent(from.id) + '">' + from.name + '</a> → ' +
+        '<a class="jx-src-chip" href="#sym=' +
+        encodeURIComponent(to.id) + '">' + to.name + '</a></div>' +
+        '<div class="note">The analyzer found a lexical call. This does not ' +
+        'establish that the call executed at runtime.</div>';
+    }
+  });
+  network.on("doubleClick", (params) => {
+    const id = params.nodes && params.nodes[0];
+    if (id !== undefined) {
+      fetch("/api/symbol/" + encodeURIComponent(id))
+        .then((res) => res.json())
+        .then((json) => focusGraph(unwrap(json)));
+    }
+  });
+}
+
+function loadContextGraph() {
+  const query = location.search || "";
+  fetch("/api/graph" + query)
+    .then((res) => {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    })
+    .then((json) => renderContextGraph(unwrap(json)))
+    .catch((err) => setInspectorMessage(
+      "Could not load graph context: " + err.message
+    ));
+}
+
 // ---------- init ----------
 
 function init() {
@@ -466,6 +655,7 @@ function init() {
   const search = document.getElementById("symsearch");
   if (search) search.addEventListener("input", () => filterSymbols(search.value));
   window.addEventListener("hashchange", onHashChange);
+  if (PAGE_MODE === "graph") loadContextGraph();
   onHashChange();
 }
 
