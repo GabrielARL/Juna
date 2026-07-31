@@ -81,6 +81,7 @@ envelope `{commit, working_tree_dirty, generated_at, schema_version, data}`.
 Any future frontend builds against these APIs, not against page HTML.
 
 Data contracts: `python3 tools/explorer/explorer_contract.py` (C1–C10) and
-`python3 tools/explorer/server_contract.py` (S1–S15). The source
+`python3 tools/explorer/server_contract.py` (S1–S16, including headless-browser
+canvas-pixel checks). The source
 repository's explorer remains the home of the full nine-receiver family on
 port 8771.

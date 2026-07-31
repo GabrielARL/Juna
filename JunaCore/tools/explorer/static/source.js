@@ -485,6 +485,53 @@ function clearEgograph() {
   if (container) container.innerHTML = "";
 }
 
+function markCanvasPaint(container) {
+  const canvas = container && container.querySelector("canvas");
+  if (!canvas || !canvas.width || !canvas.height) return false;
+  try {
+    const pixels = canvas.getContext("2d").getImageData(
+      0, 0, canvas.width, canvas.height
+    ).data;
+    let painted = 0;
+    // Sample every fourth physical pixel. Nodes, labels, or edges are enough
+    // to prove that this is not the blank-canvas regression.
+    for (let i = 3; i < pixels.length; i += 16) {
+      if (pixels[i] !== 0) {
+        painted += 1;
+        if (painted >= 8) break;
+      }
+    }
+    container.dataset.graphPaint = painted >= 8 ? "painted" : "blank";
+    container.dataset.paintedSamples = String(painted);
+    return painted >= 8;
+  } catch (e) {
+    container.dataset.graphPaint = "unreadable";
+    return false;
+  }
+}
+
+function activateNetwork(container, activeNetwork) {
+  container.dataset.graphPaint = "pending";
+  const draw = () => {
+    if (network !== activeNetwork) return;
+    try {
+      activeNetwork.fit({ animation: false });
+      activeNetwork.redraw();
+    } catch (e) {
+      container.dataset.graphPaint = "error";
+      return;
+    }
+    markCanvasPaint(container);
+  };
+  requestAnimationFrame(() => requestAnimationFrame(draw));
+  setTimeout(draw, 250);
+  setTimeout(() => {
+    if (network !== activeNetwork || markCanvasPaint(container)) return;
+    activeNetwork.setOptions({ physics: false });
+    draw();
+  }, 1200);
+}
+
 function focusGraph(data) {
   const container = document.getElementById("egograph");
   if (!container) return;
@@ -533,14 +580,13 @@ function focusGraph(data) {
     container,
     { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) },
     {
-      physics: { stabilization: { iterations: 150 } },
+      layout: { randomSeed: 42 },
+      physics: { stabilization: false },
       edges: { arrows: { to: { enabled: true } }, color: { color: cssVar("--line", "#666666") } },
       interaction: { hover: true },
     }
   );
-  network.once("stabilizationIterationsDone", () => {
-    if (network) network.setOptions({ physics: false });
-  });
+  activateNetwork(container, network);
 
   const onSelect = (params) => {
     const nid = params.nodes && params.nodes[0];
@@ -593,14 +639,13 @@ function renderContextGraph(data) {
     container,
     { nodes: new vis.DataSet(nodes), edges: new vis.DataSet(edges) },
     {
-      physics: { stabilization: { iterations: 220 } },
+      layout: { randomSeed: 42 },
+      physics: { stabilization: false },
       edges: { color: { color: cssVar("--line", "#666666") } },
       interaction: { hover: true, navigationButtons: true },
     }
   );
-  network.once("stabilizationIterationsDone", () => {
-    if (network) network.setOptions({ physics: false });
-  });
+  activateNetwork(container, network);
   network.on("click", (params) => {
     const id = params.nodes && params.nodes[0];
     if (id !== undefined) {
@@ -636,7 +681,11 @@ function renderContextGraph(data) {
 }
 
 function loadContextGraph() {
-  const query = location.search || "";
+  let query = location.search || "";
+  if (!query) {
+    query = "?receiver=lite";
+    history.replaceState(null, "", location.pathname + query + location.hash);
+  }
   fetch("/api/graph" + query)
     .then((res) => {
       if (!res.ok) throw new Error("HTTP " + res.status);

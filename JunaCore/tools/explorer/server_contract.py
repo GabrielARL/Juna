@@ -46,6 +46,9 @@ S15 Source has seamless Inspector and Advanced Graph modes; the graph API
     accepts receiver/stage/suite/file contexts; every navigation tab emits a
     contextual Source entry; and the retained original analyzer has the
     Explorer bridge bar instead of becoming an orphan application.
+S16 a real headless browser observes painted canvas pixels for both a
+    receiver-context graph and a selected symbol's ego graph. API/DOM-only
+    success cannot satisfy this visual contract.
 """
 import json
 import os
@@ -85,6 +88,19 @@ def fetch(base, path, method="GET", body=None):
             return resp.status, resp.read().decode()
     except urllib.error.HTTPError as err:
         return err.code, err.read().decode()
+
+def browser_dom(base, path):
+    chrome = next((candidate for candidate in
+                   ("/usr/bin/google-chrome", "/usr/bin/chromium",
+                    "/usr/bin/chromium-browser")
+                   if os.path.isfile(candidate)), None)
+    if chrome is None:
+        return None, "headless Chrome unavailable"
+    run = subprocess.run(
+        [chrome, "--headless", "--no-sandbox", "--disable-gpu",
+         "--virtual-time-budget=8000", "--dump-dom", base + path],
+        capture_output=True, text=True, timeout=30)
+    return run.stdout, run.stderr[-500:]
 
 
 def check():
@@ -341,6 +357,16 @@ def check():
         if marker not in source_js:
             problems.append(f"S15: source interaction lost '{marker}'")
 
+    # S16
+    for path, label in (
+            ("/source/graph?receiver=lite", "receiver graph"),
+            ("/source#sym=_juna_step", "symbol ego graph")):
+        dom, error = browser_dom(base, path)
+        if dom is None:
+            problems.append(f"S16: {label} not checked: {error}")
+        elif 'data-graph-paint="painted"' not in dom:
+            problems.append(f"S16: {label} painted no canvas pixels")
+
     httpd.shutdown()
     return problems
 
@@ -352,4 +378,4 @@ if __name__ == "__main__":
         for p in problems:
             print("  -", p)
         sys.exit(1)
-    print("server contract: PASS (S1-S15)")
+    print("server contract: PASS (S1-S16)")

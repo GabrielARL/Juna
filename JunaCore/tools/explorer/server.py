@@ -691,7 +691,7 @@ button:hover { border-color:var(--accent); }
            font-family:ui-monospace, monospace; font-size:.8rem;
            color:var(--fg); border-radius:4px; }
 .symlink:hover { background:var(--card); color:var(--accent); }
-#egograph { min-height:26rem; border:1px solid var(--line);
+#egograph { height:32rem; min-height:26rem; border:1px solid var(--line);
             border-radius:8px; background:var(--card); }
 #inspector { position:sticky; top:3.2rem; max-height:85vh; overflow-y:auto; }
 #symsearch { width:100%; padding:.35rem .6rem; margin-bottom:.4rem;
