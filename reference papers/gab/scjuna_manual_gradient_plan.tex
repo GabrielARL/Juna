@@ -63,7 +63,7 @@
 \maketitle
 
 \begin{abstract}
-This document specifies how to implement the SC-JUNA bit-latent update without relying on automatic differentiation.  Closed-form least-squares updates serve the branch model and the combiner, and a hand-derived real gradient serves the latent vector.  Automatic differentiation may be used only as a test-time gradient checker.  Production code should use the formulas in this document.
+This document specifies how to implement the SC-JUNA bit-latent update without relying on automatic differentiation.  Closed-form least-squares updates serve the branch model and the combiner, and a hand-derived real gradient serves the latent vector.  Automatic differentiation may be used only as a test-time gradient checker.  The planned SC-JUNA code should use the formulas in this document.
 \end{abstract}
 
 \tableofcontents
@@ -165,6 +165,13 @@ end
 \end{lstlisting}
 
 \section{Latent bits and relaxed symbols}
+
+The formulas in this section define $z_i$ as the bit latent for the planned
+SC-JUNA update.  The current frame-wide JUNA-Wz path calls $z_i$ a logit and
+maps it with $\tanh(z_i/2)$ in
+\texttt{src/juna/frame\_wide\_ldpc.jl}.  Its chain rule therefore carries the
+factor $1/2$.  These are different code paths; the formulas below apply only
+to the bit-latent update specified here.
 
 The relaxed bipolar bit is
 \begin{equation}

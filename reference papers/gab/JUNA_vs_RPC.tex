@@ -116,7 +116,7 @@
 \begin{frame}[plain]
   \vspace{1.3cm}
   \begin{center}
-    {\bfseries\Huge JUNA vs RPC:\par}
+    {\bfseries\Huge JUNA vs Partial-FFT Combining:\par}
     \vspace{0.45em}
     {\bfseries\LARGE A FUNDAMENTAL DIFFERENCE\par}
     \vspace{0.30em}
@@ -138,7 +138,7 @@
     {\itshape\large\color{inkgray}--- Information-Theoretic Perspective ---\par}
     \vspace{0.25em}
     {\itshape\normalsize\color{inkgray}
-      RPC here denotes the Section II partial-FFT combining idea\par}
+      The comparison uses the Section II partial-FFT combining receiver\par}
   \end{center}
 \end{frame}
 
@@ -387,7 +387,7 @@
   \begin{tikzpicture}[x=1cm,y=1cm]
     % RPC label
     \node[anchor=west,font=\itshape\bfseries\color{ink}] at (-6.3,2.6)
-      {RPC: Section II Partial-FFT Combiner};
+      {Partial-FFT combining: Section II receiver};
 
     \node                         (yk)  at (-5.6,1.5) {$\vY_k$};
     \node[flowbox]                (lc)  at (-3.4,1.5) {Linear Combiner\\$\vW_k^{\herm}$};
@@ -729,7 +729,7 @@
 
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.52\textwidth}
-      \textbf{\color{rpcred}RPC view.} Compress $\vY_k$ to one number, then decode:
+      \textbf{\color{rpcred}Partial-FFT combining.} Compress $\vY_k$ to one number, then decode:
       \[
         \hX_k \;=\; \vW_k^{\herm}\,\vY_k .
       \]
@@ -764,7 +764,7 @@
   \end{columns}
 
   \begin{center}
-    {\itshape\small RPC compresses $\vY_k$ before the code is used.\;
+    {\itshape\small Partial-FFT combining compresses $\vY_k$ before the code is used.\;
      JUNA models $\vY_k$ as a sum of nearby symbols times branch-domain profiles.}
   \end{center}
 \end{frame}
@@ -782,7 +782,7 @@
         \item Each neighbor $q$ leaks into branch $m$
         \item Stack across $M$ branches $\Rightarrow$ $\vc_{k,q}\in\Cx^{M}$
         \item Leakage decays with $|k-q|$ $\Rightarrow$ \textbf{banded}
-        \item RPC cancels these terms; JUNA \emph{models} them
+        \item Partial-FFT combining cancels these terms; JUNA \emph{models} them
       \end{itemize}
     \end{column}
 
@@ -906,7 +906,7 @@
       A pilot inside row $k$'s band gives one identified $\vc_{k,p}$ and shrinks the search space for neighboring data unknowns.
 
       \vspace{0.2em}
-      Pilots also let RPC train $\vW_p^{\herm}\vY_p\!\approx\!P_p$, giving JUNA a meaningful warm start.
+      Pilots also train $\vW_p^{\herm}\vY_p\!\approx\!P_p$, giving JUNA a meaningful warm start.
     \end{column}
 
     \begin{column}{0.49\textwidth}
@@ -1027,7 +1027,7 @@
     \hline
     \textcolor{boxblue}{(B) pilot anchor}
       & $\vW_p^{\herm}\vY_p\!\approx\!P_p$
-      & The classical RPC training cost. Pins $\vW_p$ to known targets, and (via the bilinear coupling) helps identify $\vc_{k,p}$. \\
+      & The classical Partial-FFT training cost. Pins $\vW_p$ to known targets, and (via the bilinear coupling) helps identify $\vc_{k,p}$. \\
     \hline
     \textcolor{boxblue}{(C) combiner tie}
       & $\vW_k^{\herm}\vY_k\!\approx\!s_k(\vz)$ on data carriers
@@ -1052,8 +1052,8 @@
   \begin{center}
     \begin{tikzpicture}
       \node[draw=ink,fill=paper,line width=0.6pt,minimum width=14cm,minimum height=0.95cm,align=center,inner sep=5pt]
-        {Drop (A), (C), (E), (F): the $\vW_k$ update collapses to RPC's pilot-trained ridge/RLS system.\\
-         JUNA $=$ RPC \emph{plus} branch model, soft-symbol coupling, smoothness, and code.};
+        {Drop (A), (C), (E), (F): the $\vW_k$ update collapses to the pilot-trained ridge/RLS system.\\
+         JUNA $=$ Partial-FFT combining \emph{plus} branch model, soft-symbol coupling, smoothness, and code.};
     \end{tikzpicture}
   \end{center}
 \end{frame}
@@ -1067,7 +1067,7 @@
   \begin{center}
   \begin{tikzpicture}[x=1cm,y=1cm,scale=0.82,every node/.style={transform shape}]
     \node[flowbox,minimum width=2.0cm] (obs) at (-6.3,0) {partial-FFT\\observations};
-    \node[flowbox,minimum width=1.8cm] (init) at (-3.8,0) {RPC\\init};
+    \node[flowbox,minimum width=1.8cm] (init) at (-3.8,0) {Partial-FFT\\init};
     \node[flowbox,minimum width=1.9cm] (cw) at (-1.2,0) {update\\$\vC,\vW$};
     \node[flowbox,minimum width=1.7cm] (z) at (1.2,0) {update\\$\vz$};
     \node[flowbox,minimum width=1.8cm] (par) at (3.5,0) {parity\\check};
@@ -1118,7 +1118,7 @@
     \hline
     \rowcolor{headerbg}
     \multicolumn{1}{|c|}{\bfseries Aspect}
-      & \multicolumn{1}{c|}{\bfseries\color{rpcred} RPC}
+      & \multicolumn{1}{c|}{\bfseries\color{rpcred} Partial-FFT}
       & \multicolumn{1}{c|}{\bfseries\color{junagreen} JUNA} \\
     \hline
     Model in use
@@ -1130,7 +1130,7 @@
       & $\vc_{k,q}$ (for $q\in\Bk$),\ $\vW_k$,\ and $\vz_k$ \\
     \hline
     Code use
-      & External to RPC; after scalarization
+      & External to Partial-FFT combining; after scalarization
       & During estimation (coupled) \\
     \hline
     Information used
@@ -1153,7 +1153,7 @@
 \framesubtitle{(Information-Theoretic View)}
 
   \begin{itemize}\setlength{\itemsep}{0.25em}
-    \item RPC forms $\hX = g(\vY)$, then decodes
+    \item Partial-FFT combining forms $\hX = g(\vY)$, then decodes
     \item This induces the Markov chain:
   \end{itemize}
 
@@ -1212,7 +1212,7 @@
           minimum width=15.5cm,minimum height=2.8cm,
           rounded corners=2pt] (rpc) at (0,0) {};
     \node[font=\itshape\bfseries\color{rpcred},anchor=north]
-      at ($(rpc.north)+(0,-0.2)$) {RPC (Section II Scalarization Before Decoding)};
+      at ($(rpc.north)+(0,-0.2)$) {Partial-FFT Combining (Section II Scalarization Before Decoding)};
 
     \node[anchor=center] (Y1) at (-6.6,-0.15) {$\vY$};
     \node[anchor=north,font=\footnotesize\itshape\color{inkgray}] at (Y1.south) {(vector)};
@@ -1275,7 +1275,7 @@
 \begin{frame}{17. Takeaway}
 
   \begin{itemize}\setlength{\itemsep}{0.35em}
-    \item RPC splits the symbol, then combines with $\vW_k$
+    \item Partial-FFT combining splits the symbol, then combines with $\vW_k$
     \item Short intervals are closer to time-invariant
     \item Weighted combining reduces ICI before scalar detection
     \item JUNA models which nearby symbols explain the observations

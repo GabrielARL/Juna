@@ -69,7 +69,7 @@ Laboratory (e-mail: chuayuhan1985@gmail.com).}}
 %=============================================================================
 \begin{abstract}
 Residual Doppler makes underwater acoustic OFDM depart from the diagonal
-subcarrier model: intercarrier interference appears, and a pilot-only equalizer
+subcarrier model. Intercarrier interference appears, and a pilot-only equalizer
 can land just outside the decoder's basin of attraction. We present \juna{}
 (Joint Unified Nonideality-Aware Algorithm), a code-aware receiver family that
 places equalization and LDPC decoding in one coupled objective. The measured
@@ -80,21 +80,19 @@ per-symbol confidence. Unlike path-based or banded-ICI channel-estimation
 receivers, \juna{} does not deploy a full frequency-domain ICI-matrix estimator;
 that model motivates the update and is exercised separately as a diagnostic. A
 lightweight variant, \junalite{}, approximates the same code-aware feedback loop
-without explicit gradients---it feeds LDPC posterior means back into the
-partial-FFT RLS combiner as soft data anchors and reuses the front
-end---recovering most of the gain at a fraction of the cost, which makes a large
-measured-channel study tractable. At
-20\,dB, \junalite{}+FEC improves packet success over Partial~FFT+FEC in
-hard-but-decodable measured channels: from $0.559$ to $0.922$ payload-exact PSR
-on the controlled red channel and from $18/190$ to $135/190$ accepted packets on
-the hardest native capture, while tying on ceiling channels and failing with the
-baselines on floor channels. In stacked head-to-head mirrors, \junawz{} is at
-least as good as \junalite{} in $44/48$ capture--SNR cells, has $18$ disjoint
-Wilson-interval wins and no disjoint losses, and has four small non-significant
-regressions on near-floor NA cells. A
-twelve-capture, three-site tuning study shows that FFT size is usually the first
-high-impact retuning knob, after which conservative modulation and code-rate
-choices keep the receiver inside the decodable regime.
+without explicit gradients. It feeds LDPC posterior means back into the
+partial-FFT RLS combiner as soft data anchors and reuses the front end. This
+recovers most of the gain at a fraction of the cost and makes the
+measured-channel study tractable. \junalite{}+FEC improves packet success over
+Partial~FFT+FEC in hard-but-decodable measured channels. It gives substantial
+gains on the controlled red channel and the hardest native capture, ties on
+ceiling channels, and fails with the baselines on floor channels. In stacked
+head-to-head comparisons, \junawz{} is usually at least as good as \junalite{}.
+It has disjoint Wilson-interval wins and no disjoint losses, with a few small
+non-significant regressions on near-floor NA cells. A cross-channel tuning study
+shows that FFT size is usually a high-impact retuning knob. Conservative
+modulation and code-rate choices then keep the receiver inside the decodable
+regime.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -117,9 +115,9 @@ problem rather than a diagonal one.
 Partial-FFT demodulation is a serious conventional defense against this
 breakdown~\cite{yerramalli2012partialfft}. Instead of representing each
 subcarrier by a single FFT coefficient, the receiver slices the OFDM symbol in
-time, computes several partial-FFT observations per carrier, and learns a local
-linear combiner---here a bandwise combiner trained by recursive least squares
-(RLS) on known pilots. This baseline is far stronger than one-tap OFDM; in our
+time. It computes several partial-FFT observations per carrier and learns a
+local bandwise combiner by recursive least squares (RLS) on known pilots. This
+baseline is far stronger than one-tap OFDM; in our
 replay workbench it is the strongest non-decoder-feedback receiver. Its
 limitation is structural: it trains the equalizer from pilots and only then asks
 the LDPC decoder whether the resulting soft symbols make sense. When pilot
@@ -130,21 +128,20 @@ carries useful global information about the codeword.
 \juna{} uses that information before giving up. The formulation treats the
 partial-FFT combiner, transmitted data symbols, and code constraints as parts of
 one regularized problem. The measured gradient receiver, \junawz{}, uses the
-partial-FFT observation vectors and a frozen ICI model, then jointly nudges the
-combiner and the soft bit latents toward a configuration consistent with the
-pilots and---through the LDPC belief-propagation (BP) posterior---the code. This
-is intentionally close in spirit to turbo equalization~\cite{douillard1995turbo,
-tuchler2002turbo,jhuang2011progressive}, but architecturally narrower
-(Section~\ref{sec:related}): \juna{} does not replace the front end with a
-generic soft-in/soft-out equalizer; it keeps the partial-FFT observation
-vectors and feeds decoder-weighted information back into that front end. A lightweight variant,
-\junalite{}, approximates the same loop without forming any gradient: it maps
-the posterior LLRs to posterior-mean constellation points and re-estimates the
-same partial-FFT RLS combiner with those means as cap-limited soft training
-anchors. The key economy---shared by both---is that a decoded data symbol with a
-useful posterior can behave like a \emph{soft pilot}: the LDPC parity graph
-supplies structure beyond the physical pilot tones and can share the
-equalizer-training burden. Because \junalite{} is cheap enough to run across
+partial-FFT observation vectors and a frozen ICI model. It jointly moves the
+combiner and the soft bit latents toward the pilots and the code. The LDPC
+belief-propagation (BP) posterior supplies the code information. This exchange
+is close to turbo equalization~\cite{douillard1995turbo,
+tuchler2002turbo,jhuang2011progressive}, but its architecture is narrower
+(Section~\ref{sec:related}). \juna{} keeps the partial-FFT observation vectors
+and feeds decoder-weighted information back into that front end. It does not
+replace the front end with a generic soft-in/soft-out equalizer. A lightweight
+variant, \junalite{}, approximates the same loop without forming a gradient. It
+maps the posterior LLRs to posterior-mean constellation points and re-estimates
+the partial-FFT RLS combiner with these soft training anchors. A decoded data
+symbol with a useful posterior can therefore behave like a \emph{soft pilot}.
+The LDPC parity graph supplies structure beyond the physical pilot tones and can
+share the equalizer-training burden. Because \junalite{} is cheap enough to run across
 every measured capture, it carries the large-scale study, while \junawz{} is
 reported on head-to-head mirrors and \junawcz{} remains a diagnostic.
 
@@ -153,13 +150,13 @@ reported on head-to-head mirrors and \junawcz{} remains a diagnostic.
 \item A coupled estimation/decoding objective (Section~\ref{sec:juna}) in which
   pilots, partial-FFT observations, the combiner, and the code constraints regularize
   one another.
-\item Two bounded receivers derived from it (Section~\ref{sec:solver}):
-  \junawz{}, which descends the reduced $(\mathbf W,\mathbf z)$ objective with
-  confidence-weighted updates and optional BP projection, and a lightweight
-  \junalite{} that approximates the same loop as a posterior-anchor RLS refit
-  (partial-FFT RLS seed $\to$ BP posterior LLRs $\to$ posterior-mean soft data
-  anchors $\to$ combiner refit $\to$ candidate selection), with explicit
-  anchor-count and iteration limits. The full $(\mathbf W,\mathbf C,\mathbf z)$
+\item We derive two bounded receivers from it (Section~\ref{sec:solver}).
+  \junawz{} descends the reduced $(\mathbf W,\mathbf z)$ objective with
+  confidence-weighted updates and optional BP projection. \junalite{}
+  approximates the same loop as a posterior-anchor RLS refit with explicit
+  anchor-count and iteration limits. Its steps are partial-FFT RLS seed, BP
+  posterior LLRs, posterior-mean soft data anchors, combiner refit, and
+  candidate selection. The full $(\mathbf W,\mathbf C,\mathbf z)$
   solver, \junawcz{}, is reported as a diagnostic rather than as the deployed
   sweep receiver.
 \item A complexity accounting (Section~\ref{sec:complexity}) that separates the
@@ -179,25 +176,23 @@ One line of work estimates a physical or sparse channel model and derives the
 resulting non-diagonal, often locally banded, ICI pattern
 explicitly~\cite{berger2010sparse}; another tracks time-varying channels across
 blocks by exploiting channel coherence~\cite{zwang2012clustered}. These papers
-explain the physical source of the problem studied here, but they are not the
-same receiver architecture: they seek explicit channel or ICI estimates, whereas
-\junawz{} descends a code-aware reduced objective over an empirical partial-FFT
-combiner and the data symbols using decoder-derived confidences (and its
-\junalite{}
-variant retrains that combiner from decoder-derived soft targets).
+explain the physical source of the problem studied here. However, they seek
+explicit channel or ICI estimates. \junawz{} instead descends a code-aware
+reduced objective over an empirical partial-FFT combiner and the data symbols
+using decoder-derived confidences. Its \junalite{} variant retrains that
+combiner from decoder-derived soft targets.
 
 Other approaches attack Doppler before this receiver loop by changing the
 transmit waveform or the estimation basis. Doppler-resilient orthogonal
-signal-division multiplexing (D-OSDM) designs the data/pilot vector layout so
-that, under a basis-expansion model of the doubly spread channel, the block
-structure is preserved after propagation and Doppler-induced coupling can be
-inverted at the receiver~\cite{ebihara2016dosdm}. A second group changes the
-observation or estimation basis rather than the modulation: frequency-domain
-oversampling of zero-padded OFDM sharpens channel/ICI estimation and reduces
-sensitivity to Doppler leakage without altering the transmit
-waveform~\cite{wang2012fdoversampling}, and wavelet/filter-bank representations
-have been used to refine channel estimation under Doppler
-spread~\cite{tang2018haarwavelet}. These methods share \juna{}'s
+signal-division multiplexing (D-OSDM) designs the data/pilot vector layout under
+a basis-expansion model of the doubly spread channel. Its block structure is
+preserved after propagation, and the Doppler-induced coupling can be inverted at
+the receiver~\cite{ebihara2016dosdm}. A second group changes the observation or
+estimation basis rather than the modulation. Frequency-domain oversampling of
+zero-padded OFDM sharpens channel/ICI estimation and reduces sensitivity to
+Doppler leakage without altering the transmit waveform~\cite{wang2012fdoversampling}.
+Wavelet/filter-bank representations have also refined channel estimation under
+Doppler spread~\cite{tang2018haarwavelet}. These methods share \juna{}'s
 motivation---all respond to the same Doppler-created off-diagonal coupling---but
 move the remedy into the transmit waveform or an alternative channel-estimation
 basis. \juna{} instead keeps the measured CP-OFDM/Partial-FFT front end and asks
@@ -207,21 +202,21 @@ residual coupling has already reached the receiver.
 Partial-FFT demodulation~\cite{yerramalli2012partialfft} attacks intra-symbol
 time variation directly and is the front end we adopt. It replaces one FFT
 coefficient per carrier with several time-windowed partial-FFT observations and learns a
-linear combiner from pilots. \juna{} keeps this observation-vector representation; the new
-step is to let the decoder posterior either weight a reduced gradient update of
-the combiner and the soft data symbols (\junawz{}) or provide soft targets for a
-bounded anchored RLS refit (\junalite{}). Pilot-aided ICI mitigation outside UWA
+linear combiner from pilots. \juna{} keeps this observation-vector
+representation. The decoder posterior either weights a reduced gradient update
+of the combiner and the soft data symbols (\junawz{}) or provides soft targets
+for a bounded anchored RLS refit (\junalite{}). Pilot-aided ICI mitigation outside UWA
 similarly motivates the diagonal-to-coupled transition~\cite{mostofi2005ici},
 but does not provide this decoder-aided partial-FFT retraining loop.
 
 The closest algorithmic relatives are iterative, turbo-principle ICI receivers
 for time-varying UWA channels~\cite{jhuang2011progressive,jhuang2010iterative}.
 They exchange extrinsic LLRs between an ICI-cancelling equalizer and the decoder.
-\juna{} makes a narrower exchange: decoder confidences \emph{weight} the
-\junawz{} update of the partial-FFT combiner and soft data symbols---and, in the
-\junalite{} variant, convert decoder \emph{posterior means} into soft data
-pilots that retrain the RLS combiner---under anchor/iteration caps, optional
-confidence thresholding, and decoder-grounded candidate selection. A
+\juna{} makes a narrower exchange. Decoder confidences \emph{weight} the
+\junawz{} update of the partial-FFT combiner and soft data symbols. In
+\junalite{}, decoder \emph{posterior means} become soft data pilots that retrain
+the RLS combiner. Both paths use anchor or iteration caps, optional confidence
+thresholding, and decoder-grounded candidate selection. A
 broader family of iterative UWA-OFDM receivers couples detection with external
 interference cancellation~\cite{zwang2012partialband}, physical-layer network
 coding at a relay~\cite{zwang2013plnc}, or asynchronous multiuser
@@ -448,9 +443,9 @@ although this paper does not estimate it as a per-capture predictor. In this
 paper the banded form is a diagnostic model, not the
 implemented estimator. Banded-ICI and sparse-channel receivers attempt to recover
 the coupling coefficients $H_{k,\ell}$ or the path parameters that generate
-them; the measured-channel \juna{} receiver instead observes partial-FFT
-observation vectors and learns a local scalar combiner from pilots and decoder-derived soft
-anchors.
+them. The measured-channel \juna{} receiver instead observes partial-FFT
+observation vectors. It learns a local scalar combiner from pilots and
+decoder-derived soft anchors.
 
 The same notation also covers finite-CP stress. If the CP is shorter than the
 effective delay spread, or if the channel varies across the useful interval, the
@@ -466,9 +461,9 @@ post-CP operator is not circulant. For OFDM symbol $s$ one can write
 where $\mathbf H_0$ is generally non-diagonal and $\mathbf J_{\pm}$ collect
 inter-symbol leakage from neighboring OFDM symbols. Thus Doppler ICI and CP
 shortfall both appear to the receiver as coupled-carrier/coupled-symbol
-interference. \juna{} does not eliminate the need for a CP, but if this residual
-coupling remains inside the partial-FFT combiner's effective model class, code
-constraints can help the front end suppress it instead of relying only on pilots.
+interference. \juna{} does not eliminate the need for a CP. However, code
+constraints can help suppress residual coupling within the partial-FFT
+combiner's effective model class instead of relying only on pilots.
 
 %=============================================================================
 \section{Background: Partial-FFT Equalization}\label{sec:background}
@@ -507,10 +502,10 @@ pilot-only equalizer.
 \section{JUNA: A Coupled Objective}\label{sec:juna}
 The pilot-trained combiner of Section~\ref{sec:background} fixes its weights from
 pilots before decoding, so the LDPC code acts only after the soft symbols have
-been formed. \juna{} removes that ordering at the level of the objective: it
-replaces the pilot-stacked desired response with a packet-level forward model and
-adds a differentiable parity penalty, so that pilots, partial-FFT observations, the
-combiner, and the code constraints regularize one another within a single
+been formed. \juna{} removes that ordering at the level of the objective. It
+replaces the pilot-stacked desired response with a packet-level forward model
+and adds a differentiable parity penalty. Pilots, partial-FFT observations, the
+combiner, and the code constraints then regularize one another within a single
 problem. We state that ideal objective here; Section~\ref{sec:solver} describes
 the bounded alternating procedure actually run on measured channels, which we do
 not claim to be an exact minimizer of it.
@@ -683,13 +678,13 @@ carries one coded bit, so $n_b=N_d$ rather than $2N_d$.}
 \subsection{Bit Latents, Soft QPSK Symbols, and a Parity Surrogate}
 \label{ssec:ldpc}
 An LDPC code is fixed by a sparse parity-check matrix $\Hc\in\F_2^{m\times
-n_b}$ with $n_b$ coded bits and $m$ checks~\cite{gallager1963ldpc}; an encoder
+n_b}$ with $n_b$ coded bits and $m$ checks~\cite{gallager1963ldpc}. An encoder
 maps $\mathbf u$ to a codeword $\mathbf b$ with $\Hc\mathbf b\T=\mathbf 0$
 over $\F_2$. Belief propagation (BP) on the induced Tanner graph remains the
-hard-decision decoder~\cite{richardson2008modern}. The implementation uses a
-systematic construction $\Hc=[\Hm\ \mathbf I_m]$: $k$ message bits are mapped to
-$n_b=k+m$ coded bits, with rate $k/n_b$ set by the modem configuration and sparse
-message-bit degree chosen from the configured sparsity knob $d_{\rm cfg}$.
+hard-decision decoder~\cite{richardson2008modern}. The implementation uses the
+systematic construction $\Hc=[\Hm\ \mathbf I_m]$. It maps $k$ message bits to
+$n_b=k+m$ coded bits, with rate $k/n_b$ set by the modem configuration. The
+configured sparsity knob $d_{\rm cfg}$ determines the sparse message-bit degree.
 For example, the workbench suffix \cfg{dc4} means $d_{\rm cfg}=4$; under the
 rate-$0.25$ rule used for Fig.~\ref{fig:packet-tanner-example}, this becomes
 actual message-column degree $d_v=6$. Some message
@@ -705,15 +700,15 @@ systematic encoder: for message vector $\mathbf u$, the parity suffix is
 $\mathbf v=\Hm\mathbf u \pmod 2$, so $[\mathbf u,\mathbf v]$ satisfies
 $\Hc\mathbf b\T=\mathbf 0$. This code is intentionally a simple, deterministic
 workbench sparse parity code rather than an optimized acoustic LDPC design. The
-random sparse message part is generated from the fixed packet/configuration
-seed, and all receiver variants in a comparison use the identical code instance;
-therefore the measured gains should be interpreted as receiver-level gains under
-this fixed sparse code.
+fixed packet/configuration seed generates the random sparse message part. All
+receiver variants in a comparison use the identical code instance. We therefore
+interpret the measured gains as receiver-level gains under this fixed sparse
+code.
 
 Because the code constraints are binary while the subcarriers carry QPSK, the bit
-and symbol variables are kept separate. Let $\xi_i=\tanh(z_i/2)\in(-1,1)$ be the
-relaxed bipolar variable for coded bit $b_i$, so hard bits satisfy
-$\xi_i=1-2b_i$. For Gray-labeled QPSK, data carrier $k$ carries bits
+and symbol variables are kept separate. The \junawz{} and \junawcz{} code paths
+use $\xi_i=\tanh(z_i/2)\in(-1,1)$ as the relaxed bipolar variable for coded bit
+$b_i$. Hard bits satisfy $\xi_i=1-2b_i$. For Gray-labeled QPSK, data carrier $k$ carries bits
 $i_1(k),i_2(k)$ and its relaxed symbol is
 \begin{equation}
   s_k(\mathbf z)=\tfrac{1}{\sqrt2}\big(\xi_{i_1(k)}(\mathbf z)
@@ -730,10 +725,10 @@ the differentiable parity surrogate is
 which equals $0$ exactly when every check is satisfied for hard bipolar bits, so
 $\mathcal R_{\mathrm{par}}$ is a smooth code regularizer that preserves the
 binary/complex distinction.
-This surrogate is used as a differentiable consistency penalty in the objective
-lens and gradient diagnostics; the implemented receiver relies on BP for the
-actual code update because direct optimization of high-degree parity products
-can be poorly conditioned and can have weak gradients.
+This surrogate is a differentiable consistency penalty in the objective and
+gradient diagnostics. The implemented receiver relies on BP for the actual code
+update because direct optimization of high-degree parity products can be poorly
+conditioned and can have weak gradients.
 
 This parity structure is the mathematical reason code information can provide
 training equations beyond the physical pilots. With pilots alone, the combiner in
@@ -758,19 +753,18 @@ view of the update is
 where $\mathcal D_b^+$ is the selected data-anchor set, $\omega_{d,s}$ is an
 optional anchor weight, $\tau$ is RLS update age ($\tau=0$ for the most recent
 sample), and $\lambda_{\rm RLS}$ is the forgetting factor. The measured receiver
-sets $\omega_{d,s}=1$ for selected anchors; confidence $c_{d,s}$ gates and ranks
-candidate anchors when a threshold or cap is active, while uncertainty is already
-expressed by the shrunken posterior mean $\widetilde x_{d,s}$. Compared with
+sets $\omega_{d,s}=c_{d,s}$ for selected anchors. Confidence also gates and
+ranks candidate anchors when a threshold or cap is active, while uncertainty in
+the target is expressed by the posterior mean $\widetilde x_{d,s}$. Compared with
 \eqref{eq:pfft-ls}, the normal matrix gains selected data-anchor terms
 $\sum_{(d,s)\in\mathcal D_b^+}\omega_{d,s}\mathbf y_{d,s}\mathbf y_{d,s}\Ht$.
-When the decoder posterior is informative, those terms improve conditioning just
-as additional pilots would; when it is uninformative or biased, retained physical
-pilots, posterior means rather than hard slices, anchor caps, optional confidence
-thresholding/ranking, and candidate selection limit the damage.
-In the profiled QPSK benchmark, protection comes mainly from posterior means,
-retained pilots, the fixed anchor cap, candidate selection, and early stopping:
-$c_{\min}=0$ disables the confidence threshold itself, so confidence only affects
-cap-based ranking when the cap binds.
+When the decoder posterior is informative, those terms improve conditioning as
+additional pilots would. When it is uninformative or biased, retained physical
+pilots and posterior means rather than hard slices limit the damage. Anchor caps,
+optional confidence thresholding, candidate selection, and early stopping add
+further limits. In the profiled QPSK benchmark, $c_{\min}=0$ disables the
+confidence threshold. Confidence then affects cap-based ranking only when the
+cap binds.
 
 \subsection{The Coupled Objective}\label{ssec:juna-objective}
 Let $\mathbf Y_k\in\C^M$ collect the $M$ partial-FFT observations at
@@ -798,10 +792,10 @@ The first term enforces observation consistency; the second anchors pilots; the
 third ties combiner outputs to the relaxed data symbols; the rest regularize
 partial-FFT-domain model size, combiner energy, frequency smoothness, and parity.
 $\Sigma_k=\sigma^2\mathbf I$ recovers ordinary squared error. This objective is
-not intended as an identifiable physical channel estimator: the partial-FFT-domain response
+not an identifiable physical channel estimator. The partial-FFT-domain response
 tensor $\mathbf C$ and combiner $\mathbf W$ are coupled through the symbols,
-pilots, and regularizers, but no explicit constraint forces $\mathbf W$ to be the
-inverse of $\mathbf C$. Its role is to show how observation-vector consistency, combiner
+pilots, and regularizers. However, no explicit constraint forces $\mathbf W$ to
+be the inverse of $\mathbf C$. Its role is to show how observation-vector consistency, combiner
 outputs, pilots, and code constraints can be placed in one regularized problem.
 Multiple $(\mathbf C,\mathbf W,\mathbf z)$ triples can explain the same partial-FFT
 observations; $\mathbf C$ is included to expose the coupled-carrier structure,
@@ -818,16 +812,15 @@ also contains neighboring OFDM symbols:
 \end{equation}
 The same pilot, data-anchor, smoothness, and parity terms then regularize
 whether the coupling came from Doppler ICI, insufficient CP, or both. This is a
-modeling extension, not a CP-short experiment in this paper: it shows how code
+modeling extension, not a CP-short experiment in this paper. It shows how code
 structure could add global parity constraints to an otherwise underconstrained
-front-end fit, but the measured results below should not be read as a validated
-CP-relaxation rule.
+front-end fit. The measured results below do not validate a CP-relaxation rule.
 
 \subsection{Relation to the Pilot-Trained Combiner}\label{ssec:juna-relation}
-\juna{} is the natural lifting of~\eqref{eq:pfft-ls}: the pilot-only desired
-response is replaced by the packet-level partial-FFT-domain model, every carrier refines the
-front end, the data field is generated by bit latents so soft bits improve during
-inference, and the code enters through~\eqref{eq:soft-parity}. Equation
+\juna{} extends~\eqref{eq:pfft-ls}. The packet-level partial-FFT-domain model
+replaces the pilot-only desired response, and every carrier refines the front
+end. Bit latents generate the data field so soft bits improve during inference.
+The code enters through~\eqref{eq:soft-parity}. Equation
 \eqref{eq:juna-total} is best read as a theoretical lens---it is not the exact
 algorithm run on measured channels. In particular, the at-scale receivers do not
 estimate the full partial-FFT-domain response tensor $\mathbf C$ or the banded ICI matrix;
@@ -1140,9 +1133,9 @@ targets \(H_k(\mathbf h)s_{\rm pilot}\), then re-estimates \(\mathbf h\) from
 The \(\mathbf h\)-step is a tapered LS fit of
 \(\mathbf F_{\mathcal P,L}\mathbf h\approx \mathbf z^{\rm pilot}\), with optional
 complex soft-thresholding. The returned \(\mathbf C\) field is only a zero
-placeholder in this mode; downstream code uses \(H(\mathbf h)\) and the same
-\(\mathbf x^{\rm fixed}\) blend and optional BPSK code refiner as above, but it
-does not run the Richardson demixing stage.
+placeholder in this mode. Downstream code uses \(H(\mathbf h)\), the same
+\(\mathbf x^{\rm fixed}\) blend, and the optional BPSK code refiner. It does not
+run the Richardson demixing stage.
 
 OFDM5 also contains a manually differentiated solver, named SPADE in that
 codebase, that fits a longer channel and QPSK soft symbols directly to the
@@ -1542,10 +1535,10 @@ and reruns the same RLS update with desired responses equal to the known pilots
 on $\mathcal P_b$ and the posterior means $\widetilde x_{k,s}$ on the selected
 data anchors. The default receiver therefore trains toward posterior means---not
 hard decisions---keeps pilots in the anchor set, caps the data anchors, and can
-reject a refinement. Pilots enter the reported RLS update with unit weight, and
-each selected data anchor enters with a weight equal to its confidence
-$c_{d,s}$, so a less certain anchor pulls the fit less than a pilot or a
-confident anchor does. In the reported benchmark profile $c_{\min}=0$, so the
+reject a refinement. Pilots enter the reported RLS update with unit weight.
+Each selected data anchor enters with a weight equal to its confidence
+$c_{d,s}$. Hence a less certain anchor pulls the fit less than a pilot or a
+confident anchor. In the reported benchmark profile $c_{\min}=0$, so the
 confidence threshold itself is disabled; when the anchor cap binds, confidence is
 used to rank anchors, and otherwise all data tones are eligible.
 
@@ -1577,12 +1570,11 @@ used to rank anchors, and otherwise all data tones are eligible.
 
 \subsection{Candidate Selection}
 \label{ssec:solver-selection}
-Each pass decodes the candidate symbols and compares decoder-first. In strict
+Each pass decodes the candidate symbols and compares validity first. In strict
 mode, a valid LDPC codeword beats an invalid one, and lower syndrome weight
-breaks ties; remaining ties use a score combining pilot MSE,
-confidence-weighted distance from equalized symbols to posterior means over the
-data grid,
-normalized syndrome weight, and a small reward for sharper posteriors:
+breaks ties. Remaining ties use pilot MSE and the confidence-weighted distance
+from equalized symbols to posterior means. The score also uses normalized
+syndrome weight and a small reward for sharper posteriors:
 \begin{equation}
   S_{\rm cand}
   =M_{\rm pilot}+0.25\,M_{\rm tie}
@@ -1612,9 +1604,9 @@ deployed receiver $M_{\rm pilot}$ is inactive and takes the same value for
 every candidate: residual pilot equalization divides each pilot carrier by a
 response measured on that carrier, so $\widehat x_{p,s}=P_{p,s}$ to numerical
 precision. The score therefore separates candidates through $M_{\rm tie}$,
-$w_{\rm synd}$, and $\overline{|L^{\rm post}|}$; $M_{\rm pilot}$ is retained in
-the reported form because it would separate candidates for any receiver that
-scored the combiner output before residual pilot equalization. Lower
+$w_{\rm synd}$, and $\overline{|L^{\rm post}|}$. We retain $M_{\rm pilot}$ in
+the reported form because it would separate candidates before residual pilot
+equalization. Lower
 $S_{\rm cand}$ is better only after the decoder-first validity and syndrome
 tests above, so the scalar score does not override a valid codeword with an
 invalid one. The profiled replay runs enable a second, CRC-surrogate mode: the
@@ -1664,9 +1656,9 @@ uncertain ones. The \texttt{wz\_juna\_bp} variant periodically re-decodes the
 refined logits and uses the BP output as a projection/checkpoint; the default
 \texttt{wz\_juna} receiver instead selects the best decoder-grounded checkpoint
 across the descent. For offline diagnostics only, the harness can also record an
-oracle non-regression choice from known payload mismatch; this oracle choice is
-not used in the receiver tables, which rely on syndrome, CRC-surrogate
-acceptance, or the score in~\eqref{eq:candidate-score}. \junalite{}
+oracle non-regression choice from known payload mismatch. The receiver tables do
+not use this oracle choice. They rely on syndrome, CRC-surrogate acceptance, or
+the score in~\eqref{eq:candidate-score}. \junalite{}
 (Section~\ref{ssec:junalite}) is the cheaper approximation that carries the
 at-scale sweeps.
 
@@ -1705,23 +1697,24 @@ joint Adam steps. The deployed \texttt{wz\_juna} receiver fixes $\mathbf C$ to t
 front-end model and descends only $(\mathbf W,\mathbf z)$. The full diagnostic
 loss contains the partial-FFT observation-consistency term, pilot-anchor term,
 combiner--symbol tie term, LDPC parity surrogate, and trust/regularization
-terms. Because the extra $\mathbf C$ degrees of freedom are numerous and only
-weakly identifiable from sparse pilots, this solver is not part of the
-large-scale receiver claim; it checks whether opening the full objective can move
+terms. The extra $\mathbf C$ degrees of freedom are numerous and only weakly
+identifiable from sparse pilots. We therefore exclude this solver from the
+large-scale receiver claim. It checks whether opening the full objective moves
 the same decoder metrics in the same direction on a controlled segment.
 
 Table~\ref{tab:full-gradient-check} reports a same-segment comparison on the
 current native \texttt{red\_1} QPSK profile: receiver~1, replay time
 $0$--$4$\,s, and 30\,dB SNR. The comparison uses the same 11 packets and
-disables the usual non-regression gate, so the \junawcz{} row is the raw
-optimizer output rather than ``best of \junalite{} and \junawcz{}.'' With an
-eight-step gradient budget and ICI half-bandwidth
-$K_{\rm ICI}=1$, the full-objective optimizer matches \junalite{} on valid
-packet count ($1/11$ for both) and differs by only two message-bit errors out of
-$7491$. This single segment is a diagnostic sanity check, not a replacement for
-the measured-channel mirrors of Section~\ref{sec:results}; we read it as
+disables the usual non-regression gate. Hence the \junawcz{} row is the raw
+optimizer output rather than ``best of \junalite{} and \junawcz{}.'' The
+full-objective optimizer uses an eight-step gradient budget and ICI
+half-bandwidth $K_{\rm ICI}=1$. It matches \junalite{} on valid packet count
+($1/11$ for both) and differs by only two message-bit errors out of $7491$.
+This single segment is a diagnostic check, not a replacement for the
+measured-channel comparisons of Section~\ref{sec:results}. We read it as
 evidence that opening the full objective does not degrade decoder metrics on a
-controlled stress segment, not as a \junawcz{} win over \junalite{}.
+controlled stress segment. It is not evidence of a \junawcz{} win over
+\junalite{}.
 
 \begin{table}[t]
 \centering
@@ -1752,14 +1745,13 @@ training set would reduce the variance of the RLS estimate,
 $\operatorname{Cov}(\widehat{\mathbf w}_b)\approx\sigma^2(\mathbf
 Y_{\mathcal A_b}\Ht\mathbf Y_{\mathcal A_b}+\delta I)^{-1}$. This is intuition,
 not proof: the anchors are decoder-processed functions of the same noisy seed and
-are correlated with it. The gain therefore comes from adding correlated but
-shrunken constraints that are useful when the posterior is informative; the
-danger is posterior bias, guarded by posterior means (not hard slices),
-anchor caps, retained pilots, validity/syndrome selection, and
-early stopping. This leads to three empirical regimes: on easy channels Partial~FFT
-already decodes and \juna{} ties; on impossible channels the seed posterior is
-uninformative and \juna{} cannot help; on hard-but-decodable channels the
-posterior is informative but not decisive, and posterior anchors can move the
+are correlated with it. The gain comes from correlated but shrunken constraints
+when the posterior is informative. Posterior means, anchor caps, retained pilots,
+validity/syndrome selection, and early stopping limit the effect of posterior
+bias. This gives three empirical regimes. On easy channels, Partial~FFT already
+decodes and \juna{} ties. On impossible channels, the seed posterior is
+uninformative and \juna{} cannot help. On hard-but-decodable channels, the
+posterior is informative but not decisive. Posterior anchors can then move the
 re-decode across the success boundary. The extra cost is bounded for the
 deployed receivers: a fixed number of \junawz{} gradient steps or \junalite{}
 RLS refits, plus decoder-grounded BP checks.
@@ -1768,8 +1760,9 @@ RLS refits, plus decoder-grounded BP checks.
 \section{Computational Complexity}\label{sec:complexity}
 This section counts one decoded frame, since the replay experiments apply the
 same waveform schedule to all receivers. Let $N$ be the FFT size, $S$ the number
-of OFDM data symbols in a frame, $N_a$ the number of active subcarriers, $N_p$
-the number of outer pilot tones, and $N_d=N_a-N_p$ the number of data tones. Let
+of OFDM data symbols in a frame, and $N_a$ the number of active subcarriers. Let
+$N_p$ be the number of outer pilot tones and $N_d=N_a-N_p$ the number of data
+tones. Let
 $N_{\rm view}$ be the number of partial-FFT views, $B$ the number of RLS frequency
 bands, $A\le A_{\max}$ the selected posterior data anchors per symbol, and
 $I\le I_{\max}$ the number of \juna{} refinement passes actually executed after
@@ -1818,9 +1811,9 @@ $O(SN_aN_{\rm view})$. The Partial~FFT+FEC receiver thus has online cost
   =O(SN_{\rm view}N\log N+SN_pN_{\rm view}^2+SN_aN_{\rm view}+T_{\rm BP}E).
   \label{eq:pf-complexity}
 \end{equation}
-For the reported runs, $N_{\rm view}=4$ and $B=4$, so the RLS matrices are small; the main
-cost increase over one-tap OFDM is the fixed number of extra FFT views plus the
-LDPC decode shared by all FEC receivers.
+For the reported runs, $N_{\rm view}=4$ and $B=4$, so the RLS matrices are small.
+The main cost increase over one-tap OFDM is the fixed number of extra FFT views
+plus the LDPC decode shared by all FEC receivers.
 
 \subsection{Per-Pass Refinement Cost}
 Both deployed receivers start from the Partial~FFT+FEC seed and run a bounded
@@ -1925,12 +1918,12 @@ per-packet receiver operations.
 
 %=============================================================================
 \section{Experimental Method}\label{sec:method}
-We evaluate three receivers on the same transmitted schedule, channel replay, SNR,
-FEC, and acceptance rule: \textbf{OFDM+FEC} (one-tap pilot-linear equalization),
-\textbf{Partial~FFT+FEC} (bandwise partial-FFT RLS combining), and
-\textbf{\junalite{}+FEC} (partial-FFT seed, posterior extraction,
-posterior-anchor RLS refinement, re-decode, candidate selection; the lightweight
-\juna{} that carries the sweeps). Packet success rate (PSR) is
+We evaluate three receivers on the same transmitted schedule, channel replay,
+SNR, FEC, and acceptance rule. \textbf{OFDM+FEC} uses one-tap pilot-linear
+equalization, while \textbf{Partial~FFT+FEC} uses bandwise partial-FFT RLS
+combining. \textbf{\junalite{}+FEC} uses the partial-FFT seed, posterior
+extraction, posterior-anchor RLS refinement, re-decode, and candidate selection.
+This lightweight \juna{} receiver carries the sweeps. Packet success rate (PSR) is
 accepted packets over the scheduled replay packets entering the common decoding
 pipeline; the schedules are shared across receivers, and receiver-specific
 non-acceptance remains in the denominator. In these offline replay experiments,
@@ -1972,27 +1965,26 @@ unless a sweep explicitly changes them. Thus OFDM+FEC, Partial~FFT+FEC, and
 replay waveform.
 
 Configuration identifiers encode the modem geometry and code. For example,
-\cfg{n1024\_cp256\_sym1\_p3\_r0p25\_dc4\_sig1\_ip2} means
-$N=1024$, CP length $256$, one OFDM payload symbol per frame, one outer pilot
-every three active subcarriers, LDPC design rate $0.25$, LDPC sparsity knob
-$d_{\rm cfg}=4$ (encoded in the suffix as \cfg{dc4}), FEC LLR scale floor $1$,
-and one inner-pilot message bit every two message positions. For the
+\cfg{n1024\_cp256\_sym1\_p3\_r0p25\_dc4\_sig1\_ip2} means $N=1024$, CP length
+$256$, and one OFDM payload symbol per frame. It uses one outer pilot every
+three active subcarriers and LDPC design rate $0.25$. The LDPC sparsity knob is
+$d_{\rm cfg}=4$, encoded in the suffix as \cfg{dc4}. The FEC LLR scale floor is
+$1$, with one inner-pilot message bit every two message positions. For the
 cross-channel tuning table, the coordinate search at 20\,dB sweeps FEC rate,
-outer/inner pilot spacing, $d_{\rm cfg}$, the joint $(N,\mathrm{CP})$ grid, and
-modulation, fixing each stage's best JUNA PSR (with BER as the tie-breaker)
-before moving to the next stage. The OAT table then perturbs one factor at a
+outer/inner pilot spacing, and $d_{\rm cfg}$. It then sweeps the joint
+$(N,\mathrm{CP})$ grid and modulation. Each stage fixes the best JUNA PSR, with
+BER as the tie-breaker, before moving to the next stage. The OAT table then perturbs one factor at a
 time around a cold default to measure coarse local sensitivity; it is used as a
 tuning screen, not as a causal ranking when factors tie. Table~\ref{tab:search-pool}
 lists the pool used by these coordinate/OAT screens; the controlled benchmark
 uses the separate robust configuration stated in Section~\ref{sec:results}.
 
-Operationally, this paper calls a channel \emph{ceiling} when Partial~FFT+FEC is
-already above roughly $0.95$ PSR, \emph{floor} when all receivers remain near zero
-packet acceptance or the seed posterior is effectively uninformative, and
-\emph{hard-but-decodable} when the Partial~FFT seed produces useful posterior
-confidence but still fails payload acceptance on a substantial fraction of
-packets. These labels are empirical regime descriptors, not pre-deployment
-classifiers.
+We call a channel \emph{ceiling} when Partial~FFT+FEC is already above roughly
+$0.95$ PSR. We call it \emph{floor} when all receivers remain near zero packet
+acceptance or the seed posterior is effectively uninformative. A
+\emph{hard-but-decodable} channel has useful posterior confidence but still
+fails payload acceptance on a substantial fraction of packets. These labels
+describe the measured results; they are not pre-deployment classifiers.
 
 \begin{table}[t]
 \centering
@@ -2055,10 +2047,10 @@ $\{1,2,3\}$ over a $0{:}5{:}20$\,dB sweep, on \texttt{red\_1} (25/5\,kHz QPSK),
 \texttt{blue\_1} (13/5\,kHz BPSK), and \texttt{yellow\_1} (13/5\,kHz BPSK).
 Within each channel, the same waveform, FEC, and replay schedule are decoded by
 the three algorithms. Table~\ref{tab:controlled20} reports
-20\,dB. \junalite{}+FEC gives large gains on the hard \texttt{red\_1} and selected
-\texttt{blue\_1} captures and a one-packet near-ceiling gain on \texttt{yellow\_1},
-with substantially lower message BER on the rescued packets---evidence that the
-rescued packets are genuinely better decoded, not merely re-thresholded.
+20\,dB. \junalite{}+FEC gives large gains on the hard \texttt{red\_1} and
+selected \texttt{blue\_1} captures. It gives a one-packet near-ceiling gain on
+\texttt{yellow\_1}. The rescued packets have substantially lower message BER,
+so they are better decoded rather than merely re-thresholded.
 
 \begin{table}[t]
 \centering
@@ -2094,11 +2086,11 @@ channel.
 \subsection{Native-Bandwidth Five-Color Stress Test}
 The second benchmark runs each color at its native high-rate profile over
 $0{:}5{:}30$\,dB---a stress test closer to the goodput frontier.
-Table~\ref{tab:native20} reports 20\,dB. The gain pattern is the predicted one:
-large on hard-but-decodable \texttt{red\_1} ($18/190\to135/190$) and the selected
-\texttt{blue\_1} ($35/110\to90/110$), near-ceiling on \texttt{yellow\_1} and
-\texttt{purple\_1}, and absent on the floor channel \texttt{green}, where all
-three receivers fail.
+Table~\ref{tab:native20} reports 20\,dB. The gain is large on
+hard-but-decodable \texttt{red\_1} ($18/190\to135/190$) and the selected
+\texttt{blue\_1} ($35/110\to90/110$). It is near ceiling on \texttt{yellow\_1}
+and \texttt{purple\_1}. All three receivers fail on the floor channel
+\texttt{green}.
 
 \begin{table}[t]
 \centering
@@ -2142,10 +2134,10 @@ hard-decision anchors does not destroy the gain, so the essential mechanism is
 decoder-derived anchoring plus decoder-grounded selection; posterior means remain
 the default because they avoid committing to a hard slice. (ii) Forcing the final
 refinement instead of selecting the best candidate is essentially tied, so
-selection is not the sole source of the gain. (iii) Giving the Partial-FFT seed
-the same LDPC decode-call budget as \junalite{}, without posterior anchors, is
-numerically identical to ordinary Partial~FFT in the deterministic replay path;
-this mainly rules out ``more decode calls'' as the mechanism. Multi-seed numeric
+selection is not the sole source of the gain. (iii) We give the Partial-FFT seed
+the same LDPC decode-call budget as \junalite{}, without posterior anchors. The
+result is numerically identical to ordinary Partial~FFT in the deterministic
+replay path. This mainly rules out ``more decode calls'' as the mechanism. Multi-seed numeric
 ablation tables remain future work.
 
 \subsection{\texorpdfstring{\junawz{}}{JUNA-Wz}: Head-to-Head Mirror}
@@ -2153,23 +2145,23 @@ ablation tables remain future work.
 \junawz{} of Section~\ref{ssec:gradient-juna} is the reduced gradient receiver
 that \junalite{} approximates. We therefore mirror the headline benchmarks with
 \junawz{} head-to-head against \junalite{} under the same payload-exact PSR rule.
-Table~\ref{tab:grad-vs-lite} sweeps SNR on the three representative captures:
-\junawz{} matches or exceeds \junalite{} at every displayed point, with the
-largest margins at low SNR where the seed posterior is least decisive (SG-1
-rises from $0.09$ to $0.86$ at $0$\,dB) and a climb to payload-exact $1.0$ as SNR
-grows. These displayed cases are the ceiling-reaching SG-1/NA-1/HW-1 captures;
+Table~\ref{tab:grad-vs-lite} sweeps SNR on the three representative captures.
+\junawz{} matches or exceeds \junalite{} at every displayed point. The largest
+margins occur at low SNR, where SG-1 rises from $0.09$ to $0.86$ at $0$\,dB.
+Payload-exact PSR then reaches $1.0$ as SNR grows. These displayed cases are
+the ceiling-reaching SG-1/NA-1/HW-1 captures;
 the four small non-significant regressions quantified below occur on other
 near-floor NA captures. Table~\ref{tab:grad-aggregate} reports the full stacked
-summary: across all $48$ capture$\times$SNR cells, \junawz{} is at least as good
-as \junalite{} in $44$, strictly better with disjoint Wilson 95\% intervals in
-$18$, and never significantly worse.
+summary. Across all $48$ capture$\times$SNR cells, \junawz{} is at least as good
+as \junalite{} in $44$. It is strictly better with disjoint Wilson 95\%
+intervals in $18$ and never significantly worse.
 
 The gain is not an artefact of the two gradient guardrails.
-Table~\ref{tab:gradient-ablation} shows that replacing the soft confidence
-weighting with hard anchoring, or taking the final iterate instead of the
-decoder-grounded checkpoint, leaves payload-exact PSR unchanged to within a single
-packet on the representative captures---so the improvement comes from the
-decoder-aided descent itself, not from confidence weighting or selection alone.
+Table~\ref{tab:gradient-ablation} replaces the soft confidence weighting with
+hard anchoring. It also takes the final iterate instead of the decoder-grounded
+checkpoint. Payload-exact PSR remains unchanged to within one packet on the
+representative captures. Hence the improvement comes from decoder-aided descent,
+not from confidence weighting or selection alone.
 The cross-channel study of Section~\ref{sec:transfer} extends the tuning mirror
 to all twelve captures; it supports the same tuning conclusions but does not
 show the same PSR ceiling on every capture.
@@ -2211,11 +2203,12 @@ tables; the final column gives the packet denominator.}
 \section{Cross-Channel Tuning Study}\label{sec:transfer}
 The benchmarks above fix a geometry. A practical question is which modem knobs
 must be retuned first on a new measured channel. We replay twelve captures from
-three physically distinct sites---Singapore harbour
-(\texttt{SG-1/2/3}, shallow, 25\,kHz), North Atlantic (\texttt{NA-1/2/3},
-mobile deep-water, 13\,kHz), and Hawaii (\texttt{HW-1}\,$\dots$\texttt{6}, moored
-deep-water, 13\,kHz)---and, for each, run a coordinate search at 20\,dB and
-one-factor-at-a-time (OAT) sensitivity sweeps at 10/20/30\,dB. Fig.~\ref{fig:cir}
+three physically distinct sites. Singapore harbour provides
+\texttt{SG-1/2/3}, shallow at 25\,kHz. The North Atlantic provides
+\texttt{NA-1/2/3}, mobile deep-water at 13\,kHz. Hawaii provides
+\texttt{HW-1}\,$\dots$\texttt{6}, moored deep-water at 13\,kHz. For each capture,
+we run a coordinate search at 20\,dB and one-factor-at-a-time (OAT) sensitivity
+sweeps at 10/20/30\,dB. Fig.~\ref{fig:cir}
 shows a representative measured CIR per site. This is a tuning-screen study, not
 a train-on-one/test-on-another transfer protocol.
 
@@ -2239,13 +2232,13 @@ configurations, while FEC rate
 $0.5$ appears on the SG/NA captures and the lower-rate Hawaii configurations use
 denser pilots and FEC rate $0.25$. The best table therefore supports
 conservative modulation and site-dependent pilot/FEC tuning, not a universal
-outer-pilot default. Second, the knobs do not all matter at once: the parameter
-that most often must be retuned \emph{first} is the FFT size $N$---from the cold
+outer-pilot default. Second, the knobs do not all matter at once. The parameter
+that most often must be retuned \emph{first} is the FFT size $N$. From the cold
 default, changing $N$ moves packet success the most on the harder SG and NA
-captures. Once $N$ is chosen well, FEC and modulation become local failure knobs;
-the OAT table reports mean PSR ranges from coarse one-factor screens, so equal
-or nearly equal FEC and modulation swings should be read as saturation or local
-sensitivity ties rather than evidence that the two axes are causally identical.
+captures. Once $N$ is chosen well, FEC and modulation become local failure knobs.
+The OAT table reports mean PSR ranges from coarse one-factor screens. Equal or
+nearly equal FEC and modulation swings indicate saturation or local sensitivity
+ties, rather than evidence that the two axes are causally identical.
 The practical guidance is therefore two-stage: search $N$ until packets begin
 decoding, then keep FEC and modulation conservative enough that the receiver
 stays there.
@@ -2319,8 +2312,8 @@ profiles, with the expected ties and failures on ceiling and floor channels.
 \junawz{} provides supportive head-to-head mirrors but also four small,
 non-significant regressions on near-floor NA cells. The
 mechanism checks are single-run sanity ablations, not confidence-interval studies
-over noise seeds; the broader blue family remains capture- and
-modulation-sensitive and should not be presented as universally solved; and the
+over noise seeds. The broader blue family remains capture- and
+modulation-sensitive and should not be presented as universally solved. The
 reported BER is receiver-output BER after the selection rule, not a pure
 equalizer-quality measurement. The replay acceptance rule uses known-payload
 matching as the offline analogue of a payload CRC; strict LDPC-syndrome validity
@@ -2341,17 +2334,17 @@ future work.
 \section{Conclusion}\label{sec:conclusion}
 \juna{} is a practical joint receiver--decoder family for UWA OFDM under
 residual Doppler. The motivation is the loss of diagonal OFDM structure and the
-partial-FFT representation of local time variation; the coupled objective makes
-the code--channel feedback principle explicit, \junawz{} realizes it as a
-reduced confidence-weighted gradient descent over $(\mathbf W,\mathbf z)$, and
+partial-FFT representation of local time variation. The coupled objective makes
+the code--channel feedback principle explicit. \junawz{} uses reduced
+confidence-weighted gradient descent over $(\mathbf W,\mathbf z)$, while
 \junalite{} recovers most of the value without forming a gradient. \junalite{}
 reuses partial-FFT RLS, extracts LDPC posterior means, feeds soft anchors back
 into the equalizer, and accepts only refinements that improve decoder-grounded
 criteria, which is what makes the twelve-capture study tractable. On measured
-replay channels this is enough to beat Partial~FFT+FEC substantially in the
-hard-but-decodable regime while preserving ties and failures on ceiling and floor
-channels, and the twelve-capture tuning study yields a simple two-stage tuning
-rule that both receivers broadly support. The scientific point is that decoder
+replay channels, this substantially beats Partial~FFT+FEC in the
+hard-but-decodable regime. It preserves ties and failures on ceiling and floor
+channels. The twelve-capture study gives a two-stage tuning rule that both
+receivers broadly support. The scientific point is that decoder
 information is not merely a post-processing cleanup stage: in the right regime,
 it is equalizer training information.
 

@@ -29,11 +29,10 @@ and performs low-density parity-check decoding afterward.  JUNA-Lite closes
 this information loop.  It starts from the same pilot-trained Partial-FFT
 candidate, maps belief-propagation posterior metrics to soft QPSK symbols and
 confidence values, combines reliable data symbols with the pilots, updates only the
-combining vectors, and decodes again.  The physical response model
-\(\mathbf C\) and the bit latents \(\mathbf z\) of the full JUNA objective are
-not jointly optimized in JUNA-Lite.  The method is therefore a small
-posterior-anchor refinement of ratio combining, not the full
-\((\mathbf C,\mathbf W,\mathbf z)\) solver.  Joint use of pilot observations
+combining vectors, and decodes again.  JUNA-Lite does not jointly optimize
+the physical response model and the bit latents of the full JUNA objective.
+The method is therefore a small posterior-anchor refinement of ratio
+combining, not the full JUNA solver.  Joint use of pilot observations
 and decoder information can improve the pre-decoder statistic relative to
 separate combining and decoding, while confidence selection, pilot anchoring,
 candidate comparison, and early stopping limit unreliable feedback.
@@ -69,21 +68,97 @@ determines their weight.  The resulting receiver repeats ratio combining
 and decoding without introducing the full branch-domain model of the general
 JUNA formulation.
 
-The contribution is a compact mathematical description of this receiver using
+We present a compact mathematical description of this receiver using
 the notation of the JUNA system model.  The central comparison is precise:
 the separate receiver solves a pilot-only ridge problem and decodes once;
 JUNA-Lite starts from that solution, adds confidence-weighted posterior
 anchors, updates \(\mathbf W\), re-decodes, and keeps the better candidate.
 
-\section{Partial-FFT Observation Model}
+\section{OFDM Under Residual Doppler}
 
 Let \(N\) be the number of OFDM samples after cyclic-prefix removal, let
 \(\mathbf r\in\C^N\) be the received block, and let
 \(\mathbf F\in\C^{N\times N}\) be the unitary FFT matrix.  The active-carrier
 set is \(\Kset\), the pilot set is \(\Pset\), and the data set is
 \(\Dset=\Kset\setminus\Pset\).  The transmitted symbol on carrier \(k\) is
-\(X_k\).
+\(X_k\), the vector \(\mathbf X\in\C^N\) collects these symbols, and
+\(\mathbf F^H\mathbf X\) is the transmitted block.
 
+With an adequate cyclic prefix and a channel that does not vary over the
+block, cyclic-prefix removal leaves a circulant operator.  The FFT
+diagonalizes it, and every carrier obeys the one-tap model
+\begin{equation}
+  Y_k^{\mathrm{full}}
+  =
+  H_{k,k}X_k+\nu_k,
+  \label{eq:one-tap}
+\end{equation}
+where \(Y_k^{\mathrm{full}}\) is the full-interval FFT bin, \(H_{k,k}\) is the
+response on carrier \(k\), and \(\nu_k\) is noise.  Pilot-linear equalization
+estimates the response on the pilots and interpolates it over \(\Kset\).
+
+Motion time-scales the received packet.  After coarse correction a residual
+scale \(a\) and a common frequency offset \(\theta\) remain, so carrier
+\(\ell\) arrives at index \((1+a)\ell+\theta\) rather than at \(\ell\).  Bin
+\(k\) multiplies by \(e^{-j2\pi kn/N}\) and averages, so carrier \(\ell\)
+enters bin \(k\) with the coefficient
+\begin{align}
+  H_{k,\ell}
+  &=
+  \frac{1}{N}\sum_{n=0}^{N-1}
+  e^{j2\pi\Delta_{k,\ell}n/N},
+  \label{eq:ici-coefficient}\\
+  \Delta_{k,\ell}
+  &=
+  (\ell-k)+\theta+a\ell,
+  \label{eq:leftover-turns}
+\end{align}
+where \(\Delta_{k,\ell}\) is the number of turns carrier \(\ell\) makes
+relative to bin \(k\) over one block.  When \(a\) and \(\theta\) are zero, the
+turn count is an integer, the sum closes, and the coefficient vanishes for
+every \(\ell\neq k\).  This is subcarrier orthogonality.  A nonzero \(a\) or
+\(\theta\) makes the turn count fractional, the sum no longer closes, and the
+residue is the leakage.
+
+We consider \(N=1024\), \(k=4\), \(\ell=5\), \(a=0.007\), and \(\theta=0.20\).
+Carrier \(5\) arrives at index \(5.235\), bin \(4\) sees
+\(\Delta_{4,5}=1.235\) turns, and \eqref{eq:ici-coefficient} gives
+\(H_{4,5}\approx0.129+0.116j\) with \(|H_{4,5}|\approx0.173\).  Without
+Doppler the same pair gives \(\Delta_{4,5}=1\) and \(H_{4,5}=0\).
+
+Collecting the coefficients of all active carriers,
+\begin{equation}
+  Y_k^{\mathrm{full}}
+  =
+  H_{k,k}X_k
+  +
+  \sum_{\ell\in\Kset\setminus\{k\}}
+  H_{k,\ell}X_\ell
+  +
+  \nu_k,
+  \label{eq:ici-row}
+\end{equation}
+where the first term carries the wanted symbol and the sum is the ICI.  The
+magnitude of \eqref{eq:ici-coefficient} is a Dirichlet kernel in
+\(\Delta_{k,\ell}\), so for small \(a\) and \(\theta\) the leakage stays near
+the diagonal and the operator is banded.  Read in the frequency domain, the
+same coefficient is the spectrum of carrier \(\ell\) sampled away from its
+peak.  The bin grid no longer lands on the zeros of the neighboring carriers,
+and it samples their tails instead.
+
+Banded-ICI and sparse-channel receivers estimate the coefficients
+\(H_{k,\ell}\), or the path parameters that produce them.  Partial-FFT
+reception does not.  It keeps time-local observations of the same
+full-interval statistic and forms one soft symbol from them by combining.
+The response \(\mathbf C\) of the full JUNA objective is the Partial-FFT
+counterpart of the banded matrix that \(H_{k,\ell}\) forms; JUNA-Lite
+estimates neither, and updates \(\mathbf W\) alone.
+
+\section{Partial-FFT Observation Model}
+
+The full-interval statistic of \eqref{eq:ici-row} is one number per carrier.
+Partial-FFT demodulation keeps several, one from each segment of the useful
+interval.
 Let \(g_m[n]\), \(m=1,\ldots,M\), be deterministic non-overlapping segment
 windows, and define
 \begin{equation}
@@ -353,16 +428,19 @@ maximum number of data anchors.  The selected set is
   \label{eq:eligible}
 \end{equation}
 If \(|\mathcal Q^{(t)}|>K_{\max}\), only the \(K_{\max}\) largest confidence
-values are retained.  The complete target set is
+values are retained.  In the deployed receiver \(\tau=0\) and \(K_{\max}\)
+does not bind, so every decoded data carrier becomes an anchor and the
+confidence weights alone limit unreliable feedback.  The complete target set
+is
 \begin{equation}
   \mathcal T^{(t)}
   =
   \Pset\cup\mathcal Q^{(t)}.
   \label{eq:target-set}
 \end{equation}
-Define the target and target weight by
+We define the target and target weight by
 \begin{align}
-  a_k^{(t)}
+  d_k^{(t)}
   &=
   \begin{cases}
     X_k, & k\in\Pset,\\
@@ -389,7 +467,7 @@ confidence-weighted ridge problem
     \sum_{k\in\mathcal T_b^{(t)}}
     v_k^{(t)}
     \left|
-    \mathbf W_b^H\mathbf Y_k-a_k^{(t)}
+    \mathbf W_b^H\mathbf Y_k-d_k^{(t)}
     \right|^2\\
     &+
     \delta\norm{\mathbf W_b}_2^2
@@ -419,7 +497,7 @@ The weighted correlation matrix and cross-correlation vector are
   \sum_{k\in\mathcal T_b^{(t)}}
   v_k^{(t)}
   \mathbf Y_k
-  \left(a_k^{(t)}\right)^* .
+  \left(d_k^{(t)}\right)^* .
   \label{eq:lite-cross}
 \end{align}
 Therefore
@@ -503,14 +581,13 @@ The decoder score is
   \label{eq:decoder-score}
 \end{equation}
 In the deployed receiver \(E_{\mathrm{pil},c}\) is inactive and takes the same
-value for every candidate: the residual pilot equalization of
+value for every candidate.  The residual pilot equalization of
 \eqref{eq:pilot-response}--\eqref{eq:residual-equalization} divides each pilot
-carrier by a response measured on that carrier, so \(\widehat X_p=X_p\) to
-numerical precision.  The score therefore separates candidates through \(E_c\),
-the normalized syndrome weight, and \(\mu_c\); \(E_{\mathrm{pil},c}\) is
-retained in the reported form because it would separate candidates for any
-receiver that scored the combiner output \(\widetilde X_p\) before residual
-pilot equalization.
+carrier by its measured response, so \(\widehat X_p=X_p\) to numerical
+precision.  Hence the score separates candidates through \(E_c\), the
+normalized syndrome weight, and \(\mu_c\).  We retain
+\(E_{\mathrm{pil},c}\) because it separates candidates when a receiver scores
+the combiner output \(\widetilde X_p\) before residual pilot equalization.
 Candidate comparison is ordered in the implementation:
 \begin{equation}
   \begin{aligned}
@@ -583,9 +660,9 @@ the seed and once for every accepted refinement step.  JUNA-Lite avoids the
 branch-domain \(\mathbf C\) update and the nonlinear \(\mathbf z\) optimization
 of the full JUNA solver.
 
-A fair evaluation uses identical modulation, code, pilot pattern,
-Partial-FFT branches, channel, signal-to-noise ratio, and packet budget.  The
-primary comparison is pilot-only Partial-FFT plus BP against JUNA-Lite
+We require identical modulation, code, pilot pattern,
+Partial-FFT branches, channel, signal-to-noise ratio, and packet budget.  We
+compare pilot-only Partial-FFT plus BP against JUNA-Lite
 initialized from the same candidate.  Relevant measures include coded bit
 error rate, frame error rate, valid parity checks, pilot overhead, processing
 latency, iteration count, and computational complexity.  A fixed-feedback
@@ -601,10 +678,10 @@ separate receiver, obtains BP posterior information, adds reliable data
 symbols to the pilot anchors, estimates \(\mathbf W\), and decodes again.  The
 method does not optimize \(\mathbf C\), and its \(\mathbf z\) variables are
 posterior representations rather than free joint-solver variables.  Joint use
-of the observations and decoder information can provide a better
-pre-decoder statistic than separate combining and decoding, while the seed,
-confidence, ridge, comparison, and stopping rules preserve a controlled
-fallback to the separate receiver.
+of the observations and decoder information can improve the pre-decoder
+statistic when pilots alone do not specify a stable combiner.  The seed,
+confidence, ridge, comparison, and stopping rules retain the separate
+receiver as a fallback.
 
 \begin{thebibliography}{00}
 
