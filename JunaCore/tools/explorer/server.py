@@ -21,6 +21,7 @@ runtime result. Static evidence is never presented as execution.
 Run:  python3 tools/explorer/server.py [--port 8772]
 """
 import argparse
+import glob
 import html
 import json
 import os
@@ -40,18 +41,18 @@ import source_coverage  # noqa: E402
 import source_symbol_explorer as source_symbols  # noqa: E402
 
 SOURCE_SHA = "d49fff0"  # sonique research/JunaCore provenance (see README.md)
-SONIQUE_CORE = "/home/gabiel/Documents/GitHub/BP/sonique/research/JunaCore"
 SCHEMA_VERSION = 1
 NAV = [("/", "Home"), ("/tests", "Tests"), ("/map", "Map"),
        ("/chain", "Chain"), ("/source", "Source"), ("/coverage", "Coverage"),
-       ("/health", "Health"), ("/progress", "Progress")]
+       ("/health", "Health"), ("/progress", "Progress"),
+       ("/results", "Results")]
 INTERFACE_METHODS = {"init", "modulate", "demodulate", "bitspersymbol",
                      "signallength", "payload_rate", "refinement_objective",
                      "frameblockcount", "framepayloadbits"}
 TAXONOMY = [("Static call edge", "the analyzer found a lexical call"),
             ("Interface implementation",
              "the method extends the public Modulations contract"),
-            ("Direct test reference", "a suite explicitly names the symbol"),
+            ("Direct test reference", "the test file includes the code name"),
             ("Suite-wide association",
              "declared through a chain stage, not named directly"),
             ("Runtime result",
@@ -410,7 +411,8 @@ def graph_data(query):
         sym = _symbol_lookup(token)
         if sym:
             ids = {sym["id"], *sym.get("calls", []), *sym.get("callers", [])}
-            narrow(ids, "symbol", token, f"Symbol: {sym['name']}")
+            narrow(ids, "symbol", token,
+                   f"Source definition: {sym['name']}")
 
     # A receiver is a conceptual stage DAG before it is a source call graph.
     # Keep that architecture visible by default and disclose implementation
@@ -510,7 +512,8 @@ def palette_index():
     data = ANALYZE_CACHE.get()
     for m in data["modules"]:
         items.append({"label": m["name"], "kind": "module", "href": "/source",
-                      "hint": f"{m['count']} symbols"})
+                      "hint": (f"{m['count']} source definition" +
+                               ("" if m["count"] == 1 else "s"))})
     for s in data["symbols"]:
         if s["kind"] == "module":
             continue
@@ -566,22 +569,20 @@ RUNS_LOCK = threading.Lock()
 # --------------------------------------------------------------- health layer
 
 HEALTH_CHECKS = [
-    ("provenance-pins", "Provenance pins",
-     ["julia", "--project=.", "test/provenance_contract.jl"]),
-    ("explorer-data", "Explorer data C1-C7",
+    ("source-file-check", "Source file check",
+     ["julia", "--project=.", "test/source_file_check.jl"]),
+    ("explorer-data", "Explorer data C1-C12",
      ["python3", "tools/explorer/explorer_contract.py"]),
-    ("server-behavior", "Explorer server S1-S13",
+    ("server-behavior", "Explorer server S1-S21",
      ["python3", "tools/explorer/server_contract.py"]),
     ("package-load", "Package load",
      ["julia", "--project=.", "-e", 'using JunaCore; println("load OK")']),
     ("pkg-test", "Full Pkg.test",
      ["julia", "--project=.", "-e", "using Pkg; Pkg.test()"]),
-    ("parity-migrated", "Parity digest (this repo)",
+    ("fixed-results", "Fixed receiver results",
      ["julia", "--project=.", "tools/parity_check.jl"]),
-    ("parity-source", "Parity digest (source repo)",
-     ["julia", "--project=" + SONIQUE_CORE, "tools/parity_check.jl"]),
 ]
-HEALTH_BATTERY = ["provenance-pins", "explorer-data", "server-behavior",
+HEALTH_BATTERY = ["source-file-check", "explorer-data", "server-behavior",
                   "package-load"]
 HEALTH_TIMEOUT_S = 1800
 HEALTH = {"run": None}
@@ -674,14 +675,11 @@ def health_data():
                        "stale": stale,
                        "running": bool(run and run.status == "running" and
                                        run.current == name)})
-    pm, ps = recs.get("parity-migrated"), recs.get("parity-source")
-    if pm and ps and pm.get("digest") and ps.get("digest"):
-        parity = {"migrated": pm["digest"], "source": ps["digest"],
-                  "match": pm["digest"] == ps["digest"]}
-    else:
-        parity = {"migrated": pm.get("digest") if pm else None,
-                  "source": ps.get("digest") if ps else None,
-                  "match": None}
+    fixed = recs.get("fixed-results")
+    parity = {
+        "digest": fixed.get("digest") if fixed else None,
+        "passed": fixed.get("status") == "passed" if fixed else None,
+    }
     return {"checks": checks,
             "running": run.current if run and run.status == "running" else None,
             "parity": parity}
@@ -729,6 +727,17 @@ a { color:var(--accent); }
         border:1px solid var(--line); border-radius:99px; font-size:.75rem;
         text-decoration:none; color:var(--muted); }
 .chip:hover { border-color:var(--accent); color:var(--accent); }
+.suite-title { font-weight:650; }
+.suite-summary { display:block; color:var(--muted); max-width:52rem; }
+.suite-details { margin-top:.45rem; font-size:.9rem; }
+.suite-details summary { color:var(--accent); cursor:pointer; width:max-content; }
+.suite-meta { display:grid; grid-template-columns:max-content minmax(0,1fr);
+              gap:.25rem .8rem; margin:.55rem 0 .1rem; }
+.suite-meta dt { color:var(--muted); font-weight:600; }
+.suite-meta dd { margin:0; min-width:0; }
+.tests-table .suite-name { width:27%; }
+.tests-table .run-status { width:11rem; min-width:11rem; }
+.tests-table .run-action { width:7rem; min-width:7rem; white-space:nowrap; }
 .stage { border:1px solid var(--line); border-left:4px solid var(--accent);
          border-radius:8px; padding:.6rem .9rem; margin:.45rem 0;
          cursor:pointer; background:var(--card); }
@@ -738,15 +747,20 @@ a { color:var(--accent); }
 #detail { position:sticky; top:3.2rem; }
 .grid2 { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
          gap:1rem; }
-@media (max-width:60rem) { .grid2 { grid-template-columns:1fr; } }
+@media (max-width:60rem) {
+  .grid2 { grid-template-columns:1fr; }
+  .suite-meta { grid-template-columns:1fr; gap:.05rem; }
+  .suite-meta dd { margin-bottom:.35rem; }
+}
 .note { border-left:4px solid var(--warn); padding:.5rem .8rem;
         background:var(--card); border-radius:0 8px 8px 0; margin:.7rem 0; }
 .banner-dirty { border-left:4px solid var(--bad); background:var(--card);
                 padding:.5rem 1rem; margin:0; font-size:.9rem; }
-button { font:inherit; padding:.3rem .8rem; border-radius:6px;
-         border:1px solid var(--line); background:var(--card);
-         color:var(--fg); cursor:pointer; }
-button:hover { border-color:var(--accent); }
+button, .button-link { display:inline-block; font:inherit; padding:.3rem .8rem;
+                       border-radius:6px; border:1px solid var(--line);
+                       background:var(--card); color:var(--fg); cursor:pointer;
+                       text-decoration:none; white-space:nowrap; }
+button:hover, .button-link:hover { border-color:var(--accent); }
 .dot { font-size:1rem; }
 .grid-source { display:grid;
                grid-template-columns:minmax(12rem,15rem) minmax(0,1fr) minmax(18rem,22rem);
@@ -853,8 +867,9 @@ def page_home():
             '<span class="badge ok">no recorded failures</span>')
     body = f"""
 <h1>JUNA-Lite explorer</h1>
-<div class="card">Standalone home of the JUNA-Lite receiver, migrated from
-sonique <code>research/JunaCore @ {SOURCE_SHA}</code>. Three public facades:
+<div class="card">Standalone home of the JUNA-Lite receiver. Its history begins
+at sonique <code>research/JunaCore @ {SOURCE_SHA}</code>, but Juna is maintained
+independently. Three public facades:
 Standard OFDM, Partial-FFT, JUNA-Lite. HEAD:
 <code>{esc(git_state()['head'])} {esc(git_state()['subject'])}</code><br>
 Explore source:
@@ -875,7 +890,7 @@ static <a href="/coverage">reference coverage</a> ·
 </div>
 <h2>Verification</h2>
 <div class="card"><code>julia --project=. -e 'using Pkg; Pkg.test()'</code>
- · parity vs source repo: <code>julia --project=. tools/parity_check.jl</code>
+ · fixed receiver results: <code>julia --project=. tools/parity_check.jl</code>
  · contracts: <a href="/health">run from the Health page</a></div>"""
     return shell("Home", "/", body)
 
@@ -887,29 +902,39 @@ def page_tests():
     for s in suites:
         rec = last.get(s["key"])
         chips = suite_stage_chips(s["key"])
-        chips_html = (f"<br>{chips}" if chips else "")
-        rows += (f'<tr id="{esc(s["key"])}"><td><code>{esc(s["key"])}</code>'
-                 f'</td>'
-                 f'<td><b>{esc(s["title"])}</b><br>'
-                 f'<span style="color:var(--muted)">{esc(s["claim"])}</span>'
-                 f'<br><span class="badge">{esc(s["provenance"])}</span>'
-                 f'{chips_html}</td>'
-                 f'<td><code>{esc(s["file"])}</code><br>'
-                 f'<a href="/source/graph?suite={esc(s["key"])}">'
-                 f"source graph</a></td>"
-                 f'<td>{status_badge(rec)}</td>'
-                 f'<td><a href="/run/{esc(s["key"])}"><button>run</button>'
-                 f'</a></td></tr>')
+        steps = chips or "No receiver step is assigned to this structural test."
+        details = (
+            '<details class="suite-details">'
+            '<summary>Technical details</summary>'
+            '<dl class="suite-meta">'
+            f'<dt>How it works</dt><dd>{esc(s["method"])}</dd>'
+            f'<dt>Test origin</dt><dd>{esc(s["reader_origin"])}</dd>'
+            f'<dt>Internal key</dt><dd><code>{esc(s["key"])}</code></dd>'
+            f'<dt>Test file</dt><dd><code>{esc(s["file"])}</code></dd>'
+            f'<dt>Source view</dt><dd><a href="/source/graph?'
+            f'suite={esc(s["key"])}">Open source view</a></dd>'
+            f'<dt>Associated receiver steps</dt><dd>{steps}</dd>'
+            '</dl></details>')
+        rows += (f'<tr id="{esc(s["key"])}">'
+                 f'<td class="suite-name"><span class="suite-title">'
+                 f'{esc(s["reader_title"])}</span></td>'
+                 f'<td><span class="suite-summary">'
+                 f'{esc(s["reader_summary"])}</span>{details}</td>'
+                 f'<td class="run-status">{status_badge(rec)}</td>'
+                 f'<td class="run-action"><a class="button-link" '
+                 f'href="/run/{esc(s["key"])}">Run test</a></td></tr>')
     body = f"""
-<h1>Test suites</h1>
-<div class="card">Generated from the authoritative registry in
-<code>test/runtests.jl</code> via <code>suites.json</code>. Stage chips are
-the reverse traversal of <code>chain.json</code>: they mark which receiver
-stages each suite protects.</div>
+<h1>Tests</h1>
+<div class="card">This page lists the tests included with JUNA-Lite. Each row
+explains what the test checks and shows its most recent Explorer run. Results
+on this page come only from tests started in the Explorer. Open
+<b>Technical details</b> for the method, origin, internal key, test file,
+source view, and associated receiver steps.</div>
 {stale_banner()}
-<div class="wrap"><table>
-<tr><th>key</th><th>title / claim / protected stages</th><th>file</th>
-<th>last run</th><th></th></tr>
+<div class="wrap"><table class="tests-table">
+<tr><th>Test</th><th>What it checks</th>
+<th class="run-status">Most recent Explorer run</th>
+<th class="run-action">Action</th></tr>
 {rows}</table></div>"""
     return shell("Tests", "/tests", body)
 
@@ -918,32 +943,67 @@ def page_map():
     analyzed = ANALYZE_CACHE.get()
     suites = SUITES_CACHE.get()
     per_file = {}
+    per_kind = {}
     for s in analyzed["symbols"]:
         per_file[s["file"]] = per_file.get(s["file"], 0) + 1
+        per_kind[s["kind"]] = per_kind.get(s["kind"], 0) + 1
     src_rows = "".join(
         f'<tr><td><a href="/source/graph?file='
         f'{urllib.parse.quote(f)}"><code>src/{esc(f)}</code></a></td>'
-        f"<td>{n} symbols</td></tr>"
+        f'<td>{n} source definition{"" if n == 1 else "s"}</td></tr>'
         for f, n in sorted(per_file.items()))
+    definition_summary = (
+        f'{len(analyzed["symbols"])} source definitions: '
+        f'{per_kind.get("function", 0)} function or method definitions, '
+        f'{per_kind.get("const", 0)} constants, '
+        f'{per_kind.get("module", 0)} module declarations, '
+        f'{per_kind.get("struct", 0)} structure declarations, and '
+        f'{per_kind.get("type", 0)} abstract type declaration.')
     body = f"""
-<h1>Repository map</h1>
-<div class="card">The migrated package's real structure - no source-repo
-areas are mapped here because they are not part of this repository.</div>
-<h2>src/ <span class="badge">loaded by JunaCore.jl</span></h2>
-<div class="wrap"><table>{src_rows}</table></div>
-<h2>test/ <span class="badge">verified by Pkg.test</span></h2>
-<div class="card">{len(suites)} suites - see <a href="/tests">Tests</a>;
-shared fixtures in <code>test/support/</code>; registry in
+<h1>Package files</h1>
+<div class="card">This page shows the source files, tests, tools, and Explorer
+run records included with this package.</div>
+<h2>Source files</h2>
+<div class="card">{definition_summary}<br>
+A repeated name is counted separately for each definition.<br>
+These definitions were found in the source code. This count does not show
+that the code ran.</div>
+<details class="suite-details map-details">
+<summary>Technical details</summary>
+<div class="card"><code>src/</code> contains the source files and is loaded by
+<code>JunaCore.jl</code>.
+<div class="wrap"><table>{src_rows}</table></div></div>
+</details>
+<h2>Tests</h2>
+<div class="card">This package includes {len(suites)} tests. Open
+<a href="/tests">Tests</a> to see what each one checks.</div>
+<details class="suite-details map-details">
+<summary>Technical details</summary>
+<div class="card"><code>test/</code> contains the test files. Run all package
+tests with the <code>Pkg.test</code> command:
+<code>julia --project=. -e 'using Pkg; Pkg.test()'</code>.<br>
+Shared fixtures are in <code>test/support/</code>; the test registry is in
 <code>test/runtests.jl</code>.</div>
-<h2>tools/ <span class="badge">analyzed by</span></h2>
+</details>
+<h2>Tools</h2>
+<div class="card">The package uses helper programs for error correction. The
+Explorer files provide these pages and their checks.</div>
+<details class="suite-details map-details">
+<summary>Technical details</summary>
 <div class="card"><code>tools/ldpc</code>: LDPC helper binaries (runtime
 requirement of LDPC.jl - see THIRD_PARTY_NOTICES.md) ·
 <code>tools/explorer</code>: this server, analyzer, coverage scanner,
-contracts · <code>tools/parity_check.jl</code>: cross-repo parity gate.</div>
-<h2>bench/ <span class="badge">run history</span></h2>
+contracts · <code>tools/parity_check.jl</code>: fixed Juna receiver results.</div>
+</details>
+<h2>Explorer run records</h2>
+<div class="card">The Explorer saves the results of tests and checks started
+here.</div>
+<details class="suite-details map-details">
+<summary>Technical details</summary>
 <div class="card"><code>bench/test_runs.jsonl</code> and
-<code>bench/health_runs.jsonl</code>: appended by browser-triggered runs
-(gitignored).</div>"""
+<code>bench/health_runs.jsonl</code> store browser-triggered results and are
+excluded from Git.</div>
+</details>"""
     return shell("Map", "/map", body)
 
 
@@ -979,8 +1039,8 @@ when that seed is invalid.</div>
 <select id="compare-select">{compare_options}</select></label>
 <div id="receiver-purpose" style="margin-top:.7rem"></div></div>
 <div class="grid2"><div id="chain-boxes"></div>
-<div id="detail"><div class="card">Click a stage for its symbols, suites,
-and evidence.</div></div></div>
+<div id="detail"><div class="card">Click a receiver step to see its
+description, tests, and technical details.</div></div></div>
 <h2>Conditional execution</h2>
 <div class="card"><ul>{conditions}</ul></div>
 <script>
@@ -994,8 +1054,9 @@ function renderChain() {{
   var compared = receiver(document.getElementById('compare-select').value);
   var comparedPath = compared ? compared.chain_path : [];
   document.getElementById('receiver-purpose').innerHTML =
-    '<b>' + selected.display_name + '</b> · <code>' + selected.facade +
-    '</code> · ' + selected.purpose;
+    '<b>' + selected.display_name + '</b> · ' + selected.purpose +
+    '<details class="receiver-technical"><summary>Technical details</summary>' +
+    '<p><b>Code name</b><br><code>' + selected.facade + '</code></p></details>';
   document.getElementById('chain-boxes').innerHTML =
     selected.chain_path.map(function(id, index) {{
       var st = STAGES.find(function(s) {{ return s.id === id; }});
@@ -1004,17 +1065,14 @@ function renderChain() {{
       return (index ? '<div class="arrow">↓</div>' : '') +
         '<div class="stage" id="' + st.id + '" data-stage="' + st.id + '">' +
         '<span class="badge kind">' + marker + '</span><b>' + st.title +
-        '</b><br><span style="color:var(--muted)">' +
-        st.symbols.slice(0, 3).join(', ') +
-        (st.symbols.length > 3 ? '…' : '') + '</span></div>';
+        '</b></div>';
     }}).join('') +
     (MODEL.optionalStages[selected.id] || []).map(function(id) {{
       var st = STAGES.find(function(s) {{ return s.id === id; }});
       return '<div class="arrow">optional deployment wrapper</div>' +
         '<div class="stage" id="' + st.id + '" data-stage="' + st.id + '">' +
         '<span class="badge kind">optional</span><b>' + st.title +
-        '</b><br><span style="color:var(--muted)">' +
-        st.symbols.slice(0, 3).join(', ') + '</span></div>';
+        '</b></div>';
     }}).join('');
   document.querySelectorAll('#chain-boxes .stage').forEach(function(node) {{
     node.addEventListener('click', function() {{ show(node.dataset.stage); }});
@@ -1037,16 +1095,17 @@ function show(id) {{
     return '<a href="/tests#' + k + '">' + k + '</a> (<a href="/run/' + k +
            '">run</a>)'; }}).join(" · ");
   document.getElementById('detail').innerHTML =
-    '<div class="card"><span class="badge">' + st.kind + '</span> ' +
-    '<span class="badge ' + evCls + '">evidence: ' + st.evidence + '</span>' +
-    '<h2>' + st.title + '</h2><p>' + st.detail + '</p>' +
-    '<p><b>Symbols</b><br>' + syms + '</p>' +
-    '<p><b>Protecting suites</b><br>' + suites + '</p>' +
+    '<div class="card"><h2>' + st.title + '</h2><p>' + st.detail + '</p>' +
+    '<details class="stage-technical"><summary>Technical details</summary>' +
+    '<p><span class="badge">' + st.kind + '</span> ' +
+    '<span class="badge ' + evCls + '">evidence: ' + st.evidence + '</span></p>' +
+    '<p><b>Code names</b><br>' + syms + '</p>' +
+    '<p><b>Tests</b><br>' + suites + '</p>' +
     (st.evidence === 'behavioral' ?
       '<p class="note">behavioral evidence: the declared suites exercise ' +
       'this stage through the public API without naming its internals - ' +
       'see the <a href="/coverage">coverage legend</a>.</p>' : '') +
-    '</div>';
+    '</details></div>';
   if (history.replaceState) {{
     var url = new URL(location.href);
     url.hash = id;
@@ -1072,8 +1131,6 @@ def page_source(mode="inspector"):
     data = ANALYZE_CACHE.get()
     per_file = {}
     for s in data["symbols"]:
-        if s["kind"] == "module":
-            continue
         per_file.setdefault(s["file"], []).append(s)
     groups = ""
     for f in sorted(per_file):
@@ -1093,7 +1150,7 @@ def page_source(mode="inspector"):
     graph_controls = """
 <div id="graph-controls" class="card">
 <button id="graph-back-stages" type="button">Receiver stages</button>
-<button id="graph-show-all" type="button">Show all implementation symbols</button>
+<button id="graph-show-all" type="button">Show all code names</button>
 <span id="graph-legend">
 <span class="badge">Stage — declared receiver step</span>
 <span class="badge">Function — grouped source implementation</span>
@@ -1108,17 +1165,17 @@ def page_source(mode="inspector"):
 <a class="source-mode" href="/source-advanced">Original Analyzer</a>
 </div>
 <div class="card">One analyzer, two Explorer views. Inspector connects a
-selected symbol to chain meaning and evidence. Advanced Graph accepts
-receiver, stage, suite, file, and symbol context while preserving the same
+selected source definition to chain meaning and evidence. Advanced Graph accepts
+receiver, stage, suite, file, and source definition context while preserving the same
 inspector. Static graph edges never claim runtime execution.</div>
 <div id="source-context" class="card"></div>
 {graph_controls}
 <div class="grid-source" data-source-mode="{esc(mode)}">
-<div><input id="symsearch" placeholder="filter symbols…" autocomplete="off">
+<div><input id="symsearch" placeholder="filter source definitions…" autocomplete="off">
 <div id="symlist">{groups}</div></div>
 <div id="egograph"></div>
 <div id="inspector"><div class="card">
-<p>Select a symbol to inspect it. Evidence taxonomy used here:</p>
+<p>Select a source definition to inspect it. Evidence taxonomy used here:</p>
 <ul>{legend}</ul>
 <p class="note">{esc(TAXONOMY_NOTE)}</p>
 </div></div>
@@ -1206,8 +1263,8 @@ def page_coverage():
             f"{'…' if len(lines) > 12 else ''}</td></tr>"
             for n, lines in direct.items())
         drill += (f"<details><summary><code>{esc(k)}</code> - "
-                  f"{len(direct)} directly referenced symbols</summary>"
-                  f"<div class='wrap'><table><tr><th>symbol</th>"
+                  f"{len(direct)} directly referenced code names</summary>"
+                  f"<div class='wrap'><table><tr><th>Code name</th>"
                   f"<th>lines in {esc(entry.get('file', ''))}</th></tr>"
                   f"{items}</table></div></details>")
     body = f"""
@@ -1217,7 +1274,7 @@ def page_coverage():
 whether the suite last passed.</div>
 <h2>Chain stage × suite</h2>
 <div class="wrap"><table><tr><th>stage</th>{head}</tr>{rows}</table></div>
-<div class="card">● direct textual reference to a stage symbol ·
+<div class="card">● direct textual reference to a stage code name ·
 ◐ declared association with behavioral evidence only ·
 chip = most recent recorded browser run (suites also run in Pkg.test,
 which is not recorded here).</div>
@@ -1248,17 +1305,17 @@ def page_health():
 input. One run at a time; each check appends a record (with commit and
 dirty-state) to <code>bench/health_runs.jsonl</code>, kept separate from
 browser test runs. STALE means the last result predates the current commit
-or was recorded on a dirty tree.
+or was recorded on a dirty tree. <a href="/source/graph?receiver=lite">Open
+the JUNA-Lite source view</a>.
 <button id="health-run-all">run health battery</button>
-<span style="color:var(--muted)">(battery = provenance-pins, explorer-data,
+<span style="color:var(--muted)">(battery = source-file-check, explorer-data,
 server-behavior, package-load; the long checks run individually)</span></div>
 <div class="wrap"><table>
 <tr><th>check</th><th>status</th><th>commit</th><th>run time</th>
 <th>ended</th><th></th></tr>
 {rows}</table></div>
-<div id="health-parity" class="card">Cross-repository parity: run both
-parity checks to compare digests. Inspect the
-<a href="/source/graph?file=juna%2Fcommon.jl">shared receiver substrate</a>.
+<div id="health-parity" class="card">Fixed Juna receiver results are compared
+with values stored in this repository. Run the check above to see its result.
 </div>
 <pre id="health-log">(no health run this session)</pre>
 <script type="module" src="/static/health.js"></script>"""
@@ -1283,19 +1340,63 @@ refreshes every 5 s. Terminal equivalent:
     return shell("Progress", "/progress", body)
 
 
+def _latest_experiment_results():
+    """Newest experiments/*/results/results_view.html, or None."""
+    pattern = os.path.join(ROOT, "experiments", "*", "results",
+                           "results_view.html")
+    candidates = glob.glob(pattern)
+    candidates or (_ for _ in ()).throw(FileNotFoundError(pattern))
+    return max(candidates, key=os.path.getmtime)
+
+
+def page_results():
+    try:
+        path = _latest_experiment_results()
+    except FileNotFoundError:
+        body = """
+<h1>Experiment results</h1>
+<div class="card">No experiment results page exists yet. A search writes
+<code>experiments/&lt;name&gt;/results/results_view.html</code>; this tab
+shows the newest one.</div>"""
+        return shell("Results", "/results", body)
+    rel = os.path.relpath(path, ROOT)
+    body = f"""
+<h1>Experiment results</h1>
+<div class="card"><strong>Unregistered experiment output.</strong> This page
+renders <code>{esc(rel)}</code> from the gitignored
+<code>experiments/</code> directory. It is not part of the test registry and
+is not package evidence. ·
+<a href="/results/view" target="_blank">open in its own tab</a></div>
+<iframe src="/results/view" style="width:100%;height:calc(100vh - 200px);
+border:1px solid var(--line, #ccc);border-radius:6px;background:white">
+</iframe>"""
+    return shell("Results", "/results", body, wide=True)
+
+
 def page_run(key):
     suites = {s["key"]: s for s in SUITES_CACHE.get()}
     if key not in suites:
         return None
     s = suites[key]
     body = f"""
-<h1>Run: {esc(s['title'])}</h1>
-<div class="card"><code>julia --project=. test/{esc(s['file'])}</code>
+<h1>{esc(s['reader_title'])}</h1>
+<p class="suite-summary">{esc(s['reader_summary'])}</p>
+<div class="card"><b>Most recent Explorer run</b>
 <span id="status" class="badge warn">idle</span>
-<button onclick="start()">start</button>
-<button onclick="cancel()">cancel</button>
-<a href="/tests#{esc(key)}">back to tests</a></div>
+<button onclick="start()">Run test</button>
+<button onclick="cancel()">Cancel</button>
+<a href="/tests#{esc(key)}">Back to tests</a></div>
+<details class="suite-details run-details">
+<summary>Technical details</summary>
+<dl class="suite-meta">
+<dt>How it works</dt><dd>{esc(s['method'])}</dd>
+<dt>Test origin</dt><dd>{esc(s['reader_origin'])}</dd>
+<dt>Internal key</dt><dd><code>{esc(s['key'])}</code></dd>
+<dt>Test file</dt><dd><code>{esc(s['file'])}</code></dd>
+</dl>
+<p><code>julia --project=. test/{esc(s['file'])}</code></p>
 <pre id="out">(not started)</pre>
+</details>
 <script>
 var KEY = {json.dumps(key)}, seen = 0, timer = null;
 function poll() {{
@@ -1322,7 +1423,7 @@ function cancel() {{
 }}
 poll();
 </script>"""
-    return shell(f"Run {key}", "/tests", body)
+    return shell(s["reader_title"], "/tests", body)
 
 # ---------------------------------------------------------------- handler
 
@@ -1439,6 +1540,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(page_health())
             if path == "/progress":
                 return self._send(page_progress())
+            if path == "/results":
+                return self._send(page_results())
+            if path == "/results/view":
+                try:
+                    with open(_latest_experiment_results(), "rb") as fh:
+                        return self._send(fh.read(), ctype="text/html")
+                except FileNotFoundError:
+                    return self._send("no experiment results yet", 404,
+                                      "text/plain")
             if path == "/favicon.ico":
                 self.send_response(204)
                 self.end_headers()
@@ -1459,8 +1569,10 @@ class Handler(BaseHTTPRequestHandler):
                 with RUNS_LOCK:
                     run = RUNS.get(m.group(1))
                 if run is None:
+                    last = last_run_by_key().get(m.group(1), {})
                     return self._send(json.dumps(
-                        {"text": "", "seen": 0, "status": "idle"}),
+                        {"text": "", "seen": 0,
+                         "status": last.get("status", "idle")}),
                         ctype="application/json")
                 lines = run.lines[frm:]
                 return self._send(json.dumps(

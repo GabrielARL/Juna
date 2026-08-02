@@ -20,7 +20,7 @@
 \setlength{\headheight}{14pt}
 \pagestyle{fancy}
 \fancyhf{}
-\lhead{SC-JUNA v3 implementation spec}
+\lhead{SC-JUNA v3 receiver specification}
 \rhead{Page \thepage\ of \pageref{LastPage}}
 
 \definecolor{codebg}{RGB}{248,248,248}
@@ -60,17 +60,34 @@
 \newcommand{\code}[1]{\texttt{\detokenize{#1}}}
 \newcommand{\TODO}[1]{\textcolor{red!70!black}{\textbf{TODO:} #1}}
 
-\title{SC-JUNA v3: Implementation-First Julia Specification\\
-\large A deterministic receiver spec for LLM-assisted coding}
-\author{Self-calibrating JUNA receiver for Doppler-distorted OFDM}
+\title{SC-JUNA v3: Julia Receiver Specification}
+\author{SC-JUNA receiver for Doppler-distorted OFDM}
 \date{\today}
 
 \begin{document}
 \maketitle
 
 \begin{center}
+\fcolorbox{codeframe}{warnbg}{%
+\begin{minipage}{0.92\linewidth}
+\textbf{Replaced. Do not build from this document.}\\[0.3em]
+This specification has been superseded by \texttt{scjuna\_manual\_gradient\_plan.tex},
+which is the document to implement from. This specification steps the bit
+latents directly (\code{state.z .-= cfg.z_stepsize .* grad_z}). The deployed
+receiver uses Adam, as the manual gradient plan requires. The LLR erasure stage
+described here is not present in the deployed receiver. The shared constants
+here (\code{RHO_MAX}, \code{LAMBDA_P_MAX}, ramp constants) differ from the
+manual gradient plan. The two documents also normalize the loss differently,
+so the two sets of numbers are not comparable. Marked on 31 July 2026.
+\end{minipage}}
+\end{center}
+
+\begin{center}
 \fbox{\begin{minipage}{0.93\linewidth}
-\textbf{Purpose.} This is a code-generation specification, not a research exposition. It deliberately removes ambiguous derivation-first prose and replaces it with exact defaults, data shapes, edge rules, file schemas, concrete receiver APIs, deterministic candidate selection, manual gradients, and golden-vector tests. Version 1 assumes one aligned CP-included OFDM block per packet. Preamble acquisition is not implemented here.
+\textbf{Purpose.} This document specifies the Julia receiver functions,
+defaults, array shapes, edge rules, file schemas, candidate selection, manual
+gradients, and tests. Version 1 assumes one aligned CP-included OFDM block per
+packet. Preamble acquisition is not implemented here.
 \end{minipage}}
 \end{center}
 
@@ -79,7 +96,10 @@
 
 \section{What changed from v2}
 
-The earlier implementation spec had the right architecture but still left too much freedom at exactly the places where generated code tends to hallucinate: free constants, diagnostic thresholds, pilot holdout, LDPC file format, interleaver order, partial-FFT windows, known-Doppler validation, and the $z$-gradient. This v3 spec makes the following hard choices.
+The earlier implementation specification left free constants, diagnostic
+thresholds, pilot holdout, LDPC file format, interleaver order, partial-FFT
+windows, known-Doppler validation, and the $z$-gradient open. This v3
+specification states the corresponding defaults, functions, and tests.
 
 \begin{longtable}{@{}p{0.31\linewidth}p{0.62\linewidth}@{}}
 \toprule
@@ -89,22 +109,36 @@ Derivations competed with implementation directives & Background is reduced to o
 Undefined constants such as $c_i$, $\kappa_i$, $q_{\rm sym}$, $q_{\rm dec}$ & All defaults are numerical. The undefined gates are removed. Ramps depend only on iteration index. \\
 Partial-FFT window ambiguity & Only non-overlapping rectangular partition-of-unity windows are allowed in v1. Candidate $M$ values are recomputed, not merged. \\
 ICI coefficient indexing ambiguity & \code{C[k, off, m]} is defined exactly with no wraparound at band edges. \\
-LDPC parser and encoder unspecified & v1 uses a systematic sparse-coordinate TOML schema with $H=[A\ I]$ and encoder $p=A u$ over $\F_2$. \\
+LDPC parser and encoder unspecified & v1 uses a systematic TOML schema for sparse coordinates with $H=[A\ I]$ and encoder $p=A u$ over $\F_2$. \\
 Interleaver mentioned but not specified & A deterministic stride interleaver is defined, with explicit inverse and carrier-to-bit map. \\
 SC-JUNA loop less concrete than KD baselines & SC-JUNA is given in Julia-like pseudocode with exact calls and return types. \\
-Known-Doppler benchmark lacked a self-test & A deterministic Doppler undo golden test is included. \\
+Known-Doppler benchmark lacked a test & A deterministic Doppler undo test is included. \\
 AD choice ambiguous & Production uses a hand-derived real gradient for $z$. Zygote is only an optional gradient checker. \\
-Missing numerical primitive tests & Golden-vector tests are specified for OFDM, partial FFT, channel, LDPC, RPC, known Doppler, and JUNA gradients. \\
+Missing numerical primitive tests & Tests are specified for OFDM, partial FFT, channel, LDPC, RPC, known Doppler, and JUNA gradients. \\
 \bottomrule
 \end{longtable}
 
-\section{Version-1 scope and hard constraints}
+\section{Receiver execution order}
+
+The supporting types, indexing, data order, and receiver functions are stated
+before the receiver sequence. For an aligned CP-included OFDM block, the
+receiver follows this order:
+
+\begin{enumerate}
+\item Remove the cyclic prefix and form the full and partial FFT observations.
+\item Estimate the packet diagnostics and build the candidate list.
+\item Initialize the JUNA state from the fit pilots.
+\item Update $C$, $W$, and $z$, then form the LLRs and run BP.
+\item Score every candidate and select the result.
+\end{enumerate}
+
+\section{Version-1 scope}
 
 \subsection{In scope}
 
 \begin{enumerate}
 \item Julia simulation of one CP-OFDM packet through a time-varying underwater acoustic channel.
-\item Full-FFT, RPC, known-Doppler, fixed-JUNA, and self-calibrating JUNA receivers.
+\item Full-FFT, RPC, known-Doppler, fixed-JUNA, and SC-JUNA receivers.
 \item Rate-$1/2$ systematic LDPC encoding and belief propagation decoding.
 \item Receiver-side adaptation only. No transmitter feedback, no waterfilling, and no adaptive rate control.
 \item Deterministic tests sufficient to localize implementation errors before running long Monte Carlo sweeps.
@@ -114,14 +148,14 @@ Missing numerical primitive tests & Golden-vector tests are specified for OFDM, 
 
 \begin{enumerate}
 \item Preamble acquisition, packet detection, and timing estimation. The test harness passes an already aligned CP-included OFDM block.
-\item MIMO or hydrophone-array processing.
+\item MIMO or hydrophone array processing.
 \item Nonrectangular or overlapping partial-FFT windows.
 \item Non-systematic LDPC encoding.
 \item Production automatic differentiation for complex variables.
 \item Real-time embedded optimization.
 \end{enumerate}
 
-\subsection{Non-negotiable implementation choices}
+\subsection{Required behavior}
 
 \begin{longtable}{@{}p{0.25\linewidth}p{0.68\linewidth}@{}}
 \toprule
@@ -162,13 +196,13 @@ Constant & Default & Meaning \\
 \code{KMAX} & $4$ & Maximum JUNA ICI half-bandwidth. \\
 \code{JUNA_MAX_OUTER} & $80$ & Nominal JUNA outer iterations. \\
 \code{JUNA_RESCUE_OUTER} & $200$ & Rescue candidate outer iterations. \\
-\code{Z_STEPS_PER_OUTER} & $2$ & Manual-gradient steps for $z$ per outer iteration. \\
+\code{Z_STEPS_PER_OUTER} & $2$ & Manual gradient steps for $z$ per outer iteration. \\
 \code{Z_STEPSIZE} & $10^{-2}$ & Initial $z$ gradient step size. \\
 \code{Z_CLIP} & $8.0$ & Clamp each $z_i$ after every $z$ step. \\
 \code{LAMBDA_D} & $1.0$ & Observation consistency weight. \\
 \code{ETA_PILOT} & $10.0$ & Pilot anchor weight. \\
 \code{RHO_MAX} & $1.0$ & Maximum combiner-symbol tie weight. \\
-\code{GAMMA_C} & $10^{-2}$ & Branch-model ridge. \\
+\code{GAMMA_C} & $10^{-2}$ & Ridge for the branch coefficients in $C$. \\
 \code{GAMMA_W} & $10^{-3}$ & Combiner-energy ridge. \\
 \code{GAMMA_S} & $10^{-2}$ & Combiner smoothness ridge. \\
 \code{LAMBDA_P_MAX} & $0.20$ & Maximum relaxed LDPC parity weight. \\
@@ -184,7 +218,7 @@ Constant & Default & Meaning \\
 \bottomrule
 \end{longtable}
 
-\subsection{No hidden adaptive gates}
+\subsection{Iteration ramps}
 
 Use deterministic iteration ramps:
 \begin{align}
@@ -271,7 +305,7 @@ The implementation order must follow the dependency graph below. A module is not
 \end{enumerate}
 
 \clearpage
-\section{Indexing and exact array shapes}
+\section{Indexing and array shapes}
 \label{sec:indexing}
 
 \subsection{FFT-bin convention}
@@ -284,7 +318,7 @@ Julia array index $k\in\{1,\ldots,N\}$ corresponds to signed FFT bin
  k-1-N, & \lfloor N/2\rfloor+2\le k\le N.
 \end{cases}
 \end{equation}
-The physical subcarrier frequency used only in passband-aware Doppler formulas is
+The physical subcarrier frequency used only in Doppler formulas that include the carrier frequency is
 \begin{equation}
 f_k=f_c+\kappa(k;N)\Delta f,\qquad \Delta f=F_s/N.
 \end{equation}
@@ -453,7 +487,7 @@ end
 
 \subsection{OFDM normalization}
 
-Use exactly:
+The OFDM functions use:
 \begin{equation}
 x[n]=\frac{1}{\sqrt{N}}\sum_{k=1}^N X[k]e^{j2\pi(k-1)n/N},\quad n=0,\ldots,N-1.
 \end{equation}
@@ -501,7 +535,7 @@ end
 
 \subsection{Deterministic pilot holdout}
 
-If $|\mathcal P|\ge 8\cdot \code{MIN_HOLDOUT_PILOTS}$, validation pilots are every eighth pilot in pilot-list order. Otherwise, no pilot is held out; validation residual is reported as \code{NaN} and scoring ignores it.
+If $|\mathcal P|\ge 8\cdot \code{MIN_HOLDOUT_PILOTS}$, validation pilots are every eighth entry in the pilot list. Otherwise, no pilot is held out; validation residual is reported as \code{NaN} and scoring ignores it.
 
 \begin{lstlisting}
 function split_pilots_holdout(pcfg::PilotConfig; stride::Int=8, min_holdout::Int=4)
@@ -536,7 +570,7 @@ using 0-based sample index $n$. The rectangular window is
 \begin{equation}
 g_m[n]=\begin{cases}1,& n\in\mathcal T_m,\\0,&\text{otherwise.}\end{cases}
 \end{equation}
-Thus $\sum_m g_m[n]=1$ exactly.
+Thus $\sum_m g_m[n]=1$.
 
 \begin{equation}
 Y_{k,m}=\frac{1}{\sqrt N}\sum_{n=0}^{N-1}g_m[n]y[n]e^{-j2\pi(k-1)n/N}.
@@ -567,7 +601,7 @@ function partial_fft_observations(y::Vector{ComplexF64}, cfg::OFDMConfig, M::Int
 end
 \end{lstlisting}
 
-\textbf{Mandatory identity test:}
+\textbf{Partial FFT identity test:}
 \begin{equation}
 \sum_{m=1}^M Y_{k,m}=Y_k^{\rm full}
 \end{equation}
@@ -650,7 +684,7 @@ end
 \clearpage
 \section{LDPC file schema and BP decoder}
 
-\subsection{Systematic sparse-coordinate TOML schema}
+\subsection{Systematic TOML schema}
 
 Version 1 accepts only parity-check matrices of the form
 \begin{equation}
@@ -775,7 +809,7 @@ The fractional delay is linear interpolation in v1:
 x(n-d)=(1-\alpha)x[n_0]+\alpha x[n_0+1],\quad n_0=\lfloor n-d\rfloor,
 \quad \alpha=n-d-n_0,
 \end{equation}
-returning zero for out-of-range indices.
+returning zero for indices outside the array.
 
 Delay evolves by
 \begin{equation}
@@ -799,18 +833,18 @@ function apply_time_varying_channel(
 end
 \end{lstlisting}
 
-\subsection{Channel golden tests}
+\subsection{Channel tests}
 
 \begin{enumerate}
 \item \textbf{Delta test.} Input $x[1]=1$, others zero; one tap with integer delay $d=3$, unit gain. Output must be one at sample $4$ and zero elsewhere.
-\item \textbf{Fractional delay test.} Input ramp $x[n]=n$ and delay $d=2.5$. Verify linear interpolation against hand-computed values.
-\item \textbf{No-Doppler OFDM diagonal test.} Static CP-covered channel must produce negligible off-diagonal empirical $H_{kq}$ in a diagnostic basis-probe test.
+\item \textbf{Fractional delay test.} Input ramp $x[n]=n$ and delay $d=2.5$. Verify linear interpolation against values computed by hand.
+\item \textbf{No-Doppler OFDM diagonal test.} A static CP-covered channel must produce negligible off-diagonal empirical $H_{kq}$ when the test applies one basis vector at a time.
 \end{enumerate}
 
 \clearpage
 \section{Known-Doppler compensation benchmark}
 
-This benchmark is a simulation-only oracle. SC-JUNA never receives \code{ChannelTruth}.
+This benchmark reads the truth supplied by the simulation. SC-JUNA never receives \code{ChannelTruth}.
 
 \subsection{Global time scaling}
 
@@ -826,7 +860,7 @@ If passband carrier phase is included, multiply by
 \begin{equation}
 \exp\left[-j2\pi f_c\frac{n}{F_s}\left(1-\frac{1}{1+a}\right)\right].
 \end{equation}
-For baseband-only v1 tests, set \code{use_carrier_phase=false}.
+For baseband tests in this version, set \code{use_carrier_phase=false}.
 
 \begin{lstlisting}
 function compensate_known_doppler(
@@ -884,9 +918,9 @@ function known_doppler_partial_fft_combine(
 end
 \end{lstlisting}
 
-\subsection{Mandatory known-Doppler self-test}
+\subsection{Known-Doppler undo test}
 
-Use a no-channel, no-noise packet $x$. Apply a known synthetic global time scale $a=5\times10^{-5}$ with the same interpolation convention. Then run \code{compensate_known_doppler}. Verify
+Use a packet $x$ without a channel or noise. Apply a known synthetic global time scale $a=5\times10^{-5}$ with the same interpolation convention. Then run \code{compensate_known_doppler}. Verify
 \begin{equation}
 \frac{\norm{\tilde x-x}_2}{\norm{x}_2}<10^{-3}
 \end{equation}
@@ -897,7 +931,7 @@ for an oversampled deterministic chirp and
 for an OFDM grid. The OFDM tolerance is looser because interpolation is not ideal.
 
 \clearpage
-\section{Receiver specifications}
+\section{Receiver API}
 
 Each receiver implements this common API.
 
@@ -1014,6 +1048,103 @@ end
 \end{lstlisting}
 
 \clearpage
+\section{Packet diagnostics and candidate list}
+
+\subsection{Packet diagnostics}
+
+Diagnostics use only the current packet. No feedback and no truth object.
+
+\begin{align}
+\widehat\sigma^2&=\operatorname{mean}_{k\in\mathcal N}|Y_k|^2\quad\text{if nulls exist, else pilot residual median},\\
+\widehat H_p&=Y_p/P_p,\\
+\operatorname{SFM}&=\frac{\exp\left(\frac{1}{|\mathcal P|}\sum_p\log(|\hat H_p|^2+\eps)\right)}{\frac{1}{|\mathcal P|}\sum_p(|\hat H_p|^2+\eps)},\\
+D_{\rm notch}&=10\log_{10}\frac{\max_p |\hat H_p|^2+\eps}{\min_p |\hat H_p|^2+\eps},\\
+\eta_{\rm br}&=\frac{\sum_{p,m}|Y_{p,m}-\bar Y_p|^2}{\sum_{p,m}|Y_{p,m}|^2+\eps}.
+\end{align}
+
+\begin{lstlisting}
+struct PacketDiagnostics
+    snr_db::Float64
+    noise_power::Float64
+    sfm::Float64
+    notch_depth_db::Float64
+    branch_disagreement::Float64
+    rpc_pilot_residual::Float64
+end
+\end{lstlisting}
+
+\subsection{Base $M_0$ and $K_0$ rules}
+
+Let $\eta_b=\eta_{\rm br}$ and $s=\operatorname{SFM}$.
+\begin{equation}
+M_0=\begin{cases}
+4,&\eta_b<0.08,\\
+8,&0.08\le\eta_b<0.20,\\
+16,&0.20\le\eta_b<0.40,\\
+32,&\eta_b\ge0.40.
+\end{cases}
+\end{equation}
+
+\begin{equation}
+K_0=\begin{cases}
+0,&\eta_b<0.05\text{ and }s>0.60,\\
+1,&\eta_b<0.15,\\
+2,&0.15\le\eta_b<0.35,\\
+3,&\eta_b\ge0.35.
+\end{cases}
+\end{equation}
+If $D_{\rm notch}>25$ dB, set $K_0\leftarrow\min(K_0+1,K_{\max})$.
+
+\subsection{Candidate list}
+
+Always generate candidates in this order:
+\begin{equation}
+[\code{conservative},\code{nominal},\code{doppler_heavy},\code{notchy},\code{low_snr},\code{rescue}].
+\end{equation}
+Candidate modifications are fixed in Section~\ref{sec:constants}. Do not invent extra candidates.
+
+\begin{lstlisting}
+function build_scjuna_candidates(diag::PacketDiagnostics, base::JUNAConfig)::Vector{JUNAConfig}
+    M0 = base_M_rule(diag.branch_disagreement)
+    K0 = base_K_rule(diag.branch_disagreement, diag.sfm, diag.notch_depth_db)
+    return [make_candidate(:conservative, base, M0, K0),
+            make_candidate(:nominal, base, M0, K0),
+            make_candidate(:doppler_heavy, base, M0, K0),
+            make_candidate(:notchy, base, M0, K0),
+            make_candidate(:low_snr, base, M0, K0),
+            make_candidate(:rescue, base, M0, K0)]
+end
+\end{lstlisting}
+
+\section{Initialization}
+
+\begin{enumerate}
+\item Fit RPC weights using fit pilots only.
+\item Initialize $W^{(0)}$ from RPC.
+\item Initialize $C^{(0)}$ with only diagonal local branch coefficient nonzero:
+\begin{equation}
+c_{kk,m}^{(0)}=1/M,\\qquad c_{kq,m}^{(0)}=0 \text{ for } q\ne k.
+\end{equation}
+\item Compute $\tilde s_k=(w_k^{(0)})^H Y_k$.
+\item Convert $\tilde s_k$ to initial LLRs; deinterleave; initialize
+\begin{equation}
+z_i^{(0)}=\operatorname{clip}(L_i/2,-2,2).
+\end{equation}
+\item Compute $\xi_i=\tanh z_i$ and relaxed symbols.
+\end{enumerate}
+
+\begin{lstlisting}
+function initialize_juna_state(
+    Ypartial::Matrix{ComplexF64},
+    problem::ReceiverProblem,
+    cfg::JUNAConfig,
+    rpc::RPCConfig
+)::JUNAState
+    # exact steps above
+end
+\end{lstlisting}
+
+\clearpage
 \section{JUNA objective}
 
 For candidate configuration $\theta=(M,K,\lambda_d,\eta,\rho,\gamma_C,\gamma_W,\gamma_S,\lambda_p)$, define branch residual
@@ -1050,83 +1181,6 @@ where
 \mathcal R_{\rm par}(z)=\sum_{j=1}^{m}\left(1-\prod_{i\in\mathcal N_j}\xi_i\right)^2.
 \end{equation}
 
-\section{Manual gradient for the $z$ update}
-
-Production code uses the hand gradient below. AD is allowed only in tests to check this gradient.
-
-\subsection{Symbol-gradient accumulation}
-
-Define complex symbol gradient
-\begin{equation}
-g_s[q]=\frac{\partial\mathcal L}{\partial \Re s_q}+j\frac{\partial\mathcal L}{\partial \Im s_q}.
-\end{equation}
-Initialize $g_s[q]=0$ for all data carriers.
-
-Observation term: for every received carrier $k$ and valid neighbor $q\in\mathcal B_K(k)$,
-\begin{equation}
-u_{kq}=\mathbf c_{kq}^H\mathbf r_k,
-\qquad
- g_s[q]\leftarrow g_s[q]-2\lambda_d u_{kq}.
-\end{equation}
-Combiner-symbol tie for data carrier $q$:
-\begin{equation}
-e_q=\mathbf w_q^H\mathbf Y_q-s_q,
-\qquad
- g_s[q]\leftarrow g_s[q]-2\rho^{(t)}e_q.
-\end{equation}
-
-\subsection{Convert symbol gradient to bit-latent gradient}
-
-For carrier $q$ with original bit indices $(i_I,i_Q)$,
-\begin{align}
-g_\xi[i_I]&\leftarrow g_\xi[i_I]+\frac{\Re g_s[q]}{\sqrt2},\\
-g_\xi[i_Q]&\leftarrow g_\xi[i_Q]+\frac{\Im g_s[q]}{\sqrt2}.
-\end{align}
-
-Parity term: for each check $j$, define
-\begin{equation}
-P_j=\prod_{i\in\mathcal N_j}\xi_i.
-\end{equation}
-For each $i\in\mathcal N_j$,
-\begin{equation}
-g_\xi[i]\leftarrow g_\xi[i]-2\lambda_p^{(t)}(1-P_j)
-\prod_{r\in\mathcal N_j\setminus i}\xi_r.
-\end{equation}
-Do not use division by $\xi_i$; use the product excluding $i$ to avoid zero problems.
-
-Finally,
-\begin{equation}
-\frac{\partial\mathcal L}{\partial z_i}=g_\xi[i](1-\xi_i^2).
-\end{equation}
-
-\begin{lstlisting}
-function juna_z_gradient!(
-    grad_z::Vector{Float64},
-    state::JUNAState,
-    Ypartial::Matrix{ComplexF64},
-    problem::ReceiverProblem,
-    cfg::JUNAConfig,
-    rho_t::Float64,
-    lambda_p_t::Float64
-)::Nothing
-    # 1. zero grad_z, g_xi, g_s
-    # 2. compute all residual r_k
-    # 3. accumulate observation gradient into g_s
-    # 4. accumulate combiner-symbol tie into g_s
-    # 5. map g_s to g_xi through CarrierBitMap
-    # 6. add parity gradient using product-excluding-i
-    # 7. grad_z[i] = g_xi[i] * (1 - xi[i]^2)
-end
-\end{lstlisting}
-
-\subsection{Gradient self-test}
-
-For a tiny deterministic problem $N=16$, $K=1$, $M=4$, and a small LDPC toy code, compare manual gradient to central finite difference:
-\begin{equation}
-\left|g_i^{\rm manual}-\frac{L(z+h e_i)-L(z-h e_i)}{2h}\right|<10^{-4}
-\end{equation}
-for $h=10^{-5}$ and all tested coordinates. Test at least 16 coordinates including bits in multiple parity checks.
-
 \clearpage
 \section{JUNA block updates}
 
@@ -1156,13 +1210,13 @@ where
 (0,0),&\text{otherwise.}
 \end{cases}
 \end{equation}
-For v1, smoothness $\gamma_S$ is applied by one post-update smoothing pass:
+For v1, smoothness $\gamma_S$ is applied by one smoothing pass after each update:
 \begin{equation}
 \mathbf w_k\leftarrow \frac{\mathbf w_k+\alpha_s(\mathbf w_{k-1}+\mathbf w_{k+1})}{1+2\alpha_s},
 \qquad
 \alpha_s=\min(0.25,\gamma_S).
 \end{equation}
-At edges, use the available neighbor only. This avoids a block-tridiagonal implementation in v1 while making $\gamma_S$ deterministic. A later version may replace this with the exact block-tridiagonal solve.
+At edges, use the available neighbor only. This avoids a block-tridiagonal implementation in v1. The fixed smoothing pass after each update applies $\gamma_S$. A later version may replace this with the exact block-tridiagonal solve.
 
 \subsection{$z$ update}
 
@@ -1207,6 +1261,83 @@ function run_juna_solver(
 end
 \end{lstlisting}
 
+\section{Manual gradient for the $z$ update}
+
+Production code uses the hand gradient below. AD is allowed only in tests to check this gradient.
+
+\subsection{Symbol-gradient accumulation}
+
+Define complex symbol gradient
+\begin{equation}
+g_s[q]=\frac{\partial\mathcal L}{\partial \Re s_q}+j\frac{\partial\mathcal L}{\partial \Im s_q}.
+\end{equation}
+Initialize $g_s[q]=0$ for all data carriers.
+
+Observation term: for every received carrier $k$ and valid neighbor $q\in\mathcal B_K(k)$,
+\begin{equation}
+u_{kq}=\mathbf c_{kq}^H\mathbf r_k,
+\qquad
+ g_s[q]\leftarrow g_s[q]-2\lambda_d u_{kq}.
+\end{equation}
+Combiner-symbol tie for data carrier $q$:
+\begin{equation}
+e_q=\mathbf w_q^H\mathbf Y_q-s_q,
+\qquad
+ g_s[q]\leftarrow g_s[q]-2\rho^{(t)}e_q.
+\end{equation}
+
+\subsection{Convert symbol gradient to $z$ gradient}
+
+For carrier $q$ with original bit indices $(i_I,i_Q)$,
+\begin{align}
+g_\xi[i_I]&\leftarrow g_\xi[i_I]+\frac{\Re g_s[q]}{\sqrt2},\\
+g_\xi[i_Q]&\leftarrow g_\xi[i_Q]+\frac{\Im g_s[q]}{\sqrt2}.
+\end{align}
+
+Parity term: for each check $j$, define
+\begin{equation}
+P_j=\prod_{i\in\mathcal N_j}\xi_i.
+\end{equation}
+For each $i\in\mathcal N_j$,
+\begin{equation}
+g_\xi[i]\leftarrow g_\xi[i]-2\lambda_p^{(t)}(1-P_j)
+\prod_{r\in\mathcal N_j\setminus i}\xi_r.
+\end{equation}
+Do not use division by $\xi_i$; use the product excluding $i$ to avoid zero problems.
+
+Finally,
+\begin{equation}
+\frac{\partial\mathcal L}{\partial z_i}=g_\xi[i](1-\xi_i^2).
+\end{equation}
+
+\begin{lstlisting}
+function juna_z_gradient!(
+    grad_z::Vector{Float64},
+    state::JUNAState,
+    Ypartial::Matrix{ComplexF64},
+    problem::ReceiverProblem,
+    cfg::JUNAConfig,
+    rho_t::Float64,
+    lambda_p_t::Float64
+)::Nothing
+    # 1. zero grad_z, g_xi, g_s
+    # 2. compute all residual r_k
+    # 3. accumulate observation gradient into g_s
+    # 4. accumulate combiner-symbol tie into g_s
+    # 5. map g_s to g_xi through CarrierBitMap
+    # 6. add parity gradient using product-excluding-i
+    # 7. grad_z[i] = g_xi[i] * (1 - xi[i]^2)
+end
+\end{lstlisting}
+
+\subsection{Gradient test}
+
+For a tiny deterministic problem $N=16$, $K=1$, $M=4$, and a small LDPC toy code, compare manual gradient to central finite difference:
+\begin{equation}
+\left|g_i^{\rm manual}-\frac{L(z+h e_i)-L(z-h e_i)}{2h}\right|<10^{-4}
+\end{equation}
+for $h=10^{-5}$ and all tested coordinates. Test at least 16 coordinates including bits in multiple parity checks.
+
 \clearpage
 \section{LLR formation and reliability erasure}
 
@@ -1224,7 +1355,7 @@ Define relative reliability
 \end{equation}
 If $\gamma_k^{\rm rel}<\code{REL_ERASE_THRESHOLD}$, set both LLRs for carrier $k$ to zero.
 
-For non-erased QPSK:
+For QPSK carriers that are not erased:
 \begin{align}
 L_{I,k}&=\operatorname{clip}\left(\frac{2\sqrt2\Re\hat s_k}{\sigma_{\rm eff,k}^2},-L_{\max},L_{\max}\right),\\
 L_{Q,k}&=\operatorname{clip}\left(\frac{2\sqrt2\Im\hat s_k}{\sigma_{\rm eff,k}^2},-L_{\max},L_{\max}\right).
@@ -1245,76 +1376,7 @@ function juna_llrs(
 end
 \end{lstlisting}
 
-\clearpage
-\section{Self-calibration}
-
-\subsection{Packet diagnostics}
-
-Diagnostics use only the current packet. No feedback and no truth object.
-
-\begin{align}
-\widehat\sigma^2&=\operatorname{mean}_{k\in\mathcal N}|Y_k|^2\quad\text{if nulls exist, else pilot residual median},\\
-\widehat H_p&=Y_p/P_p,\\
-\operatorname{SFM}&=\frac{\exp\left(\frac{1}{|\mathcal P|}\sum_p\log(|\hat H_p|^2+\eps)\right)}{\frac{1}{|\mathcal P|}\sum_p(|\hat H_p|^2+\eps)},\\
-D_{\rm notch}&=10\log_{10}\frac{\max_p |\hat H_p|^2+\eps}{\min_p |\hat H_p|^2+\eps},\\
-\eta_{\rm br}&=\frac{\sum_{p,m}|Y_{p,m}-\bar Y_p|^2}{\sum_{p,m}|Y_{p,m}|^2+\eps}.
-\end{align}
-
-\begin{lstlisting}
-struct PacketDiagnostics
-    snr_db::Float64
-    noise_power::Float64
-    sfm::Float64
-    notch_depth_db::Float64
-    branch_disagreement::Float64
-    rpc_pilot_residual::Float64
-end
-\end{lstlisting}
-
-\subsection{Deterministic base $M_0$ and $K_0$ rules}
-
-Let $\eta_b=\eta_{\rm br}$ and $s=\operatorname{SFM}$.
-\begin{equation}
-M_0=\begin{cases}
-4,&\eta_b<0.08,\\
-8,&0.08\le\eta_b<0.20,\\
-16,&0.20\le\eta_b<0.40,\\
-32,&\eta_b\ge0.40.
-\end{cases}
-\end{equation}
-
-\begin{equation}
-K_0=\begin{cases}
-0,&\eta_b<0.05\text{ and }s>0.60,\\
-1,&\eta_b<0.15,\\
-2,&0.15\le\eta_b<0.35,\\
-3,&\eta_b\ge0.35.
-\end{cases}
-\end{equation}
-If $D_{\rm notch}>25$ dB, set $K_0\leftarrow\min(K_0+1,K_{\max})$.
-
-\subsection{Candidate list}
-
-Always generate candidates in this order:
-\begin{equation}
-[\code{conservative},\code{nominal},\code{doppler_heavy},\code{notchy},\code{low_snr},\code{rescue}].
-\end{equation}
-Candidate modifications are fixed in Section~\ref{sec:constants}. Do not invent extra candidates.
-
-\begin{lstlisting}
-function build_scjuna_candidates(diag::PacketDiagnostics, base::JUNAConfig)::Vector{JUNAConfig}
-    M0 = base_M_rule(diag.branch_disagreement)
-    K0 = base_K_rule(diag.branch_disagreement, diag.sfm, diag.notch_depth_db)
-    return [make_candidate(:conservative, base, M0, K0),
-            make_candidate(:nominal, base, M0, K0),
-            make_candidate(:doppler_heavy, base, M0, K0),
-            make_candidate(:notchy, base, M0, K0),
-            make_candidate(:low_snr, base, M0, K0),
-            make_candidate(:rescue, base, M0, K0)]
-end
-\end{lstlisting}
-
-\subsection{Candidate score}
+\section{Candidate score}
 
 If validation pilots exist:
 \begin{equation}
@@ -1342,7 +1404,7 @@ Selection priority:
 \end{enumerate}
 
 \clearpage
-\section{Concrete SC-JUNA receiver pseudocode}
+\section{SC-JUNA receiver}
 
 \begin{lstlisting}
 function scjuna_decode(
@@ -1394,36 +1456,8 @@ function scjuna_decode(
 end
 \end{lstlisting}
 
-\section{Initialization}
-
-\begin{enumerate}
-\item Fit RPC weights using fit pilots only.
-\item Initialize $W^{(0)}$ from RPC.
-\item Initialize $C^{(0)}$ with only diagonal local branch coefficient nonzero:
-\begin{equation}
-c_{kk,m}^{(0)}=1/M,\\qquad c_{kq,m}^{(0)}=0 \text{ for } q\ne k.
-\end{equation}
-\item Compute $\tilde s_k=(w_k^{(0)})^H Y_k$.
-\item Convert $\tilde s_k$ to initial LLRs; deinterleave; initialize
-\begin{equation}
-z_i^{(0)}=\operatorname{clip}(L_i/2,-2,2).
-\end{equation}
-\item Compute $\xi_i=\tanh z_i$ and relaxed symbols.
-\end{enumerate}
-
-\begin{lstlisting}
-function initialize_juna_state(
-    Ypartial::Matrix{ComplexF64},
-    problem::ReceiverProblem,
-    cfg::JUNAConfig,
-    rpc::RPCConfig
-)::JUNAState
-    # exact steps above
-end
-\end{lstlisting}
-
 \clearpage
-\section{Golden-vector tests}
+\section{Tests}
 
 These tests must be run before any Monte Carlo experiment. Each test uses fixed seeds and small dimensions.
 
@@ -1467,17 +1501,17 @@ Run the three tests in the channel section: integer-delay delta, fractional-dela
 
 \subsection{Known-Doppler undo test}
 
-Use the mandatory test in the known-Doppler section. This catches sign, unit, and off-by-one mistakes.
+Use the required test in the known-Doppler section. This catches sign, unit, and indexing mistakes.
 
 \subsection{RPC synthetic test}
 
-Construct $Y_{k,m}=a_m X_k$ for all carriers with known branch vector $a$. Fit RPC on pilots. Verify $w^Ha\approx1$ and pilot residual below $10^{-10}$ in noise-free data.
+Construct $Y_{k,m}=a_m X_k$ for all carriers with known branch vector $a$. Fit RPC on pilots. Verify $w^Ha\approx1$ and pilot residual below $10^{-10}$ for data without noise.
 
 \subsection{JUNA gradient test}
 
-Use the finite-difference test in the manual-gradient section. This test must pass before running SC-JUNA.
+Use the finite-difference test in the manual gradient section. This test must pass before running SC-JUNA.
 
-\subsection{SC-JUNA candidate-selection test}
+\subsection{SC-JUNA candidate selection test}
 
 Create two diagnostics:
 \begin{align}
@@ -1532,7 +1566,7 @@ Minimum benchmark suite:
 \item \code{KnownDopplerOFDMReceiver}: oracle global Doppler compensation plus coherent OFDM.
 \item \code{KnownDopplerPartialFFTReceiver}: oracle Doppler partial-FFT baseline.
 \item \code{FixedJUNAReceiver}: JUNA with one fixed config.
-\item \code{SCJUNAReceiver}: self-calibrating JUNA.
+\item \code{SCJUNAReceiver}: SC-JUNA.
 \end{enumerate}
 Optional upper bound:
 \begin{equation}
@@ -1544,9 +1578,9 @@ using true $H$ from simulation. Label as genie only.
 
 The implementation is considered ready for Monte Carlo sweeps only when all conditions hold:
 \begin{enumerate}
-\item All golden-vector tests pass.
+\item All tests in this specification pass.
 \item Full-FFT receiver decodes noiseless static channels with zero bit errors.
-\item RPC receiver matches full FFT in a static time-invariant channel when equal-gain combining is optimal.
+\item RPC receiver matches full FFT in a static time-invariant channel when equal gain combining is optimal.
 \item Known-Doppler receiver improves or matches uncompensated full FFT in the synthetic global-Doppler test.
 \item JUNA gradient test passes against finite differences.
 \item SC-JUNA candidate selection is deterministic across repeated runs with the same inputs.
@@ -1555,9 +1589,9 @@ The implementation is considered ready for Monte Carlo sweeps only when all cond
 
 \clearpage
 \appendix
-\section{Minimal background equations}
+\section{Background equations}
 
-This appendix is intentionally short. The implementation should rely on the main-body function definitions, not on re-deriving these equations.
+This appendix is intentionally short. The implementation should rely on the function definitions in the main body, not on deriving these equations again.
 
 For time-varying multipath,
 \begin{equation}
@@ -1567,7 +1601,7 @@ After CP removal and FFT,
 \begin{equation}
 Y_k=\sum_qH_{kq}X_q+\nu_k.
 \end{equation}
-If the channel is time-invariant over the OFDM symbol, $H_{kq}$ is diagonal. If Doppler or path delays vary within the symbol, off-diagonal ICI appears. Partial FFT preserves time-local observations
+If the channel is time-invariant over the OFDM symbol, $H_{kq}$ is diagonal. If Doppler or path delays vary within the symbol, off-diagonal ICI appears. Partial FFT preserves observations from each short window
 \begin{equation}
 Y_{k,m}=\frac{1}{\sqrt N}\sum_{n=0}^{N-1}g_m[n]y[n]e^{-j2\pi(k-1)n/N},
 \end{equation}
@@ -1578,7 +1612,7 @@ which JUNA combines with pilots and LDPC constraints.
 The production spec does not require reading these to implement code, but they motivate the design:
 \begin{enumerate}
 \item S. Yerramalli, M. Stojanovic, and U. Mitra, ``Partial FFT Demodulation: A Detection Method for Highly Doppler Distorted OFDM Systems,'' IEEE Transactions on Signal Processing, 2012.
-\item The JUNA project draft defining the coupled branch-model, combiner, and LDPC parity objective.
+\item The JUNA project draft defining the coupled branch coefficients, combiner, and LDPC parity objective.
 \end{enumerate}
 
 \end{document}

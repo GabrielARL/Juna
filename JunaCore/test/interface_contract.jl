@@ -71,8 +71,8 @@ end
 # FullyCoupled, TurboMAP, ProfiledGradient, ProfiledCz*, CrcConditioned*,
 # GuardedPhysical, GradientGuarded, and FrameRLS are dropped below: their
 # facades are absent from JunaCore.jl (scope narrowed to the migrated
-# facades). :full and :coupled keep their mode/profile plumbing (defined in
-# byte-identical common.jl) but are not exercised beyond that, since their
+# facades). :full and :coupled keep their mode/profile plumbing in common.jl
+# but are not exercised beyond that, since their
 # solvers (juna/full.jl, juna/coupled.jl) are not part of this package's src/.
 function assert_receiver_profiles()
     standard = Juna.StandardModulation()
@@ -222,12 +222,12 @@ function assert_extended_roundtrip(m)
     @test cfo == 0.0
 end
 
-@testset verbose = true "JUNA interface contract" begin
+@testset verbose = true "Checks shared by all receivers" begin
     @testset "LDPC helper binaries are vendored" begin
         assert_ldpc_tools_present()
     end
 
-    @testset "receiver family includes per-symbol modes (standard, pfft, lite, full, coupled)" begin
+    @testset "Receiver mode names map to their expected profiles" begin
         assert_receiver_profiles()
     end
 
@@ -266,12 +266,12 @@ end
         # Partial-FFT -> :pilot_band_ls, Lite -> :posterior_anchor_ls.
     end
 
-    @testset "default constructor remains the Lite public alias" begin
+    @testset "The default receiver is JUNA-Lite" begin
         assert_modulation_contract(Juna.Modulation())
     end
 
     for descriptor in public_receiver_descriptors()
-        @testset "$(descriptor.name): interface + noiseless loopback decodes payload-exactly" begin
+        @testset "$(descriptor.name) recovers all 128 test bits from its own clean waveform" begin
             assert_modulation_contract(public_receiver(descriptor))
         end
     end
@@ -286,5 +286,5 @@ end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    println("JUNA interface contract passed")
+    println("Checks shared by all receivers passed")
 end

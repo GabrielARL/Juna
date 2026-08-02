@@ -278,11 +278,6 @@ end
                 if descriptor.profile === :frame_wide_ldpc
                     payload_start = if !compared.sync
                         1
-                    elseif compared.sync_profile === :rpchan
-                        length(PublicInterfaceJuna._rpchan_preamble(
-                            compared, PUBLIC_INTERFACE_FS)) +
-                            PublicInterfaceJuna._rpchan_guard_length(
-                                compared, PUBLIC_INTERFACE_FS) + 1
                     else
                         PublicInterfaceJuna._synclen(compared) + 1
                     end
@@ -344,8 +339,8 @@ end
     end
 
     @testset "configuration controls are explicit across every receiver mode" begin
-        # requires_bpsk/requires_shifted_band gating removed: the source repo's
-        # rejection branch existed for receivers like FullyCoupled/TurboMAP that
+        # requires_bpsk/requires_shifted_band gating was removed. The earlier
+        # rejection branch covered receivers like FullyCoupled/TurboMAP that
         # lacked BPSK or shifted-band support. All three migrated receivers
         # (Standard, Partial-FFT, Lite) support both, so every configuration
         # below is valid for every descriptor and the rejection branch would

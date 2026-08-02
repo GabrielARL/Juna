@@ -63,7 +63,7 @@
 \maketitle
 
 \begin{abstract}
-This document specifies how to implement the SC-JUNA bit-latent update without relying on automatic differentiation.  The core decision is simple: use closed-form least-squares updates for the branch model and combiner, and use a hand-derived real gradient for the latent vector $\bm z\in\R^{n_b}$.  Automatic differentiation may be used only as a test-time gradient checker.  Production code should use the formulas in this document.
+This document specifies how to implement the SC-JUNA bit-latent update without relying on automatic differentiation.  Closed-form least-squares updates serve the branch model and the combiner, and a hand-derived real gradient serves the latent vector.  Automatic differentiation may be used only as a test-time gradient checker.  The planned SC-JUNA code should use the formulas in this document.
 \end{abstract}
 
 \tableofcontents
@@ -80,13 +80,13 @@ The implementation should \emph{not} require automatic differentiation for the m
 The only nontrivial gradient is the gradient with respect to the real bit-latent vector $\bm z$.  That gradient is short, stable, and easy to unit-test by finite differences.
 
 \paragraph{Production rule.}
-Use the hand-derived gradient in Section~\ref{sec:z-gradient}.  Do not use complex automatic differentiation inside the production solver.
+Use the hand-derived gradient in Section~\ref{sec:z-gradient}.  Do not use complex automatic differentiation (AD) inside the production solver.
 
 \paragraph{Testing rule.}
 Use central finite differences as the required gradient check.  AD may be used as an optional secondary check, but the finite-difference test is the authoritative test.
 
 \paragraph{Reason.}
-The $\bm z$ variables are real.  The observation residuals are complex.  Several Julia AD packages handle complex-valued intermediate computations differently.  A manual real gradient avoids package-specific complex-AD conventions and makes the implementation deterministic.
+The $\bm z$ variables are real, while the observation residuals are complex.  Although AD removes the need to derive gradients by hand, several Julia packages handle complex-valued intermediate computations differently.  A manual real gradient avoids package-specific complex-AD conventions and makes the implementation deterministic.
 
 \section{Version-1 restrictions}
 
@@ -165,6 +165,13 @@ end
 \end{lstlisting}
 
 \section{Latent bits and relaxed symbols}
+
+The formulas in this section define $z_i$ as the bit latent for the planned
+SC-JUNA update.  The current frame-wide JUNA-Wz path calls $z_i$ a logit and
+maps it with $\tanh(z_i/2)$ in
+\texttt{src/juna/frame\_wide\_ldpc.jl}.  Its chain rule therefore carries the
+factor $1/2$.  These are different code paths; the formulas below apply only
+to the bit-latent update specified here.
 
 The relaxed bipolar bit is
 \begin{equation}
@@ -898,7 +905,7 @@ The implementation is not acceptable until the following pass:
 
 \section{Summary}
 
-The hand-derived gradient is straightforward because all optimized bit variables are real.  The complex channel and branch quantities remain fixed during the $\bm z$ update, so the gradient only requires real derivatives through the relaxed QPSK map and the LDPC parity products.  The recommended implementation is:
+The hand-derived gradient is short because all optimized bit variables are real.  The complex channel and branch quantities remain fixed during the $\bm z$ update, so the gradient only requires real derivatives through the relaxed QPSK map and the LDPC parity products.  The recommended implementation is
 \begin{equation}
 \boxed{
 \text{closed-form }\mathbf C
@@ -906,6 +913,6 @@ The hand-derived gradient is straightforward because all optimized bit variables
 +\text{ manual }\nabla_z
 +\text{ finite-difference gradient checks}.}
 \end{equation}
-AD can be useful for experimentation, but it should not be the production dependency for the SC-JUNA solver.
+While AD is useful for experimentation, it should not be the production dependency for the SC-JUNA solver.
 
 \end{document}

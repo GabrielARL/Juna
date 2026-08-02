@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Sonique JunaCore function and symbol explorer.
+"""JunaCore function and symbol explorer.
 
 This is the repository-owned integration of the standalone Symbol Explorer.
-The Sonique launcher pins it to the sibling ``JunaCore/src`` tree so its live
+The launcher pins it to the package ``JunaCore/src`` tree so its live
 inventory, definitions, sources, and inferred call edges always come from the
 active checkout.
 
@@ -767,7 +767,7 @@ def analyze(folder):
         truncated = total - MAX_FILES
     syms = build_symbols(files, folder)
     if not syms:
-        raise ValueError(f"found {total} source files but parsed no functions/symbols under {folder}")
+        raise ValueError(f"found {total} source files but parsed no source definitions under {folder}")
     link_symbols(syms)
     add_examples(syms)
     ann, ann_src = load_annotations(folder)
@@ -886,7 +886,7 @@ def serve(port, default_repo, locked=False, open_browser=True):
 
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), H)
     url = f"http://127.0.0.1:{port}"
-    print(f"JunaCore source symbol explorer -> {url}   root={default_repo}   (Ctrl-C to stop)")
+    print(f"JunaCore source definition explorer -> {url}   root={default_repo}   (Ctrl-C to stop)")
     if open_browser:
         try:
             webbrowser.open(url)
@@ -898,7 +898,7 @@ def serve(port, default_repo, locked=False, open_browser=True):
         print("\nstopped.")
 
 
-HTML = r"""<!doctype html><html><head><meta charset="utf-8"><title>JunaCore source symbol explorer</title>
+HTML = r"""<!doctype html><html><head><meta charset="utf-8"><title>JunaCore source definition explorer</title>
 <!--VISLIB-->
 <style>
  :root{--bg:#0f172a;--panel:#1e293b;--ink:#e2e8f0;--mut:#94a3b8;--acc:#38bdf8;--line:#334155}
@@ -1109,7 +1109,7 @@ HTML = r"""<!doctype html><html><head><meta charset="utf-8"><title>JunaCore sour
  }
 </style></head><body>
 <div id="bar">
-  <h1>🔬 JunaCore source symbols</h1>
+  <h1>🔬 JunaCore source definitions</h1>
   <span id="pin" style="display:none;flex:1;min-width:0;color:#94a3b8;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📌 <b id="pinname" style="color:#e2e8f0"></b> <span id="pinpath"></span></span>
   <input id="path" placeholder="/path/to/project folder" autocomplete="off">
   <button id="load" title="open a folder picker, then scan it">📁 Load…</button>
@@ -1159,7 +1159,7 @@ function render(D){
   D.modules.forEach(m=>modColor(m.name));
   $('root').textContent='root: '+D.root;
   const s=D.stats;
-  $('stats').innerHTML=[['functions/symbols',s.symbols],['modules',s.modules],['call edges',s.edges],['files',s.files],['documented',(s.documented||0)+'/'+s.symbols]]
+  $('stats').innerHTML=[['source definitions',s.symbols],['modules',s.modules],['call edges',s.edges],['files',s.files],['documented',(s.documented||0)+'/'+s.symbols]]
     .map(([k,v])=>`<div class="stat"><span>${k}</span><b>${v}</b></div>`).join('');
   $('trunc').style.display=s.truncated?'block':'none';
   if(s.truncated)$('trunc').textContent=`⚠ large tree: scanned ${s.scanned} of ${s.total_files} files (capped). Point at a subfolder for full coverage.`;
@@ -1182,7 +1182,7 @@ function render(D){
   setView(MODE==='algo'?'algo':'oop');     // land in the OOP type view (default)
   $('detail').innerHTML=MODE==='algo'
     ? '<div class="empty">Source-backed pipeline — click any function chip to inspect its exact current definition and lexical relationships.</div>'
-    : '<div class="empty">OOP view — click a type ◇ or an interface method in the graph. Click a method to open its call-focus sphere; use search on the left to jump to any symbol.</div>';
+    : '<div class="empty">OOP view — click a type ◇ or an interface method in the graph. Click a method to open its call-focus sphere; use search on the left to jump to any source definition.</div>';
   ROUTE_HASH();
 }
 
@@ -1219,7 +1219,7 @@ function ROUTE_HASH(){
     }else{
       const hit=matches[0]||(!qualified?named[0]:null);
       if(hit)select(hit.id);
-      else $('detail').innerHTML='<div class="empty"><b>Source symbol not found.</b></div>';
+      else $('detail').innerHTML='<div class="empty"><b>Source definition not found.</b></div>';
     }}
   else if(sf)selectFile(decodeURIComponent(sf[1]).replace(/^src\//,'')); // #file=src/path.jl
   else if(ih)openFocusIface(ih[1]);                         // #iface=name → concrete override/helper focus
@@ -1364,7 +1364,7 @@ function selectIface(name){
 }
 // Role/Reads/Returns (or Object/Holds/Why for structs) from the walkthrough deck.
 function docBlock(s){
-  if(!s.doc) return '<div class="doc empty">no walkthrough annotation for this symbol</div>';
+  if(!s.doc) return '<div class="doc empty">no walkthrough annotation for this source definition</div>';
   const L=s.doc.kind==='obj'?['Object','Holds','Why it matters']:['Role','Reads','Returns'];
   return `<div class="doc"><div><b>${L[0]}.</b> ${esc(s.doc.a)}</div>`+
          `<div><b>${L[1]}.</b> ${esc(s.doc.b)}</div>`+
@@ -1433,11 +1433,12 @@ function select(id){
     ?'<div class="note">not shown in the type diagram &mdash; it maps types and interface methods only; use the &#128309; sphere view for this function&#39;s call graph.</div>'
     :'';
   $('detail').innerHTML=
+    `<div class="meta"><b>Code name</b></div>`+
     `<h3>${esc(s.name)}<span class="kind">${s.kind}</span></h3>`+
     `<div class="meta"><span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${modColor(s.module)}"></span> ${esc(s.module)} &nbsp;·&nbsp; ${esc(s.file)}:${s.line}</div>`+also+docHtml+
     `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 4px">`+
     `<button onclick="openFocus(${id})" style="font-size:11px;padding:3px 8px;background:#0b2536;color:#e2e8f0;border:1px solid var(--acc);border-radius:6px;cursor:pointer">🔵 call-focus sphere view</button>`+
-    `<a href="${wbBase()}/symbol/${encodeURIComponent(s.name)}?module=${encodeURIComponent(s.module)}&file=${encodeURIComponent('src/'+s.file)}&line=${s.line}" title="workbench symbol lens: static test references for this symbol; overloaded methods may be family-level" style="font-size:11px;padding:3px 8px;background:#132615;color:#e2e8f0;border:1px solid #3fb950;border-radius:6px;text-decoration:none">🧪 tests linked to this source</a></div>`+
+    `<a href="${wbBase()}/symbol/${encodeURIComponent(s.name)}?module=${encodeURIComponent(s.module)}&file=${encodeURIComponent('src/'+s.file)}&line=${s.line}" title="workbench source-definition view: static test references for this code name; overloaded methods may be family-level" style="font-size:11px;padding:3px 8px;background:#132615;color:#e2e8f0;border:1px solid #3fb950;border-radius:6px;text-decoration:none">🧪 tests linked to this source</a></div>`+
     diagramNote+
     `<h2>calls (${fns.length})</h2><div class="chips">${callLink(fns)}</div>`+
     (tys.length?`<h2>uses types (${tys.length})</h2><div class="chips">${callLink(tys)}</div>`:'')+
@@ -1741,7 +1742,7 @@ function openFlowPage(id){if(!DATA||!SYM[id])return;
 function reRoot(id){if(SYM[id])openFlowPage(id);}
 function closeFlow(){$('flowpage').style.display='none';$('wrap').style.display='flex';
   try{if(location.hash)history.replaceState(null,'',location.pathname+location.search);}catch(e){}
-  document.title='symbol explorer';}
+  document.title='source definition explorer';}
 
 // ---- interface I/O + per-implementation reference page ----------------------
 const IFACE_IO=[
@@ -2295,11 +2296,11 @@ async function load(){
 }
 function emptyState(){
   if(CFG.locked)return showOverlay('Scanning pinned project…',`<div class="b">Reading <code>${esc((CFG.lockedRoot||'').replace(/\/+$/,''))}</code> … this runs automatically; nothing to load.</div>`);
-  showOverlay('Symbol Explorer',
+  showOverlay('Source Definition Explorer',
     '<div class="b">Explore a codebase by its OOP structure: abstract types, subtyping, and which type implements which interface method — then drill into any method.</div>'+
     '<ol><li>Click <b>📁 Load…</b> and pick a project folder (or type a path + Enter).</li>'+
     '<li>In the <b>OOP view</b>, click a type ◇ or an interface method.</li>'+
-    '<li>Click a method to open its <b>call-focus sphere</b>, or search on the left to jump to any symbol.</li></ol>');
+    '<li>Click a method to open its <b>call-focus sphere</b>, or search on the left to jump to any source definition.</li></ol>');
 }
 async function browse(){
   const msg=$('msg');
@@ -2351,7 +2352,7 @@ if(!CFG.serve&&typeof vis!=='undefined'&&!CFG.data)$('msg').textContent='static 
 
 
 def main():
-    ap = argparse.ArgumentParser(description="JunaCore function / symbol explorer + UI")
+    ap = argparse.ArgumentParser(description="JunaCore source definition explorer + UI")
     ap.add_argument("--serve", action="store_true", help="launch the interactive UI server")
     ap.add_argument("--no-browser", action="store_true",
                     help="serve without opening a browser (for tests and automation)")
@@ -2374,7 +2375,7 @@ def main():
     open(out, "w").write(render_html(False, data))
     s = data["stats"]
     print(f"wrote {out}")
-    print(f"  symbols {s['symbols']}  modules {s['modules']}  call edges {s['edges']}  files {s['files']}")
+    print(f"  source definitions {s['symbols']}  modules {s['modules']}  call edges {s['edges']}  files {s['files']}")
 
 
 if __name__ == "__main__":

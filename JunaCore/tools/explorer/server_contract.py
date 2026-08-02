@@ -9,17 +9,17 @@ S1  every nav page (/, /tests, /map, /chain, /source, /coverage, /health,
 S2  /coverage states the static-not-runtime distinction and both legend
     marks (direct ● vs declared-behavioral ◐).
 S3  /chain embeds every stage declared in chain.json.
-S4  /tests lists every suite key; inverse chain chips (data-stage
-    attributes) reference only real chain.json stage ids, and at least one
-    chip is rendered.
+S4  /tests presents every suite in reader-facing language, keeps technical
+    registry data in collapsed details, labels browser-recorded results as
+    Explorer runs, and retains valid receiver-stage links.
 S5  /source-advanced is the retained analyzer page; /source is the unified
     Source page: server-rendered symbol list, persistent inspector
     container, the five-way evidence taxonomy labels, and a link to the
     legacy page.
 S6  banned destinations 404: /benchmark, /history, /reproduce,
     /run/<unknown-suite>, /api/no-such-endpoint.
-S7  GET is side-effect free: run/health output endpoints report idle
-    without starting anything.
+S7  GET is side-effect free: run output reports the last recorded result (or
+    idle when none exists), and run/health output endpoints start nothing.
 S8  every JSON API (/api/repository, /api/suites, /api/chain,
     /api/symbols, /api/coverage, /api/runs, /api/health, /api/palette)
     returns the provenance envelope {commit, working_tree_dirty,
@@ -56,6 +56,16 @@ S18 receiver graphs disclose complexity progressively: the default is the
     declared stage DAG, stage drill-down groups overloads and omits disconnected
     symbols, an explicit show-all mode restores every implementation symbol,
     and the page explains its node and edge semantics.
+S19 every /run/<suite> page uses the suite's reader title and summary, keeps
+    status and actions primary, and places the command, method, origin, internal
+    key, test file, and streamed Julia output in collapsed Technical details.
+S20 reader-facing analyzer wording uses the approved "source definition" and
+    "code name" terms; Map explains the definition count and its limits; Chain
+    keeps literal Julia names in collapsed Technical details; internal API
+    routes, keys, and graph view values remain compatible.
+S21 Map uses the approved Package files heading, plain section summaries, and
+    four collapsed Technical details sections while retaining the exact package
+    paths and program names inside those details.
 """
 import json
 import os
@@ -80,9 +90,8 @@ API_ENDPOINTS = ["/api/repository", "/api/suites", "/api/chain",
 TAXONOMY = ["Static call edge", "Interface implementation",
             "Direct test reference", "Suite-wide association",
             "Runtime result"]
-HEALTH_CHECKS = ["provenance-pins", "explorer-data", "server-behavior",
-                 "package-load", "pkg-test", "parity-migrated",
-                 "parity-source"]
+HEALTH_CHECKS = ["source-file-check", "explorer-data", "server-behavior",
+                 "package-load", "pkg-test", "fixed-results"]
 
 
 def fetch(base, path, method="GET", body=None):
@@ -153,10 +162,101 @@ def check():
     for s in suites:
         if f'id="{s["key"]}"' not in tests_page:
             problems.append(f"S4: /tests lost suite '{s['key']}'")
+        for field in ("reader_title", "reader_summary", "method",
+                      "reader_origin"):
+            if not s.get(field):
+                problems.append(
+                    f"S4: suite '{s['key']}' has no {field} explanation")
     import re as _re
-    chips = _re.findall(r'data-stage="([^"]+)"', tests_page)
+    normalized_tests_page = " ".join(tests_page.split())
+    for marker in (
+            "This page lists the tests included with JUNA-Lite.",
+            "<h1>Tests</h1>",
+            "Most recent Explorer run",
+            "Results on this page come only from tests started in the Explorer.",
+            "<th>Test</th>",
+            "<th>What it checks</th>"):
+        if marker not in normalized_tests_page:
+            problems.append(f"S4: /tests lost reader-facing marker '{marker}'")
+
+    detail_tags = _re.findall(
+        r'<details\b[^>]*class="suite-details"[^>]*>', tests_page)
+    detail_blocks = _re.findall(
+        r'<details\b[^>]*class="suite-details"[^>]*>(.*?)</details>',
+        tests_page, flags=_re.S)
+    if len(detail_blocks) != len(suites):
+        problems.append(
+            f"S4: /tests renders {len(detail_blocks)} technical details for "
+            f"{len(suites)} suites")
+    if any(_re.search(r'\sopen(?:\s|=|>)', tag) for tag in detail_tags):
+        problems.append("S4: technical details must be collapsed by default")
+    for detail in detail_blocks:
+        for label in ("How it works", "Test origin", "Internal key",
+                      "Test file", "Source view",
+                      "Associated receiver steps"):
+            if label not in detail:
+                problems.append(
+                    f"S4: technical details lost the '{label}' label")
+
+    for suite in suites:
+        row_match = _re.search(
+            rf'<tr id="{_re.escape(suite["key"])}">(.*?)</tr>',
+            tests_page, flags=_re.S)
+        if not row_match:
+            continue
+        row = row_match.group(1)
+        detail_match = _re.search(
+            r'<details\b[^>]*class="suite-details"[^>]*>(.*?)</details>',
+            row, flags=_re.S)
+        if not detail_match:
+            continue
+        technical = detail_match.group(1)
+        primary_row = row[:detail_match.start()] + row[detail_match.end():]
+        primary_markers = ['class="suite-title"', 'class="suite-summary"']
+        primary_markers.extend(
+            server.esc(suite[field])
+            for field in ("reader_title", "reader_summary")
+            if suite.get(field))
+        for marker in primary_markers:
+            if marker not in primary_row:
+                problems.append(
+                    f"S4: suite '{suite['key']}' lost primary '{marker}'")
+        detail_markers = [server.esc(suite["key"]),
+                          server.esc(suite["file"])]
+        detail_markers.extend(
+            server.esc(suite[field])
+            for field in ("method", "reader_origin")
+            if suite.get(field))
+        for marker in detail_markers:
+            if marker not in technical:
+                problems.append(
+                    f"S4: suite '{suite['key']}' details lost '{marker}'")
+        expected_stages = [
+            stage["id"] for stage in chain["stages"]
+            if suite["key"] in stage["suites"]]
+        actual_stages = _re.findall(r'data-stage="([^"]+)"', technical)
+        if actual_stages != expected_stages:
+            problems.append(
+                f"S4: suite '{suite['key']}' receiver steps "
+                f"{actual_stages} != {expected_stages}")
+
+    primary = _re.sub(
+        r'<details\b[^>]*class="suite-details"[^>]*>.*?</details>', "",
+        tests_page, flags=_re.S)
+    for jargon in ("authoritative registry", "reverse traversal",
+                   "protected stages",
+                   "pinned sha256", "silent fork", "public facades",
+                   "Lite closure", "facade pruning", "benchmark geometry",
+                   "migration gate"):
+        if jargon.casefold() in primary.casefold():
+            problems.append(
+                f"S4: primary Tests copy exposes maintainer jargon '{jargon}'")
+
+    chips = _re.findall(r'data-stage="([^"]+)"', "".join(detail_blocks))
     if not chips:
-        problems.append("S4: /tests renders no inverse chain chips")
+        problems.append("S4: /tests technical details render no stage links")
+    if 'data-stage="' in primary:
+        problems.append("S4: stage links escaped the technical details")
     for chip in set(chips):
         if chip not in stage_ids:
             problems.append(f"S4: chip references unknown stage '{chip}'")
@@ -184,9 +284,19 @@ def check():
             problems.append(f"S6: {path} returned {code}, expected 404")
 
     # S7
-    code, text = fetch(base, f"/run/{suites[0]['key']}/output")
-    if code != 200 or json.loads(text).get("status") != "idle":
-        problems.append("S7: GET run output is not side-effect free")
+    with server.RUNS_LOCK:
+        runs_before = set(server.RUNS)
+    last_runs = server.last_run_by_key()
+    for suite in suites:
+        code, text = fetch(base, f"/run/{suite['key']}/output")
+        expected_status = last_runs.get(suite["key"], {}).get("status", "idle")
+        if code != 200 or json.loads(text).get("status") != expected_status:
+            problems.append(
+                f"S7: GET run output for '{suite['key']}' did not report "
+                f"the last recorded status '{expected_status}'")
+    with server.RUNS_LOCK:
+        if set(server.RUNS) != runs_before:
+            problems.append("S7: GET run output started or registered a run")
     code, text = fetch(base, "/api/health/output")
     if code != 200 or json.loads(text).get("status") not in ("idle", "done",
                                                              "passed",
@@ -432,6 +542,252 @@ def check():
         if marker not in source_js:
             problems.append(f"S18: Source graph interaction lost '{marker}'")
 
+    # S19
+    for suite in suites:
+        code, run_page = fetch(base, "/run/" + suite["key"])
+        if code != 200:
+            problems.append(
+                f"S19: /run/{suite['key']} returned {code}")
+            continue
+        detail_match = _re.search(
+            r'<details\b[^>]*class="suite-details run-details"[^>]*>'
+            r'(.*?)</details>', run_page, flags=_re.S)
+        if not detail_match:
+            problems.append(
+                f"S19: /run/{suite['key']} has no consolidated Technical "
+                "details")
+            continue
+        detail_tag = detail_match.group(0).split(">", 1)[0] + ">"
+        technical = detail_match.group(1)
+        primary = run_page[:detail_match.start()] + run_page[detail_match.end():]
+        if _re.search(r'\sopen(?:\s|=|>)', detail_tag):
+            problems.append(
+                f"S19: /run/{suite['key']} Technical details are open by "
+                "default")
+        for marker in (
+                suite["reader_title"], suite["reader_summary"],
+                "Most recent Explorer run", ">Run test</button>",
+                ">Cancel</button>", ">Back to tests</a>"):
+            if server.esc(marker) not in primary and marker not in primary:
+                problems.append(
+                    f"S19: /run/{suite['key']} lost primary marker '{marker}'")
+        for hidden in (suite["title"], suite["claim"], suite["origin"],
+                       f"julia --project=. test/{suite['file']}",
+                       '<pre id="out"'):
+            if hidden and hidden != suite["reader_title"] and hidden in primary:
+                problems.append(
+                    f"S19: /run/{suite['key']} exposes technical content "
+                    f"outside details: '{hidden}'")
+        for marker in (
+                "Technical details", "How it works", suite["method"],
+                "Test origin", suite["reader_origin"], "Internal key",
+                suite["key"], "Test file", suite["file"],
+                f"julia --project=. test/{suite['file']}", '<pre id="out"'):
+            if server.esc(marker) not in technical and marker not in technical:
+                problems.append(
+                    f"S19: /run/{suite['key']} details lost '{marker}'")
+        expected_title = (
+            f"<title>{server.esc(suite['reader_title'])} · "
+            "JUNA-Lite explorer</title>")
+        if expected_title not in run_page:
+            problems.append(
+                f"S19: /run/{suite['key']} browser title is not reader-facing")
+        for marker in ("/output?from=", "/start", "/cancel", "seen = 0",
+                       "d.status === 'running'"):
+            if marker not in run_page:
+                problems.append(
+                    f"S19: /run/{suite['key']} lost runner behavior '{marker}'")
+
+    # S20 approved JNR-001 through JNR-006 reader vocabulary
+    code, map_page = fetch(base, "/map")
+    if code != 200:
+        problems.append(f"S20: /map returned {code}")
+    normalized_map_page = " ".join(map_page.split())
+    kind_counts = {}
+    per_file_counts = {}
+    for definition in analyzed["symbols"]:
+        kind = definition["kind"]
+        kind_counts[kind] = kind_counts.get(kind, 0) + 1
+        file_name = definition["file"]
+        per_file_counts[file_name] = per_file_counts.get(file_name, 0) + 1
+    definition_summary = (
+        f'{len(analyzed["symbols"])} source definitions: '
+        f'{kind_counts.get("function", 0)} function or method definitions, '
+        f'{kind_counts.get("const", 0)} constants, '
+        f'{kind_counts.get("module", 0)} module declarations, '
+        f'{kind_counts.get("struct", 0)} structure declarations, and '
+        f'{kind_counts.get("type", 0)} abstract type declaration.')
+    map_markers = (
+        definition_summary,
+        "A repeated name is counted separately for each definition.",
+        "These definitions were found in the source code. This count does "
+        "not show that the code ran.",
+    )
+    for marker in map_markers:
+        if marker not in normalized_map_page:
+            problems.append(f"S20: /map lost approved wording '{marker}'")
+    for file_name, count in per_file_counts.items():
+        noun = "source definition" if count == 1 else "source definitions"
+        marker = f">{count} {noun}</td>"
+        if marker not in map_page:
+            problems.append(
+                f"S20: /map has no correct count label for {file_name}: "
+                f"'{marker}'")
+
+    code, source_page = fetch(base, "/source")
+    code_graph, graph_page = fetch(base, "/source/graph")
+    for path, status, page in (("/source", code, source_page),
+                               ("/source/graph", code_graph, graph_page)):
+        if status != 200:
+            problems.append(f"S20: {path} returned {status}")
+            continue
+        for marker in ("selected source definition",
+                       "source definition context",
+                       'placeholder="filter source definitions…"',
+                       "Select a source definition to inspect it"):
+            if marker not in page:
+                problems.append(
+                    f"S20: {path} lost approved wording '{marker}'")
+    if "Show all code names" not in graph_page:
+        problems.append("S20: Source graph control uses the old analyzer term")
+    rendered_definitions = len(_re.findall(r'class="symlink"', source_page))
+    if rendered_definitions != len(analyzed["symbols"]):
+        problems.append(
+            f"S20: /source renders {rendered_definitions} source definitions, "
+            f"expected {len(analyzed['symbols'])}")
+
+    code, chain_page = fetch(base, "/chain")
+    if code != 200:
+        problems.append(f"S20: /chain returned {code}")
+    normalized_chain_page = " ".join(chain_page.split())
+    for marker in ("Click a receiver step to see its description, tests, and "
+                   "technical details.",
+                   '<details class="stage-technical">',
+                   '<details class="receiver-technical">',
+                   "<summary>Technical details</summary>",
+                   "<b>Code names</b>"):
+        if marker not in normalized_chain_page:
+            problems.append(f"S20: /chain lost approved display rule '{marker}'")
+    if "st.symbols.slice(0, 3)" in chain_page:
+        problems.append("S20: /chain exposes raw code names in primary stage cards")
+    for detail_class in ("stage-technical", "receiver-technical"):
+        if _re.search(
+                rf'<details class="{detail_class}"\s+open(?:\s|=|>)',
+                chain_page):
+            problems.append(
+                f"S20: /chain {detail_class} is not collapsed by default")
+
+    code, coverage_page = fetch(base, "/coverage")
+    if code != 200:
+        problems.append(f"S20: /coverage returned {code}")
+    for marker in ("directly referenced code names",
+                   "<th>Code name</th>",
+                   "direct textual reference to a stage code name"):
+        if marker not in coverage_page:
+            problems.append(f"S20: /coverage lost approved wording '{marker}'")
+
+    for marker in ("Could not load source definition",
+                   "Source definition not found",
+                   "Code name",
+                   "implementation source definition",
+                   "all code names",
+                   "grouped code names",
+                   "Hide disconnected code names",
+                   "Show all code names"):
+        if marker not in source_js:
+            problems.append(f"S20: source.js lost approved wording '{marker}'")
+
+    code, palette_js = fetch(base, "/static/palette.js")
+    if code != 200:
+        problems.append(f"S20: /static/palette.js returned {code}")
+    for marker in ("page, suite, stage, code name, module",
+                   'symbol: "code name"'):
+        if marker not in palette_js:
+            problems.append(f"S20: palette lost approved wording '{marker}'")
+
+    code, original_page = fetch(base, "/source-advanced")
+    if code != 200:
+        problems.append(f"S20: /source-advanced returned {code}")
+    for marker in ("JunaCore source definition explorer",
+                   "JunaCore source definitions",
+                   "Source definition not found", "Code name"):
+        if marker not in original_page:
+            problems.append(
+                f"S20: original analyzer lost approved wording '{marker}'")
+
+    # S21 approved JNR-007 through JNR-015 Map structure and wording
+    primary_map = _re.sub(
+        r'<details\b[^>]*class="suite-details map-details"[^>]*>.*?</details>',
+        "", map_page, flags=_re.S)
+    normalized_primary_map = " ".join(primary_map.split())
+    map_visible = " ".join(_re.sub(r"<[^>]+>", " ", primary_map).split())
+    approved_map_structure = (
+        "<h1>Package files</h1>",
+        "<h2>Source files</h2>",
+        "<h2>Tests</h2>",
+        "<h2>Tools</h2>",
+        "<h2>Explorer run records</h2>",
+    )
+    for marker in approved_map_structure:
+        if marker not in normalized_primary_map:
+            problems.append(f"S21: /map lost approved structure '{marker}'")
+    approved_map_wording = (
+        "This page shows the source files, tests, tools, and Explorer run "
+        "records included with this package.",
+        f"This package includes {len(suites)} tests. Open Tests to see what "
+        "each one checks.",
+        "The package uses helper programs for error correction. The Explorer "
+        "files provide these pages and their checks.",
+        "The Explorer saves the results of tests and checks started here.",
+    )
+    for marker in approved_map_wording:
+        if marker not in map_visible:
+            problems.append(f"S21: /map lost approved wording '{marker}'")
+    map_details = list(_re.finditer(
+        r'(<details\b[^>]*class="suite-details map-details"[^>]*>)'
+        r'(.*?)</details>', map_page, flags=_re.S))
+    if len(map_details) != 4:
+        problems.append(
+            f"S21: /map has {len(map_details)} Map Technical details; "
+            "expected 4")
+    expected_detail_markers = (
+        ("<code>src/</code>", "<code>JunaCore.jl</code>"),
+        ("<code>test/</code>", "<code>Pkg.test</code>",
+         "<code>test/support/</code>", "<code>test/runtests.jl</code>"),
+        ("<code>tools/ldpc</code>", "<code>tools/explorer</code>",
+         "<code>tools/parity_check.jl</code>"),
+        ("<code>bench/test_runs.jsonl</code>",
+         "<code>bench/health_runs.jsonl</code>"),
+    )
+    for index, match in enumerate(map_details, start=1):
+        opening, details = match.group(1), match.group(2)
+        if _re.search(r'\sopen(?:\s|=|>)', opening):
+            problems.append(
+                f"S21: Map Technical details {index} is open by default")
+        if "<summary>Technical details</summary>" not in details:
+            problems.append(
+                f"S21: Map details {index} lacks its Technical details label")
+        if index <= len(expected_detail_markers):
+            for marker in expected_detail_markers[index - 1]:
+                if marker not in details:
+                    problems.append(
+                        f"S21: Map details {index} lost exact marker "
+                        f"'{marker}'")
+    for old_primary in (
+            "Repository map", "migrated package's real structure",
+            "loaded by JunaCore.jl", "verified by Pkg.test",
+            "analyzed by", "run history"):
+        if old_primary in primary_map:
+            problems.append(
+                f"S21: /map still exposes old primary wording "
+                f"'{old_primary}'")
+    for markers in expected_detail_markers:
+        for marker in markers:
+            if marker in primary_map:
+                problems.append(
+                    f"S21: /map exposes technical marker outside details "
+                    f"'{marker}'")
+
     httpd.shutdown()
     return problems
 
@@ -443,4 +799,4 @@ if __name__ == "__main__":
         for p in problems:
             print("  -", p)
         sys.exit(1)
-    print("server contract: PASS (S1-S18)")
+    print("server contract: PASS (S1-S21)")

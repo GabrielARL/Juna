@@ -2,11 +2,9 @@
 #
 # Migrated subset: this catalog covers exactly the three public facades of
 # this package (Standard OFDM, Partial-FFT, JUNA-Lite). The runtime constant
-# Juna._PUBLIC_RECEIVER_MODES still enumerates the source repository's full
-# nine-receiver family because src/juna/common.jl is byte-identical by the
-# provenance gate (AGENTS.md); the catalog therefore asserts subset
-# membership in the runtime list plus an exact match against this package's
-# facades, instead of the source repo's equality assertion.
+# Juna._PUBLIC_RECEIVER_MODES still enumerates the earlier full nine-receiver
+# family. The catalog therefore asserts subset membership in the runtime list
+# plus an exact match against this package's three facades.
 
 const PUBLIC_RECEIVER_DESCRIPTORS = (
     (name = "Standard OFDM", key = :standard, mode = :standard,
@@ -32,9 +30,9 @@ function assert_public_receiver_catalog()
                                 public_receiver_descriptors())
 
     @test length(unique(descriptor_modes)) == length(descriptor_modes)
-    # Byte-identical common.jl still lists the whole family; this package
-    # exposes three facades: every catalog mode must be a runtime mode, and
-    # the catalog must match this package's facades exactly.
+    # common.jl still lists the whole family; this package exposes three
+    # facades. Every catalog mode must be a runtime mode, and the catalog must
+    # match this package's facades exactly.
     @test all(mode -> mode in runtime_modes, descriptor_modes)
     @test descriptor_modes == (:standard, :pfft, :lite)
     for descriptor in public_receiver_descriptors()

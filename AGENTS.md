@@ -3,7 +3,7 @@
 This is the routing and safety harness for the repository root. Read
 `JunaCore/AGENTS.md` completely before touching any package file — it
 carries the detailed, mandatory workflow (validation-first eight-step
-sequence, red gate, progress and token bars, provenance gate,
+sequence, red gate, progress and token bars, source file gate,
 chain-reference gate, verification gates). The progress and token bars rule
 applies to root-level work too.
 
@@ -12,9 +12,11 @@ applies to root-level work too.
 - The git root is `/home/gabiel/Documents/GitHub/Juna`.
 - The Julia package lives under `JunaCore/`. Package commands run after
   `cd JunaCore`, or with `--project=JunaCore`.
-- `reference papers/` is deliberately untracked. Never stage, delete,
-  reorganize, or treat it as a package dependency without explicit
-  approval.
+- `reference papers/` is tracked. It holds third-party PDFs alongside
+  authored notes. Never delete, reorganize, or treat it as a package
+  dependency without explicit approval, and do not commit a newly downloaded
+  PDF without approval — redistributing someone else's paper is not this
+  repository's decision.
 - Do not create new top-level directories without explicit approval.
 
 ## Explorers
@@ -75,7 +77,7 @@ GitHub remote.
    least one human review, dismiss stale approvals on new commits.
 3. Forbid force pushes and branch deletion on `main`.
 4. Required status checks before merge (wire into CI first): `Pkg.test`
-   (includes the provenance-pins suite), `tools/parity_check.jl` digest,
+   (includes the source-file-check suite), `tools/parity_check.jl` digest,
    `tools/explorer/explorer_contract.py`, and
    `tools/explorer/server_contract.py`.
 5. AI agents open pull requests with an evidence-bearing body (what

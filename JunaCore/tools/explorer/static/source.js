@@ -121,7 +121,7 @@ function loadSymbol(token) {
       if (json !== null) renderInspector(unwrap(json));
     })
     .catch((err) => {
-      setInspectorMessage("Could not load symbol: " + err.message);
+      setInspectorMessage("Could not load source definition: " + err.message);
     });
 }
 
@@ -177,10 +177,13 @@ function buildLinkListSection(title, items, className, mapItem, emptyText) {
 function buildHeaderSection(data) {
   const wrap = document.createElement("div");
   wrap.className = "jx-src-section";
+  const label = textDiv("Code name");
+  label.className = "jx-src-heading";
   const name = textDiv(data.name || "(unnamed)");
   name.className = "jx-src-name";
   const sub = textDiv([data.kind, data.module].filter(Boolean).join(" · "));
   sub.className = "jx-src-sub";
+  wrap.appendChild(label);
   wrap.appendChild(name);
   wrap.appendChild(sub);
   return wrap;
@@ -436,7 +439,7 @@ function setInspectorMessage(text) {
 
 function renderNotFound() {
   currentData = null;
-  setInspectorMessage("Symbol not found");
+  setInspectorMessage("Source definition not found");
   clearEgograph();
 }
 
@@ -465,7 +468,8 @@ function nodeFor(item, fontColor) {
   let label = item.name || String(item.id);
   if (item.overload_count > 1) label += " ×" + item.overload_count;
   if (item.kind === "stage" && item.symbol_count !== undefined) {
-    label += "\n" + item.symbol_count + " implementation symbols";
+    label += "\n" + item.symbol_count + " implementation source definition" +
+      (item.symbol_count === 1 ? "" : "s");
   }
   return {
     id: item.id,
@@ -615,7 +619,7 @@ function renderContextGraph(data) {
     const contexts = Array.isArray(data.context) ? data.context : [];
     if (!contexts.length) {
       contextBox.appendChild(document.createTextNode(
-        "all source symbols · narrow from Home, Tests, Map, Chain, or Coverage"
+        "all code names · narrow from Home, Tests, Map, Chain, or Coverage"
       ));
     }
     contexts.forEach((ctx) => {
@@ -624,7 +628,7 @@ function renderContextGraph(data) {
       chip.textContent = ctx.label;
       contextBox.appendChild(chip);
     });
-    const noun = data.view === "stages" ? "stages" : "grouped symbols";
+    const noun = data.view === "stages" ? "stages" : "grouped code names";
     const edgeNoun = data.view === "stages" ? "declared transitions" : "static calls";
     contextBox.appendChild(document.createTextNode(
       " · " + data.nodes.length + " " + noun + " · " + data.edges.length +
@@ -634,8 +638,8 @@ function renderContextGraph(data) {
   const showAll = document.getElementById("graph-show-all");
   if (showAll) {
     showAll.textContent = data.view === "all"
-      ? "Hide disconnected symbols"
-      : "Show all implementation symbols";
+      ? "Hide disconnected code names"
+      : "Show all code names";
   }
   if (typeof vis === "undefined") {
     container.textContent = "diagram library unavailable";

@@ -35,21 +35,72 @@ MAX_WORDS = 35
 
 
 def strip_latex(text):
-    """Remove comments, math, and markup so prose can be read."""
+    """Remove comments, math, and LaTeX/Markdown markup so prose can be read."""
     text = re.sub(r"(?<!\\)%.*", "", text)
-    text = re.sub(r"\$\$.*?\$\$", " MATH ", text, flags=re.S)
+    # Markdown code blocks and tables are not prose sentences.  Headings and
+    # list items are prose, but each begins a new unit and therefore needs a
+    # sentence boundary before the length check.
+    text = re.sub(r"```.*?```", " BLOCK . ", text, flags=re.S)
+    text = re.sub(r"(?m)^\s*\|.*\|\s*$", " . ", text)
+    text = re.sub(r"(?m)^\s*(?:[-*+]|\d+\.)\s+", " . ", text)
+    text = re.sub(r"(?m)^\s*#{1,6}\s+(.+)$", r" . \1 . ", text)
+    # The preamble is configuration, not prose. Nested brace groups in
+    # \setbeamertemplate and \tikzset defeat any single-pass macro strip, so
+    # drop everything before \begin{document} when there is one.
+    body = re.split(r"\\begin\{document\}", text, maxsplit=1)
+    if len(body) == 2:
+        text = body[1]
+    # Keywords are an index, not prose.  Keep section titles for the term
+    # inventory, but put boundaries around them so they cannot join the next
+    # paragraph into a false long sentence.
+    text = re.sub(r"\\begin\{IEEEkeywords\}.*?\\end\{IEEEkeywords\}",
+                  " . ", text, flags=re.S)
+    text = re.sub(r"\\(?:sub)*section\*?\{([^}]*)\}", r" . \1 . ", text)
+    text = re.sub(r"\\(?:begin|end)\{(?:abstract|document)\}", " . ", text)
+    # Spacing macros leak their arguments into the prose otherwise.
+    text = re.sub(r"\\(?:vspace|hspace|vskip|hskip)\*?\s*\{[^}]*\}", " ", text)
+    # Slide rule 3 requires bullets to be fragments with no full stop, which
+    # leaves the sentence splitter no boundary and makes a whole frame read as
+    # one long sentence. Mark list items and line breaks as boundaries first.
+    text = re.sub(r"\\item\b", " . ", text)
+    text = re.sub(r"\\\\", " . ", text)
+    text = re.sub(r"\\par\b", " . ", text)
+    text = re.sub(r"\\(?:begin|end)\{frame\}(\[[^\]]*\])?(\{[^}]*\})?",
+                  " . ", text)
+    text = re.sub(r"\\(?:begin|end)\{columns?\}(\[[^\]]*\])?(\{[^}]*\})?",
+                  " . ", text)
+    # A displayed equation ends the sentence that introduces it; the house
+    # style then requires a fresh sentence after it. Treat it as a boundary.
+    text = re.sub(r"\$\$.*?\$\$", " MATH . ", text, flags=re.S)
+    text = re.sub(r"\\\[.*?\\\]", " MATH . ", text, flags=re.S)
     text = re.sub(r"\$[^$]*\$", " MATH ", text)
-    text = re.sub(r"\\\[.*?\\\]", " MATH ", text, flags=re.S)
     text = re.sub(r"\\\(.*?\\\)", " MATH ", text, flags=re.S)
-    for env in ["equation", "align", "gather", "eqnarray", "figure", "table",
-                "tabular", "longtable", "algorithm", "algorithmic",
-                "lstlisting", "verbatim", "tikzpicture"]:
+    # Displayed-equation environments also close the sentence that introduces
+    # them, so they end with a boundary; floats and code blocks do not.
+    for env in ["equation", "align", "gather", "eqnarray"]:
+        text = re.sub(r"\\begin\{" + env + r"\*?\}.*?\\end\{" + env + r"\*?\}",
+                      " BLOCK . ", text, flags=re.S)
+    for env in ["figure", "table", "tabular", "longtable", "algorithm",
+                "algorithmic", "lstlisting", "verbatim", "tikzpicture"]:
         text = re.sub(r"\\begin\{" + env + r"\*?\}.*?\\end\{" + env + r"\*?\}",
                       " BLOCK ", text, flags=re.S)
+    # Inline code is not prose.  Its operators may contain punctuation such
+    # as Julia's !==, and its identifiers belong in the source rather than in
+    # the reader-vocabulary inventory.
+    text = re.sub(r"\\(?:code|texttt)\s*\{[^}]*\}", " CODE ", text)
+    # lstset and friends carry xcolor syntax such as teal!70!black, which the
+    # exclamation-mark check would otherwise report as prose.
+    text = re.sub(r"\\lst(?:set|definestyle|definelanguage)\s*\{.*?\n\}",
+                  " ", text, flags=re.S)
+    # Brace groups may be separated by whitespace for alignment, as in
+    # \definecolor{paper}    {HTML}{FAF1D8}; allow it so the value does not
+    # survive into the prose.
     text = re.sub(r"\\(?:label|ref|eqref|cite|includegraphics|input|usepackage"
                   r"|documentclass|newcommand|hypersetup|setlist|setlength"
-                  r"|graphicspath|definecolor|usetikzlibrary)\s*(\[[^\]]*\])?"
-                  r"(\{[^}]*\})*", " ", text)
+                  r"|graphicspath|definecolor|usetikzlibrary|arrayrulecolor"
+                  r"|setbeamercolor|setbeamertemplate|usefonttheme"
+                  r"|renewcommand|columncolor|rowcolor)\s*(\[[^\]]*\])?"
+                  r"(\s*\{[^}]*\})*", " ", text)
     text = re.sub(r"\\[A-Za-z]+\*?", " ", text)
     text = re.sub(r"[{}]", " ", text)
     return text
@@ -61,8 +112,16 @@ def abstract_of(text):
 
 
 def sentences(prose):
+    """Split on terminal punctuation.
+
+    A following capital is not required. List items and slide bullets are
+    fragments that legitimately begin in lower case, and failing to split
+    there reports one long sentence that nobody wrote. Over-splitting only
+    shortens the measured sentences, so it can never raise a false alarm on
+    the length check.
+    """
     prose = re.sub(r"\s+", " ", prose)
-    return [s.strip() for s in re.split(r"(?<=[.!?])\s+(?=[A-Z])", prose)
+    return [s.strip() for s in re.split(r"(?<=[.!?])\s+", prose)
             if s.strip()]
 
 
@@ -119,6 +178,7 @@ def list_terms(path):
     terms = set()
     terms |= set(re.findall(r"\b[A-Z]{2,}(?:-[A-Z]+)?\b", prose))
     terms |= set(re.findall(r"\b[a-z]+-[a-z]+(?:-[a-z]+)?\b", prose))
+    terms -= {"BLOCK", "CODE", "MATH"}
     print(f"{path}: {len(terms)} terms to confirm against a source")
     for t in sorted(terms):
         print("   ", t)

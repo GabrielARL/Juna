@@ -106,11 +106,11 @@ function renderParity(parity) {
 
   let text;
   let cls;
-  if (parity.match === true) {
-    text = "MATCH";
+  if (parity.passed === true) {
+    text = "PASS";
     cls = "ok";
-  } else if (parity.match === false) {
-    text = "MISMATCH";
+  } else if (parity.passed === false) {
+    text = "FAIL";
     cls = "bad";
   } else {
     text = "UNKNOWN";
@@ -119,8 +119,8 @@ function renderParity(parity) {
 
   const line = document.createElement("div");
   line.className = "jx-health-line " + cls;
-  line.textContent = "Cross-repository parity: " + text;
-  line.title = "migrated: " + parity.migrated + " · source: " + parity.source;
+  line.textContent = "Fixed receiver results: " + text;
+  line.title = parity.digest ? "digest: " + parity.digest : "not run";
   container.appendChild(line);
 }
 

@@ -4,13 +4,17 @@ Standalone home of the **JUNA-Lite** underwater-acoustic OFDM/LDPC receiver and
 the two paper baselines it is measured against.
 
 Migrated from `sonique/research/JunaCore` @ `d49fff0127732af4fad3862628fd93a96e2e75e9`
-(branch `juna-dev`). The algorithm files `src/juna/common.jl`,
-`src/juna/frame_wide_ldpc.jl` (frame-stateful Lite deployment), and
-`src/juna/lite.jl`, the modem interface, the LDPC wrapper, and the
-`tools/ldpc` helper binaries are byte-identical to that commit; only the
-wrappers (`src/JunaCore.jl`, `src/Juna.jl`) and `Project.toml` are pruned.
-Cross-repo parity: `julia --project=. tools/parity_check.jl` prints a digest
-that must match when run under both repositories.
+(branch `juna-dev`). This records where the migration began. Juna is a separate
+entity and does not have to remain byte-identical to that source or produce the
+same receiver results. This package removed the rpchan synchronization and
+compatibility profiles and the FrameRLS preset, keeping only the linear
+frequency-modulated synchronization path. The wrappers (`src/JunaCore.jl`,
+`src/Juna.jl`) and `Project.toml` are pruned.
+
+`test/source_file_check.jl` stores values for selected Juna files so a reviewed
+change is visible. `tools/parity_check.jl` repeats fixed Juna transmit and
+receive cases and compares them with results stored in this repository. Neither
+check requires a corresponding Sonique change.
 
 ## Public facades
 
