@@ -35,14 +35,28 @@ MAX_WORDS = 35
 
 
 def strip_latex(text):
-    """Remove comments, math, and markup so prose can be read."""
+    """Remove comments, math, and LaTeX/Markdown markup so prose can be read."""
     text = re.sub(r"(?<!\\)%.*", "", text)
+    # Markdown code blocks and tables are not prose sentences.  Headings and
+    # list items are prose, but each begins a new unit and therefore needs a
+    # sentence boundary before the length check.
+    text = re.sub(r"```.*?```", " BLOCK . ", text, flags=re.S)
+    text = re.sub(r"(?m)^\s*\|.*\|\s*$", " . ", text)
+    text = re.sub(r"(?m)^\s*(?:[-*+]|\d+\.)\s+", " . ", text)
+    text = re.sub(r"(?m)^\s*#{1,6}\s+(.+)$", r" . \1 . ", text)
     # The preamble is configuration, not prose. Nested brace groups in
     # \setbeamertemplate and \tikzset defeat any single-pass macro strip, so
     # drop everything before \begin{document} when there is one.
     body = re.split(r"\\begin\{document\}", text, maxsplit=1)
     if len(body) == 2:
         text = body[1]
+    # Keywords are an index, not prose.  Keep section titles for the term
+    # inventory, but put boundaries around them so they cannot join the next
+    # paragraph into a false long sentence.
+    text = re.sub(r"\\begin\{IEEEkeywords\}.*?\\end\{IEEEkeywords\}",
+                  " . ", text, flags=re.S)
+    text = re.sub(r"\\(?:sub)*section\*?\{([^}]*)\}", r" . \1 . ", text)
+    text = re.sub(r"\\(?:begin|end)\{(?:abstract|document)\}", " . ", text)
     # Spacing macros leak their arguments into the prose otherwise.
     text = re.sub(r"\\(?:vspace|hspace|vskip|hskip)\*?\s*\{[^}]*\}", " ", text)
     # Slide rule 3 requires bullets to be fragments with no full stop, which
@@ -70,6 +84,10 @@ def strip_latex(text):
                 "algorithmic", "lstlisting", "verbatim", "tikzpicture"]:
         text = re.sub(r"\\begin\{" + env + r"\*?\}.*?\\end\{" + env + r"\*?\}",
                       " BLOCK ", text, flags=re.S)
+    # Inline code is not prose.  Its operators may contain punctuation such
+    # as Julia's !==, and its identifiers belong in the source rather than in
+    # the reader-vocabulary inventory.
+    text = re.sub(r"\\(?:code|texttt)\s*\{[^}]*\}", " CODE ", text)
     # lstset and friends carry xcolor syntax such as teal!70!black, which the
     # exclamation-mark check would otherwise report as prose.
     text = re.sub(r"\\lst(?:set|definestyle|definelanguage)\s*\{.*?\n\}",
@@ -160,6 +178,7 @@ def list_terms(path):
     terms = set()
     terms |= set(re.findall(r"\b[A-Z]{2,}(?:-[A-Z]+)?\b", prose))
     terms |= set(re.findall(r"\b[a-z]+-[a-z]+(?:-[a-z]+)?\b", prose))
+    terms -= {"BLOCK", "CODE", "MATH"}
     print(f"{path}: {len(terms)} terms to confirm against a source")
     for t in sorted(terms):
         print("   ", t)
