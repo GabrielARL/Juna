@@ -14,6 +14,9 @@ const KIND_COLORS = {
   symbol: "var(--bad, #e74c3c)",
   module: "var(--muted, #888888)",
 };
+const KIND_LABELS = {
+  symbol: "code name",
+};
 
 let items = null; // fetched lazily, cached after first successful fetch
 let fetching = null; // in-flight fetch promise
@@ -119,7 +122,7 @@ function buildOverlay() {
   input.className = "jx-palette-input";
   input.type = "text";
   input.setAttribute("aria-label", "Command palette search");
-  input.placeholder = "Jump to page, suite, stage, symbol, module…";
+  input.placeholder = "Jump to page, suite, stage, code name, module…";
 
   list = document.createElement("ul");
   list.className = "jx-palette-list";
@@ -191,7 +194,7 @@ function renderList(query) {
     const badge = document.createElement("span");
     badge.className = "jx-palette-badge";
     badge.style.color = KIND_COLORS[item.kind] || KIND_COLORS.module;
-    badge.textContent = item.kind || "";
+    badge.textContent = KIND_LABELS[item.kind] || item.kind || "";
 
     const label = document.createElement("span");
     label.className = "jx-palette-label";

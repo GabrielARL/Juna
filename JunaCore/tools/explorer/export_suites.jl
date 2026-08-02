@@ -29,7 +29,11 @@ function _emit(io, suites)
               "\"receivers\": \"", _json_escape(s.receivers), "\", ",
               "\"title\": \"", _json_escape(s.title), "\", ",
               "\"claim\": \"", _json_escape(s.claim), "\", ",
-              "\"provenance\": \"", _json_escape(s.provenance), "\"}")
+              "\"origin\": \"", _json_escape(s.origin), "\", ",
+              "\"reader_title\": \"", _json_escape(s.reader_title), "\", ",
+              "\"reader_summary\": \"", _json_escape(s.reader_summary), "\", ",
+              "\"method\": \"", _json_escape(s.method), "\", ",
+              "\"reader_origin\": \"", _json_escape(s.reader_origin), "\"}")
         println(io, i < length(suites) ? "," : "")
     end
     println(io, "  ]")

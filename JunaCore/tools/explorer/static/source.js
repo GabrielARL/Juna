@@ -121,7 +121,7 @@ function loadSymbol(token) {
       if (json !== null) renderInspector(unwrap(json));
     })
     .catch((err) => {
-      setInspectorMessage("Could not load symbol: " + err.message);
+      setInspectorMessage("Could not load source definition: " + err.message);
     });
 }
 
@@ -177,10 +177,13 @@ function buildLinkListSection(title, items, className, mapItem, emptyText) {
 function buildHeaderSection(data) {
   const wrap = document.createElement("div");
   wrap.className = "jx-src-section";
+  const label = textDiv("Code name");
+  label.className = "jx-src-heading";
   const name = textDiv(data.name || "(unnamed)");
   name.className = "jx-src-name";
   const sub = textDiv([data.kind, data.module].filter(Boolean).join(" · "));
   sub.className = "jx-src-sub";
+  wrap.appendChild(label);
   wrap.appendChild(name);
   wrap.appendChild(sub);
   return wrap;
@@ -436,15 +439,15 @@ function setInspectorMessage(text) {
 
 function renderNotFound() {
   currentData = null;
-  setInspectorMessage("Symbol not found");
+  setInspectorMessage("Source definition not found");
   clearEgograph();
 }
 
 // ---------- ego graph ----------
 
-const KIND_SHAPES = { function: "dot", const: "square", struct: "diamond", type: "diamond", module: "hexagon" };
-const KIND_COLOR_VARS = { function: "--ok", const: "--warn", struct: "--bad", type: "--bad", module: "--muted" };
-const KIND_COLOR_FALLBACKS = { function: "#2ecc71", const: "#e6a23c", struct: "#e74c3c", type: "#e74c3c", module: "#888888" };
+const KIND_SHAPES = { function: "dot", const: "square", struct: "diamond", type: "diamond", module: "hexagon", stage: "box" };
+const KIND_COLOR_VARS = { function: "--ok", const: "--warn", struct: "--bad", type: "--bad", module: "--muted", stage: "--accent" };
+const KIND_COLOR_FALLBACKS = { function: "#2ecc71", const: "#e6a23c", struct: "#e74c3c", type: "#e74c3c", module: "#888888", stage: "#4a9eff" };
 const SELF_NODE_ID = "__jx_self__";
 
 function cssVar(name, fallback) {
@@ -462,13 +465,20 @@ function colorForKind(kind) {
 
 function nodeFor(item, fontColor) {
   const color = colorForKind(item.kind || "");
+  let label = item.name || String(item.id);
+  if (item.overload_count > 1) label += " ×" + item.overload_count;
+  if (item.kind === "stage" && item.symbol_count !== undefined) {
+    label += "\n" + item.symbol_count + " implementation source definition" +
+      (item.symbol_count === 1 ? "" : "s");
+  }
   return {
     id: item.id,
-    label: item.name || String(item.id),
+    label: label,
     shape: shapeForKind(item.kind || ""),
     color: { background: color, border: color },
     font: { color: fontColor },
-    title: [item.name, item.kind, item.module].filter(Boolean).join(" · "),
+    title: [item.name, item.kind, item.module, item.detail]
+      .filter(Boolean).join(" · "),
   };
 }
 
@@ -609,7 +619,7 @@ function renderContextGraph(data) {
     const contexts = Array.isArray(data.context) ? data.context : [];
     if (!contexts.length) {
       contextBox.appendChild(document.createTextNode(
-        "all source symbols · narrow from Home, Tests, Map, Chain, or Coverage"
+        "all code names · narrow from Home, Tests, Map, Chain, or Coverage"
       ));
     }
     contexts.forEach((ctx) => {
@@ -618,10 +628,18 @@ function renderContextGraph(data) {
       chip.textContent = ctx.label;
       contextBox.appendChild(chip);
     });
+    const noun = data.view === "stages" ? "stages" : "grouped code names";
+    const edgeNoun = data.view === "stages" ? "declared transitions" : "static calls";
     contextBox.appendChild(document.createTextNode(
-      " · " + data.nodes.length + " symbols · " + data.edges.length +
-      " static calls"
+      " · " + data.nodes.length + " " + noun + " · " + data.edges.length +
+      " " + edgeNoun
     ));
+  }
+  const showAll = document.getElementById("graph-show-all");
+  if (showAll) {
+    showAll.textContent = data.view === "all"
+      ? "Hide disconnected code names"
+      : "Show all code names";
   }
   if (typeof vis === "undefined") {
     container.textContent = "diagram library unavailable";
@@ -632,7 +650,12 @@ function renderContextGraph(data) {
   const nodeIndex = new Map(data.nodes.map((node) => [node.id, node]));
   const edges = data.edges.map((edge, index) => ({
     id: "edge-" + index, from: edge.from, to: edge.to, arrows: "to",
-    title: "Static call edge — not runtime execution",
+    dashes: Boolean(edge.condition),
+    title: edge.condition
+      ? edge.condition
+      : (data.view === "stages"
+        ? "Declared receiver-stage flow"
+        : "Static call edge — not runtime execution"),
   }));
   const edgeIndex = new Map(edges.map((edge) => [edge.id, edge]));
   network = new vis.Network(
@@ -649,6 +672,11 @@ function renderContextGraph(data) {
   network.on("click", (params) => {
     const id = params.nodes && params.nodes[0];
     if (id !== undefined) {
+      const selected = nodeIndex.get(id);
+      if (selected && selected.kind === "stage") {
+        openStage(selected.stage_id);
+        return;
+      }
       location.hash = "#sym=" + encodeURIComponent(id);
       return;
     }
@@ -673,11 +701,45 @@ function renderContextGraph(data) {
   network.on("doubleClick", (params) => {
     const id = params.nodes && params.nodes[0];
     if (id !== undefined) {
+      const selected = nodeIndex.get(id);
+      if (selected && selected.kind === "stage") {
+        openStage(selected.stage_id);
+        return;
+      }
       fetch("/api/symbol/" + encodeURIComponent(id))
         .then((res) => res.json())
         .then((json) => focusGraph(unwrap(json)));
     }
   });
+}
+
+function replaceGraphQuery(updates) {
+  const url = new URL(location.href);
+  Object.keys(updates).forEach((key) => {
+    const value = updates[key];
+    if (value === null || value === undefined || value === "") {
+      url.searchParams.delete(key);
+    } else {
+      url.searchParams.set(key, value);
+    }
+  });
+  history.pushState(null, "", url.pathname + url.search + url.hash);
+  loadContextGraph();
+}
+
+function openStage(stageId) {
+  replaceGraphQuery({ stage: stageId, view: "symbols" });
+}
+
+function showReceiverStages() {
+  replaceGraphQuery({
+    stage: null, suite: null, file: null, symbol: null, view: "stages",
+  });
+}
+
+function toggleShowAll() {
+  const params = new URLSearchParams(location.search);
+  replaceGraphQuery({ view: params.get("view") === "all" ? "symbols" : "all" });
 }
 
 function loadContextGraph() {
@@ -704,7 +766,14 @@ function init() {
   const search = document.getElementById("symsearch");
   if (search) search.addEventListener("input", () => filterSymbols(search.value));
   window.addEventListener("hashchange", onHashChange);
-  if (PAGE_MODE === "graph") loadContextGraph();
+  if (PAGE_MODE === "graph") {
+    const back = document.getElementById("graph-back-stages");
+    const showAll = document.getElementById("graph-show-all");
+    if (back) back.addEventListener("click", showReceiverStages);
+    if (showAll) showAll.addEventListener("click", toggleShowAll);
+    window.addEventListener("popstate", loadContextGraph);
+    loadContextGraph();
+  }
   onHashChange();
 }
 

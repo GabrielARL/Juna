@@ -49,11 +49,11 @@
   "stages": [
     {
       "id": "acquisition",
-      "title": "Acquisition and block setup",
-      "detail": "Synchronization (LFM or rpchan preamble), guard handling, and partial-FFT branch spectra yparts.",
+      "title": "Packet acquisition",
+      "detail": "LFM synchronization, guard handling, and partial-FFT branch observations.",
       "symbols": [
-        "_rpchan_preamble",
-        "_rpchan_acquire",
+        "_sync_waveform",
+        "_coarse_doppler",
         "_branch_observations"
       ],
       "suites": [
@@ -66,7 +66,7 @@
     },
     {
       "id": "standard",
-      "title": "Standard OFDM equalization and FEC",
+      "title": "One-tap pilot-interpolated equalization + FEC",
       "detail": "Pilot-interpolated one-tap equalization produces the Standard baseline candidate and FEC result, with no partial-FFT combining or refinement.",
       "symbols": [
         "_standard_candidate"
@@ -81,7 +81,7 @@
     },
     {
       "id": "seed",
-      "title": "Partial-FFT seed candidate",
+      "title": "Partial-FFT/FEC seed path",
       "detail": "Pilot-trained per-band combining (with the standard one-tap branch as fallback comparator) equalizes and BP-decodes the initial candidate. Lite starts where Partial-FFT+FEC ends; a valid seed returns immediately.",
       "symbols": [
         "_seed_candidate",
@@ -100,7 +100,7 @@
     },
     {
       "id": "posterior",
-      "title": "Posterior interpretation",
+      "title": "Posterior means and confidences",
       "detail": "BP posterior log-metrics become symbol decisions and per-tone confidences.",
       "symbols": [
         "_posterior_symbols",
@@ -115,7 +115,7 @@
     },
     {
       "id": "anchors",
-      "title": "Feedback anchor selection",
+      "title": "Anchor selection",
       "detail": "Pilots always anchor; confident data decisions join up to the anchor cap. The :frozen/:genie/:graded arms swap decision anchors for nothing or for (corrupted) truth without changing the code path.",
       "symbols": [
         "_juna_anchor_targets",
@@ -131,8 +131,8 @@
     },
     {
       "id": "refit",
-      "title": "Confidence-weighted combiner refit",
-      "detail": "Weighted ridge refit of the partial-FFT combiner W toward the anchors. Lite refits W only; the physical response C is never formed.",
+      "title": "Combiner refit",
+      "detail": "Ridge refit of the partial-FFT combiner W toward the anchors. Data-anchor confidence values weight the refit. Lite refits W only; the physical response C is never formed.",
       "symbols": [
         "_equalize_from_targets"
       ],
@@ -145,7 +145,7 @@
     },
     {
       "id": "redecode",
-      "title": "Re-equalize and re-decode",
+      "title": "Re-decode",
       "detail": "The refit combiner re-equalizes the branch spectra and BP re-decodes into a fresh candidate; payload extraction credits correct bits.",
       "symbols": [
         "_candidate_from_equalized",
@@ -160,7 +160,7 @@
     },
     {
       "id": "keep-best",
-      "title": "Candidate selection and stopping",
+      "title": "Candidate selection",
       "detail": "Keep the best candidate by validity then syndrome; stop on success, non-improvement, or the iteration limit.",
       "symbols": [
         "_juna_better",
@@ -178,7 +178,7 @@
     },
     {
       "id": "frame",
-      "title": "Frame-stateful deployment",
+      "title": "Frame-wide FEC receiver",
       "detail": "The per-block Lite receiver deployed across a frame-wide LDPC graph (frame_receiver = :lite / :stateful_lite), as the mechanism suites exercise it.",
       "symbols": [
         "FrameWideLDPCModulation",

@@ -9,25 +9,18 @@ Base.@kwdef mutable struct Modulation <: Modulations.Modulation
   bpc::Int = 2                       # bits per data carrier: 1=BPSK, 2=QPSK
   pilot_ratio::Float64 = 1/3         # outer comb-pilot density (fraction of active tones); snapped to the nearest 1/k spacing
   inner_pilot_ratio::Float64 = 1/2   # inner-pilot density among message bits (0 = off); snapped to the nearest 1/k spacing
-  sync::Bool = false                 # enable the selected sync/acquisition profile
-  sync_profile::Symbol = :lfm        # :lfm legacy pre/postamble; :rpchan measured-replay preamble and acquisition
-  compatibility_profile::Symbol = :juna # :juna native framing/layout; :rpchan paper-compatible framing/layout
-  rpchan_preamble_seed::Int = 10_001 # ReplayCh uses frame_seed + 10_000; set this from an exported frame
-  rpchan_guard_s::Float64 = 0.02
+  sync::Bool = false                 # enable the LFM sync/acquisition wrapping
   frame_duration_s::Float64 = 1.0     # maximum complete frame duration, including sync and guard
-  rpchan_doppler_ppm::Float64 = 5_000.0
-  rpchan_doppler_steps::Int = 81
-  rpchan_sync_max_lag::Int = 400
   ldpc_k::Int = 340
   ldpc_n::Int = 1360
   ldpc_npc::Int = 3                  # dc: per-column check count passed to make-ldpc
   ldpc_method::Symbol = :auto        # :auto preserves profile default; or :evencol/:evenboth
-  ldpc_seed::Int = 51_001            # frame/code seed used by the Rpchan-compatible systematic code
+  ldpc_seed::Int = 51_001            # code seed for explicit ldpc_method builds and the frame code
   ldpc_no4cycle::Bool = true         # request make-ldpc's length-4-cycle elimination
   partial_fft_parts::Int = 4
   partial_fft_nbands::Int = 16
   frontend_guard_min_relative_gain::Float64 = 0.02 # held-out pilot gain required to retain P>1
-  mode::Symbol = :lite               # receiver: canonical modes plus :frame_rls and the legacy :robust alias
+  mode::Symbol = :lite               # receiver: canonical modes plus the legacy :robust alias
   frame_receiver::Symbol = :stateful_lite # frame-wide FEC front end/refiner; preserves the original stateful receiver by default
   frame_crc_bits::Int = 0            # 0=legacy framing; 16=one external CRC-16/CCITT over the complete frame payload
   frame_code_horizon::Int = 0        # 0=one graph over all blocks; h>0=disconnected h-block graph components
@@ -92,7 +85,6 @@ const _MODE_PROFILED_GRADIENT = :profiled_gradient
 const _MODE_PROFILED_CZ = :profiled_cz
 const _MODE_FRAME_WIDE_LDPC = :frame_wide_ldpc
 const _MODE_CRC_PROFILED_CZ_FRAME = :crc_profiled_cz_frame
-const _MODE_FRAME_RLS = :frame_rls
 const _MODE_ROBUST = :robust
 const _REFERENCE_CENTER_HZ = 24_000.0
 const _REFERENCE_BANDWIDTH_HZ = 24_000.0
@@ -111,16 +103,15 @@ const _RECEIVER_PROFILES =
 const _PUBLIC_RECEIVER_MODES =
   (_MODE_STANDARD, _MODE_PFFT, _MODE_LITE, _MODE_FULLY_COUPLED,
    _MODE_TURBO_MAP, _MODE_PROFILED_GRADIENT,
-   _MODE_FRAME_WIDE_LDPC, _MODE_CRC_PROFILED_CZ_FRAME, _MODE_FRAME_RLS)
+   _MODE_FRAME_WIDE_LDPC, _MODE_CRC_PROFILED_CZ_FRAME)
 
 receiver_profile(mode::Symbol) =
   mode === _MODE_ROBUST ? _MODE_FULL :
-  mode in (_MODE_FRAME_RLS, _MODE_CRC_PROFILED_CZ_FRAME) ?
+  mode === _MODE_CRC_PROFILED_CZ_FRAME ?
     _MODE_FRAME_WIDE_LDPC : mode
 receiver_profile(m::Modulation) = receiver_profile(m.mode)
 
 function Modulations.refinement_objective(m::Modulation)
-  m.mode === _MODE_FRAME_RLS && return :frame_stateful_band_rls
   profile = receiver_profile(m)
   # The paper's benchmark baselines: :standard optimizes nothing (one-tap
   # interpolated equalization, declared :none), while :pfft's only objective
@@ -267,37 +258,6 @@ function CrcConditionedJointCwzFrameModulation(; kwargs...)
       cz_conditioned_joint=true)
 end
 
-function FrameRLSModulation(; kwargs...)
-  identity = (
-    mode=_MODE_FRAME_RLS,
-    frame_receiver=:stateful_lite,
-    sync=true,
-    sync_profile=_SYNC_PROFILE_RPCHAN,
-    compatibility_profile=_COMPATIBILITY_RPCHAN,
-  )
-  supplied = (; kwargs...)
-  for (field, expected) in pairs(identity)
-    haskey(supplied, field) || continue
-    supplied[field] == expected || throw(ArgumentError(
-      "FrameRLSModulation fixes $field=$expected"))
-  end
-  defaults = (
-    nc=1024,
-    np=16,
-    bpc=2,
-    pilot_ratio=1 / 5,
-    inner_pilot_ratio=1 / 10,
-    rpchan_preamble_seed=61_001,
-    ldpc_k=817,
-    ldpc_n=1634,
-    ldpc_npc=10,
-    ldpc_seed=51_001,
-    partial_fft_parts=4,
-    partial_fft_nbands=4,
-  )
-  Modulation(; merge(defaults, supplied, identity)...)
-end
-
 function _frame_receiver_profile(m::Modulation)
   receiver_profile(m) === _MODE_FRAME_WIDE_LDPC ||
     throw(ArgumentError("frame receiver profile only applies to frame-wide LDPC"))
@@ -336,8 +296,6 @@ const _GRAD_EPS_ADAM = 1e-8
 const _SYNC_LEN = 2048                         # LFM sync samples front+back when sync=true (best estimation in a len×bw×SNR sweep)
 const _SYNC_BW = 0.9                           # chirp sweep as a fraction of the baseband band (sharp delay-Doppler peak, small guard)
 const _SYNC_PROFILE_LFM = :lfm
-const _SYNC_PROFILE_RPCHAN = :rpchan
-const _SYNC_PROFILES = (_SYNC_PROFILE_LFM, _SYNC_PROFILE_RPCHAN)
 
 const _FEEDBACK_REAL = :real
 const _FEEDBACK_FROZEN = :frozen
@@ -348,17 +306,6 @@ const _FEEDBACK_MODES =
 # Arms that replace posterior decisions with (possibly corrupted) ground truth.
 const _FEEDBACK_ORACLE_MODES = (_FEEDBACK_GENIE, _FEEDBACK_GRADED)
 const _CZ_FEEDBACK_SOURCES = (:legacy, :frozen, :real, :genie)
-const _COMPATIBILITY_JUNA = :juna
-const _COMPATIBILITY_RPCHAN = :rpchan
-const _COMPATIBILITY_PROFILES = (_COMPATIBILITY_JUNA, _COMPATIBILITY_RPCHAN)
-const _RPCHAN_PREAMBLE_DURATION_S = 0.2
-const _RPCHAN_PREAMBLE_GUARD_S = 0.02
-const _RPCHAN_PREAMBLE_SEED = 10_001
-const _RPCHAN_SYNC_MAX_LAG = 400
-const _RPCHAN_DOPPLER_PPM = 5_000.0
-const _RPCHAN_DOPPLER_STEPS = 81
-const _RPCHAN_RESAMPLE_PHASES = 64
-const _RPCHAN_RESAMPLE_HALF_SUPPORT = 8
 const _LDPC_METHOD = "evencol"                 # make-ldpc construction
 const _PARTIAL_FFT_NBANDS = 16                 # frequency bands for the bandwise RLS combiner
 const _MAX_PARTIAL_FFT_PARTS = 16              # public complexity cap; band solves scale cubically in this count
@@ -401,9 +348,8 @@ struct _BPScratch
 end
 
 function Modulations.init(m::Modulation, fc, fs)
-  frame_rls = m.mode === _MODE_FRAME_RLS
   m.nc = 1024
-  m.np = frame_rls ? 16 : 256
+  m.np = 256
   fs_value = try
     Float64(fs)
   catch
@@ -413,22 +359,15 @@ function Modulations.init(m::Modulation, fc, fs)
     min(fs_value / _REFERENCE_BANDWIDTH_HZ, 1.0) : 1.0
   m.dc0 = something(_dc0_for_fc(fc), Int16(0))
   m.bpc = 2
-  m.pilot_ratio = frame_rls ? 1/5 : 1/3
-  m.inner_pilot_ratio = frame_rls ? 1/10 : 1/2
-  m.ldpc_k = frame_rls ? 817 : 340
-  m.ldpc_n = frame_rls ? 1634 : 1360
-  m.ldpc_npc = frame_rls ? 10 : 3
+  m.pilot_ratio = 1/3
+  m.inner_pilot_ratio = 1/2
+  m.ldpc_k = 340
+  m.ldpc_n = 1360
+  m.ldpc_npc = 3
   m.partial_fft_parts = 4
-  m.partial_fft_nbands = frame_rls ? 4 : _PARTIAL_FFT_NBANDS
+  m.partial_fft_nbands = _PARTIAL_FFT_NBANDS
   # m.mode is left untouched so Modulation(mode=:robust) survives init()
-  # JUNA-FrameRLS is an identity-bearing public preset; init restores it.
-  if frame_rls
-    m.frame_receiver = :stateful_lite
-    m.sync = true
-    m.sync_profile = _SYNC_PROFILE_RPCHAN
-    m.compatibility_profile = _COMPATIBILITY_RPCHAN
-  end
-  # Other acquisition choices remain untouched so constructor-selected profiles survive init().
+  # Other acquisition choices remain untouched so constructor-selected settings survive init().
   m.code = nothing
   m.layout = nothing
   m.bp_scratch = nothing
@@ -562,17 +501,8 @@ function Base.isvalid(m::Modulation, fc, fs)
       _bpc(m) != 2 &&
       return false
   end
-  m.sync_profile in _SYNC_PROFILES || return false
-  m.compatibility_profile in _COMPATIBILITY_PROFILES || return false
-  m.compatibility_profile === _COMPATIBILITY_RPCHAN &&
-    !isapprox(occupancy, 1.0; rtol=0, atol=64eps(1.0)) && return false
   m.ldpc_seed >= 0 || return false
-  m.rpchan_preamble_seed >= 0 || return false
-  isfinite(m.rpchan_guard_s) && m.rpchan_guard_s >= 0 || return false
   isfinite(m.frame_duration_s) && m.frame_duration_s > 0 || return false
-  isfinite(m.rpchan_doppler_ppm) && m.rpchan_doppler_ppm >= 0 || return false
-  m.rpchan_doppler_steps > 0 || return false
-  m.rpchan_sync_max_lag >= 0 || return false
   0 < m.pilot_ratio <= 1 || return false      # pilot densities snap to a 1/k spacing (outer needs k >= 2)
   0 <= m.inner_pilot_ratio <= 1 || return false
   Modulations.bitspersymbol(m) > 0 || return false
@@ -599,7 +529,6 @@ end
 # 4. Map coded bits and outer pilots into the OFDM carrier layout.
 # 5. IFFT, cyclic prefix, and normalization produce one complex baseband block.
 # 6. Optional LFM sync wrapping produces [sync][blocks...][sync].
-#    The Rpchan profile instead produces [preamble][guard][blocks...].
 #
 # How fc, fs, bw, and dc0 affect modulation: the modem reference centre and
 # width are both 24 kHz. `bw * 24 kHz` is the occupied RF width, while integer
@@ -630,12 +559,8 @@ function Modulations.modulate(m::Modulation, bits, fc, fs)
     copyto!(out, 1 + (block - 1) * _blocklen(m), samples, 1, _blocklen(m))
   end
   m.sync || return out
-  if m.sync_profile === _SYNC_PROFILE_LFM
-    sync = _sync_waveform(m, fs)
-    return vcat(sync, out, sync)
-  end
-  preamble = _rpchan_preamble(m, fs)
-  vcat(preamble, zeros(ComplexF64, _rpchan_guard_length(m, fs)), out)
+  sync = _sync_waveform(m, fs)
+  vcat(sync, out, sync)
 end
 
 function _prepare_demodulation(m::Modulation, nbits, x, fc, fs)
@@ -667,12 +592,7 @@ function Modulations.demodulate(m::Modulation, nbits, x, fc, fs)
     _prepare_demodulation(m, nbits, x, fc, fs)
   cfo = 0.0
   if m.sync
-    if m.sync_profile === _SYNC_PROFILE_LFM
-      waveform, cfo = _coarse_doppler(m, waveform, fc, fs, nblocks)
-    else
-      acquired = _rpchan_acquire(m, waveform, fc, fs, nblocks)
-      waveform, cfo = acquired.payload, acquired.cfo
-    end
+    waveform, cfo = _coarse_doppler(m, waveform, fc, fs, nblocks)
   end
   _require_block_samples(m, waveform, nblocks)
 
@@ -747,12 +667,10 @@ end
 
 # ---- coarse Doppler via a per-frame sync (LFM) pre/postamble ----------------
 _synclen(m::Modulation) =
-  m.sync && m.sync_profile === _SYNC_PROFILE_LFM ? _SYNC_LEN : 0
+  m.sync ? _SYNC_LEN : 0
 
 function _sync_overhead(m::Modulation, fs)
-  m.sync || return 0
-  m.sync_profile === _SYNC_PROFILE_LFM && return 2 * _SYNC_LEN
-  length(_rpchan_preamble(m, fs)) + _rpchan_guard_length(m, fs)
+  m.sync ? 2 * _SYNC_LEN : 0
 end
 
 """
@@ -853,226 +771,6 @@ function _coarse_doppler(m::Modulation, waveform::AbstractVector{<:Complex}, fc,
   corrected, (duration_scale - 1) * fc
 end
 
-# ---- Rpchan-compatible preamble acquisition ---------------------------------
-
-struct _RpchanResamplingFilterBank
-  phases::Int
-  offsets::UnitRange{Int}
-  coefficients::Matrix{Float64}
-end
-
-const _RPCHAN_RESAMPLING_FILTER_BANKS =
-  Dict{Tuple{Int,Int},_RpchanResamplingFilterBank}()
-
-function _rpchan_preamble(m::Modulation, fs)
-  m.sync && m.sync_profile === _SYNC_PROFILE_RPCHAN || return ComplexF64[]
-  rate = Float64(fs)
-  isfinite(rate) && rate > 0 || throw(ArgumentError("sample rate must be positive"))
-  count = round(Int, _RPCHAN_PREAMBLE_DURATION_S * rate)
-  count > 0 || throw(ArgumentError("sample rate produces an empty Rpchan preamble"))
-  rng = MersenneTwister(m.rpchan_preamble_seed)
-  alphabet = ComplexF64[
-    (1 + 1im) / sqrt(2),
-    (1 - 1im) / sqrt(2),
-    (-1 + 1im) / sqrt(2),
-    (-1 - 1im) / sqrt(2),
-  ]
-  ComplexF64[alphabet[rand(rng, eachindex(alphabet))] for _ in 1:count]
-end
-
-function _rpchan_guard_length(m::Modulation, fs)
-  m.sync && m.sync_profile === _SYNC_PROFILE_RPCHAN || return 0
-  rate = Float64(fs)
-  isfinite(rate) && rate > 0 || throw(ArgumentError("sample rate must be positive"))
-  round(Int, m.rpchan_guard_s * rate)
-end
-
-function _rpchan_doppler_grid(ppm::Real=_RPCHAN_DOPPLER_PPM,
-                              steps::Integer=_RPCHAN_DOPPLER_STEPS)
-  isfinite(ppm) && ppm >= 0 || throw(ArgumentError("Doppler range must be nonnegative"))
-  steps > 0 || throw(ArgumentError("Doppler step count must be positive"))
-  steps == 1 && return [1.0]
-  collect(range(1 - Float64(ppm) * 1e-6, 1 + Float64(ppm) * 1e-6; length=Int(steps)))
-end
-
-_rpchan_doppler_grid(m::Modulation) =
-  _rpchan_doppler_grid(m.rpchan_doppler_ppm, m.rpchan_doppler_steps)
-
-@inline _rpchan_sinc(x::Float64) = abs(x) < 1e-14 ? 1.0 : sinpi(x) / (pi * x)
-@inline function _rpchan_hann_sinc(x::Float64, half_support::Int)
-  abs(x) >= half_support && return 0.0
-  0.5 + 0.5 * cospi(abs(x) / half_support)
-end
-
-function _rpchan_filter_bank(phases::Int=_RPCHAN_RESAMPLE_PHASES,
-                             half_support::Int=_RPCHAN_RESAMPLE_HALF_SUPPORT)
-  phases > 0 || throw(ArgumentError("resampling phase count must be positive"))
-  half_support > 0 || throw(ArgumentError("resampling support must be positive"))
-  key = (phases, half_support)
-  get!(_RPCHAN_RESAMPLING_FILTER_BANKS, key) do
-    offsets = (-half_support + 1):half_support
-    coefficients = Matrix{Float64}(undef, length(offsets), phases)
-    for phase in 1:phases
-      frac = (phase - 1) / phases
-      total = 0.0
-      for tap in eachindex(offsets)
-        distance = frac - offsets[tap]
-        weight = _rpchan_sinc(distance) * _rpchan_hann_sinc(distance, half_support)
-        coefficients[tap, phase] = weight
-        total += weight
-      end
-      abs(total) > 1e-15 && (@views coefficients[:, phase] ./= total)
-    end
-    _RpchanResamplingFilterBank(phases, offsets, coefficients)
-  end
-end
-
-function _rpchan_resample(x::AbstractVector{<:Number}, scale::Real;
-                           max_output_length=nothing,
-                           filter_bank=_rpchan_filter_bank())
-  isfinite(scale) && scale > 0 || throw(ArgumentError("time scale must be positive"))
-  isempty(x) && throw(ArgumentError("cannot resample an empty sequence"))
-  natural_length = floor(Int, (length(x) - 1) / Float64(scale)) + 1
-  output_length = max_output_length === nothing ? natural_length :
-                  min(natural_length, Int(max_output_length))
-  output_length > 0 || throw(ArgumentError("resampled sequence would be empty"))
-  scale == 1 && output_length == length(x) && return ComplexF64.(x)
-
-  output = Vector{ComplexF64}(undef, output_length)
-  offsets = filter_bank.offsets
-  coefficients = filter_bank.coefficients
-  phase_count = filter_bank.phases
-  first_offset, last_offset = first(offsets), last(offsets)
-  nx = length(x)
-  for n in eachindex(output)
-    position = 1 + (n - 1) * Float64(scale)
-    center = floor(Int, position)
-    fraction = position - center
-    phase0 = round(Int, fraction * phase_count)
-    phase = phase0 + 1
-    if phase0 == phase_count
-      center += 1
-      phase = 1
-    end
-
-    accumulator = 0.0 + 0.0im
-    weight_sum = 0.0
-    if center + first_offset >= 1 && center + last_offset <= nx
-      @inbounds for tap in axes(coefficients, 1)
-        accumulator += x[center + offsets[tap]] * coefficients[tap, phase]
-      end
-      output[n] = accumulator
-    else
-      @inbounds for tap in axes(coefficients, 1)
-        index = center + offsets[tap]
-        if 1 <= index <= nx
-          weight = coefficients[tap, phase]
-          accumulator += x[index] * weight
-          weight_sum += weight
-        end
-      end
-      output[n] = abs(weight_sum) > 1e-15 ? accumulator / weight_sum :
-                  ComplexF64(x[clamp(center, 1, nx)])
-    end
-  end
-  output
-end
-
-function _rpchan_derotate!(waveform, correction_scale::Real, fc, fs)
-  carrier_offset_hz = Float64(fc) * (1 - Float64(correction_scale))
-  abs(carrier_offset_hz) < 1e-12 && return waveform
-  rate = Float64(fs)
-  @inbounds for n in eachindex(waveform)
-    waveform[n] *= cispi(-2 * carrier_offset_hz * (n - 1) / rate)
-  end
-  waveform
-end
-
-function _rpchan_correlation_scores(received, reference; max_lag::Integer)
-  nreference = length(reference)
-  nreference > 0 || throw(ArgumentError("alignment reference must not be empty"))
-  limit = min(Int(max_lag), length(received) - nreference)
-  limit >= 0 || throw(ArgumentError("received sequence is shorter than its reference"))
-  reference_power = sum(abs2, reference)
-  reference_power > 0 || throw(ArgumentError("alignment reference must have nonzero power"))
-  scores = Vector{Float64}(undef, limit + 1)
-  window_power = sum(abs2, @view received[1:nreference])
-  scores[1] = window_power
-  @inbounds for lag in 1:limit
-    window_power += abs2(received[lag + nreference]) - abs2(received[lag])
-    scores[lag + 1] = window_power
-  end
-  Threads.@threads for lag in 0:limit
-    accumulator = 0.0 + 0.0im
-    @inbounds for index in 1:nreference
-      accumulator += conj(reference[index]) * received[lag + index]
-    end
-    @inbounds begin
-      power = scores[lag + 1]
-      scores[lag + 1] = power == 0 ? 0.0 :
-                        abs(accumulator) / sqrt(reference_power * power)
-    end
-  end
-  scores
-end
-
-function _rpchan_align(received, reference; max_lag::Integer=_RPCHAN_SYNC_MAX_LAG)
-  scores = _rpchan_correlation_scores(received, reference; max_lag=max_lag)
-  lag = argmax(scores) - 1
-  (lag=lag, score=scores[lag + 1], scores=scores)
-end
-
-function _rpchan_estimate_doppler(m::Modulation, received, preamble, fc, fs)
-  max_output_length = length(preamble) + m.rpchan_sync_max_lag
-  best = nothing
-  for scale in _rpchan_doppler_grid(m)
-    corrected = _rpchan_resample(
-      received, scale; max_output_length=max_output_length,
-    )
-    _rpchan_derotate!(corrected, scale, fc, fs)
-    aligned = _rpchan_align(
-      corrected, preamble; max_lag=m.rpchan_sync_max_lag,
-    )
-    if best === nothing || aligned.score > best.score
-      best = (
-        scale=scale,
-        ppm=(scale - 1) * 1e6,
-        lag=aligned.lag,
-        score=aligned.score,
-      )
-    end
-  end
-  best
-end
-
-
-function _rpchan_estimate_doppler(received, preamble, fc, fs)
-  _rpchan_estimate_doppler(
-    LiteModulation(sync=true, sync_profile=_SYNC_PROFILE_RPCHAN),
-    received, preamble, fc, fs,
-  )
-end
-
-function _rpchan_acquire(m::Modulation, waveform, fc, fs, nblocks::Integer)
-  preamble = _rpchan_preamble(m, fs)
-  estimate = _rpchan_estimate_doppler(m, waveform, preamble, fc, fs)
-  corrected = _rpchan_resample(waveform, estimate.scale)
-  _rpchan_derotate!(corrected, estimate.scale, fc, fs)
-  aligned = _rpchan_align(corrected, preamble; max_lag=m.rpchan_sync_max_lag)
-  payload_start = aligned.lag + length(preamble) + _rpchan_guard_length(m, fs) + 1
-  payload_length = Int(nblocks) * _blocklen(m)
-  payload_stop = payload_start + payload_length - 1
-  payload_stop <= length(corrected) || throw(ArgumentError(
-    "received sequence is too short after Rpchan preamble alignment"))
-  (
-    payload=copy(@view corrected[payload_start:payload_stop]),
-    cfo=(estimate.scale - 1) * Float64(fc),
-    scale=estimate.scale,
-    ppm=estimate.ppm,
-    lag=aligned.lag,
-    score=aligned.score,
-  )
-end
 
 function _write_metrics!(out::Vector{Float64}, pos::Int, payload, nbits::Int)
   @inbounds for bit in payload
@@ -1098,33 +796,23 @@ end
 
 function _layout(m::Modulation, fs)
   sig = (Int(m.nc), Float64(m.bw), _pilot_spacing(m), Int(m.partial_fft_nbands),
-         Int(m.dc0), Float64(fs), m.compatibility_profile)
+         Int(m.dc0), Float64(fs))
   m.layout isa _Layout && m.layout.signature == sig && return m.layout::_Layout
 
-  N, bw, pilot_spacing, nbands, dc0_khz, fsr, compatibility = sig
+  N, bw, pilot_spacing, nbands, dc0_khz, fsr = sig
   _ = dc0_khz
-  active = if compatibility === _COMPATIBILITY_RPCHAN
-    half = N ÷ 2
-    [mod(k, N) + 1 for k in vcat(collect((-half + 1):-1), collect(1:(half - 1)))]
-  else
-    occupied_fraction = min(1.0, bw * _REFERENCE_BANDWIDTH_HZ / fsr)
-    nactive = clamp(floor(Int, (N - 1) * occupied_fraction), 2, N - 1)
-    npos = nactive ÷ 2
-    nneg = nactive - npos
-    bins = vcat(collect(2:1+npos), collect(N-nneg+1:N))        # nactive carriers centred on DC
-    bins
-  end
-  pilot_idx = compatibility === _COMPATIBILITY_RPCHAN ?
-    active[1:pilot_spacing:end] :
-    [k for k in active if (k - 2) % pilot_spacing == 0]
+  occupied_fraction = min(1.0, bw * _REFERENCE_BANDWIDTH_HZ / fsr)
+  nactive = clamp(floor(Int, (N - 1) * occupied_fraction), 2, N - 1)
+  npos = nactive ÷ 2
+  nneg = nactive - npos
+  active = vcat(collect(2:1+npos), collect(N-nneg+1:N))        # nactive carriers centred on DC
+  pilot_idx = [k for k in active if (k - 2) % pilot_spacing == 0]
   pilot_set = Set(pilot_idx)
   data_idx = [k for k in active if !(k in pilot_set)]
-  pilot_syms = compatibility === _COMPATIBILITY_RPCHAN ?
-    fill(ComplexF64(1, 1) / sqrt(2), length(pilot_idx)) :
-    ComplexF64[
-      isodd((1103515245 * k + 12345) & 0x7fffffff) ? -1.0 + 0.0im : 1.0 + 0.0im
-      for k in pilot_idx
-    ]
+  pilot_syms = ComplexF64[
+    isodd((1103515245 * k + 12345) & 0x7fffffff) ? -1.0 + 0.0im : 1.0 + 0.0im
+    for k in pilot_idx
+  ]
   bands = Vector{Vector{Int}}(undef, nbands)
   for b in 1:nbands
     lo, hi = _part_bounds(length(active), nbands, b)
@@ -1165,26 +853,21 @@ end
 # check count dc) is the configurable knob; the make-ldpc construction is fixed to the
 # _LDPC_METHOD constant ("evencol") and threaded in here as the `method` argument.
 function _code_method(m::Modulation)
-  if m.ldpc_method === :auto
-    return m.compatibility_profile === _COMPATIBILITY_RPCHAN ?
-      "rpchan" : _LDPC_METHOD
-  end
+  m.ldpc_method === :auto && return _LDPC_METHOD
   m.ldpc_method in (:evencol, :evenboth) || throw(ArgumentError(
     "LDPC method must be :auto, :evencol, or :evenboth"))
   String(m.ldpc_method)
 end
 
 _code_seed(m::Modulation, k::Integer, n::Integer, npc::Integer) =
-  (m.ldpc_method !== :auto ||
-   m.compatibility_profile === _COMPATIBILITY_RPCHAN) ? m.ldpc_seed :
-  _ldpc_seed(k, n, npc)
+  m.ldpc_method !== :auto ? m.ldpc_seed : _ldpc_seed(k, n, npc)
 
 function _create_code(k::Int, n::Int, npc::Int, method::AbstractString,
                       seed::Int=_ldpc_seed(k, n, npc), no4cycle::Bool=true)
   0 < k < n || throw(ArgumentError("LDPC dimensions must satisfy 0 < k < n"))
   0 < npc <= n - k ||
     throw(ArgumentError("LDPC column degree must satisfy 0 < npc <= n-k"))
-  method in ("rpchan", "frame_sparse") &&
+  method == "frame_sparse" &&
     return _create_sparse_systematic_code(k, n, npc, seed, method, no4cycle)
   r = try
     LDPC.build(k, n; method=method, dc=npc, no4cycle, seed=seed)
@@ -1268,8 +951,7 @@ function _encode(code::_Code, bits::AbstractVector{Bool})
     throw(ArgumentError("LDPC encoder expects $(code.k) bits, got $(length(bits))"))
   block_diagonal_sparse =
     startswith(code.method, "frame_blockdiag_") &&
-    (endswith(code.method, "_frame_sparse") ||
-     endswith(code.method, "_rpchan"))
+    endswith(code.method, "_frame_sparse")
   if block_diagonal_sparse
     # Each repeated sparse component has H=[G I], but its physical
     # [message; parity] variables are interleaved component by component.
@@ -1294,7 +976,7 @@ function _encode(code::_Code, bits::AbstractVector{Bool})
     end
     return codeword
   end
-  if code.method in ("rpchan", "frame_sparse")
+  if code.method == "frame_sparse"
     # For H=[G I], the transmitted order is [message; parity].
     codeword = falses(code.n)
     copyto!(codeword, 1, bits, 1, code.k)
@@ -1328,14 +1010,8 @@ end
 
 _inner_bit(p::Integer) = isodd((1103515245 * p + 12345) & 0x7fffffff)
 
-function _known_inner_bit(m::Modulation, message_position::Integer)
-  if m.compatibility_profile === _COMPATIBILITY_RPCHAN
-    spacing = _inner_pilot_spacing(m)
-    pilot_number = div(Int(message_position) - 1, spacing) + 1
-    return iseven(pilot_number)
-  end
+_known_inner_bit(m::Modulation, message_position::Integer) =
   _inner_bit(message_position)
-end
 
 # Expand one payload block into the k-bit LDPC message. Known inner-pilot bits
 # occupy every isp-th message position; payload fills the positions between them.
@@ -1418,9 +1094,7 @@ function _modulate_block(m::Modulation, layout::_Layout, codeword::AbstractVecto
     carriers[k] = i <= ntones ? _carrier_symbol(m, codeword, i) : one(ComplexF64)
   end
 
-  rpchan_compatible = m.compatibility_profile === _COMPATIBILITY_RPCHAN
   sym = ifft(carriers)
-  rpchan_compatible && (sym .*= sqrt(Int(m.nc)))
   L = Int(m.np)
   N = Int(m.nc)
   block = Vector{ComplexF64}(undef, L + N)
@@ -1430,11 +1104,9 @@ function _modulate_block(m::Modulation, layout::_Layout, codeword::AbstractVecto
   @inbounds for i in 1:N
     block[L + i] = sym[i]
   end
-  if !rpchan_compatible
-    scale = std(block)
-    @inbounds for i in eachindex(block)
-      block[i] /= scale
-    end
+  scale = std(block)
+  @inbounds for i in eachindex(block)
+    block[i] /= scale
   end
   block
 end

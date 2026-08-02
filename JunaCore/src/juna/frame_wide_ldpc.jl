@@ -69,9 +69,7 @@ function _frame_code_horizon(m::Modulation, nblocks::Integer)
 end
 
 function _frame_base_code_method(m::Modulation)
-  m.ldpc_method === :auto ?
-    (m.compatibility_profile === _COMPATIBILITY_RPCHAN ?
-      "rpchan" : "frame_sparse") : _code_method(m)
+  m.ldpc_method === :auto ? "frame_sparse" : _code_method(m)
 end
 
 function _frame_component_code_seed(m::Modulation, nblocks::Integer)
@@ -249,12 +247,8 @@ function _modulate_frame_wide_ldpc(m::Modulation, payload::AbstractVector{Bool},
   end
 
   m.sync || return out
-  if m.sync_profile === _SYNC_PROFILE_LFM
-    sync = _sync_waveform(m, fs)
-    return vcat(sync, out, sync)
-  end
-  preamble = _rpchan_preamble(m, fs)
-  vcat(preamble, zeros(ComplexF64, _rpchan_guard_length(m, fs)), out)
+  sync = _sync_waveform(m, fs)
+  vcat(sync, out, sync)
 end
 
 function _frame_rls_update!(weights, inverse_covariance, xraw, target;
@@ -480,10 +474,7 @@ function _frame_stateful_band_rls(m::Modulation, layout::_Layout, observations;
   )
 end
 
-function _frame_sigma2_floor(m::Modulation)
-  m.compatibility_profile === _COMPATIBILITY_RPCHAN || return _BETA_FLOOR
-  Int(m.nc) >= 2048 ? 0.5 : 1.0
-end
+_frame_sigma2_floor(::Modulation) = _BETA_FLOOR
 
 function _frame_channel_metrics(m::Modulation, layout::_Layout, equalized)
   nblocks = size(equalized, 2)
@@ -1658,12 +1649,7 @@ function _prepare_frame_observations(m::Modulation, nbits, x, fc, fs)
 
   cfo = 0.0
   if m.sync
-    if m.sync_profile === _SYNC_PROFILE_LFM
-      waveform, cfo = _coarse_doppler(m, waveform, fc, fs, nblocks)
-    else
-      acquired = _rpchan_acquire(m, waveform, fc, fs, nblocks)
-      waveform, cfo = acquired.payload, acquired.cfo
-    end
+    waveform, cfo = _coarse_doppler(m, waveform, fc, fs, nblocks)
   end
   _require_block_samples(m, waveform, nblocks)
 

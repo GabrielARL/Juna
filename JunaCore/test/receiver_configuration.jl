@@ -20,7 +20,7 @@
 #
 # :coupled and :full remain internal implementation profiles used by numerical
 # audits and retained dependencies. :robust is a legacy alias for :full. Their
-# mode/profile plumbing lives in byte-identical common.jl, but their solvers
+# mode/profile plumbing lives in common.jl, but their solvers
 # (juna/full.jl, juna/coupled.jl) are not part of this migrated package's
 # src/, so only construction, mode selection, and isvalid are exercised below
 # — not their optimizer internals.
@@ -118,16 +118,11 @@ const RECEIVER_CONFIG_FS = 24_000.0
 
     # Poison every geometry field and all caches, then check init() restores the
     # paper benchmark geometry exactly, clears the caches, and preserves only the
-    # operator's choices: mode and acquisition profile.
+    # operator's choices: mode and sync.
     @testset "init() resets to the paper geometry, keeps mode+sync (main.tex:1966-1971)" begin
         configured = ReceiverConfigJuna.Modulation(
             mode = :full,
             sync = true,
-            sync_profile = :rpchan,
-            rpchan_guard_s = 0.0,
-            rpchan_doppler_ppm = 250.0,
-            rpchan_doppler_steps = 5,
-            rpchan_sync_max_lag = 80,
             nc = UInt16(64),
             np = UInt16(16),
             bpc = 1,
@@ -149,11 +144,6 @@ const RECEIVER_CONFIG_FS = 24_000.0
 
         @test configured.mode === :full              # operator choice preserved
         @test configured.sync === true               # operator choice preserved
-        @test configured.sync_profile === :rpchan
-        @test configured.rpchan_guard_s == 0.0
-        @test configured.rpchan_doppler_ppm == 250.0
-        @test configured.rpchan_doppler_steps == 5
-        @test configured.rpchan_sync_max_lag == 80
 
         @test configured.nc == UInt16(1024)          # N = 1024               (main.tex:1968)
         @test configured.np == UInt16(256)           # CP length = 256        (main.tex:1968)
