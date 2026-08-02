@@ -9,12 +9,12 @@
   {IEEE Transactions on Signal Processing, 2012}
   {partial_fft_doppler_ofdm.pdf}
 
-\begin{frame}{1. Core problem}
+\begin{frame}{1. Core Problem}
 \twocolmodel{
   \begin{itemize}\setlength{\itemsep}{0.45em}
-    \item One full-symbol FFT averages a changing channel
-    \item Subcarrier orthogonality breaks; ICI grows
-    \item Full block equalization costly for large systems
+    \item In high Doppler, one full-symbol FFT averages over a channel that changes during the symbol.
+    \item Subcarrier orthogonality breaks and ICI grows.
+    \item Full block equalization can be too expensive for large OFDM systems.
   \end{itemize}
 }{
   \[
@@ -28,11 +28,11 @@
 }{
   Replace one long FFT view with several short FFT views.
 }{
-  Short windows see less channel variation, and the branch outputs are recombined by weighting.
+  Short windows see less channel variation and can be recombined intelligently.
 }
 \end{frame}
 
-\begin{frame}{2. Partial FFT observation}
+\begin{frame}{2. Partial FFT Observation}
 \begin{center}
 \begin{tikzpicture}[x=1cm,y=1cm]
   \node[flowbox] (sym) at (-5.0,0) {OFDM\\symbol};
@@ -52,30 +52,29 @@
   \qquad
   \widehat X_k=\vW_k\Hh\vY_k .
 \]
-\bottomnote{Equal weights collapse the branch vector back to the full FFT.\\The receiver behavior comes from the choice of branch weights.}
+\bottomnote{No weighting collapses back to the full FFT.\\The useful receiver behavior comes from choosing the branch weights.}
 \end{frame}
 
-\begin{frame}{3. Weight knowledge}
+\begin{frame}{3. Weight Knowledge Levels}
 \begin{itemize}\setlength{\itemsep}{0.48em}
-  \item Full channel knowledge: weights suppress ICI directly
-  \item Partial knowledge: approximate statistics, reduced channel information
-  \item No knowledge: weights learned from observations and pilots
-  \item Complexity is moderate: $M$ branch values per carrier
+  \item With full channel knowledge, choose weights to suppress ICI directly.
+  \item With partial channel knowledge, use approximate statistics or reduced channel information.
+  \item With no channel knowledge, learn combining weights from observations and pilots.
+  \item The complexity is moderate because each carrier combines only $M$ branch values.
 \end{itemize}
-\bottomnote{Although this paper is not by Wang or Zhou, \texttt{JUNA\_vs\_RPC} builds on its partial-FFT combiner.}
+\bottomnote{This companion note is included because \texttt{JUNA\_vs\_RPC} builds on this partial-FFT combiner idea, although the paper is not by Wang or Zhou.}
 \end{frame}
 
-\begin{frame}{4. JUNA connection}
+\begin{frame}{4. JUNA Connection}
 \begin{itemize}\setlength{\itemsep}{0.5em}
-  \item RPC collapses $\vY_k$ to a scalar using $\vW_k$
+  \item RPC collapses $\vY_k$ to a scalar using $\vW_k$.
   \item JUNA keeps the branch vector and models which transmitted symbols generated it:
   \[
     \vY_k=\sum_{q\in\mathcal B(k)}\bm c_{kq}s_q+\vn_k .
   \]
-  \item Partial FFT supplies the observation geometry
-  \item JUNA changes the inference target
+  \item The partial-FFT paper supplies the observation geometry; JUNA changes the inference target.
+  \item This is the conceptual hinge of \texttt{JUNA\_vs\_RPC.tex}.
 \end{itemize}
-\bottomnote{\texttt{JUNA\_vs\_RPC.tex} builds on this change of inference target.}
 \end{frame}
 
 \end{document}
