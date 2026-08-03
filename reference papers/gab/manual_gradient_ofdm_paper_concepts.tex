@@ -157,10 +157,10 @@ This is the reusable manual-gradient hook for the whole paper set.
 Paper concept & What to differentiate manually & What should stay explicit \\
 \midrule
 Partial FFT demodulation
-& Differentiate the coded-bit latents through the partial-FFT branch model
+& Differentiate the coded-bit latents through the partial-FFT observation model
 $\bm Y_k\approx\sum_q \bm c_{kq}s_q(\bm z)$.  Use
 Eq.~\eqref{eq:universal_z_gradient}.
-& Partial-FFT windows, branch count $M$, and branch-combiner weights should be
+& Partial-FFT windows, the number of partial-FFT views $M$, and the combiner weights should be
 deterministic candidates or least-squares updates. \\
 
 Progressive ICI equalization
@@ -179,7 +179,7 @@ v1. \\
 
 Sparse delay-Doppler channel estimation
 & Differentiate $\bm z$ after a sparse support or dictionary slice has been
-chosen.  Reliable soft symbols become code-constrained decision-directed pilots.
+chosen.  Reliable soft symbols become code-constrained anchors.
 & OMP support selection, basis-pursuit active sets, and dictionary pruning are
 not good gradient targets.  Use OMP/BP/proximal steps and then LS. \\
 
@@ -234,8 +234,9 @@ CRC status, and residual energy.
 \subsection{Partial FFT and ICI}
 
 Let $\bm Y_k\in\C^M$ be the partial-FFT vector for carrier $k$, and let
-$\bm c_{kq}\in\C^M$ be the branch response from transmitted carrier $q$ to
-observed carrier $k$.  With $\mathcal B_K(k)=\{q:\abs{q-k}\le K\}$,
+$\bm c_{kq}\in\C^M$ be the response from transmitted carrier $q$ across
+the $M$ partial-FFT views at received carrier $k$.  With
+$\mathcal B_K(k)=\{q:\abs{q-k}\le K\}$,
 \begin{equation}
   \bm r_k
   =
@@ -328,12 +329,12 @@ trying to manually differentiate every nuisance detector.
 
 \begin{enumerate}
   \item Generate deterministic candidates for coarse Doppler, partial-FFT
-  branch count $M$, and ICI span $K_{\rm ICI}$.
-  \item For each candidate, initialize channel/branch coefficients from pilots
+  number of partial-FFT views $M$, and ICI span $K_{\rm ICI}$.
+  \item For each candidate, initialize channel and response coefficients from pilots
   and optional sparse support selection.
   \item Alternate:
   \begin{enumerate}
-    \item update channel/branch/interference variables by LS, grid, or proximal
+    \item update channel and interference variables by LS, grid, or proximal
     rule;
     \item update $\bm z$ by a few manual-gradient steps using
     Eq.~\eqref{eq:full_z_gradient};
@@ -351,7 +352,7 @@ Manual gradients are most useful when the mapping is smooth and low-dimensional.
 They are not the right tool for every idea in the papers.
 
 \begin{itemize}
-  \item Do not gradient-descent integer quantities: ICI span, branch count,
+  \item Do not gradient-descent integer quantities: ICI span, number of partial-FFT views,
   pilot pattern, LDPC graph, support size, or modulation mode.
   \item Do not differentiate through hard OMP support selection, GLRT decisions,
   CRC decisions, or BP stopping rules.

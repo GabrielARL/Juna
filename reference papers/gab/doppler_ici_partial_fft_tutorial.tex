@@ -175,7 +175,7 @@
     \scriptsize fractional leftover turns $\Rightarrow$ nonzero off-diagonal $c_{k,\ell}$};
   \node[roadcard] (s4) at (3.3,-1.0) {%
     \textbf{Partial FFT fights back}\\[0.10em]
-    \scriptsize short-window views; weights line up the wanted carrier};
+    \scriptsize partial-FFT views formed from short windows; weights line up the wanted carrier};
 
   % Step badges on top-left corner of each card (outside the card box)
   \node[roadbadge] at (s1.north west) {1};
@@ -199,7 +199,7 @@
 \begin{center}\footnotesize
   Each step is \emph{picture first, formula second}.\quad
   \textcolor{accentgreen}{\textbf{green}}=wanted,\quad
-  \textcolor{accentred}{\textbf{red}}=leakage,\quad
+  \textcolor{accentred}{\textbf{red}}=ICI coefficients,\quad
   \textcolor{accentblue}{\textbf{blue}}=receiver tool.
 \end{center}
 \end{frame}
@@ -889,7 +889,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
 % 3a. ICI as an unfinished loop
 % =====================================================================
 \begin{frame}{3a. ICI is an unfinished de-spinning loop}
-\stepbadgehdr{3}{the failed cancellation loop becomes a leakage coefficient}
+\stepbadgehdr{3}{the failed cancellation loop becomes an ICI coefficient}
 \small
 \begin{columns}[T,onlytextwidth]
   \begin{column}{0.48\textwidth}
@@ -1035,7 +1035,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
       \draw[accentred,line width=1.1pt,domain=0:444.6,samples=90]
         plot ({0.95*cos(\x)},{0.95*sin(\x)});
       \draw[flowarr,color=accentred,line width=1.1pt] (0,0) -- (0.70,0.42);
-      \node[font=\scriptsize\color{accentred}] at (0,-1.55) {non-zero residue = leakage};
+      \node[font=\scriptsize\color{accentred}] at (0,-1.55) {non-zero residue = ICI coefficient};
     \end{tikzpicture}
     \end{center}
   \end{column}
@@ -1118,7 +1118,8 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
       +\!\!\sum_{\ell\ne k}\!\! c_{k,\ell}\, d_\ell
       + n_k.
     \]
-    The off-diagonal terms are \textbf{ICI} — pieces of \emph{other} symbols inside your bin.
+    The off-diagonal terms are \textbf{ICI}---pieces of symbols on other
+    carriers in the same OFDM symbol inside bin $k$.
     \vspace{0.20cm}
     \begin{tikzpicture}
       \node[redcard,text width=5.8cm] {%
@@ -1154,7 +1155,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
       \node[font=\scriptsize\color{accentgreen},align=center] at (12.0,7.5)
         {diagonal\\desired};
       \node[font=\scriptsize\color{accentred},align=center] at (12.0,5.0)
-        {off-diagonal\\leakage};
+        {off-diagonal\\ICI coefficients};
       \draw[flowarr,color=accentgreen] (9.3,7.7) -- (5.6,7.7);
       \draw[flowarr,color=accentred] (9.3,5.1) -- (6.6,4.5);
     \end{tikzpicture}
@@ -1171,11 +1172,12 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
 \small
 \begin{columns}[T,onlytextwidth]
   \begin{column}{0.47\textwidth}
-    Every transmitted carrier leaves some coefficient in every FFT bin:
+    For one OFDM symbol, every transmitted carrier leaves some coefficient in
+    every FFT bin:
     \[
       y_k=\sum_\ell c_{k,\ell}d_\ell+n_k.
     \]
-    Stack all bins and all symbols:
+    Stack its bins and carrier symbols:
     \[
       \mathbf y=\mathbf C\mathbf d+\mathbf n.
     \]
@@ -1210,7 +1212,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
       }
       \node[font=\scriptsize\bfseries] at (0.8,5.25) {$\mathbf C$};
       \node[font=\tiny\color{accentgreen},align=center] at (4.0,4.35) {diagonal\\desired};
-      \node[font=\tiny\color{accentred},align=center] at (4.0,2.80) {$\pm1,\pm2$\\leakage};
+      \node[font=\tiny\color{accentred},align=center] at (4.0,2.80) {$\pm1,\pm2$\\ICI coefficients};
 
       \foreach \i/\lab in {0/$y_{k-2}$,1/$y_{k-1}$,2/$y_k$,3/$y_{k+1}$,4/$y_{k+2}$} {
         \node[notecard,minimum width=1.6cm,font=\scriptsize] (y\i) at (6.0,{5.2-\i*1.0}) {\lab};
@@ -1224,6 +1226,128 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
     \end{center}
   \end{column}
 \end{columns}
+\end{frame}
+
+% =====================================================================
+% 3f-i. Carrier and OFDM-symbol indices
+% =====================================================================
+\begin{frame}{3f-i. ICI and ISI}
+\stepbadgehdr{3}{use carrier and OFDM-symbol indices}
+\scriptsize
+\begin{columns}[T,onlytextwidth]
+  \begin{column}{0.49\textwidth}
+    We now keep the OFDM-symbol index:
+    \[
+      \mathbf y_s
+      =\mathbf C\mathbf d_s
+      +\mathbf J_-\mathbf d_{s-1}
+      +\mathbf J_+\mathbf d_{s+1}
+      +\mathbf n_s,
+    \]
+    where $\mathbf d_r$ collects carrier symbols from OFDM symbol $r$,
+    $\mathbf C$ acts within $s$, $\mathbf J_\pm$ act across OFDM symbols, and
+    $\mathbf n_s$ is noise.
+
+    \vspace{0.05cm}
+    The one-tap model requires both conditions:
+    \begin{center}
+    \begin{tikzpicture}[x=1cm,y=0.58cm]
+      \node[greencard,text width=5.1cm,font=\scriptsize,inner sep=3pt] at (0,0.40)
+        {prefix covers the delay spread};
+      \node[greencard,text width=5.1cm,font=\scriptsize,inner sep=3pt] at (0,-0.50)
+        {channel does not vary over the useful interval};
+    \end{tikzpicture}
+    \end{center}
+  \end{column}
+  \begin{column}{0.49\textwidth}
+    \begin{center}
+    \begin{tikzpicture}[x=0.76cm,y=0.62cm,>=Latex]
+      \node[notecard,text width=1.55cm,font=\scriptsize,inner sep=3pt] (prev) at (-3.2,1.30)
+        {preceding\\$\mathbf d_{s-1}$};
+      \node[greencard,text width=1.55cm,font=\scriptsize,inner sep=3pt] (curr) at (-3.2,0)
+        {current\\$\mathbf d_s$};
+      \node[notecard,text width=1.55cm,font=\scriptsize,inner sep=3pt] (next) at (-3.2,-1.30)
+        {following\\$\mathbf d_{s+1}$};
+      \node[bluecard,text width=1.50cm,font=\scriptsize,inner sep=3pt] (out) at (2.6,0)
+        {output\\$\mathbf y_s$};
+      \draw[flowarr,color=accentred] (prev) -- node[above,font=\tiny] {$\mathbf J_-$} (out);
+      \draw[flowarr,color=accentgreen] (curr) -- node[above,font=\tiny] {$\mathbf C$} (out);
+      \draw[flowarr,color=accentred] (next) -- node[below,font=\tiny] {$\mathbf J_+$} (out);
+    \end{tikzpicture}
+    \end{center}
+
+    \begin{center}
+    \begin{tikzpicture}[y=0.58cm]
+      \node[redcard,text width=5.25cm,font=\scriptsize,inner sep=3pt] at (0,0.35)
+        {same $s$, different carrier: ICI coefficient};
+      \node[redcard,text width=5.25cm,font=\scriptsize,inner sep=3pt] at (0,-0.55)
+        {different OFDM-symbol index: intersymbol interference (ISI)};
+    \end{tikzpicture}
+    \end{center}
+
+    For a causal channel with an aligned FFT window, $\mathbf J_+=\mathbf 0$.
+  \end{column}
+\end{columns}
+\bottomnote{\scriptsize Carrier indices separate ICI; OFDM-symbol indices separate ISI.}
+\end{frame}
+
+% =====================================================================
+% 3f-ii. Prefix shortfall and conditional scaling
+% =====================================================================
+\begin{frame}{3f-ii. Insufficient cyclic prefix}
+\stepbadgehdr{3}{state what stays fixed before changing $N$}
+\scriptsize
+\begin{columns}[T,onlytextwidth]
+  \begin{column}{0.49\textwidth}
+    A tap at delay $m>L_{\rm cp}$ carries the preceding OFDM symbol into the
+    first $m-L_{\rm cp}$ useful samples.  Across all taps,
+    \[
+      \begin{aligned}
+        D&=\max(0,L_h-1-L_{\rm cp}),\\[-0.1em]
+        \text{contaminated fraction}&=\frac{D}{N},
+      \end{aligned}
+    \]
+    where $L_h$ is the number of channel taps, $L_{\rm cp}$ is the prefix
+    length, $D$ counts contaminated samples, and $N$ is the number of samples
+    in the useful interval.
+
+    \begin{center}
+    \begin{tikzpicture}[x=0.65cm,y=0.55cm]
+      \draw[fill=blubg,draw=accentblue] (-3.1,0.70) rectangle (3.1,1.25);
+      \node[font=\scriptsize] at (0,0.98) {channel memory $L_h-1$};
+      \draw[fill=grnbg,draw=accentgreen] (-3.1,-0.20) rectangle (1.25,0.30);
+      \node[font=\scriptsize] at (-0.95,0.05) {prefix $L_{\rm cp}$};
+      \draw[fill=redbg,draw=accentred] (1.25,0.70) rectangle (3.1,1.25);
+      \node[font=\scriptsize\color{accentred}] at (2.18,0.98) {$D$};
+      \draw[brace] (1.25,1.38) -- (3.1,1.38);
+    \end{tikzpicture}
+    \end{center}
+
+    \begin{center}
+    \begin{tikzpicture}
+      \node[redcard,text width=5.1cm,font=\scriptsize,inner sep=3pt]
+        {short CP: $\mathbf C$ generally non-diagonal, $\mathbf J_-$ nonzero};
+    \end{tikzpicture}
+    \end{center}
+  \end{column}
+  \begin{column}{0.49\textwidth}
+    \begin{center}
+    \begin{tikzpicture}[x=1cm,y=0.72cm]
+      \node[bluecard,text width=5.25cm,font=\scriptsize,inner sep=3pt] at (0,1.50) {%
+        fixed $L_h$ and $L_{\rm cp}$ in samples:\\[0.15em]
+        $\displaystyle \frac{D}{N}\propto N^{-1}$};
+      \node[bluecard,text width=5.25cm,font=\scriptsize,inner sep=3pt] at (0,-0.05) {%
+        fixed residual factor $a$, carrier frequency $f_\ell$, and bandwidth $B$:\\[0.15em]
+        $\displaystyle \frac{a f_\ell}{B/N}=\frac{a f_\ell N}{B}\propto N$\\[-0.05em]
+        \tiny offset in carrier spacings grows; ICI magnitude need not be monotonic};
+      \node[notecard,text width=5.25cm,font=\scriptsize,inner sep=3pt] at (0,-2.00) {%
+        If the prefix, bandwidth, sampling rate, or residual offset changes
+        with $N$, both scalings must be recalculated.};
+    \end{tikzpicture}
+    \end{center}
+  \end{column}
+\end{columns}
+\bottomnote{\scriptsize These conditional model scalings do not identify the cause of a measured search result.}
 \end{frame}
 
 % =====================================================================
@@ -1351,25 +1475,25 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
 % =====================================================================
 % 3i. Why the mixture has vector fingerprints
 % =====================================================================
-\begin{frame}{3i. One branch: the same sum splits by tone}
-\stepbadgehdr{3}{linearity means wanted and leak pass through the branch separately}
+\begin{frame}{3i. One partial-FFT view: the same sum splits by tone}
+\stepbadgehdr{3}{linearity means wanted and ICI pass through the view separately}
 \small
 \begin{columns}[T,onlytextwidth]
   \begin{column}{0.47\textwidth}
-    Suppose the received samples contain the wanted tone and one leaking tone:
+    Suppose the received samples contain the wanted tone and one interfering tone:
     \[
       r[n]=d_k a_k[n]+d_\ell a_\ell[n]+\cdots
     \]
     where $a_\ell[n]$ means ``tone $\ell$ after channel and Doppler.''
 
-    Branch $m$ is just a sum over its own segment $\mathcal S_m$:
+    Partial-FFT view $m$ is the sum over its segment $\mathcal S_m$:
     \[
       z_{m,k}
       =\sum_{n\in\mathcal S_m} r[n]e^{-\jj2\pi kn/N}.
     \]
   \end{column}
   \begin{column}{0.51\textwidth}
-    Substitute $r[n]$ into that branch:
+    Substitute $r[n]$ into that view:
     \[
     \begin{aligned}
       z_{m,k}
@@ -1387,9 +1511,9 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
       \node[greencard,text width=2.00cm,font=\scriptsize,align=center] (want) at (-1.65,0)
         {wanted\\coefficient\\$h_{m;k,k}$};
       \node[redcard,text width=2.00cm,font=\scriptsize,align=center] (leak) at (1.65,0)
-        {leak\\coefficient\\$h_{m;k,\ell}$};
+        {ICI\\coefficient\\$h_{m;k,\ell}$};
       \node[notecard,text width=5.45cm,font=\scriptsize,align=center] at (0,-1.60) {%
-        One branch output is already a small mixture:
+        One partial-FFT view is already a small mixture:
         \(z_{m,k}=h_{m;k,k}d_k+h_{m;k,\ell}d_\ell+\cdots\).};
     \end{tikzpicture}
     \end{center}
@@ -1400,8 +1524,8 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
 % =====================================================================
 % 3j. Stack branches, then compare with full FFT
 % =====================================================================
-\begin{frame}{3j. Stack four branches: now the leak has a shape}
-\stepbadgehdr{3}{the vector is just four branch equations placed on top of each other}
+\begin{frame}{3j. Stack four views: now the ICI has a shape}
+\stepbadgehdr{3}{the vector is just four equations, one for each view}
 \footnotesize
 \begin{columns}[T,onlytextwidth]
   \begin{column}{0.52\textwidth}
@@ -1462,7 +1586,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
 \small
 \begin{columns}[T,onlytextwidth]
   \begin{column}{0.48\textwidth}
-    Use the branch-vector view from slide 3j:
+    Use the partial-FFT observation vector from slide 3j:
     \[
       \mathbf z_k=[z_{0,k},z_{1,k},z_{2,k},z_{3,k}]^{\mathsf T}.
     \]
@@ -1482,14 +1606,14 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
     \]
 
     \vspace{-0.15cm}
-    Substitute the desired and leak fingerprints:
+    Substitute the desired and ICI coefficient patterns:
     \[
       y_k^{\rm full}
       =
       \underbrace{\mathbf w_{\rm full}^{\mathsf H}\mathbf h_{k,k}}_{\text{wanted}}
       d_k
       +
-      \underbrace{\mathbf w_{\rm full}^{\mathsf H}\mathbf h_{k,\ell}}_{\text{leak}}
+      \underbrace{\mathbf w_{\rm full}^{\mathsf H}\mathbf h_{k,\ell}}_{\text{ICI coefficient}}
       d_\ell+\cdots .
     \]
   \end{column}
@@ -1500,7 +1624,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
         \node[bluecard,minimum width=1.15cm,font=\scriptsize] (z\m) at (-3.25,\y) {$z_{\m,k}$};
       }
       \node[font=\scriptsize\bfseries\color{accentblue}] at (-3.25,3.50)
-        {hidden branches};
+        {hidden views};
 
       \node[method,text width=2.35cm,font=\scriptsize] (avg) at (-0.10,2.05) {%
         full FFT\\[-0.1em]
@@ -1517,13 +1641,13 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
       \node[font=\scriptsize\bfseries\color{accentgreen}] at (-1.70,0.55)
         {desired adds};
       \node[font=\scriptsize\bfseries\color{accentred}] at (1.45,0.55)
-        {leak also adds};
+        {ICI term also adds};
       \draw[flowarr,color=accentgreen] (-1.70,0.35) -- (avg.south west);
       \draw[flowarr,color=accentred] (1.45,0.35) -- (avg.south east);
 
       \node[redcard,text width=5.35cm,font=\scriptsize,align=left] at (-0.10,-1.55) {%
         \textbf{Fragile means:} the weights are already fixed.\\
-        If the leak fingerprint does not cancel under equal weights, it remains.\\[0.15em]
+        If the ICI coefficient pattern does not cancel under equal weights, it remains.\\[0.15em]
         For $k=4,\ell=5$, $|c_{4,5}/c_{4,4}|\approx0.189$.\\[0.15em]
         After this scalar is formed, the segment fingerprint is gone.};
     \end{tikzpicture}
@@ -1533,7 +1657,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
 \end{frame}
 
 % =====================================================================
-% 4b. Partial FFT keeps short-window views
+% 4b. Partial FFT keeps short-window branches
 % =====================================================================
 \begin{frame}{4b. Partial FFT: keep the pieces, then combine}
 \stagefourhdr{2}{the fix: split before the final average}
@@ -1552,13 +1676,13 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
     \]
 
     \vspace{0.20em}
-    Stack them into a branch vector
+    Stack them into a partial-FFT observation vector
     \[
       \vY_k = [z_{0,k},\, z_{1,k},\, z_{2,k},\, z_{3,k}]\T .
     \]
 
     \vspace{0.10em}
-    {\scriptsize The branch vector keeps how the symbol \emph{changed} across $T$ — exactly the information the full FFT averaged away.}
+    {\scriptsize The partial-FFT observation vector keeps how the symbol \emph{changed} across $T$ — exactly the information the full FFT averaged away.}
 	  \end{column}
   \begin{column}{0.52\textwidth}
     \begin{center}
@@ -1579,7 +1703,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
       }
       % branch vector card
       \node[idea,minimum width=5.0cm,font=\scriptsize,inner sep=4pt] (vec) at (0,-1.60)
-        {branch vector $\vY_k$ — keeps how the symbol changed};
+        {partial-FFT observation vector $\vY_k$ — keeps how the symbol changed};
       \foreach \i in {1,2,3,4} {
         \draw[softarr] (b\i.south) -- (vec.north);
       }
@@ -1593,11 +1717,11 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
 % 4b'. Numerical check of the four partial-FFT outputs
 % =====================================================================
 \begin{frame}{4b\textquotesingle. The four pieces, in numbers}
-\stagefourhdr{2}{check: an equal average reconstructs the full-FFT leak}
+\stagefourhdr{2}{check: an equal average reconstructs the full-FFT ICI coefficient}
 \small
 \begin{columns}[T,onlytextwidth]
   \begin{column}{0.48\textwidth}
-    For the leakage path $k=4$, $\ell=5$ (the carrier we are tracking from earlier slides), the four short-window coefficients are
+    For the ICI coefficient from $\ell=5$ into $k=4$ (the carrier we are tracking from earlier slides), the four short-window coefficients are
     \[
       \begin{aligned}
         c^{(1)} &= \phantom{-}0.481 + 0.701\jj,\\
@@ -1606,7 +1730,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
         c^{(4)} &= \phantom{-}0.744 + 0.413\jj.
       \end{aligned}
     \]
-    Each $c^{(m)}$ is the leakage contribution \emph{measured within window $m$}.
+    Each $c^{(m)}$ is the contribution to the ICI coefficient \emph{measured within window $m$}.
   \end{column}
   \begin{column}{0.48\textwidth}
     \begin{tikzpicture}
@@ -1618,7 +1742,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
           \tfrac{1}{4}\!\sum_{m=1}^{4}\! c^{(m)}
           \;=\; 0.128 + 0.117\jj,
         \]
-        which is exactly the full-FFT leak $c_{4,5}$ from slide 4a.
+        which is exactly the full-FFT ICI coefficient $c_{4,5}$ from slide 4a.
       };
     \end{tikzpicture}
 
@@ -1643,7 +1767,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
 \small
 \begin{columns}[T,onlytextwidth]
   \begin{column}{0.48\textwidth}
-    Each branch contains a desired piece $c_{m,k,k}d_k$ plus leakage.
+    Each partial-FFT view contains a desired piece $c_{m,k,k}d_k$ plus ICI.
     Pick complex weights $w_{m,k}$ and form
     \[
       \widetilde{y}_k
@@ -1679,7 +1803,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
         \draw[flowarr,color=accentgreen,line width=1.0pt] (2.4,\y) -- ++(0.95,0);
       }
       \node[font=\scriptsize\color{accentgreen},align=center] at (2.4,-1.05)
-        {desired branch pieces add coherently};
+        {desired pieces add coherently};
     \end{tikzpicture}
     \end{center}
   \end{column}
@@ -1687,9 +1811,9 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
 \end{frame}
 
 % =====================================================================
-% 4d. Same weights spoil leakage
+% 4d. Same weights make ICI less coherent
 % =====================================================================
-\begin{frame}{4d. The same weights make the leakage less coherent}
+\begin{frame}{4d. The same weights make the ICI less coherent}
 \stagefourhdr{4}{second job: scramble the unwanted pieces}
 \small
 \begin{columns}[T,onlytextwidth]
@@ -1699,13 +1823,13 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
       \widetilde{c}_{k,\ell}
       =\frac{1}{M}\sum_{m=0}^{M-1} w_{m,k}\, c_{m,k,\ell}.
     \]
-    For $\ell=k$, weights were chosen so terms add. For $\ell\ne k$, the leakage terms typically have \emph{different phases per branch}, so after the same alignment they partly cancel.
+    For $\ell=k$, weights were chosen so terms add. For $\ell\ne k$, the ICI terms typically have \emph{different phases in each view}, so after the same alignment they partly cancel.
 
     \vspace{0.2cm}
     \begin{tikzpicture}
       \node[bluecard,text width=0.90\linewidth,inner sep=3pt,font=\scriptsize,align=left] {%
-        \textbf{Same weights on the $\ell=5$ leak.}\\
-        After desired alignment, leakage becomes roughly\\
+        \textbf{Same weights on the $\ell=5$ ICI coefficient.}\\
+        After desired alignment, the ICI coefficient becomes roughly\\
         $0.85\angle 45^\circ,\quad 0.85\angle 136^\circ,$\\
         $0.85\angle {-133}^\circ,\quad 0.85\angle {-43}^\circ.$\\
         These four vectors nearly close a loop:\\
@@ -1717,13 +1841,13 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
   \begin{column}{0.50\textwidth}
     \begin{center}
     \begin{tikzpicture}[x=0.78cm,y=0.78cm,>=Latex]
-      \node[font=\small\bfseries\color{accentred}] at (-2.5,2.25) {full FFT leak};
+      \node[font=\small\bfseries\color{accentred}] at (-2.5,2.25) {full-FFT ICI coefficient};
       \draw[inkgray] (-3.7,0.6) -- (-1.3,0.6);
       \draw[inkgray] (-2.5,-0.6) -- (-2.5,1.8);
       \draw[flowarr,color=accentred,line width=1.5pt] (-2.5,0.6) -- ++(0.95,0.20);
       \node[font=\scriptsize\color{accentred}] at (-2.5,-0.95) {one big residual};
 
-      \node[font=\small\bfseries\color{accentgreen}] at (2.5,2.25) {partial-FFT leak};
+      \node[font=\small\bfseries\color{accentgreen}] at (2.5,2.25) {partial-FFT ICI coefficient};
       \draw[inkgray] (1.3,0.6) -- (3.7,0.6);
       \draw[inkgray] (2.5,-0.6) -- (2.5,1.8);
       \coordinate (p0) at (2.5,0.6);
@@ -1747,7 +1871,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
 % 4e. Before / after the row
 % =====================================================================
 \begin{frame}{4e. Before and after, on the same row}
-\stagefourhdr{5}{the diagonal stays loud, many leaks get quiet}
+\stagefourhdr{5}{the diagonal stays loud, many ICI coefficients get small}
 \small
 \begin{columns}[T,onlytextwidth]
   \begin{column}{0.49\textwidth}
@@ -1759,7 +1883,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
       \frac{c_{k,\ell}}{c_{k,k}}\, d_\ell
       +\tilde n_k.
     \]
-    Example: $|c_{4,5}/c_{4,4}|\approx 0.189$. Several visible leaks.
+    Example: $|c_{4,5}/c_{4,4}|\approx 0.189$. Several visible ICI coefficients.
   \end{column}
   \begin{column}{0.49\textwidth}
     \textbf{Partial-FFT combined, one-tap corrected.}
@@ -1770,7 +1894,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
       \frac{\widetilde c_{k,\ell}}{\widetilde c_{k,k}}\, d_\ell
       +\tilde n_k.
     \]
-    Same example: $|\widetilde c_{4,5}/\widetilde c_{4,4}|\approx 0.007$. Many leaks shrink.
+    Same example: $|\widetilde c_{4,5}/\widetilde c_{4,4}|\approx 0.007$. Many ICI coefficients shrink.
   \end{column}
 \end{columns}
 
@@ -1799,7 +1923,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
 \end{tikzpicture}
 \end{center}
 
-\bottomnote{Same diagonal height; the off-diagonal bars (the leaks) are much smaller after combining.}
+\bottomnote{Same diagonal height; the off-diagonal ICI coefficients are much smaller after combining.}
 \end{frame}
 
 % =====================================================================
@@ -1810,7 +1934,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
 \small
 \begin{columns}[T,onlytextwidth]
   \begin{column}{0.48\textwidth}
-    Partial FFT gives the receiver a branch vector:
+    Partial FFT gives the receiver a partial-FFT observation vector:
     \[
       \mathbf z_k=[z_{0,k},z_{1,k},\ldots,z_{M-1,k}]\T.
     \]
@@ -1836,7 +1960,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
       \node[bluecard,minimum width=2.10cm,font=\scriptsize,align=center] (rpcw) at (1.70,1.25)
         {RPC weights\\ $\mathbf w_k$};
       \node[greencard,minimum width=2.25cm,font=\scriptsize,align=center] (out1) at (4.45,1.25)
-        {align $k$,\\ suppress leaks};
+        {align $k$,\\ suppress ICI};
       \draw[flowarr] (pilots1) -- (rpcw);
       \draw[flowarr] (rpcw) -- (out1);
       % JUNA row
@@ -1872,7 +1996,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
   \node[issue,  minimum width=2.7cm,minimum height=0.95cm,font=\scriptsize\bfseries] (c) at (1.85,0.95)
     {3. FFT sees\\unfinished loops};
   \node[method, minimum width=2.7cm,minimum height=0.95cm,font=\scriptsize\bfseries] (d) at (5.5,0.95)
-    {4. partial FFT\\keeps segment views};
+    {4. partial FFT\\keeps partial-FFT views};
   \draw[flowarr,line width=1pt] (a) -- (b);
   \draw[flowarr,line width=1pt] (b) -- (c);
   \draw[flowarr,line width=1pt,color=accentgreen] (c) -- (d);
@@ -1899,7 +2023,7 @@ Bin $k$ listens by multiplying the received signal by its own backward clock, $e
   \node[draw=accentgreen,fill=grnbg,line width=0.9pt,rounded corners=4pt,
         text width=13.6cm,inner sep=7pt,align=center,font=\scriptsize] {%
     \textbf{One-sentence takeaway.}\,\,
-    Motion turns each carrier's closed loop into an unfinished spiral; partial FFT keeps multiple short-window views so the receiver can rotate the desired arrow back into alignment while the leak arrows scramble.
+    Motion turns each carrier's closed loop into an unfinished spiral; partial FFT keeps multiple partial-FFT views formed from short windows so the receiver can rotate the desired arrow back into alignment while the ICI arrows scramble.
   };
 \end{tikzpicture}
 \end{center}

@@ -9,12 +9,12 @@
   {IEEE Transactions on Signal Processing, 2012}
   {partial_fft_doppler_ofdm.pdf}
 
-\begin{frame}{1. Core Problem}
+\begin{frame}{Core problem}
 \twocolmodel{
   \begin{itemize}\setlength{\itemsep}{0.45em}
-    \item In high Doppler, one full-symbol FFT averages over a channel that changes during the symbol.
-    \item Subcarrier orthogonality breaks and ICI grows.
-    \item Full block equalization can be too expensive for large OFDM systems.
+    \item One full-symbol FFT averages a changing channel
+    \item Subcarrier orthogonality breaks; ICI grows
+    \item Full block equalization is costly in large systems
   \end{itemize}
 }{
   \[
@@ -26,19 +26,19 @@
     \text{ICI}
   \]
 }{
-  Replace one long FFT view with several short FFT views.
+  Use several partial FFTs.
 }{
-  Short windows see less channel variation and can be recombined intelligently.
+  Short windows contain less channel variation. Weight and combine their outputs.
 }
 \end{frame}
 
-\begin{frame}{2. Partial FFT Observation}
+\begin{frame}{Partial FFT}
 \begin{center}
 \begin{tikzpicture}[x=1cm,y=1cm]
   \node[flowbox] (sym) at (-5.0,0) {OFDM\\symbol};
   \node[method,minimum width=3.0cm] (split) at (-1.8,0) {Split into\\$M$ intervals};
   \node[method,minimum width=3.0cm] (fft) at (1.5,0) {FFT each\\interval};
-  \node[flowbox] (vec) at (4.8,0) {Branch vector\\$\vY_k$};
+  \node[flowbox] (vec) at (4.8,0) {Partial-FFT observation vector\\$\vY_k$};
   \draw[flowarr] (sym) -- (split);
   \draw[flowarr] (split) -- (fft);
   \draw[flowarr] (fft) -- (vec);
@@ -48,33 +48,34 @@
   \vY_k=
   \begin{bmatrix}
     Y_{k,1}&Y_{k,2}&\cdots&Y_{k,M}
-  \end{bmatrix}^{\T},
+  \end{bmatrix}\T,
   \qquad
   \widehat X_k=\vW_k\Hh\vY_k .
 \]
-\bottomnote{No weighting collapses back to the full FFT.\\The useful receiver behavior comes from choosing the branch weights.}
+\bottomnote{Equal weights give conventional full FFT demodulation.\\Combiner weights reduce ICI.}
 \end{frame}
 
-\begin{frame}{3. Weight Knowledge Levels}
+\begin{frame}{Channel knowledge}
 \begin{itemize}\setlength{\itemsep}{0.48em}
-  \item With full channel knowledge, choose weights to suppress ICI directly.
-  \item With partial channel knowledge, use approximate statistics or reduced channel information.
-  \item With no channel knowledge, learn combining weights from observations and pilots.
-  \item The complexity is moderate because each carrier combines only $M$ branch values.
+  \item Full knowledge: weights suppress ICI directly
+  \item Partial knowledge: reduced channel information
+  \item No knowledge: observations and pilots determine weights
+  \item Moderate complexity: $M$ values per carrier
 \end{itemize}
-\bottomnote{This companion note is included because \texttt{JUNA\_vs\_RPC} builds on this partial-FFT combiner idea, although the paper is not by Wang or Zhou.}
+\bottomnote{This paper is not by Wang or Zhou. \texttt{JUNA\_vs\_RPC} uses its partial-FFT combiner.}
 \end{frame}
 
-\begin{frame}{4. JUNA Connection}
+\begin{frame}{Two receivers}
 \begin{itemize}\setlength{\itemsep}{0.5em}
-  \item RPC collapses $\vY_k$ to a scalar using $\vW_k$.
-  \item JUNA keeps the branch vector and models which transmitted symbols generated it:
+  \item Partial-FFT combining maps $\vY_k$ to one scalar
+  \item JUNA keeps the $M$-vector
+  \item Nearby transmitted symbols generate this vector:
   \[
     \vY_k=\sum_{q\in\mathcal B(k)}\bm c_{kq}s_q+\vn_k .
   \]
-  \item The partial-FFT paper supplies the observation geometry; JUNA changes the inference target.
-  \item This is the conceptual hinge of \texttt{JUNA\_vs\_RPC.tex}.
+  \item JUNA estimates the transmitted symbols jointly
 \end{itemize}
+\bottomnote{\texttt{JUNA\_vs\_RPC.tex} compares these two receivers.}
 \end{frame}
 
 \end{document}

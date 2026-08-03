@@ -285,7 +285,7 @@ Doppler slightly changes the frequency of each arriving carrier. A simple wideba
 \[
   f_\ell^{\rx}=(1+a)\ell+\nu,
 \]
-where $a$ is Doppler scaling and $\nu$ is a common frequency offset.
+where $a$ is Doppler scaling and $\nu$ is a carrier frequency offset.
 
 After FFT bin $k$ de-spins by its own carrier, the leftover turn count becomes
 \[
@@ -310,7 +310,7 @@ The first part, $\ell-k$, is an integer. The Doppler part, $a\ell+\nu$, is usual
   \node[font=\scriptsize\color{accentred},align=center] at (0,-1.35)
     {non-integer leftover turn\\average $\neq 0$};
   \node[bluecard,text width=5.5cm,font=\scriptsize] at (0,-2.35)
-    {This red leftover arrow is the amount of carrier $\ell$ that leaks into bin $k$.};
+    {This red leftover arrow is the ICI term from carrier $\ell$ in bin $k$.};
 \end{tikzpicture}
 \end{center}
 \end{column}
@@ -369,7 +369,7 @@ Clean OFDM gives one bin, one symbol:
 \[
   y_k=c_{k,k}d_k+n_k.
 \]
-With Doppler, the same FFT bin receives leakage from neighbours:
+With Doppler, the same FFT bin receives ICI terms from neighbouring carriers:
 \[
   y_k=c_{k,k}d_k+
   \sum_{\ell\neq k} c_{k,\ell}d_\ell+n_k.
@@ -404,7 +404,7 @@ The unwanted terms are inter-carrier interference:
   \node[font=\scriptsize\bfseries] at (4.5,9.75) {$\mathbf C$};
   \node[font=\scriptsize\color{accentblue}] at (4.5,3.52) {one FFT row};
   \node[font=\scriptsize\color{accentgreen},align=center] at (11.7,7.2) {wanted\\symbol};
-  \node[font=\scriptsize\color{accentred},align=center] at (11.7,4.8) {ICI\\leakage};
+  \node[font=\scriptsize\color{accentred},align=center] at (11.7,4.8) {ICI};
   \draw[flowarr,color=accentgreen] (9.4,7.3)--(5.5,7.3);
   \draw[flowarr,color=accentred] (9.4,4.8)--(6.3,4.4);
 \end{tikzpicture}

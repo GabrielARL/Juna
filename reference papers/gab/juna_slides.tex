@@ -159,7 +159,7 @@
     \begin{column}{0.32\textwidth}
       \begin{beamercolorbox}[wd=\linewidth,sep=6pt,rounded=true]{calloutbox}
         \textbf{\color{rpc} The problem}\\[0.2em]
-        \scriptsize Doppler (motion) breaks subcarrier orthogonality \textendash{} energy leaks between carriers (ICI).
+        \scriptsize Doppler (motion) breaks subcarrier orthogonality \textendash{} energy from other carriers produces ICI.
       \end{beamercolorbox}
     \end{column}
     \begin{column}{0.32\textwidth}
@@ -250,8 +250,8 @@
   \vspace{0.08cm}
   {\scriptsize
     \tikz[baseline=-0.5ex]\node[tinycell,fill=juna!70]{};\, on-diagonal\quad
-    \tikz[baseline=-0.5ex]\node[tinycell,fill=gold!70]{};\, immediate-neighbour leakage\quad
-    \tikz[baseline=-0.5ex]\node[tinycell,fill=rpc!45]{};\, further-neighbour leakage\quad
+    \tikz[baseline=-0.5ex]\node[tinycell,fill=gold!70]{};\, immediate-neighbour ICI coefficients\quad
+    \tikz[baseline=-0.5ex]\node[tinycell,fill=rpc!45]{};\, further-neighbour ICI coefficients\quad
     \tikz[baseline=-0.5ex]\node[tinycell,fill=nullc]{};\, no coupling}\par
   \vspace{0.1cm}
   \begin{columns}[T,onlytextwidth]
@@ -301,7 +301,7 @@
         \node[font=\scriptsize,text=muted,rotate=90] at (-1.28,-4.0) {received bit/carrier positions};
       \end{tikzpicture}
       \vspace{0.05cm}
-      {\scriptsize Energy leaks into neighboring carriers; recovery becomes a coupled problem.}
+      {\scriptsize ICI couples neighboring carriers; recovery becomes a coupled problem.}
     \end{column}
   \end{columns}
 \end{frame}
@@ -354,7 +354,7 @@
 % =====================================================================
 \begin{frame}{Partial-FFT combining: separating carriers that now talk to each other}
   \vspace{-0.05cm}
-  {\footnotesize Under Doppler, one FFT mixes neighbouring tones. Slice the symbol in time, get several views of each tone, then combine them \textendash{} the trick is choosing the weights.}
+  {\footnotesize Under Doppler, one FFT mixes neighbouring tones. Slice the symbol in time, get several partial-FFT views of each tone, then combine them \textendash{} the trick is choosing the weights.}
   \vspace{0.15cm}
 
   \begin{columns}[T,onlytextwidth]
@@ -380,7 +380,7 @@
     % ---------- Panel 2: partial FFT ----------
     \begin{column}{0.40\textwidth}
       \centering
-      \textbf{\small 2.\ Partial FFT $=$ $M$ views per tone}\par
+      \textbf{\small 2.\ Partial FFT $=$ $M$ partial-FFT views per tone}\par
       \vspace{0.20cm}
       \resizebox{0.88\linewidth}{!}{%
       \begin{tikzpicture}[x=1cm,y=1cm,>=Latex]

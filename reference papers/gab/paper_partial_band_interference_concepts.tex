@@ -4,17 +4,17 @@
 \begin{document}
 
 \papercover
-  {Partial-Band Interference Cancellation}
+  {Interference in Part of the Band}
   {Zhaohui Wang, Shengli Zhou, Catipovic, and Willett}
   {IEEE Transactions on Signal Processing, 2012}
   {partial_band_interference_ofdm_uwa.pdf}
 
-\begin{frame}{1. Core Problem}
+\begin{frame}{1. Core problem}
 \twocolmodel{
   \begin{itemize}\setlength{\itemsep}{0.45em}
-    \item UWA links can be hit by external signals such as sonar or jamming.
-    \item The interference may occupy only part of the band and part of the OFDM block.
-    \item Treating it as ordinary noise wastes structure.
+    \item External signals such as sonar strike the link
+    \item Interference occupies part of the band, part of the block
+    \item Treating it as ordinary noise discards structure
   \end{itemize}
 }{
   \[
@@ -32,7 +32,7 @@
 }
 \end{frame}
 
-\begin{frame}{2. Iterative Receiver}
+\begin{frame}{2. Iterative receiver}
 \begin{center}
 \begin{tikzpicture}[x=1cm,y=1cm]
   \node[flowbox] (rx) at (-5.2,0) {Received\\OFDM block};
@@ -50,28 +50,28 @@
   \argmin_{\valpha,\vs}
   \norm{\vy-\vA\vs-\vB_{\rm int}\valpha}_2^2
 \]
-\bottomnote{The GLRT supplies structure; least squares supplies waveform amplitudes; decoding supplies better symbol estimates for the next pass.}
+\bottomnote{The GLRT supplies the support, least squares supplies the amplitudes, and decoding supplies better symbol estimates for the next pass.}
 \end{frame}
 
-\begin{frame}{3. Why It Works}
+\begin{frame}{3. Why it works}
 \begin{itemize}\setlength{\itemsep}{0.48em}
-  \item The interference is low-dimensional once its occupied band and time duration are known.
-  \item Nulls, pilots, and tentative decisions expose interference energy.
-  \item Reconstruction prevents the receiver from confusing external energy with channel taps.
-  \item Iteration improves both communication decoding and interference cancellation.
+  \item Interference is low-dimensional once its support is known
+  \item Nulls, pilots, and tentative decisions expose interference energy
+  \item Reconstruction prevents external energy becoming channel taps
+  \item Iteration improves decoding and cancellation together
 \end{itemize}
-\bottomnote{The paper separates ``channel physics'' from ``environmental intrusion'' by giving the intrusion its own model.}
+\bottomnote{The intrusion is given its own model rather than being absorbed into the channel.}
 \end{frame}
 
-\begin{frame}{4. JUNA Connection}
+\begin{frame}{4. JUNA connection}
 \begin{itemize}\setlength{\itemsep}{0.5em}
-  \item JUNA should include nuisance variables for structured interference:
+  \item Carry nuisance variables for structured interference:
   \[
     \vY_k=\sum_q\bm c_{kq}s_q+\bm b_k\alpha+\vn_k .
   \]
-  \item The interference support should remain a candidate or GLRT decision, not a continuous gradient variable.
-  \item Code constraints help avoid over-canceling valid data as interference.
-  \item This is a useful template for adding non-channel nonidealities to the same joint receiver.
+  \item Support stays a candidate or GLRT decision, not a gradient variable
+  \item Code constraints avoid over-canceling valid data
+  \item A template for adding nonidealities to the same joint receiver
 \end{itemize}
 \end{frame}
 

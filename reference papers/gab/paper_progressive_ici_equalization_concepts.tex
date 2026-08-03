@@ -9,12 +9,12 @@
   {IEEE Journal of Selected Topics in Signal Processing, 2011}
   {progressive_ici_equalization_ofdm_uwa.pdf}
 
-\begin{frame}{1. Core Problem}
+\begin{frame}{Core problem}
 \twocolmodel{
   \begin{itemize}\setlength{\itemsep}{0.45em}
-    \item Mild channels can be decoded with a narrow ICI model.
-    \item Severe Doppler spread needs a wider ICI span and higher complexity.
-    \item A fixed worst-case receiver wastes effort in easy conditions.
+    \item Mild channels use a narrow ICI model
+    \item Large Doppler spread needs a wider span
+    \item A fixed ICI model raises complexity
   \end{itemize}
 }{
   \[
@@ -27,13 +27,13 @@
     B \;\text{small first, larger only if needed}
   \]
 }{
-  The receiver adapts the model complexity during decoding.
+  Update the ICI span during decoding.
 }{
-  It is a turbo receiver whose channel model grows progressively.
+  A narrow ICI span keeps complexity low. However, performance degrades with large Doppler spread.
 }
 \end{frame}
 
-\begin{frame}{2. Progressive Loop}
+\begin{frame}{Progressive receiver}
 \begin{center}
 \begin{tikzpicture}[x=1cm,y=1cm]
   \node[flowbox] (small) at (-4.8,0.7) {Start with\\small ICI span};
@@ -48,31 +48,33 @@
   \draw[softarr] (grow.west) -| (est.south);
 \end{tikzpicture}
 \end{center}
-\bottomnote{The receiver spends complexity only after the decoder says the current model is insufficient.}
+\bottomnote{Increase the ICI span only when decoding fails.}
 \end{frame}
 
-\begin{frame}{3. Algorithm Skeleton}
+\begin{frame}{Receiver steps}
 \begin{enumerate}\setlength{\itemsep}{0.45em}
-  \item Initialize with a narrow ICI band and pilot-aided sparse channel estimate.
-  \item Equalize using a soft-input method and pass LLRs to the decoder.
-  \item If the decoder succeeds, stop.
-  \item If it fails, enlarge the ICI span and reuse decoder soft information.
-  \item Repeat until decoding succeeds or the maximum span is reached.
+  \item Narrow ICI span and sparse channel estimate
+  \item Equalize and pass soft information to decoder
+  \item Stop when decoding succeeds
+  \item Otherwise increase the ICI span
+  \item Reuse decoder information in the next iteration
+  \item Stop at the maximum span
 \end{enumerate}
-\bottomnote{The model is not sacred. It is an adaptive working hypothesis driven by decoder feedback.}
+\bottomnote{The decoder determines when the ICI span increases.}
 \end{frame}
 
-\begin{frame}{4. JUNA Connection}
+\begin{frame}{JUNA}
 \begin{itemize}\setlength{\itemsep}{0.5em}
-  \item JUNA can use progressive ICI half-width as a discrete model-selection variable.
-  \item Start cheap:
+  \item Choose the ICI half-width from candidates
+  \item Start with a narrow span:
   \[
     \mathcal B_1(k)\subset\mathcal B_2(k)\subset\cdots
   \]
-  and expand only when residual energy or parity checks demand it.
-  \item Decoder soft information should feed back into channel/nonideality estimation.
-  \item This paper is philosophically close to JUNA: inference improves by changing the model during iterations.
+  Expand when residual energy or parity checks require it.
+  \item Use decoder information in channel estimation
+  \item Change the ICI span during iterations
 \end{itemize}
+\bottomnote{JUNA can increase the ICI span while decoding.}
 \end{frame}
 
 \end{document}

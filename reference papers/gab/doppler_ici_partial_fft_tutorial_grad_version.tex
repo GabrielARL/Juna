@@ -101,7 +101,7 @@
     \begin{enumerate}\setlength{\itemsep}{0.35em}
       \item What does the IFFT transmit?
       \item What does one FFT bin actually do?
-      \item Why does Doppler make another carrier leak into my bin?
+      \item Why does Doppler make another carrier cause ICI in my bin?
       \item Why does splitting the FFT into pieces help?
     \end{enumerate}
   \end{column}
@@ -114,7 +114,7 @@
     \vspace{0.15cm}
     \begin{tikzpicture}
       \node[bluecard,text width=6.1cm] {%
-        If you understand why carrier $5$ leaks into bin $4$, the matrix story is just many copies of the same event.};
+        If you understand the ICI from carrier $5$ into bin $4$, the matrix story is just many copies of the same event.};
     \end{tikzpicture}
   \end{column}
 \end{columns}
@@ -131,7 +131,7 @@
   \node[greencard,text width=2.2cm] (tone) at (-2.1,1.2) {tone $\ell$\\carrier $\ell$};
   \node[notecard,text width=2.2cm] (x) at (0.6,1.2) {$x[n]$\\time sample};
   \node[bluecard,text width=2.2cm] (bin) at (3.3,1.2) {FFT bin $k$\\receiver row};
-  \node[redcard,text width=2.2cm] (c) at (6.0,1.2) {$c_{k,\ell}$\\leak coefficient};
+  \node[redcard,text width=2.2cm] (c) at (6.0,1.2) {$c_{k,\ell}$\\ICI coefficient};
   \draw[flowarr] (d) -- (tone);
   \draw[flowarr] (tone) -- (x);
   \draw[flowarr] (x) -- (bin);
@@ -492,7 +492,7 @@
     Here:
     \[
       a=\text{wideband scale},\qquad
-      \nu=\text{common frequency offset}.
+      \nu=\text{carrier frequency offset}.
     \]
     Bin $k$ still de-spins by its old grid frequency $k$, so tone $\ell$ has leftover rate
     \[
@@ -710,7 +710,7 @@
       y_k^{\mathrm{full}}
       =\int_0^1 r(t)e^{-\jj2\pi kt}\,dt.
     \]
-    That scalar is already the final average. It no longer remembers how the desired arrow and the leakage arrow moved during the symbol.
+    That scalar is already the final average. It no longer remembers how the desired arrow and the arrow for the ICI coefficient moved during the symbol.
 
     \medskip
     \textbf{Problem:} Doppler is a time-evolution effect, but the full FFT stores one end result.
@@ -732,7 +732,7 @@
 \end{frame}
 
 % =====================================================================
-\begin{frame}{Partial FFT keeps short-time views}
+\begin{frame}{Partial-FFT views}
 \storybadge{4}{split before the final average}
 \small
 \begin{columns}[T,onlytextwidth]
@@ -765,7 +765,7 @@
     \end{center}
   \end{column}
 \end{columns}
-\takeaway{Partial FFT changes the observation from one scalar into a branch vector.}
+\takeaway{Partial FFT changes the observation from one scalar into a partial-FFT observation vector.}
 \end{frame}
 
 % =====================================================================
@@ -784,7 +784,7 @@
       \frac{1}{M}\sum_m w_{m,k}c^{(m)}_{k,k}\approx 1,
     \]
     \[
-      \text{leakage:}\quad
+      \text{ICI coefficient:}\quad
       \frac{1}{M}\sum_m w_{m,k}c^{(m)}_{k,\ell}\approx 0.
     \]
   \end{column}
@@ -797,7 +797,7 @@
       }
       \node[font=\scriptsize\color{accentgreen}] at (-2.2,-0.20) {adds coherently};
 
-      \node[font=\scriptsize\bfseries\color{accentred}] at (2.2,2.0) {leak after weights};
+      \node[font=\scriptsize\bfseries\color{accentred}] at (2.2,2.0) {ICI after weights};
       \foreach \a in {25,135,230,310} {
         \draw[flowarr,color=accentred,line width=1.1pt] (2.2,0.95)--++(\a:0.95);
       }
@@ -809,12 +809,12 @@
     \end{center}
   \end{column}
 \end{columns}
-\takeaway{Partial FFT works because desired and leakage evolve differently across short windows.}
+\takeaway{Partial FFT works because desired and ICI coefficients evolve differently across short windows.}
 \end{frame}
 
 % =====================================================================
 \begin{frame}{A tiny before/after number}
-\storybadge{4}{same example, less leakage}
+\storybadge{4}{same example, smaller ICI coefficient}
 \small
 \begin{columns}[T,onlytextwidth]
   \begin{column}{0.45\textwidth}
@@ -824,12 +824,12 @@
       \approx 0.189
       \qquad\text{(full FFT)}.
     \]
-    With $M=4$ partial FFT branches and weights chosen for bin $4$:
+    With $M=4$ partial-FFT views and weights chosen for bin $4$:
     \[
       \left|\frac{\widetilde c_{4,5}}{\widetilde c_{4,4}}\right|
       \approx 0.0066.
     \]
-    That is about $29$ dB less selected leakage.
+    That is about $29$ dB smaller selected ICI coefficient.
   \end{column}
   \begin{column}{0.53\textwidth}
     \begin{center}
@@ -863,7 +863,7 @@
 \small
 \begin{columns}[T,onlytextwidth]
   \begin{column}{0.48\textwidth}
-    Partial FFT creates the branch vector $\mathbf z_k$. The receiver still needs good weights $\mathbf w_k$.
+    Partial FFT creates the partial-FFT observation vector $\mathbf z_k$. The receiver still needs good weights $\mathbf w_k$.
     \vspace{0.20cm}
 
     RPC:
@@ -880,14 +880,14 @@
     \begin{tikzpicture}[x=0.88cm,y=0.88cm,>=Latex]
       \node[notecard,text width=2.0cm] (p1) at (-2.6,1.0) {pilots};
       \node[bluecard,text width=2.2cm] (rpc) at (0.2,1.0) {RPC\\weights};
-      \node[greencard,text width=2.2cm] (o1) at (3.0,1.0) {combine\\branches};
+      \node[greencard,text width=2.2cm] (o1) at (3.0,1.0) {combine\\the views};
       \draw[flowarr] (p1)--(rpc);
       \draw[flowarr] (rpc)--(o1);
 
       \node[notecard,text width=2.0cm] (p2) at (-2.6,-0.85) {pilots};
       \node[notecard,text width=2.0cm] (ldpc) at (-2.6,-1.65) {LDPC\\checks};
       \node[bluecard,text width=2.2cm,fill=grnbg] (juna) at (0.2,-1.25) {JUNA\\weights};
-      \node[greencard,text width=2.2cm] (o2) at (3.0,-1.25) {combine\\branches};
+      \node[greencard,text width=2.2cm] (o2) at (3.0,-1.25) {combine\\the views};
       \draw[flowarr] (p2)--(juna);
       \draw[flowarr] (ldpc)--(juna);
       \draw[flowarr] (juna)--(o2);
@@ -921,7 +921,7 @@
 \vspace{0.1cm}
 \begin{tikzpicture}
   \node[bluecard,text width=12.5cm,font=\large] {%
-    \textbf{Doppler makes neighbour loops unfinished; partial FFT keeps enough short-time pieces to align the desired carrier while the leakage cancels more.}};
+    \textbf{Doppler makes neighbour loops unfinished; partial FFT keeps enough short-time pieces to align the desired carrier while the ICI terms cancel more.}};
 \end{tikzpicture}
 \end{frame}
 

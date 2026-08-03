@@ -116,7 +116,7 @@
 \begin{frame}[plain]
   \vspace{1.3cm}
   \begin{center}
-    {\bfseries\Huge JUNA vs RPC:\par}
+    {\bfseries\Huge JUNA vs Partial-FFT Combining:\par}
     \vspace{0.45em}
     {\bfseries\LARGE A FUNDAMENTAL DIFFERENCE\par}
     \vspace{0.30em}
@@ -138,20 +138,21 @@
     {\itshape\large\color{inkgray}--- Information-Theoretic Perspective ---\par}
     \vspace{0.25em}
     {\itshape\normalsize\color{inkgray}
-      RPC here denotes the Section II partial-FFT combining idea\par}
+      The comparison uses the Section II partial-FFT combining receiver\par}
   \end{center}
 \end{frame}
 
 % =====================================================================
 %  Slide 2: System Model (Partial-FFT Domain)
 % =====================================================================
-\begin{frame}{1. System Model (Partial-FFT Domain)}
+\begin{frame}{1. System model}
 
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.46\textwidth}
       \begin{itemize}\setlength{\itemsep}{0.5em}
-        \item Residual Doppler causes ICI: each received carrier depends on nearby transmitted symbols.
-        \item Partial-FFT ($M$ branches) gives vector observation per carrier.
+        \item Residual Doppler causes intercarrier interference (ICI)
+        \item Each carrier depends on nearby transmitted symbols
+        \item Partial FFT gives $M$ partial-FFT views per carrier
       \end{itemize}
     \end{column}
     \begin{column}{0.52\textwidth}
@@ -160,7 +161,7 @@
       \[
         \vY_k \;=\;
         \sum_{q\in\Bk}\;
-        \underbrace{\vc_{k,q}}_{\substack{\text{\scriptsize branch-domain}\\\text{\scriptsize coefficient vector}\\\text{\scriptsize $(M\times 1)$}}}\;
+        \underbrace{\vc_{k,q}}_{\substack{\text{\scriptsize local ICI / nonideality}\\\text{\scriptsize coefficient vector}\\\text{\scriptsize $(M\times 1)$}}}\;
         \underbrace{s_q}_{\substack{\text{\scriptsize transmitted}\\\text{\scriptsize symbol}}}\;+\;
         \underbrace{\vn_k}_{\substack{\text{\scriptsize noise}\\\text{\scriptsize vector}}}
       \]
@@ -183,7 +184,7 @@
     \node[smallbox,right=0pt of s3] (s4) {$q{+}1$};
     \node[smallbox,right=0pt of s4] (s5) {$\dots$};
 
-    \node[branchbox] (br) at (8.5,0) {branch 1\\branch 2\\$\vdots$\\branch $M$};
+    \node[branchbox] (br) at (8.5,0) {view 1\\view 2\\$\vdots$\\view $M$};
     \node[font=\footnotesize\itshape\color{inkgray},above=2pt of br]
       {$k$ (received)};
 
@@ -198,19 +199,18 @@
 % =====================================================================
 %  Slide 3: Where Doppler Enters
 % =====================================================================
-\begin{frame}{2. Where Doppler Enters}
+\begin{frame}{2. Doppler and ICI}
 
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.47\textwidth}
       \begin{itemize}\setlength{\itemsep}{0.42em}
-        \item A full FFT demodulates carrier $k$ over the whole OFDM symbol:
+        \item Full FFT demodulates carrier $k$ over the symbol:
               \[
                 y_k=\frac{1}{\sqrt{T}}\int_0^T r(t)e^{-j2\pi f_k t}\,dt .
               \]
-        \item If the channel is static during the symbol, orthogonality leaves
-              only $d_kH_k$ plus noise.
-        \item Doppler makes the channel response $H_i(t)$ vary inside the
-              integral, so the $i\ne k$ terms no longer cancel.
+        \item Static channel: orthogonality leaves $d_kH_k$ plus noise
+        \item Doppler varies $H_i(t)$ inside the integral
+        \item Hence the $i\ne k$ terms no longer cancel
       \end{itemize}
     \end{column}
     \begin{column}{0.51\textwidth}
@@ -248,20 +248,19 @@
 % =====================================================================
 %  Slide 4: RPC as Section II Partial FFT
 % =====================================================================
-\begin{frame}{3. RPC as Section II Partial FFT}
+\begin{frame}{3. Partial-FFT combining}
 
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.48\textwidth}
       \begin{itemize}\setlength{\itemsep}{0.35em}
-        \item Divide the useful OFDM symbol into $M$ non-overlapping windows.
+        \item Divide the symbol into $M$ non-overlapping windows
         \item FFT each short window:
               \[
                 y_k(m)=\frac{1}{\sqrt{T}}
                 \int_{\frac{m-1}{M}T}^{\frac{m}{M}T}
                 r(t)e^{-j2\pi f_k t}\,dt .
               \]
-        \item Approximate the channel in each short interval by its midpoint
-              value.
+        \item Approximate the channel by its midpoint value
       \end{itemize}
     \end{column}
     \begin{column}{0.50\textwidth}
@@ -305,8 +304,8 @@
       \node[draw=ink,line width=0.6pt,fill=paper,
             minimum width=13.8cm,minimum height=1.0cm,
             align=center,inner sep=6pt]
-        {The weights act like a carrier-specific stepwise receiver window:\\
-         the desired carrier adds more coherently and ICI is reduced.};
+        {The weights act like a carrier-specific stepwise receiver window.\\
+         Hence the desired carrier adds more coherently and ICI is reduced.};
     \end{tikzpicture}
   \end{center}
 
@@ -315,7 +314,7 @@
 % =====================================================================
 %  Slide 4a: Where the Partial-FFT Vector Model Comes From
 % =====================================================================
-\begin{frame}{3a. Where the Partial-FFT Equation Comes From}
+\begin{frame}{3a. Partial-FFT observation model}
 
   \footnotesize
   \setlength{\abovedisplayskip}{0.35em}
@@ -324,7 +323,7 @@
   \newcommand{\bmint}{b_m}
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.60\textwidth}
-      Let $\am=\frac{m-1}{M}T$ and $\bmint=\frac{m}{M}T$.  After CP removal,
+      Let $\am=\frac{m-1}{M}T$ and $\bmint=\frac{m}{M}T$.  After cyclic-prefix removal,
       \[
         r(t) \approx \frac{1}{\sqrt{T}}
         \sum_i d_i\,H_i(t)e^{j2\pi f_i t}+n(t).
@@ -382,13 +381,13 @@
 % =====================================================================
 %  Slide 5: RPC vs JUNA (High-Level View)
 % =====================================================================
-\begin{frame}{4. RPC vs JUNA (High-Level View)}
+\begin{frame}{4. Two receivers}
 
   \begin{center}
   \begin{tikzpicture}[x=1cm,y=1cm]
     % RPC label
     \node[anchor=west,font=\itshape\bfseries\color{ink}] at (-6.3,2.6)
-      {RPC: Section II Partial-FFT Combiner};
+      {Partial-FFT combining: Section II receiver};
 
     \node                         (yk)  at (-5.6,1.5) {$\vY_k$};
     \node[flowbox]                (lc)  at (-3.4,1.5) {Linear Combiner\\$\vW_k^{\herm}$};
@@ -413,7 +412,7 @@
     \node[flowbox,minimum width=8.4cm,minimum height=1.6cm]
                                    (jb)  at ( 0.0,-1.7) {Joint Estimation \& Inference\\
                                                           over $\vC$, $\vW$, $\vz$\\
-                                                          {\footnotesize\itshape\color{inkgray}(branch model + pilots + LDPC)}};
+                                                          {\footnotesize\itshape\color{inkgray}(partial-FFT observation model + pilots + LDPC)}};
     \node                         (bh2) at ( 5.5,-1.7) {$\hb$};
     \node[font=\footnotesize\itshape\color{inkgray},align=left] at (6.7,-1.7) {(decoded\\bits)};
 
@@ -427,14 +426,12 @@
 % =====================================================================
 %  Slide 6: RPC: What Is Used?
 % =====================================================================
-\begin{frame}{5. RPC: What Is Used?}
+\begin{frame}{5. The combining weight}
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.46\textwidth}
       \begin{itemize}\setlength{\itemsep}{0.35em}
-        \item Section II defines the receiver front end: partial-FFT
-              observations plus weighted combining.
-        \item The combiner is chosen to compensate time variation and reduce
-              ICI, but not to model coded symbols jointly.
+        \item Front end: partial-FFT observations, weighted combining
+        \item Chosen to compensate time variation, reduce ICI
         \item Main quantity in the Section II construction:
       \end{itemize}
 
@@ -482,15 +479,16 @@
 
   \vspace{0.15em}
   \begin{center}
-    {\itshape\small Scalar partial-FFT combining maps the branch vector to one
-    number before later decoding.}
+    {\itshape\small While the combiner reduces ICI, it does not model the coded
+    symbols jointly. Scalar combining maps the vector of partial-FFT views to one number
+    before decoding.}
   \end{center}
 \end{frame}
 
 % =====================================================================
 %  Slide 6a: How RPC Helps With Doppler
 % =====================================================================
-\begin{frame}{5a. How This Helps With Doppler}
+\begin{frame}{5a. Doppler compensation}
 
   \footnotesize
   \setlength{\abovedisplayskip}{0.45em}
@@ -498,16 +496,14 @@
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.52\textwidth}
       \begin{itemize}\setlength{\itemsep}{0.25em}
-        \item Doppler makes the channel vary inside one OFDM symbol, so the
-              scalar FFT output mixes carriers.
-        \item Partial FFT turns that continuous time variation into an
-              $M$-branch vector:
+        \item Channel varies inside the symbol; the FFT mixes carriers
+        \item Partial FFT turns time variation into $M$ partial-FFT views:
               \[
 	                H_i(t)\quad\leadsto\quad
 	                \big[H_i(1),\ldots,H_i(M)\big].
 	              \]
-        \item The combiner uses these branch differences as degrees of freedom:
-              align the desired carrier, reduce nearby ICI.
+        \item Differences among the views are the degrees of freedom
+        \item Align the desired carrier, reduce nearby ICI
       \end{itemize}
 
       \vspace{-0.15em}
@@ -515,7 +511,7 @@
       \begin{tikzpicture}[x=1cm,y=1cm]
         \node[draw=ink,fill=paper,line width=0.6pt,
               minimum width=1.8cm,minimum height=0.65cm,align=center] (branch) at (-2.7,0)
-          {$\vY_k$\\{\footnotesize branches}};
+          {$\vY_k$\\{\footnotesize partial-FFT views}};
         \node[draw=rpcred,fill=redbg,line width=0.8pt,
               minimum width=2.0cm,minimum height=0.65cm,align=center] (w) at (0.0,0)
           {$\vW_k^{\herm}$\\{\footnotesize align/cancel}};
@@ -563,8 +559,8 @@
           \node[draw=ink,line width=0.6pt,fill=paper,
                 minimum width=5.0cm,minimum height=0.85cm,
                 align=center,inner sep=5pt]
-            {\footnotesize Desired branches add coherently;\\
-             \footnotesize leaked carriers are partially nulled.};
+            {\footnotesize Desired terms add coherently;\\
+             \footnotesize ICI terms from other carriers are partially nulled.};
         \end{tikzpicture}
       \end{center}
     \end{column}
@@ -572,8 +568,8 @@
 
   \vspace{0.2em}
   \begin{center}
-    {\itshape\footnotesize RPC does not estimate every coded symbol jointly; it first
-    builds a Doppler-compensated scalar observation for each carrier.}
+    {\itshape\footnotesize While the combiner builds a Doppler-compensated
+    observation for each carrier, it does not estimate the coded symbols jointly.}
   \end{center}
 
 \end{frame}
@@ -581,7 +577,7 @@
 % =====================================================================
 %  Slide 6b: Branch Projection Diagram
 % =====================================================================
-\begin{frame}{5b. Diagram: Branch Projection View}
+\begin{frame}{5b. Partial-FFT combining}
 
   \small
   \setlength{\abovedisplayskip}{0.35em}
@@ -602,10 +598,10 @@
       {desired\\[-1pt] $d_k\vc_{k,k}$};
     \node[draw=rpcred,fill=redbg,line width=0.8pt,
           minimum width=2.3cm,minimum height=0.55cm,align=center] (leak1) at (-5.2,0.05)
-      {Doppler leak\\[-1pt] $d_{k-1}\vc_{k-1,k}$};
+      {Doppler ICI\\[-1pt] $d_{k-1}\vc_{k-1,k}$};
     \node[draw=rpcred,fill=redbg,line width=0.8pt,
           minimum width=2.3cm,minimum height=0.55cm,align=center] (leak2) at (-5.2,-0.80)
-      {Doppler leak\\[-1pt] $d_{k+1}\vc_{k+1,k}$};
+      {Doppler ICI\\[-1pt] $d_{k+1}\vc_{k+1,k}$};
 
     \node[draw=ink,fill=paper,circle,line width=0.6pt,
           inner sep=0pt,minimum size=0.65cm] (sum) at (-3.25,0.05) {$+$};
@@ -613,10 +609,10 @@
     \draw[flowarr] (leak1.east) -- (sum);
     \draw[flowarr] (leak2.east) -- (sum);
 
-    % Branch-space box
+    % Partial-FFT-view-space box
     \node[draw=ink,fill=paper,line width=0.6pt,
           minimum width=4.2cm,minimum height=2.75cm] (spacebox) at (-0.55,0.05) {};
-    \node[font=\bfseries] at (-0.55,1.75) {branch space};
+    \node[font=\bfseries] at (-0.55,1.75) {partial-FFT observations};
     \draw[flowarr] (sum.east) -- (spacebox.west);
 
     \begin{scope}[shift={(-0.55,0.00)}]
@@ -639,7 +635,7 @@
         node[pos=0.85,right] {$\vW_k$};
 
       \node[font=\scriptsize\itshape\color{inkgray},align=center] at (0.55,-0.70)
-        {different branch\\patterns};
+        {different patterns\\across the views};
     \end{scope}
 
     % Projection and output
@@ -666,14 +662,13 @@
 % =====================================================================
 %  Slide 7: Normal Equations and RLS
 % =====================================================================
-\begin{frame}{6. Normal Equations and RLS}
+\begin{frame}{6. Normal equations}
 
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.50\textwidth}
       \begin{itemize}\setlength{\itemsep}{0.35em}
-        \item For nearby pilots $\mathcal P(k)$, choose $\vW_k$ so that
-              $\vW_k^{\herm}\vY_p$ matches the known pilot $X_p$.
-        \item Stack pilot branch vectors as rows:
+        \item Choose $\vW_k$ so $\vW_k^{\herm}\vY_p$ matches the known pilot $X_p$
+        \item Stack pilot observation vectors as rows:
       \end{itemize}
       \vspace{-0.5em}
       \[
@@ -719,33 +714,33 @@
       \node[draw=ink,line width=0.6pt,fill=paper,
             minimum width=13.8cm,minimum height=1.0cm,
             align=center,inner sep=6pt]
-        {RLS is the sequential form: as pilot rows arrive, update
-         $\bm P_t\approx\bm R_t^{-1}$,\\ then update
-         $\vW_{k,t}=\vW_{k,t-1}+\bm g_t e_t^*$ instead of rebuilding the batch inverse.};
+        {Recursive least squares (RLS) is the sequential form.\\
+         As pilot rows arrive, update $\bm P_t\approx\bm R_t^{-1}$, then
+         $\vW_{k,t}=\vW_{k,t-1}+\bm g_t e_t^*$, instead of rebuilding the batch inverse.};
     \end{tikzpicture}
   \end{center}
 
 \end{frame}
 
 % =====================================================================
-%  Slide 7: Lifting Partial-FFT to a Branch-Domain Model
+%  Slide 7: From the combiner to the branch model
 % =====================================================================
-\begin{frame}{7. From RPC's Combiner to JUNA's Branch Model}
+\begin{frame}{7. Scalar or vector}
 
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.52\textwidth}
-      \textbf{\color{rpcred}RPC view.} Squash $\vY_k$ to one number, then decode:
+      \textbf{\color{rpcred}Partial-FFT combining.} Compress $\vY_k$ to one number, then decode:
       \[
         \hX_k \;=\; \vW_k^{\herm}\,\vY_k .
       \]
-      Pilots train $\vW_k$; branch structure is discarded.
+      Pilots train $\vW_k$; information across the views is discarded.
 
       \vspace{0.3em}
       \textbf{\color{junagreen}JUNA view.} Keep the $M$-vector and ask which symbols \emph{generated} it:
       \[
         \vY_k \;=\; \sum_{q\in\Bk}\vc_{k,q}\,s_q \;+\; \vn_k .
       \]
-      Each $\vc_{k,q}\!\in\!\Cx^{M}$ is the leakage profile from $q$ into the $M$ branches.
+      Each $\vc_{k,q}\!\in\!\Cx^{M}$ is the ICI profile from $q$ across the $M$ partial-FFT views.
     \end{column}
 
     \begin{column}{0.47\textwidth}
@@ -769,24 +764,25 @@
   \end{columns}
 
   \begin{center}
-    {\itshape\small RPC compresses $\vY_k$ before the code is used.\;
-     JUNA models $\vY_k$ as a sum of nearby symbols times branch-domain profiles.}
+    {\itshape\small Partial-FFT combining compresses $\vY_k$ before the code is used.\;
+     JUNA models $\vY_k$ as a sum of nearby symbols times profiles across the partial-FFT views.}
   \end{center}
 \end{frame}
 
 % =====================================================================
 %  Slide 8: Where the Off-Diagonal Coefficients Come From
 % =====================================================================
-\begin{frame}{8. Where the Off-Diagonal $\vc_{k,q}$ Come From}
+\begin{frame}{8. Off-diagonal coefficients}
 
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.44\textwidth}
       \begin{itemize}\setlength{\itemsep}{0.22em}
-        \item Static: branches at $k$ depend on $X_k$ only $\Rightarrow$ only $\vc_{k,k}$ nonzero.
-        \item Doppler makes $H_i(t)$ \emph{vary inside} every short window; each neighbor $q$ leaks into branch $m$ with its own weight.
-        \item Stack across $M$ branches $\Rightarrow$ vector $\vc_{k,q}\in\Cx^{M}$.
-        \item Leakage decays with $|k-q|$; keep $|k-q|\le K_{\rm ICI}$ $\Rightarrow$ \textbf{banded}.
-        \item These are the ICI terms RPC tries to cancel; JUNA \emph{models} them.
+        \item Static: only $\vc_{k,k}$ nonzero
+        \item Doppler makes $H_i(t)$ \emph{vary inside} every window
+        \item Each neighbor $q$ contributes ICI to partial-FFT view $m$
+        \item Stack across $M$ partial-FFT views $\Rightarrow$ $\vc_{k,q}\in\Cx^{M}$
+        \item ICI coefficients decay with $|k-q|$ $\Rightarrow$ \textbf{banded}
+        \item Partial-FFT combining cancels these terms; JUNA \emph{models} them
       \end{itemize}
     \end{column}
 
@@ -827,7 +823,7 @@
 % =====================================================================
 %  Slide 9: The Banded Mixing Matrix Picture
 % =====================================================================
-\begin{frame}{9. The Banded Mixing Matrix: $\vY=\vC\,\vs+\vn$}
+\begin{frame}{9. The mixing matrix}
 
   Stack carriers: $\vY=[\vY_1;\dots;\vY_K]\in\Cx^{MK}$, \ $\vs=[s_1;\dots;s_K]\in\Cx^{K}$.
   Each block-row of $\vC$ is the mixing rule for one $\vY_k$; each shaded cell is itself an $M\!\times\!1$ vector.
@@ -874,7 +870,7 @@
       {$\underbrace{\vY}_{MK\times 1}\;=\;\underbrace{\vC}_{\substack{MK\times K\\\text{banded}}}\;\underbrace{\vs}_{K\times 1}\;+\;\vn$};
 
     \node[anchor=west,font=\scriptsize\itshape\color{inkgray},align=left] at (8.7,-4.3)
-      {bandwidth $K_{\rm ICI}\!=\!1$\\(only nearest neighbors leak)};
+      {bandwidth $K_{\rm ICI}\!=\!1$\\(ICI from only nearest neighbors)};
     \node[anchor=west,font=\scriptsize\itshape\color{inkgray},align=left] at (8.7,-5.6)
       {a fully dense $\vC$ would have\\$M\!\cdot\!K^2$ unknowns;\\banded has $\!\sim\! M\!\cdot\!(2K_{\rm ICI}\!+\!1)\!\cdot\!K$};
   \end{tikzpicture}
@@ -890,7 +886,7 @@
 % =====================================================================
 %  Slide 10: Why Pilots Help
 % =====================================================================
-\begin{frame}{10. Why Pilots Help}
+\begin{frame}{10. Pilots}
 
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.50\textwidth}
@@ -910,7 +906,7 @@
       A pilot inside row $k$'s band gives one identified $\vc_{k,p}$ and shrinks the search space for neighboring data unknowns.
 
       \vspace{0.2em}
-      Pilots also let RPC train $\vW_p^{\herm}\vY_p\!\approx\!P_p$, giving JUNA a meaningful warm start.
+      Pilots also train $\vW_p^{\herm}\vY_p\!\approx\!P_p$, giving JUNA a meaningful warm start.
     \end{column}
 
     \begin{column}{0.49\textwidth}
@@ -958,7 +954,7 @@
 %  Slide 11: The JUNA Objective
 % =====================================================================
 \begin{frame}{11. The JUNA Objective}
-\framesubtitle{one cost over $(\vC,\vW,\vz)$ --- five jobs in one place}
+\framesubtitle{one cost over $(\vC,\vW,\vz)$ --- six jobs in one place}
 
   \vspace{-0.25em}
   \[
@@ -974,7 +970,7 @@
   \mathcal L(\vC,\vW,\vz)
   &=
   \underbrace{\lambda_d\sum_{k\in\mathcal K}
-    \big\|\vY_k-\sum_{q\in\Bk}\vc_{k,q}s_q(\vz)\big\|_{\Sigma_k^{-1}}^2}_{\textstyle\textcolor{rpcred}{\text{(A) branch-model fit}}}
+    \big\|\vY_k-\sum_{q\in\Bk}\vc_{k,q}s_q(\vz)\big\|_{\Sigma_k^{-1}}^2}_{\textstyle\textcolor{rpcred}{\text{(A) observation fit}}}
   \;+\;
   \underbrace{\eta\sum_{p\in\mathcal P}\big|\vW_p^{\herm}\vY_p-P_p\big|^2}_{\textstyle\textcolor{boxblue}{\text{(B) pilot anchor}}}
   \;+\;
@@ -993,7 +989,7 @@
   \vspace{-0.2em}
   \begin{center}
   \begin{tikzpicture}[x=1cm,y=1cm,font=\scriptsize]
-    \node[draw=rpcred,fill=redbg,line width=0.7pt,minimum width=2.4cm,minimum height=0.55cm,align=center,font=\scriptsize\bfseries] at (-6.0,0) {(A) branch fit};
+    \node[draw=rpcred,fill=redbg,line width=0.7pt,minimum width=2.4cm,minimum height=0.55cm,align=center,font=\scriptsize\bfseries] at (-6.0,0) {(A) observation fit};
     \node[draw=boxblue,fill=blubg,line width=0.7pt,minimum width=2.0cm,minimum height=0.55cm,align=center,font=\scriptsize\bfseries] at (-3.6,0) {(B) pilot};
     \node[draw=boxblue,fill=blubg,line width=0.7pt,minimum width=2.4cm,minimum height=0.55cm,align=center,font=\scriptsize\bfseries] at (-1.2,0) {(C) combiner tie};
     \node[draw=ink,fill=paper,line width=0.6pt,minimum width=1.5cm,minimum height=0.55cm,align=center,font=\scriptsize\bfseries] at ( 1.0,0) {(D) ridge};
@@ -1003,14 +999,14 @@
   \end{center}
 
   \begin{center}
-    {\itshape\small Three unknowns $(\vC,\vW,\vz)$, six terms; pilots, code, and branch model regularize one another.}
+    {\itshape\small Three unknowns $(\vC,\vW,\vz)$, six terms; pilots, code, and the partial-FFT observation model regularize one another.}
   \end{center}
 \end{frame}
 
 % =====================================================================
 %  Slide 12: What Each Term Buys + Relation to RPC
 % =====================================================================
-\begin{frame}{12. What Each Term Buys You}
+\begin{frame}{12. The six terms}
 
   \renewcommand{\arraystretch}{1.20}
   \arrayrulecolor{ink}
@@ -1025,13 +1021,13 @@
       & \multicolumn{1}{c|}{\bfseries What it forces}
       & \multicolumn{1}{c|}{\bfseries Why you need it} \\
     \hline
-    \textcolor{rpcred}{(A) branch fit}
+    \textcolor{rpcred}{(A) observation fit}
       & $\vY_k\!\approx\!\sum_q\vc_{k,q}s_q(\vz)$ on \emph{every} carrier
       & Uses all $K$ block rows of $\vC$, not just pilot rows. Couples $\vC$ to $\vz$ so reliable data symbols become ``soft pilots''. \\
     \hline
     \textcolor{boxblue}{(B) pilot anchor}
       & $\vW_p^{\herm}\vY_p\!\approx\!P_p$
-      & The classical RPC training cost. Pins $\vW_p$ to known targets, and (via the bilinear coupling) helps identify $\vc_{k,p}$. \\
+      & The classical Partial-FFT training cost. Pins $\vW_p$ to known targets, and (via the bilinear coupling) helps identify $\vc_{k,p}$. \\
     \hline
     \textcolor{boxblue}{(C) combiner tie}
       & $\vW_k^{\herm}\vY_k\!\approx\!s_k(\vz)$ on data carriers
@@ -1039,7 +1035,7 @@
     \hline
     \textcolor{ink}{(D) ridge}
       & $\|\vC\|_F^2$, $\|\vW_k\|_2^2$ small
-      & Stabilises ill-conditioned inverses (sparse pilots, banded but high-dimensional $\vC$). \\
+      & Stabilizes ill-conditioned inverses (sparse pilots, banded but high-dimensional $\vC$). \\
     \hline
     \textcolor{ink}{(E) smoothness}
       & $\vW_{k+1}\!\approx\!\vW_k$
@@ -1047,7 +1043,7 @@
     \hline
     \textcolor{junagreen}{(F) parity}
       & $\prod_{i\in\mathcal N_j}\!\xi_i(\vz)\!\to\!+1$
-      & Lets the LDPC code shape the front end --- not only the post-detector. Where pilots run out, parity provides anchoring. \\
+      & Lets the low-density parity-check (LDPC) code shape the front end --- not only the post-detector. Where pilots run out, parity provides anchoring. \\
     \hline
   \end{tabular}
   \end{center}
@@ -1056,8 +1052,8 @@
   \begin{center}
     \begin{tikzpicture}
       \node[draw=ink,fill=paper,line width=0.6pt,minimum width=14cm,minimum height=0.95cm,align=center,inner sep=5pt]
-        {Drop (A), (C), (E), (F): the $\vW_k$ update collapses to RPC's pilot-trained ridge/RLS system.\\
-         JUNA $=$ RPC \emph{plus} branch model, soft-symbol coupling, smoothness, and code.};
+        {Drop (A), (C), (E), (F): the $\vW_k$ update collapses to the pilot-trained ridge/RLS system.\\
+         JUNA $=$ Partial-FFT combining \emph{plus} the partial-FFT observation model, soft-symbol coupling, smoothness, and code.};
     \end{tikzpicture}
   \end{center}
 \end{frame}
@@ -1071,7 +1067,7 @@
   \begin{center}
   \begin{tikzpicture}[x=1cm,y=1cm,scale=0.82,every node/.style={transform shape}]
     \node[flowbox,minimum width=2.0cm] (obs) at (-6.3,0) {partial-FFT\\observations};
-    \node[flowbox,minimum width=1.8cm] (init) at (-3.8,0) {RPC\\init};
+    \node[flowbox,minimum width=1.8cm] (init) at (-3.8,0) {Partial-FFT\\init};
     \node[flowbox,minimum width=1.9cm] (cw) at (-1.2,0) {update\\$\vC,\vW$};
     \node[flowbox,minimum width=1.7cm] (z) at (1.2,0) {update\\$\vz$};
     \node[flowbox,minimum width=1.8cm] (par) at (3.5,0) {parity\\check};
@@ -1091,7 +1087,7 @@
   \begin{columns}[T,onlytextwidth]
     \begin{column}{0.49\textwidth}
       \begin{itemize}\setlength{\itemsep}{0.35em}
-        \item Fixed $\vz$: update $\vC$ by ridge least squares on the branch model.
+        \item Fixed $\vz$: update $\vC$ by ridge least squares on the partial-FFT observation model.
         \item Fixed $(\vC,\vz)$: update each $\vW_k$ by ridge least squares,
               plus smoothness if used.
       \end{itemize}
@@ -1109,7 +1105,7 @@
 % =====================================================================
 %  Slide 12: Key Difference at a Glance
 % =====================================================================
-\begin{frame}{14. Key Difference at a Glance}
+\begin{frame}{14. Comparison}
 
   \vspace{0.3em}
   \renewcommand{\arraystretch}{1.35}
@@ -1122,19 +1118,19 @@
     \hline
     \rowcolor{headerbg}
     \multicolumn{1}{|c|}{\bfseries Aspect}
-      & \multicolumn{1}{c|}{\bfseries\color{rpcred} RPC}
+      & \multicolumn{1}{c|}{\bfseries\color{rpcred} Partial-FFT}
       & \multicolumn{1}{c|}{\bfseries\color{junagreen} JUNA} \\
     \hline
     Model in use
       & Section II partial-FFT scalar combiner
-      & Local vector model in partial-FFT (branch-domain) \\
+      & Local vector model in the partial-FFT domain \\
     \hline
     What is estimated
       & Combining weights $\vW_k$
       & $\vc_{k,q}$ (for $q\in\Bk$),\ $\vW_k$,\ and $\vz_k$ \\
     \hline
     Code use
-      & External to RPC; after scalarization
+      & External to Partial-FFT combining; after scalarization
       & During estimation (coupled) \\
     \hline
     Information used
@@ -1142,8 +1138,8 @@
       & Full vector observations and their structure \\
     \hline
     Effect
-      & Possible information loss
-      & Exploits local ICI and code constraints jointly \\
+      & Information loss under residual Doppler
+      & Uses local ICI and code constraints jointly \\
     \hline
   \end{tabular}
   \end{center}
@@ -1153,11 +1149,11 @@
 % =====================================================================
 %  Slide 13: Why Does This Matter?
 % =====================================================================
-\begin{frame}{15. Why Does This Matter?}
+\begin{frame}{15. Data processing inequality}
 \framesubtitle{(Information-Theoretic View)}
 
   \begin{itemize}\setlength{\itemsep}{0.25em}
-    \item RPC forms $\hX = g(\vY)$ using Section II partial-FFT combining, then decodes.
+    \item Partial-FFT combining forms $\hX = g(\vY)$, then decodes
     \item This induces the Markov chain:
   \end{itemize}
 
@@ -1206,7 +1202,7 @@
 % =====================================================================
 %  Slide 14: Information Flow Illustration
 % =====================================================================
-\begin{frame}{16. Information Flow Illustration}
+\begin{frame}{16. Information flow}
 
   \vspace{0.2em}
   \begin{center}
@@ -1216,7 +1212,7 @@
           minimum width=15.5cm,minimum height=2.8cm,
           rounded corners=2pt] (rpc) at (0,0) {};
     \node[font=\itshape\bfseries\color{rpcred},anchor=north]
-      at ($(rpc.north)+(0,-0.2)$) {RPC (Section II Scalarization Before Decoding)};
+      at ($(rpc.north)+(0,-0.2)$) {Partial-FFT Combining (Section II Scalarization Before Decoding)};
 
     \node[anchor=center] (Y1) at (-6.6,-0.15) {$\vY$};
     \node[anchor=north,font=\footnotesize\itshape\color{inkgray}] at (Y1.south) {(vector)};
@@ -1242,7 +1238,7 @@
     \draw[dashed,color=rpcred,line width=0.6pt]
       (-2.5,-0.95) -- (1.0,-0.95);
     \node[font=\scriptsize\itshape\color{rpcred}] at (-0.7,-1.15)
-      {Branch structure no longer visible to decoder};
+      {Information across the views is no longer visible to decoder};
 
     % ----- JUNA outer container (green) -----
     \node[draw=junagreen,fill=parchment,line width=1.2pt,
@@ -1257,7 +1253,7 @@
     \node[draw=junagreen,fill=paper,line width=0.8pt,
           minimum width=9cm,minimum height=1.3cm,align=center] (jbox) at (-0.5,-3.2)
       {\textbf{Joint Inference over $\vC$, $\vW$, $\vz$}\\
-       {\footnotesize\itshape\color{inkgray}(branch model + pilots + LDPC)}};
+       {\footnotesize\itshape\color{inkgray}(partial-FFT observation model + pilots + LDPC)}};
 
     \node[anchor=center] (bh2) at (4.9,-3.15) {$\hb$};
 
@@ -1279,14 +1275,12 @@
 \begin{frame}{17. Takeaway}
 
   \begin{itemize}\setlength{\itemsep}{0.35em}
-    \item RPC is the Section II idea: split one OFDM symbol into partial-FFT
-          branches, then combine them with $\vW_k$.
-    \item It helps Doppler because each short interval is closer to
-          time-invariant, and weighted combining reduces ICI before scalar detection.
-    \item JUNA asks what local branch-domain model explains the observations
-          using nearby coded symbols.
-    \item Scalar combining may hide branch structure; JUNA keeps it and couples
-          it with LDPC constraints, allowing reliable symbols to act as soft pilots.
+    \item Partial-FFT combining splits the symbol, then combines with $\vW_k$
+    \item Short intervals are closer to time-invariant
+    \item Weighted combining reduces ICI before scalar detection
+    \item JUNA models which nearby symbols explain the observations
+    \item While scalar combining reduces ICI, it hides information across the partial-FFT views
+    \item JUNA keeps that structure and couples it with the code
   \end{itemize}
 
   \vfill

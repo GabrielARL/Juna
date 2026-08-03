@@ -63,7 +63,7 @@
 \maketitle
 
 \begin{abstract}
-This document specifies how to implement the SC-JUNA bit-latent update without relying on automatic differentiation.  The core decision is simple: use closed-form least-squares updates for the branch model and combiner, and use a hand-derived real gradient for the latent vector $\bm z\in\R^{n_b}$.  Automatic differentiation may be used only as a test-time gradient checker.  Production code should use the formulas in this document.
+This document specifies how to implement the SC-JUNA bit-latent update without relying on automatic differentiation.  Closed-form least-squares updates serve the partial-FFT observation model and the combiner, and a hand-derived real gradient serves the latent vector.  Automatic differentiation may be used only as a test-time gradient checker.  The planned SC-JUNA code should use the formulas in this document.
 \end{abstract}
 
 \tableofcontents
@@ -80,13 +80,13 @@ The implementation should \emph{not} require automatic differentiation for the m
 The only nontrivial gradient is the gradient with respect to the real bit-latent vector $\bm z$.  That gradient is short, stable, and easy to unit-test by finite differences.
 
 \paragraph{Production rule.}
-Use the hand-derived gradient in Section~\ref{sec:z-gradient}.  Do not use complex automatic differentiation inside the production solver.
+Use the hand-derived gradient in Section~\ref{sec:z-gradient}.  Do not use complex automatic differentiation (AD) inside the production solver.
 
 \paragraph{Testing rule.}
 Use central finite differences as the required gradient check.  AD may be used as an optional secondary check, but the finite-difference test is the authoritative test.
 
 \paragraph{Reason.}
-The $\bm z$ variables are real.  The observation residuals are complex.  Several Julia AD packages handle complex-valued intermediate computations differently.  A manual real gradient avoids package-specific complex-AD conventions and makes the implementation deterministic.
+The $\bm z$ variables are real, while the observation residuals are complex.  Although AD removes the need to derive gradients by hand, several Julia packages handle complex-valued intermediate computations differently.  A manual real gradient avoids package-specific complex-AD conventions and makes the implementation deterministic.
 
 \section{Version-1 restrictions}
 
@@ -100,7 +100,7 @@ To keep the implementation deterministic, version 1 uses the following restricti
 Item & Value & Reason \\
 \midrule
 Noise weight & $\Sigma_k^{-1}=\sigma^{-2}I_M$ & Gives simple closed-form $\mathbf C$ update and simple gradients. \\
-Partial-FFT windows & nested rectangular only & Guarantees partition-of-unity and supports branch merging. \\
+Partial-FFT windows & nested rectangular only & Guarantees partition-of-unity and allows adjacent partial-FFT views to be merged. \\
 Latents & real $z_i\in\R$ only & Avoids complex AD and makes parity penalty simple. \\
 Symbol map & relaxed QPSK, $s=(\xi_I+\jj\xi_Q)/\sqrt2$ & Smooth map from bits to complex symbols. \\
 Neighborhood edge handling & skip invalid neighbors & No wraparound at band edges. \\
@@ -126,7 +126,7 @@ Quantity & Julia shape & Meaning \\
 \endhead
 \bottomrule
 \endfoot
-\texttt{Ypartial} & \texttt{N x M} & $Y_{k,m}$, partial-FFT branch observation for carrier $k$ and branch $m$. \\
+\texttt{Ypartial} & \texttt{N x M} & $Y_{k,m}$, partial-FFT view for carrier $k$ and view $m$. \\
 \texttt{W} & \texttt{N x M} & $W[k,m]=w_{k,m}$.  Scalar output is $a_k=\mathbf w_k^H\mathbf Y_k$. \\
 \texttt{C} & \texttt{N x (2K+1) x M} & $C[k,o,m]=c_{k,q,m}$ with $o=q-k+K+1$. \\
 \texttt{z} & \texttt{nbits} & Real bit latents. \\
@@ -138,7 +138,7 @@ Quantity & Julia shape & Meaning \\
 \texttt{bit\_to\_axis} & \texttt{nbits} & Either \texttt{:I} or \texttt{:Q}. \\
 \end{longtable}
 
-\subsection{Branch-model indexing}
+\subsection{Local ICI indexing}
 
 The local ICI neighborhood of carrier $k$ is
 \begin{equation}
@@ -165,6 +165,13 @@ end
 \end{lstlisting}
 
 \section{Latent bits and relaxed symbols}
+
+The formulas in this section define $z_i$ as the bit latent for the planned
+SC-JUNA update.  The current frame-wide JUNA-Wz path calls $z_i$ a logit and
+maps it with $\tanh(z_i/2)$ in
+\texttt{src/juna/frame\_wide\_ldpc.jl}.  Its chain rule therefore carries the
+factor $1/2$.  These are different code paths; the formulas below apply only
+to the bit-latent update specified here.
 
 The relaxed bipolar bit is
 \begin{equation}
@@ -244,7 +251,7 @@ Here $N_{\rm act}=|\mathcal K_{\rm act}|$, $N_D=|\mathcal D|$, and $N_C$ is the 
 \toprule
 Parameter & Default & Meaning \\
 \midrule
-$\lambda_d$ & $1.0$ & branch observation consistency \\
+$\lambda_d$ & $1.0$ & partial-FFT observation consistency \\
 $\rho_{\max}$ & $0.25$ & combiner-symbol tie strength \\
 $\lambda_{p,\max}$ & $0.05$ & LDPC parity penalty strength \\
 $T_\rho$ & $8$ outer iterations & tie-term ramp time \\
@@ -867,7 +874,7 @@ Do not expose complex parameters as AD variables in the first implementation.  K
 
 \begin{enumerate}[label=\textbf{Step \arabic*.},leftmargin=*]
 \item Implement array-layout helpers: neighbor loops, offset mapping, carrier-bit map, and axis lookup.
-\item Implement forward pass: $\bm z\mapsto\bm\xi\mapsto\mathbf s$, combiner outputs, branch residuals.
+\item Implement forward pass: $\bm z\mapsto\bm\xi\mapsto\mathbf s$, combiner outputs, and partial-FFT observation residuals.
 \item Implement scalar loss terms: observation loss, tie loss, parity loss, optional differential loss.
 \item Implement manual gradient components: observation, tie, parity, optional differential.
 \item Implement finite-difference tests for each component.
@@ -890,7 +897,7 @@ The implementation is not acceptable until the following pass:
 \item Observation-only gradient finite-difference test passes.
 \item Parity-only gradient finite-difference test passes.
 \item Full $z$ gradient finite-difference test passes on ten random directions.
-\item $\mathbf C$ update reduces branch observation residual in a deterministic toy case.
+\item $\mathbf C$ update reduces the partial-FFT observation residual in a deterministic toy case.
 \item $\mathbf W$ update reduces pilot residual in a deterministic toy case.
 \item Fixed JUNA runs without AD and produces finite loss values for all iterations.
 \item LLR clipping and erasure do not produce NaN or Inf.
@@ -898,7 +905,7 @@ The implementation is not acceptable until the following pass:
 
 \section{Summary}
 
-The hand-derived gradient is straightforward because all optimized bit variables are real.  The complex channel and branch quantities remain fixed during the $\bm z$ update, so the gradient only requires real derivatives through the relaxed QPSK map and the LDPC parity products.  The recommended implementation is:
+The hand-derived gradient is short because all optimized bit variables are real.  The complex quantities $\mathbf C$ and $\mathbf W$ remain fixed during the $\bm z$ update, so the gradient only requires real derivatives through the relaxed QPSK map and the LDPC parity products.  The recommended implementation is
 \begin{equation}
 \boxed{
 \text{closed-form }\mathbf C
@@ -906,6 +913,6 @@ The hand-derived gradient is straightforward because all optimized bit variables
 +\text{ manual }\nabla_z
 +\text{ finite-difference gradient checks}.}
 \end{equation}
-AD can be useful for experimentation, but it should not be the production dependency for the SC-JUNA solver.
+While AD is useful for experimentation, it should not be the production dependency for the SC-JUNA solver.
 
 \end{document}
