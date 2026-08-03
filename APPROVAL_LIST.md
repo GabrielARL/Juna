@@ -161,7 +161,7 @@ have been verified.
 ## Claude decisions
 
 Claude's identifiers use the `CL` prefix so two agents cannot allocate the
-same one. Next free Claude identifier: **CL-18**.
+same one. Next free Claude identifier: **CL-21**.
 
 | ID | State | Decision. |
 |---|---|---|
@@ -182,3 +182,6 @@ same one. Next free Claude identifier: **CL-18**.
 | CL-15 | approved | Same answer. Code names: `_seed_candidate` → `_initial_candidate`; `seed_equalized`, `juna_seed`, `seed_fit`, `seed_metrics` and bare receiver-sense locals renamed mechanically with the CL-13 word. Behavior untouched; parity pins outputs, not names. |
 | CL-16 | approved | Same answer. Applied: a full classification found 20 receiver-sense `joe.tex` uses, not the 4 first cited; all 20 adopt `initial candidate` and the 6 RNG uses stay. Two sites took an approved word other than the CL-13 term: `seed symbols X_anchor` became `anchor symbols X_anchor` (JCM-036) and `Train/apply the pilot-only Partial-FFT RLS seed` became `... RLS combiner` (JCM-031); revert on request. |
 | CL-17 | approved | Same answer. Internal ids: stage id `seed` becomes `initial-candidate` in `chain.json`, `receiver_catalog.jl`, `receivers.json`, contract queries, and links; the stage kind value `seed` becomes `initial`. |
+| CL-18 | open | `test/source_file_check.jl:21-23` comments cite "CL-1/2/3" from an earlier unrecorded sequence (the rpchan removal); those numbers now name different decisions in this register. Options: reletter the old comment refs, or record the collision here and leave the comments. |
+| CL-19 | open | The user asked Claude to merge his and Codex's branches. JCM-025 and Codex's JCM-081 record merges into `human/merge-review`/`main` as human-only. Claude pushed all branches without merging. Options: (a) the user merges, with Claude's conflict map as the guide; (b) the user reaffirms an agent-performed merge, superseding JCM-025/JCM-081 for this merge only. |
+| CL-20 | open | JCM-057 through JCM-060 are double-allocated: Codex's committed register (52f99b6) and this register assign the same four IDs to different approved decisions. Options: (a) this register re-records its four under fresh IDs with supersession notes, keeping Codex's committed numbering; (b) the user rules otherwise. |
