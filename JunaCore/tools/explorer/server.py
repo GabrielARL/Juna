@@ -624,6 +624,80 @@ class Run:
 RUNS = {}
 RUNS_LOCK = threading.Lock()
 
+
+class SuiteBattery:
+    """Runs every registered test one at a time, reusing the single-test Run so
+    each one still streams to its own page and records its own
+    bench/test_runs.jsonl entry. Sequential because two Julia test processes on
+    one machine distort each other's timings and can exhaust memory."""
+
+    def __init__(self, suites):
+        self.queue = [(s["key"], s["file"]) for s in suites]
+        self.done = []
+        self.current = None
+        self.status = "running"
+        threading.Thread(target=self._work, daemon=True).start()
+
+    def _work(self):
+        for key, file in self.queue:
+            if self.status == "cancelled":
+                break
+            self.current = key
+            with RUNS_LOCK:
+                running = RUNS.get(key)
+                if running is not None and running.status == "running":
+                    running.cancel()
+                RUNS[key] = Run(key, file)
+                run = RUNS[key]
+            while run.status == "running":
+                time.sleep(0.4)
+            self.done.append(key)
+        self.current = None
+        if self.status != "cancelled":
+            self.status = "finished"
+
+    def cancel(self):
+        self.status = "cancelled"
+        key = self.current
+        if key is None:
+            return
+        with RUNS_LOCK:
+            run = RUNS.get(key)
+        if run is not None:
+            run.cancel()
+
+
+BATTERY = {"run": None}
+BATTERY_LOCK = threading.Lock()
+
+
+def suite_run_status():
+    """Per-test state for the Tests page: a live process outranks history, so a
+    test that is running now reports running rather than its previous result."""
+    last = last_run_by_key()
+    with RUNS_LOCK:
+        live = {key: run.status for key, run in RUNS.items()}
+    rows = {}
+    for suite in SUITES_CACHE.get():
+        key = suite["key"]
+        if live.get(key) == "running":
+            rows[key] = {"status": "running", "seconds": None}
+            continue
+        rec = last.get(key)
+        seconds = None
+        if rec and rec.get("ended") and rec.get("started"):
+            seconds = round(rec["ended"] - rec["started"], 1)
+        rows[key] = {"status": rec.get("status") if rec else "not run",
+                     "seconds": seconds}
+    battery = BATTERY["run"]
+    return {"suites": rows,
+            "battery": {
+                "status": battery.status if battery else "idle",
+                "current": battery.current if battery else None,
+                "done": len(battery.done) if battery else 0,
+                "total": len(battery.queue) if battery else 0}}
+
+
 # --------------------------------------------------------------- health layer
 
 HEALTH_CHECKS = [
@@ -782,6 +856,9 @@ pre { background:var(--card); border:1px solid var(--line); border-radius:8px;
 a { color:var(--accent); }
 .badge { display:inline-block; padding:.05rem .5rem; border-radius:99px;
          font-size:.78rem; border:1px solid var(--line); color:var(--muted); }
+.runall-bar { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap;
+              margin:0 0 .75rem; }
+.runall-bar #runall-note { color:var(--muted); font-size:.9rem; }
 .badge.ok { color:var(--ok); border-color:var(--ok); }
 .badge.bad { color:var(--bad); border-color:var(--bad); }
 .badge.warn { color:var(--warn); border-color:var(--warn); }
@@ -993,11 +1070,70 @@ on this page come only from tests started in the Explorer. Open
 <b>Technical details</b> for the method, origin, internal key, test file,
 source view, and associated receiver steps.</div>
 {stale_banner()}
+<div class="runall-bar">
+  <button id="runall">Run all tests</button>
+  <span id="runall-note">Tests run one at a time. Each result turns green when
+  it passes, red when it fails, and orange while it is running. Closing this
+  page does not stop them.</span>
+</div>
 <div class="wrap"><table class="tests-table">
 <tr><th>Test</th><th>What it checks</th>
 <th class="run-status">Most recent Explorer run</th>
 <th class="run-action">Action</th></tr>
-{rows}</table></div>"""
+{rows}</table></div>
+<script>
+const RUNALL = document.getElementById('runall');
+const NOTE = document.getElementById('runall-note');
+const IDLE_NOTE = NOTE.textContent;
+const BADGE = {{passed: 'ok', failed: 'bad', cancelled: 'warn',
+                running: 'warn'}};
+let polling = null;
+
+function paint(data) {{
+  for (const [key, row] of Object.entries(data.suites)) {{
+    const tr = document.getElementById(key);
+    if (!tr) continue;
+    const cell = tr.querySelector('.run-status');
+    if (!cell) continue;
+    const cls = BADGE[row.status] || '';
+    const secs = row.seconds ? ' ' + row.seconds + 's' : '';
+    cell.innerHTML = '<span class="badge ' + cls + '">' + row.status +
+      secs + '</span>';
+  }}
+  const b = data.battery;
+  if (b.status === 'running') {{
+    RUNALL.textContent = 'Stop';
+    NOTE.textContent = b.done + ' of ' + b.total + ' finished' +
+      (b.current ? ', now running ' + b.current : '');
+  }} else {{
+    RUNALL.textContent = 'Run all tests';
+    NOTE.textContent = b.status === 'finished' ?
+      'All ' + b.total + ' tests finished. Every result above is from this run.'
+      : b.status === 'cancelled' ?
+      'Stopped. Results above are from the tests that had already run.'
+      : IDLE_NOTE;
+  }}
+  return b.status === 'running';
+}}
+
+function poll() {{
+  fetch('/api/tests/status').then(r => r.json()).then(env => {{
+    const busy = paint(env.data || env);
+    if (!busy && polling) {{ clearInterval(polling); polling = null; }}
+  }});
+}}
+
+RUNALL.addEventListener('click', () => {{
+  const stopping = RUNALL.textContent === 'Stop';
+  fetch(stopping ? '/api/tests/stop-all' : '/api/tests/run-all',
+        {{method: 'POST'}}).then(() => {{
+    poll();
+    if (!polling) polling = setInterval(poll, 1500);
+  }});
+}});
+
+poll();
+</script>"""
     return shell("Tests", "/tests", body)
 
 
@@ -1563,6 +1699,8 @@ class Handler(BaseHTTPRequestHandler):
             return envelope(COVERAGE_CACHE.get())
         if path == "/api/runs":
             return envelope(run_history())
+        if path == "/api/tests/status":
+            return envelope(suite_run_status())
         if path == "/api/health":
             return envelope(health_data())
         if path == "/api/palette":
@@ -1705,6 +1843,19 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send('{"error": "a check is running"}', 409,
                                       "application/json")
                 HEALTH["run"] = HealthRun(names)
+            return self._send('{"started": true}', 200, "application/json")
+        if self.path in ("/api/tests/run-all", "/api/tests/stop-all"):
+            with BATTERY_LOCK:
+                battery = BATTERY["run"]
+                busy = battery is not None and battery.status == "running"
+                if self.path.endswith("stop-all"):
+                    if busy:
+                        battery.cancel()
+                elif busy:
+                    return self._send('{"error": "tests are already running"}',
+                                      409, "application/json")
+                else:
+                    BATTERY["run"] = SuiteBattery(SUITES_CACHE.get())
             return self._send('{"started": true}', 200, "application/json")
         m = re.fullmatch(r"/run/([a-z0-9-]+)/(start|cancel)", self.path)
         if not m:
