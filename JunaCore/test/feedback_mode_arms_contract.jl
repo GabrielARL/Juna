@@ -303,11 +303,11 @@ end
             yparts[1, :] .= grid
             fx.m.genie_symbols = fx.truth
             soft = Float64[bit ? 3.0 : -3.0 for bit in fx.codeword]
-            seed_candidate = (lpost_metric = soft, valid = false, syndrome = 88,
+            initial_candidate = (lpost_metric = soft, valid = false, syndrome = 88,
                               mean_abs_lpost = mean(abs, soft), pilot_mse = 0.4,
                               tie_mse = 0.8, score = 0.9)
             (; fx, step = FBJuna._juna_step(fx.m, fx.code, fx.layout, yparts,
-                                            seed_candidate))
+                                            initial_candidate))
         end
 
         frozen = distorted(:frozen)
@@ -333,10 +333,10 @@ end
         for t in 1:length(fx.layout.data_idx)
             yparts[1, fx.layout.data_idx[t]] = fx.truth[t]
         end
-        seed_candidate = (lpost_metric = fx.metrics, valid = false, syndrome = 88,
+        initial_candidate = (lpost_metric = fx.metrics, valid = false, syndrome = 88,
                           mean_abs_lpost = mean(abs, fx.metrics), pilot_mse = 0.4,
                           tie_mse = 0.8, score = 0.9)
-        one_step = FBJuna._juna_step(fx.m, fx.code, fx.layout, yparts, seed_candidate)
+        one_step = FBJuna._juna_step(fx.m, fx.code, fx.layout, yparts, initial_candidate)
         two_step = FBJuna._juna_step(fx.m, fx.code, fx.layout, yparts, one_step)
         @test one_step.lpost_metric == two_step.lpost_metric
         @test one_step.score == two_step.score

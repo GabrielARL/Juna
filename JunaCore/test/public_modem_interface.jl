@@ -278,11 +278,6 @@ end
                 if descriptor.profile === :frame_wide_ldpc
                     payload_start = if !compared.sync
                         1
-                    elseif compared.sync_profile === :rpchan
-                        length(PublicInterfaceJuna._rpchan_preamble(
-                            compared, PUBLIC_INTERFACE_FS)) +
-                            PublicInterfaceJuna._rpchan_guard_length(
-                                compared, PUBLIC_INTERFACE_FS) + 1
                     else
                         PublicInterfaceJuna._synclen(compared) + 1
                     end
@@ -311,7 +306,7 @@ end
                         compared, tested_distorted)
                     standard_candidate = PublicInterfaceJuna._standard_candidate(
                         compared, code, layout, yparts)
-                    partial_candidate = PublicInterfaceJuna._seed_candidate(
+                    partial_candidate = PublicInterfaceJuna._initial_candidate(
                         compared, code, layout, yparts)
                     juna_candidate = PublicInterfaceJuna._juna_candidate(
                         compared, code, layout, yparts, partial_candidate)
@@ -344,8 +339,8 @@ end
     end
 
     @testset "configuration controls are explicit across every receiver mode" begin
-        # requires_bpsk/requires_shifted_band gating removed: the source repo's
-        # rejection branch existed for receivers like FullyCoupled/TurboMAP that
+        # requires_bpsk/requires_shifted_band gating was removed. The earlier
+        # rejection branch covered receivers like FullyCoupled/TurboMAP that
         # lacked BPSK or shifted-band support. All three migrated receivers
         # (Standard, Partial-FFT, Lite) support both, so every configuration
         # below is valid for every descriptor and the rejection branch would
@@ -429,7 +424,7 @@ end
                     # The pure partial combiner is exactly the weak front
                     # end this pilot geometry exposes: its public failure
                     # here is WHY every refined receiver must select the
-                    # stronger standard seed above. No fallback may hide it.
+                    # stronger standard initial candidate above. No fallback may hide it.
                     @test metrics == paths.partial
                     @test count((metrics .> 0) .!= payload) > 0
                 else

@@ -10,7 +10,7 @@ C2  suites.json integrity: parses; keys unique; every suite file exists under
 C3  registry completeness: every test/*.jl except test/support/ appears in the
     registry, so a new suite cannot exist outside the catalog.
 C4  chain.json integrity: parses; stage ids unique; kind in
-    {shared, seed, iterative, deployment}; evidence in {direct, behavioral};
+    {shared, initial, iterative, deployment}; evidence in {direct, behavioral};
     every stage symbol exists in the analyzer symbol table; every stage suite
     key exists in suites.json.
 C5  evidence honesty: every evidence="direct" stage has at least one declared
@@ -23,9 +23,7 @@ C6  scanner honesty: source_coverage's report note states the static-not-
 C7  vendored analyzer health: analyze() sees exactly the migrated source
     files with a sane symbol count, and render_html is offline-safe (the
     vendored vis-network is embedded; no CDN fallback) with the #sym= deep
-    link route present. (The analyzer's full authoritative contract runs in
-    the source repository it is vendored from; this is the migrated-scope
-    check.)
+    link route present. This contract checks the analyzer maintained by Juna.
 C8  receivers.json freshness and integrity: it is exported from the Julia
     receiver catalog; receiver ids/facades are unique and exactly match the
     receivers declared by chain.json.
@@ -36,6 +34,11 @@ C10 suite applicability is explicit and computable: each registry entry is
     structural, all receivers, one receiver, or a DAG stage; stage-scoped
     suites are declared on that stage; each receiver has universal coverage
     and either a receiver-specific suite or a justified exemption.
+C11 reader-visible stage names exactly match the nine labels approved on
+    2026-08-01, and the combiner-refit description follows the current code by
+    stating that data-anchor confidence values weight the refit.
+C12 the interface test uses the four reader-visible result labels approved on
+    2026-08-01 and does not retain their ambiguous predecessors.
 """
 import json
 import os
@@ -50,8 +53,19 @@ sys.path.insert(0, HERE)
 import source_coverage  # noqa: E402
 from source_symbol_explorer import analyze  # noqa: E402
 
-ALLOWED_KINDS = {"shared", "seed", "iterative", "deployment"}
+ALLOWED_KINDS = {"shared", "initial", "iterative", "deployment"}
 ALLOWED_EVIDENCE = {"direct", "behavioral"}
+APPROVED_STAGE_TITLES = {
+    "acquisition": "Packet acquisition",
+    "standard": "One-tap pilot-interpolated equalization + FEC",
+    "initial-candidate": "Partial-FFT/FEC initial-candidate path",
+    "posterior": "Posterior means and confidences",
+    "anchors": "Anchor selection",
+    "refit": "Combiner refit",
+    "redecode": "Re-decode",
+    "keep-best": "Candidate selection",
+    "frame": "Frame-wide FEC receiver",
+}
 
 
 def check():
@@ -234,6 +248,50 @@ def check():
             problems.append(f"C10: receiver '{receiver['id']}' has neither a "
                             "receiver-specific suite nor an exemption")
 
+    # C11 approved reader-visible stage names and code-authoritative wording
+    actual_titles = {stage["id"]: stage.get("title") for stage in stages}
+    if actual_titles != APPROVED_STAGE_TITLES:
+        problems.append(
+            "C11: stage titles differ from the nine labels approved on "
+            f"2026-08-01: {actual_titles}")
+    refit = next((stage for stage in stages if stage["id"] == "refit"), {})
+    if "Data-anchor confidence values weight the refit." not in refit.get(
+            "detail", ""):
+        problems.append(
+            "C11: combiner-refit detail does not state the current code's "
+            "data-anchor confidence weighting")
+
+    # C12 approved JNR-016 through JNR-019 interface result labels
+    with open(os.path.join(ROOT, "test", "interface_contract.jl")) as fh:
+        interface_test = fh.read()
+    for marker in (
+            '@testset verbose = true "Standard, Partial FFT, and JUNA-Lite provide the same operations" begin',
+            '@testset "Receiver mode names map to their expected profiles" '
+            'begin',
+            '@testset "The default receiver is JUNA-Lite" begin',
+            '@testset "$(descriptor.name) recovers all 128 test bits from '
+            'its own clean waveform" begin',
+            'println("Standard, Partial FFT, and JUNA-Lite provide the same operations: passed")'):
+        if marker not in interface_test:
+            problems.append(
+                f"C12: interface test lost approved result label {marker}")
+    for old_label in (
+            "JUNA interface contract",
+            "receiver family includes per-symbol modes",
+            "default constructor remains the Lite public alias",
+            "interface + noiseless loopback decodes payload-exactly"):
+        if old_label in interface_test:
+            problems.append(
+                f"C12: interface test retains old result label '{old_label}'")
+    contract_suite = next((suite for suite in suites
+                           if suite["key"] == "contract"), None)
+    if (contract_suite is None or contract_suite.get("reader_title") !=
+            "Standard, Partial FFT, and JUNA-Lite provide the same "
+            "operations"):
+        problems.append(
+            "C12: contract registry reader title is not the approved "
+            "27-6c wording")
+
     # C5 evidence honesty
     report = source_coverage.scan(ROOT)
     evidence = source_coverage.stage_evidence(ROOT, report)
@@ -285,4 +343,4 @@ if __name__ == "__main__":
         for p in problems:
             print("  -", p)
         sys.exit(1)
-    print("explorer contract: PASS (C1-C10)")
+    print("explorer contract: PASS (C1-C12)")

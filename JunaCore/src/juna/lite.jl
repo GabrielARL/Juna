@@ -1,16 +1,16 @@
-# JUNA-lite: seed from the Partial-FFT combiner (so JUNA starts where Partial
+# JUNA-lite: initial candidate from the Partial-FFT combiner (so JUNA starts where Partial
 # FFT+FEC ends), then re-fit the combiner toward BP posterior means as soft data
 # anchors and keep the best re-decode.
-function _juna_lite(m::Modulation, code::_Code, layout::_Layout, yparts, seed=nothing)
-  _payload_from_metrics(m, code, _juna_lite_candidate(m, code, layout, yparts, seed).lpost_metric)
+function _juna_lite(m::Modulation, code::_Code, layout::_Layout, yparts, initial_candidate=nothing)
+  _payload_from_metrics(m, code, _juna_lite_candidate(m, code, layout, yparts, initial_candidate).lpost_metric)
 end
 
-function _juna_lite_candidate(m::Modulation, code::_Code, layout::_Layout, yparts, seed=nothing)
-  seed = seed === nothing ? _seed_candidate(m, code, layout, yparts) : seed
-  seed.valid && return seed
+function _juna_lite_candidate(m::Modulation, code::_Code, layout::_Layout, yparts, initial_candidate=nothing)
+  initial_candidate = initial_candidate === nothing ? _initial_candidate(m, code, layout, yparts) : initial_candidate
+  initial_candidate.valid && return initial_candidate
 
-  current = seed
-  best = seed
+  current = initial_candidate
+  best = initial_candidate
   for _ in 1:_JUNA_ITERS
     candidate = _juna_step(m, code, layout, yparts, current)
     _juna_better(best, candidate) && (best = candidate)

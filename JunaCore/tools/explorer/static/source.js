@@ -121,7 +121,7 @@ function loadSymbol(token) {
       if (json !== null) renderInspector(unwrap(json));
     })
     .catch((err) => {
-      setInspectorMessage("Could not load symbol: " + err.message);
+      setInspectorMessage("Could not load source definition: " + err.message);
     });
 }
 
@@ -177,10 +177,13 @@ function buildLinkListSection(title, items, className, mapItem, emptyText) {
 function buildHeaderSection(data) {
   const wrap = document.createElement("div");
   wrap.className = "jx-src-section";
+  const label = textDiv("Code name");
+  label.className = "jx-src-heading";
   const name = textDiv(data.name || "(unnamed)");
   name.className = "jx-src-name";
   const sub = textDiv([data.kind, data.module].filter(Boolean).join(" · "));
   sub.className = "jx-src-sub";
+  wrap.appendChild(label);
   wrap.appendChild(name);
   wrap.appendChild(sub);
   return wrap;
@@ -197,10 +200,15 @@ function buildPreSection(title, text) {
 function buildPurposeSection(data) {
   const content = document.createElement("div");
   if (data.doc) {
-    content.textContent = data.doc;
+    content.appendChild(textDiv(data.doc));
+    if (data.doc_origin === "comment") {
+      const origin = textDiv("From a source comment, not a docstring");
+      origin.className = "jx-src-muted jx-src-italic";
+      content.appendChild(origin);
+    }
   } else {
     content.className = "jx-src-muted jx-src-italic";
-    content.textContent = "No source docstring";
+    content.textContent = "No source docstring or comment";
   }
   return section("Purpose", content);
 }
@@ -266,13 +274,41 @@ function buildFieldsSection(data) {
 }
 
 function buildChainSection(data) {
-  return buildLinkListSection(
-    "Chain role",
-    data.chain_stages,
-    "jx-src-chip",
-    (s) => ({ href: "/chain#" + s.id, text: s.title || String(s.id) }),
-    "Not part of a declared chain stage"
-  );
+  const receivers = Array.isArray(data.chain_receivers) ? data.chain_receivers : [];
+  const stages = Array.isArray(data.chain_stages) ? data.chain_stages : [];
+  if (receivers.length === 0) {
+    return buildLinkListSection(
+      "Chain role",
+      stages,
+      "jx-src-chip",
+      (s) => ({ href: "/chain#" + s.id, text: s.title || String(s.id) }),
+      "Not part of a declared chain stage"
+    );
+  }
+  const content = document.createElement("div");
+  receivers.concat(stages).forEach((item) => {
+    const a = document.createElement("a");
+    a.className = "jx-src-chip";
+    a.href = "/chain#" + item.id;
+    a.textContent = item.title
+      ? item.title
+      : "Receiver: " + String(item.id);
+    content.appendChild(a);
+  });
+  return section("Chain role", content);
+}
+
+function buildBindingSection(data) {
+  const bind = data.module_binding;
+  if (!bind) return null;
+  const content = document.createElement("div");
+  const line = document.createElement("a");
+  line.className = "jx-src-clickable-line";
+  line.href = "#sym=" + encodeURIComponent("Modulation");
+  line.textContent = bind.sig;
+  if (bind.file) line.title = bind.file + (bind.line ? ":" + bind.line : "");
+  content.appendChild(line);
+  return section("Modulation binding", content);
 }
 
 function buildDispatchSection(data) {
@@ -371,7 +407,9 @@ function buildActionsSection(data) {
   focusBtn.addEventListener("click", () => focusGraph(data));
 
   const stages = Array.isArray(data.chain_stages) ? data.chain_stages : [];
-  const chainHref = stages.length > 0 ? "/chain#" + stages[0].id : "/chain";
+  const receivers = Array.isArray(data.chain_receivers) ? data.chain_receivers : [];
+  const anchor = receivers[0] || stages[0];
+  const chainHref = anchor ? "/chain#" + anchor.id : "/chain";
 
   wrap.appendChild(actionLink(
     "Open in original analyzer",
@@ -380,6 +418,10 @@ function buildActionsSection(data) {
         [data.module, data.name].filter(Boolean).join(".")
       )
   ));
+  if (data.kind === "module") {
+    wrap.appendChild(actionLink("Show chain", chainHref));
+    return wrap;
+  }
   wrap.appendChild(focusBtn);
   const evidence = data.evidence || {};
   const direct = evidence.direct_test_references || [];
@@ -404,7 +446,17 @@ function renderInspector(data) {
   if (!inspector) return;
   inspector.innerHTML = "";
 
-  [
+  // A module declares no arguments, no methods and no calls, so the rows that
+  // answer those questions would render as denials. It gets its own set.
+  const isModule = data.kind === "module";
+  const sections = isModule ? [
+    buildHeaderSection(data),
+    buildPurposeSection(data),
+    buildDefinedAtSection(data),
+    buildChainSection(data),
+    buildBindingSection(data),
+    buildActionsSection(data),
+  ] : [
     buildHeaderSection(data),
     buildPreSection("Signature", data.sig),
     buildPurposeSection(data),
@@ -418,11 +470,21 @@ function renderInspector(data) {
     buildRefsSection("Called by (static)", data.callers),
     buildEvidenceSection(data.evidence),
     buildActionsSection(data),
-  ].forEach((node) => {
+  ];
+  sections.forEach((node) => {
     if (node) inspector.appendChild(node);
   });
 
-  if (PAGE_MODE !== "graph") focusGraph(data);
+  if (PAGE_MODE === "graph") return;
+  if (isModule) {
+    clearEgograph();
+    const note = textDiv("A module makes no calls, so it has no call graph.");
+    note.className = "jx-src-muted";
+    const container = document.getElementById("egograph");
+    if (container) container.appendChild(note);
+    return;
+  }
+  focusGraph(data);
 }
 
 function setInspectorMessage(text) {
@@ -436,7 +498,7 @@ function setInspectorMessage(text) {
 
 function renderNotFound() {
   currentData = null;
-  setInspectorMessage("Symbol not found");
+  setInspectorMessage("Source definition not found");
   clearEgograph();
 }
 
@@ -465,7 +527,8 @@ function nodeFor(item, fontColor) {
   let label = item.name || String(item.id);
   if (item.overload_count > 1) label += " ×" + item.overload_count;
   if (item.kind === "stage" && item.symbol_count !== undefined) {
-    label += "\n" + item.symbol_count + " implementation symbols";
+    label += "\n" + item.symbol_count + " implementation source definition" +
+      (item.symbol_count === 1 ? "" : "s");
   }
   return {
     id: item.id,
@@ -615,7 +678,7 @@ function renderContextGraph(data) {
     const contexts = Array.isArray(data.context) ? data.context : [];
     if (!contexts.length) {
       contextBox.appendChild(document.createTextNode(
-        "all source symbols · narrow from Home, Tests, Map, Chain, or Coverage"
+        "all code names · narrow from Home, Tests, Map, Chain, or Coverage"
       ));
     }
     contexts.forEach((ctx) => {
@@ -624,7 +687,7 @@ function renderContextGraph(data) {
       chip.textContent = ctx.label;
       contextBox.appendChild(chip);
     });
-    const noun = data.view === "stages" ? "stages" : "grouped symbols";
+    const noun = data.view === "stages" ? "stages" : "grouped code names";
     const edgeNoun = data.view === "stages" ? "declared transitions" : "static calls";
     contextBox.appendChild(document.createTextNode(
       " · " + data.nodes.length + " " + noun + " · " + data.edges.length +
@@ -634,8 +697,8 @@ function renderContextGraph(data) {
   const showAll = document.getElementById("graph-show-all");
   if (showAll) {
     showAll.textContent = data.view === "all"
-      ? "Hide disconnected symbols"
-      : "Show all implementation symbols";
+      ? "Hide disconnected code names"
+      : "Show all code names";
   }
   if (typeof vis === "undefined") {
     container.textContent = "diagram library unavailable";

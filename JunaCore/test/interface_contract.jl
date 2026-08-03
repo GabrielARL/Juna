@@ -71,8 +71,8 @@ end
 # FullyCoupled, TurboMAP, ProfiledGradient, ProfiledCz*, CrcConditioned*,
 # GuardedPhysical, GradientGuarded, and FrameRLS are dropped below: their
 # facades are absent from JunaCore.jl (scope narrowed to the migrated
-# facades). :full and :coupled keep their mode/profile plumbing (defined in
-# byte-identical common.jl) but are not exercised beyond that, since their
+# facades). :full and :coupled keep their mode/profile plumbing in common.jl
+# but are not exercised beyond that, since their
 # solvers (juna/full.jl, juna/coupled.jl) are not part of this package's src/.
 function assert_receiver_profiles()
     standard = Juna.StandardModulation()
@@ -106,7 +106,7 @@ end
 # :pilot_band_ls is the ONLY objective the Partial-FFT baseline solves: the
 # pilot-trained per-band ridge LS of eq:pfft-ls. Executable contract: the
 # fitted branch weights must satisfy the ridge normal equations against an
-# INDEPENDENT recomputation, and the resulting seed candidate must decode a
+# INDEPENDENT recomputation, and the resulting initial candidate must decode a
 # clean block payload-exactly.
 function assert_pilot_band_ls_objective_contract(m)
     @test Juna.receiver_profile(m) === :pfft
@@ -142,9 +142,9 @@ function assert_pilot_band_ls_objective_contract(m)
     residual = gram * weights - rhs
     @test maximum(abs, residual) < 1e-8 * max(maximum(abs, rhs), 1.0)
 
-    seed = Juna._seed_candidate(m, code, layout, yparts)
-    @test seed.valid
-    @test Juna._payload_from_metrics(m, code, seed.lpost_metric) == bits
+    initial_candidate = Juna._initial_candidate(m, code, layout, yparts)
+    @test initial_candidate.valid
+    @test Juna._payload_from_metrics(m, code, initial_candidate.lpost_metric) == bits
 end
 
 # The declared-refinement dispatch table is intentionally restricted to the
@@ -222,12 +222,12 @@ function assert_extended_roundtrip(m)
     @test cfo == 0.0
 end
 
-@testset verbose = true "JUNA interface contract" begin
+@testset verbose = true "Standard, Partial FFT, and JUNA-Lite provide the same operations" begin
     @testset "LDPC helper binaries are vendored" begin
         assert_ldpc_tools_present()
     end
 
-    @testset "receiver family includes per-symbol modes (standard, pfft, lite, full, coupled)" begin
+    @testset "Receiver mode names map to their expected profiles" begin
         assert_receiver_profiles()
     end
 
@@ -266,12 +266,12 @@ end
         # Partial-FFT -> :pilot_band_ls, Lite -> :posterior_anchor_ls.
     end
 
-    @testset "default constructor remains the Lite public alias" begin
+    @testset "The default receiver is JUNA-Lite" begin
         assert_modulation_contract(Juna.Modulation())
     end
 
     for descriptor in public_receiver_descriptors()
-        @testset "$(descriptor.name): interface + noiseless loopback decodes payload-exactly" begin
+        @testset "$(descriptor.name) recovers all 128 test bits from its own clean waveform" begin
             assert_modulation_contract(public_receiver(descriptor))
         end
     end
@@ -286,5 +286,5 @@ end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    println("JUNA interface contract passed")
+    println("Standard, Partial FFT, and JUNA-Lite provide the same operations: passed")
 end

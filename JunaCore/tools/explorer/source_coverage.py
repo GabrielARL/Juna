@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from source_symbol_explorer import analyze  # noqa: E402
 
 STATIC_NOTE = ("static textual references only - a hit means the suite NAMES "
-               "the symbol, never that a line executed (not runtime coverage)")
+               "the code name, never that a line executed (not runtime coverage)")
 
 _KNOWN_CONTAINERS = {"Juna", "JunaCore", "Modulations", "LDPC",
                      "JunaLite", "JunaStandard", "JunaPartialFFT"}

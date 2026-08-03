@@ -93,12 +93,12 @@ end
         @test count((standard_metrics .> 0) .!= bits) > 0
     end
 
-    @testset "lite refinement builds on the pfft seed and never falls behind it" begin
+    @testset "lite refinement builds on the pfft initial candidate and never falls behind it" begin
         pfft = PfftJuna.PartialFFTModulation()
         lite = PfftJuna.LiteModulation()
         bits = pfft_payload(PfftModulations.bitspersymbol(pfft))
 
-        # clean channel: the seed is already valid, refinement keeps it, and the
+        # clean channel: the initial candidate is already valid, refinement keeps it, and the
         # two public receivers emit IDENTICAL metrics
         clean = PfftModulations.modulate(pfft, bits, PFFT_FC, PFFT_FS)
         clean_pfft, _ = PfftModulations.demodulate(
@@ -109,7 +109,7 @@ end
         @test (clean_pfft .> 0) == bits
 
         # seeded waterfall edge: posterior-anchor refinement must not lose to
-        # its own seed in aggregate on the shared fixture
+        # its own initial candidate in aggregate on the shared fixture
         rng = Xoshiro(20_260_401)
         sigma = sqrt(10.0^(-1.5 / 10) / 2)
         pfft_errors = 0
@@ -124,7 +124,7 @@ end
             lite_errors += count((ml .> 0) .!= packet)
         end
         @test pfft_errors > 0            # the edge fixture is genuinely noisy
-        @test lite_errors <= pfft_errors # refinement never loses to its seed here
+        @test lite_errors <= pfft_errors # refinement never loses to its initial candidate here
     end
 
     @testset "both baselines roundtrip the compact BPSK code" begin

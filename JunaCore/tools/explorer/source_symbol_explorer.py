@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Sonique JunaCore function and symbol explorer.
+"""JunaCore function and symbol explorer.
 
 This is the repository-owned integration of the standalone Symbol Explorer.
-The Sonique launcher pins it to the sibling ``JunaCore/src`` tree so its live
+The launcher pins it to the package ``JunaCore/src`` tree so its live
 inventory, definitions, sources, and inferred call edges always come from the
 active checkout.
 
@@ -767,7 +767,7 @@ def analyze(folder):
         truncated = total - MAX_FILES
     syms = build_symbols(files, folder)
     if not syms:
-        raise ValueError(f"found {total} source files but parsed no functions/symbols under {folder}")
+        raise ValueError(f"found {total} source files but parsed no source definitions under {folder}")
     link_symbols(syms)
     add_examples(syms)
     ann, ann_src = load_annotations(folder)
@@ -886,7 +886,7 @@ def serve(port, default_repo, locked=False, open_browser=True):
 
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", port), H)
     url = f"http://127.0.0.1:{port}"
-    print(f"JunaCore source symbol explorer -> {url}   root={default_repo}   (Ctrl-C to stop)")
+    print(f"JunaCore source definition explorer -> {url}   root={default_repo}   (Ctrl-C to stop)")
     if open_browser:
         try:
             webbrowser.open(url)
@@ -898,7 +898,7 @@ def serve(port, default_repo, locked=False, open_browser=True):
         print("\nstopped.")
 
 
-HTML = r"""<!doctype html><html><head><meta charset="utf-8"><title>JunaCore source symbol explorer</title>
+HTML = r"""<!doctype html><html><head><meta charset="utf-8"><title>JunaCore source definition explorer</title>
 <!--VISLIB-->
 <style>
  :root{--bg:#0f172a;--panel:#1e293b;--ink:#e2e8f0;--mut:#94a3b8;--acc:#38bdf8;--line:#334155}
@@ -1109,7 +1109,7 @@ HTML = r"""<!doctype html><html><head><meta charset="utf-8"><title>JunaCore sour
  }
 </style></head><body>
 <div id="bar">
-  <h1>🔬 JunaCore source symbols</h1>
+  <h1>🔬 JunaCore source definitions</h1>
   <span id="pin" style="display:none;flex:1;min-width:0;color:#94a3b8;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📌 <b id="pinname" style="color:#e2e8f0"></b> <span id="pinpath"></span></span>
   <input id="path" placeholder="/path/to/project folder" autocomplete="off">
   <button id="load" title="open a folder picker, then scan it">📁 Load…</button>
@@ -1159,7 +1159,7 @@ function render(D){
   D.modules.forEach(m=>modColor(m.name));
   $('root').textContent='root: '+D.root;
   const s=D.stats;
-  $('stats').innerHTML=[['functions/symbols',s.symbols],['modules',s.modules],['call edges',s.edges],['files',s.files],['documented',(s.documented||0)+'/'+s.symbols]]
+  $('stats').innerHTML=[['source definitions',s.symbols],['modules',s.modules],['call edges',s.edges],['files',s.files],['documented',(s.documented||0)+'/'+s.symbols]]
     .map(([k,v])=>`<div class="stat"><span>${k}</span><b>${v}</b></div>`).join('');
   $('trunc').style.display=s.truncated?'block':'none';
   if(s.truncated)$('trunc').textContent=`⚠ large tree: scanned ${s.scanned} of ${s.total_files} files (capped). Point at a subfolder for full coverage.`;
@@ -1182,7 +1182,7 @@ function render(D){
   setView(MODE==='algo'?'algo':'oop');     // land in the OOP type view (default)
   $('detail').innerHTML=MODE==='algo'
     ? '<div class="empty">Source-backed pipeline — click any function chip to inspect its exact current definition and lexical relationships.</div>'
-    : '<div class="empty">OOP view — click a type ◇ or an interface method in the graph. Click a method to open its call-focus sphere; use search on the left to jump to any symbol.</div>';
+    : '<div class="empty">OOP view — click a type ◇ or an interface method in the graph. Click a method to open its call-focus sphere; use search on the left to jump to any source definition.</div>';
   ROUTE_HASH();
 }
 
@@ -1219,7 +1219,7 @@ function ROUTE_HASH(){
     }else{
       const hit=matches[0]||(!qualified?named[0]:null);
       if(hit)select(hit.id);
-      else $('detail').innerHTML='<div class="empty"><b>Source symbol not found.</b></div>';
+      else $('detail').innerHTML='<div class="empty"><b>Source definition not found.</b></div>';
     }}
   else if(sf)selectFile(decodeURIComponent(sf[1]).replace(/^src\//,'')); // #file=src/path.jl
   else if(ih)openFocusIface(ih[1]);                         // #iface=name → concrete override/helper focus
@@ -1364,7 +1364,7 @@ function selectIface(name){
 }
 // Role/Reads/Returns (or Object/Holds/Why for structs) from the walkthrough deck.
 function docBlock(s){
-  if(!s.doc) return '<div class="doc empty">no walkthrough annotation for this symbol</div>';
+  if(!s.doc) return '<div class="doc empty">no walkthrough annotation for this source definition</div>';
   const L=s.doc.kind==='obj'?['Object','Holds','Why it matters']:['Role','Reads','Returns'];
   return `<div class="doc"><div><b>${L[0]}.</b> ${esc(s.doc.a)}</div>`+
          `<div><b>${L[1]}.</b> ${esc(s.doc.b)}</div>`+
@@ -1433,11 +1433,12 @@ function select(id){
     ?'<div class="note">not shown in the type diagram &mdash; it maps types and interface methods only; use the &#128309; sphere view for this function&#39;s call graph.</div>'
     :'';
   $('detail').innerHTML=
+    `<div class="meta"><b>Code name</b></div>`+
     `<h3>${esc(s.name)}<span class="kind">${s.kind}</span></h3>`+
     `<div class="meta"><span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${modColor(s.module)}"></span> ${esc(s.module)} &nbsp;·&nbsp; ${esc(s.file)}:${s.line}</div>`+also+docHtml+
     `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 4px">`+
     `<button onclick="openFocus(${id})" style="font-size:11px;padding:3px 8px;background:#0b2536;color:#e2e8f0;border:1px solid var(--acc);border-radius:6px;cursor:pointer">🔵 call-focus sphere view</button>`+
-    `<a href="${wbBase()}/symbol/${encodeURIComponent(s.name)}?module=${encodeURIComponent(s.module)}&file=${encodeURIComponent('src/'+s.file)}&line=${s.line}" title="workbench symbol lens: static test references for this symbol; overloaded methods may be family-level" style="font-size:11px;padding:3px 8px;background:#132615;color:#e2e8f0;border:1px solid #3fb950;border-radius:6px;text-decoration:none">🧪 tests linked to this source</a></div>`+
+    `<a href="${wbBase()}/symbol/${encodeURIComponent(s.name)}?module=${encodeURIComponent(s.module)}&file=${encodeURIComponent('src/'+s.file)}&line=${s.line}" title="workbench source-definition view: static test references for this code name; overloaded methods may be family-level" style="font-size:11px;padding:3px 8px;background:#132615;color:#e2e8f0;border:1px solid #3fb950;border-radius:6px;text-decoration:none">🧪 tests linked to this source</a></div>`+
     diagramNote+
     `<h2>calls (${fns.length})</h2><div class="chips">${callLink(fns)}</div>`+
     (tys.length?`<h2>uses types (${tys.length})</h2><div class="chips">${callLink(tys)}</div>`:'')+
@@ -1595,7 +1596,7 @@ function miniKind(s){const n=s.name.toLowerCase();
   if(/scratch|initial|^_?init$|_init\b|alloc|zeros/.test(n))return 'alloc';
   if(/adam|loss_and_grad|gradient_solve|_grad!|\bgrad\b|descent|loss/.test(n))return 'grad';
   if(/candidate|better|select/.test(n))return 'select';
-  if(/posterior|confidence|tie_mse|\bseed/.test(n))return 'conf';
+  if(/posterior|confidence|tie_mse|\binitial/.test(n))return 'conf';
   if(/build_message|_message\b|inner_bit|inner/.test(n))return 'msg';
   if(/encode|ldpc|bp_decode|syndrome|tanner|build_graph|create_code|_code\b|decode\b/.test(n))return 'tanner';
   if(/layout|pilot|carrier_grid|active_indices|_bands|tone/.test(n))return 'comb';
@@ -1741,7 +1742,7 @@ function openFlowPage(id){if(!DATA||!SYM[id])return;
 function reRoot(id){if(SYM[id])openFlowPage(id);}
 function closeFlow(){$('flowpage').style.display='none';$('wrap').style.display='flex';
   try{if(location.hash)history.replaceState(null,'',location.pathname+location.search);}catch(e){}
-  document.title='symbol explorer';}
+  document.title='source definition explorer';}
 
 // ---- interface I/O + per-implementation reference page ----------------------
 const IFACE_IO=[
@@ -1775,10 +1776,10 @@ const PARAM_DOC={
  np:'cyclic-prefix length in samples (zero is allowed; must be shorter than nc)',
  bw:'occupied-bandwidth fraction — fraction of the nc−1 non-DC carriers that are active (1.0 = full band)',
  dc0:'RF-centre offset from the 24 kHz reference, in kHz; it does not shift the baseband carrier layout',
- sync:'enable the acquisition profile selected by sync_profile (:lfm or :rpchan)',
+ sync:'enable LFM acquisition, the only profile this package builds',
  ldpc_k:'LDPC message length — information bits per codeword (includes inner pilots)',
  ldpc_n:'LDPC codeword length — coded bits per block (rate = ldpc_k / ldpc_n)',
- partial_fft_parts:'number of partial-FFT time windows (combining branches)',
+ partial_fft_parts:'number of partial-FFT branches',
  pilot_ratio:'outer comb-pilot density — fraction of active tones that are pilots; snapped to the nearest 1/k spacing',
  inner_pilot_ratio:'inner-pilot density among message bits (0 = off); snapped to the nearest 1/k spacing',
  code:'internal cache — the built LDPC code (rebuilt when the LDPC params change)',
@@ -1952,26 +1953,26 @@ const PIPELINE=[
     f:['_frame_crc_append','_build_frame_message','_modulate_frame_wide_ldpc']}]},
  {t:'Top-level whole-frame/window dispatch',
   d:'At demodulate entry, frame-wide LDPC, fully-coupled, and guarded-physical profiles return through receivers that process the requested frame or coherence window before the ordinary per-block loop. Other profiles continue below.',
-  f:['_demodulate_frame_wide_ldpc','_demodulate_fully_coupled','_fully_coupled_window','_demodulate_guarded_physical','_guarded_physical_window']},
+  f:['_demodulate_frame_wide_ldpc','_demodulate_fully_coupled','_demodulate_guarded_physical']},
  {t:'Receive validation and acquisition',
-  d:'Prepare the waveform and enforce block lengths; when sync is enabled, select either the legacy coarse-Doppler path or Rpchan-compatible acquisition. When sync is disabled, use the prepared waveform directly. Physical replay and AWGN generation live outside JunaCore/src and are intentionally not shown here.',
-  f:['_prepare_demodulation','_prepare_frame_observations','_require_block_samples','_coarse_doppler','_rpchan_acquire']},
- {t:'Partial-FFT observations and seed equalization',art:'pfft',
-  d:'Form per-carrier branch observations from contiguous time windows, build standard and partial-FFT seeds, fit branch weights, and remove residual pilot response.',
-  f:['_branch_observations','_standard_candidate','_seed_candidate','_equalize_from_targets','_fit_branch_weights!','_residual_pilot_equalize']},
+  d:'Prepare the waveform and enforce block lengths; when sync is enabled, take the coarse-Doppler path. When sync is disabled, use the prepared waveform directly. Physical replay and AWGN generation live outside JunaCore/src and are intentionally not shown here.',
+  f:['_prepare_demodulation','_prepare_frame_observations','_require_block_samples','_coarse_doppler']},
+ {t:'Partial-FFT observations and initial-candidate equalization',art:'pfft',
+  d:'Form partial-FFT branches from contiguous time windows for every carrier, build standard and partial-FFT initial candidates, fit combiner weights, and remove residual pilot response.',
+  f:['_branch_observations','_standard_candidate','_initial_candidate','_equalize_from_targets','_fit_branch_weights!','_residual_pilot_equalize']},
  {t:'Soft metrics and LDPC belief propagation',art:'tanner',
   d:'Convert equalized carriers to channel metrics, clamp known inner bits, run the selected BP check update, and measure the parity syndrome.',
   f:['_candidate_from_equalized','_channel_metrics_from_equalized','_decode_candidate','_apply_inner_clamps!','_bp_decode_impl','_syndrome_weight']},
  {t:'Per-block receiver dispatch',
-  d:'Choose the standard/Partial-FFT seed and dispatch the selected packet-local refinement path.',
-  f:['_demodulate_block_candidate','_front_end_seed_candidate','_pilot_guarded_front_end_seed','_juna_candidate'],
+  d:'Choose the standard/Partial-FFT initial candidate and dispatch the selected packet-local refinement path.',
+  f:['_demodulate_block_candidate','_front_end_initial_candidate','_juna_candidate'],
   variants:[
    {name:'Lite posterior-anchor refinement',
     d:'Construct source-backed anchors and take the current Lite update.',
     f:['_juna_lite_candidate','_juna_anchor_targets','_juna_step']},
    {name:'Reduced W,z refinement',
     d:'Run the current reduced-gradient solve and its explicit loss/gradient.',
-    f:['_juna_wz_candidate','_juna_wz_gradient_solve','_wz_loss_and_grad!'],art:'gradient'},
+    f:['_juna_wz_candidate','_wz_loss_and_grad!'],art:'gradient'},
    {name:'Coupled C,W,z refinement',
     d:'Build a coupled candidate and evaluate its joint objective and gradient.',
     f:['_juna_wcz_candidate','_coupled_objective_and_gradient!']},
@@ -1983,8 +1984,8 @@ const PIPELINE=[
   f:['_frame_code','_frame_candidate','_frame_bp_decode','_frame_receiver_trace'],
   variants:[
    {name:'Frame receiver branches',
-    d:'Standard/Partial-FFT, Lite, adaptive Lite, W,z, C,W,z, fully-coupled, Turbo-MAP, profiled-gradient, profiled-C,z, and stateful band-RLS branches.',
-    f:['_frame_static_trace','_frame_lite_refine','_frame_adaptive_lite_refine','_frame_wz_refine','_frame_wcz_refine','_frame_fully_coupled_refine','_frame_turbo_map_refine','_frame_profiled_gradient_refine','_frame_profiled_cz_refine','_frame_juna_refine','_frame_stateful_band_rls']}]},
+    d:'Standard/Partial-FFT, Lite, W,z, C,W,z, fully-coupled, Turbo-MAP, profiled-gradient, profiled-C,z, and stateful band-RLS branches.',
+    f:['_frame_static_trace','_frame_lite_refine','_frame_wz_refine','_frame_wcz_refine','_frame_fully_coupled_refine','_frame_turbo_map_refine','_frame_profiled_gradient_refine','_frame_profiled_cz_refine','_frame_juna_refine','_frame_stateful_band_rls']}]},
  {t:'Candidate selection and payload output',
   d:'Compare source-backed candidates, record the selection reason, remove inner/frame overhead, and return public metrics.',
   f:['_juna_better','_juna_selection_reason','_payload_from_metrics','_frame_payload_metrics','_write_payload_metrics!','demodulate_methods']},
@@ -2016,7 +2017,7 @@ function renderAlgo(){
     `<div class="sub">Every function chip below resolves inside the pinned <code>JunaCore/src</code> tree. Click a chip to inspect its exact current source. Matched ${ALGO_HITS[0]}/${ALGO_HITS[1]} source functions.</div>`;
   // concept 1 — WHY (the motivation: residual Doppler -> ICI -> non-diagonal channel)
   html+=concept('?','Why: residual Doppler breaks subcarrier orthogonality → ICI',
-    'Residual time variation / Doppler can break subcarrier orthogonality, so neighbouring subcarriers leak into each other. The frequency-domain channel stops being diagonal (the one-tap OFDM model) and becomes <b>banded</b>. That intercarrier interference is what the partial-FFT front end and JUNA are built to address.',
+    'Residual time variation / Doppler can break subcarrier orthogonality, so neighbouring subcarriers produce ICI. The frequency-domain channel stops being diagonal (the one-tap OFDM model) and becomes <b>banded</b>. That intercarrier interference is what the partial-FFT front end and JUNA are built to address.',
     'ici');
   html+='<div class="arrow">↓</div>';
   // concept 2 — WHERE JUNA sits in this source tree
@@ -2067,7 +2068,7 @@ function artPacket(cv){const[x,w,h]=hd(cv);const L=14,top=20,bh=30,fw=w-28;
   for(let i=0;i<n;i++){x.fillStyle=i%3===0?AC.gold:AC.acc;x.fillRect(tx0+i*cw+1,ty,Math.max(1,cw-2),13);}
   x.fillStyle=AC.gold;x.fillRect(L,ty+24,10,10);x.fillStyle=AC.mut;x.fillText('outer pilots (configurable spacing)',L+15,ty+33);
   x.fillStyle=AC.acc;x.fillRect(L+190,ty+24,10,10);x.fillStyle=AC.mut;x.fillText('coded BPSK / QPSK',L+205,ty+33);
-  x.textAlign='center';x.fillText('when sync=true, framing adds LFM sync or an Rpchan preamble + guard according to sync_profile',w/2,ty+55);}
+  x.textAlign='center';x.fillText('when sync=true, framing adds LFM sync before and after the OFDM blocks',w/2,ty+55);}
 function artPfft(cv){const[x,w,h]=hd(cv);const L=16,top=16,bw=w-32,bh=24,parts=4;
   x.fillStyle='rgba(56,189,248,.14)';x.fillRect(L,top,bw,bh);x.strokeStyle=AC.line;x.strokeRect(L,top,bw,bh);
   x.fillStyle=AC.ink;x.font='10px system-ui';x.fillText('OFDM symbol after CP removal — P=4 schematic; partial_fft_parts is configurable',L+bw/2,top+15);
@@ -2158,7 +2159,7 @@ function artLayout(cv){const[x,w,h]=hd(cv);
   x.textAlign='center';}
 function artFrame(cv){const[x,w,h]=hd(cv);
   const L=126,R=w-14,top=28,bh=25,gap=8;
-  x.textAlign='center';x.fillStyle=AC.ink;x.font='600 11px system-ui';x.fillText('frame layout selected by sync and sync_profile',w/2,15);
+  x.textAlign='center';x.fillStyle=AC.ink;x.font='600 11px system-ui';x.fillText('frame layout selected by sync',w/2,15);
   const row=(label,y,segments)=>{
     x.textAlign='right';x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText(label,L-8,y+16);
     const total=segments.reduce((n,s)=>n+s[1],0);let bx=L;
@@ -2168,8 +2169,7 @@ function artFrame(cv){const[x,w,h]=hd(cv);
   const block=['OFDM block(s): np CP + nc samples',5,'rgba(56,189,248,.16)',AC.acc];
   row('sync = false',top,[block]);
   row(':lfm',top+bh+gap,[['LFM sync',1,'rgba(52,211,153,.2)',AC.teal],block,['LFM sync',1,'rgba(52,211,153,.2)',AC.teal]]);
-  row(':rpchan',top+2*(bh+gap),[['Rpchan preamble',2,'rgba(52,211,153,.2)',AC.teal],['guard',1,'rgba(245,158,11,.22)',AC.gold],block]);
-  x.textAlign='center';x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText('These are the three transmit cases in Modulations.modulate.',w/2,top+3*(bh+gap)+8);}
+  x.textAlign='center';x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText('These are the two transmit cases in Modulations.modulate.',w/2,top+2*(bh+gap)+8);}
 function artFramePacket(cv){artFrame(cv);}
 function artMessage(cv){const[x,w,h]=hd(cv);
   const L=12,top=30,bh=26,gw=w-24,n=24,cw=gw/n,ip=2;   // ip = inner-pilot spacing (default 2, from inner_pilot_ratio=1/2)
@@ -2184,10 +2184,10 @@ function artMessage(cv){const[x,w,h]=hd(cv);
 function artFamilies(cv){const[x,w,h]=hd(cv);
   const groups=[
     {n:'baselines',facades:['JunaStandard','JunaPartialFFT']},
-    {n:'packet-local',facades:['JunaLite','JunaTurboMAP','JunaProfiledGradient']},
-    {n:'coherence-window / packet BP',facades:['JunaFullyCoupled']},
-    {n:'frame-wide',facades:['JunaFrameWideLDPC','JunaProfiledCzFrame','JunaFrameRLS']},
-    {n:'CRC frame',facades:['JunaCrcProfiledCzFrame','JunaCrcConditionedJointCwzFrame']},
+    {n:'packet-local',facades:['JunaLite']},
+    {n:'coherence-window / packet BP',facades:[]},
+    {n:'frame-wide',facades:[]},
+    {n:'CRC frame',facades:[]},
   ];
   const L=86,rowH=(h-26)/groups.length;
   x.textAlign='center';x.fillStyle=AC.ink;x.font='600 10px system-ui';x.fillText('public receiver facades declared in JunaCore.jl',w/2,12);
@@ -2295,11 +2295,11 @@ async function load(){
 }
 function emptyState(){
   if(CFG.locked)return showOverlay('Scanning pinned project…',`<div class="b">Reading <code>${esc((CFG.lockedRoot||'').replace(/\/+$/,''))}</code> … this runs automatically; nothing to load.</div>`);
-  showOverlay('Symbol Explorer',
+  showOverlay('Source Definition Explorer',
     '<div class="b">Explore a codebase by its OOP structure: abstract types, subtyping, and which type implements which interface method — then drill into any method.</div>'+
     '<ol><li>Click <b>📁 Load…</b> and pick a project folder (or type a path + Enter).</li>'+
     '<li>In the <b>OOP view</b>, click a type ◇ or an interface method.</li>'+
-    '<li>Click a method to open its <b>call-focus sphere</b>, or search on the left to jump to any symbol.</li></ol>');
+    '<li>Click a method to open its <b>call-focus sphere</b>, or search on the left to jump to any source definition.</li></ol>');
 }
 async function browse(){
   const msg=$('msg');
@@ -2351,7 +2351,7 @@ if(!CFG.serve&&typeof vis!=='undefined'&&!CFG.data)$('msg').textContent='static 
 
 
 def main():
-    ap = argparse.ArgumentParser(description="JunaCore function / symbol explorer + UI")
+    ap = argparse.ArgumentParser(description="JunaCore source definition explorer + UI")
     ap.add_argument("--serve", action="store_true", help="launch the interactive UI server")
     ap.add_argument("--no-browser", action="store_true",
                     help="serve without opening a browser (for tests and automation)")
@@ -2374,7 +2374,7 @@ def main():
     open(out, "w").write(render_html(False, data))
     s = data["stats"]
     print(f"wrote {out}")
-    print(f"  symbols {s['symbols']}  modules {s['modules']}  call edges {s['edges']}  files {s['files']}")
+    print(f"  source definitions {s['symbols']}  modules {s['modules']}  call edges {s['edges']}  files {s['files']}")
 
 
 if __name__ == "__main__":

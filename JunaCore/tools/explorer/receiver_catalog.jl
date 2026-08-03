@@ -22,7 +22,7 @@ const RECEIVERS = [
      facade = "JunaPartialFFT",
      mode = "pfft",
      profile = "pfft",
-     chain_path = ["acquisition", "seed"],
+     chain_path = ["acquisition", "initial-candidate"],
      role = "baseline",
      specific_suite_exemption =
         "partial-FFT-specific behavior is covered by the shared baseline suite",
@@ -32,11 +32,11 @@ const RECEIVERS = [
      facade = "JunaLite",
      mode = "lite",
      profile = "lite",
-     chain_path = ["acquisition", "seed", "posterior", "anchors", "refit",
+     chain_path = ["acquisition", "initial-candidate", "posterior", "anchors", "refit",
                    "redecode", "keep-best"],
      role = "proposed",
      specific_suite_exemption = "",
-     purpose = "Partial-FFT seed plus decoder-guided combiner refinement."),
+     purpose = "Partial-FFT initial candidate plus decoder-guided combiner refinement."),
 ]
 
 function assert_receiver_catalog()
