@@ -44,22 +44,21 @@ Tokens   [███████░░░░░░░░░░░░░]  ~35k / 
   the overrun, and ask the user whether to continue, re-baseline, or stop.
 - Re-baseline out loud when scope changes.
 
-## Provenance Gate
+## Source File Gate
 
-This package is a migrated subset of `sonique/research/JunaCore` (see
-README.md for the source commit). The migrated algorithm files
-(`src/juna/common.jl`, `src/juna/frame_wide_ldpc.jl`, `src/juna/lite.jl`,
-`src/Modulations.jl`, `src/LDPC.jl`) and the `tools/ldpc` helper binaries
-are byte-identical to their source commit. Any edit to them here forks the
-algorithm from the source repository: surface that to the user and ask
-whether the change should also land in sonique before proceeding. If paper
-claims and this code disagree, never silently reconcile either side — ask
-which is authoritative.
+This package was migrated from `sonique/research/JunaCore`; `README.md` records
+the source commit. Juna is now a separate entity with its own code, tests, and
+change history. Its files and receiver results do not have to match Sonique.
 
-This claim is executable: `test/provenance_contract.jl` pins the sha256
-digest of every byte-identical file and fails with fork instructions on any
-drift, and `tools/parity_check.jl` prints a sha256 decision digest that
-must match under both repositories. Never update a pin to make a test pass.
+`test/source_file_check.jl` stores the SHA-256 value of each selected Juna file
+and reports when a value changes. A reviewed Juna change may update its stored
+value in the same change after the user approves it. It does not require a
+corresponding Sonique change. `tools/parity_check.jl` checks fixed Juna receiver
+results against results stored in this repository. The source details record
+where the migration began; they do not impose continuing equality.
+
+If paper claims and this code disagree, never silently reconcile either side.
+Ask which is authoritative.
 
 Git safety rules for all agents live at the repository root: `../AGENTS.md`.
 
@@ -95,7 +94,7 @@ Default checks for this Julia package:
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
 julia --project=. -e 'using JunaCore'            # load gate: pruned closure complete
 julia --project=. -e 'using Pkg; Pkg.test()'     # full suite registry
-julia --project=. tools/parity_check.jl          # digest must match source repo
+julia --project=. tools/parity_check.jl          # check fixed local receiver results
 python3 tools/explorer/explorer_contract.py      # data contracts C1-C7
 python3 tools/explorer/server_contract.py        # explorer behavior S1-S13
 ```
