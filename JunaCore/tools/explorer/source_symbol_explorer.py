@@ -1977,7 +1977,10 @@ const PIPELINE=[
   variants:[
    {name:'Frame receiver functions',
     d:'OFDM+FEC/Partial-FFT, Lite, and stateful band-RLS receiver functions.',
-    f:['_frame_static_trace','_frame_lite_refine','_frame_juna_refine','_frame_stateful_band_rls']}]},
+    f:['_frame_static_trace','_frame_lite_refine','_frame_juna_refine','_frame_stateful_band_rls']},
+   {name:'Profiled C,z',
+    d:'Start from frame-wide Lite, solve C conditional on z, derive or update W according to the selected form, check BP candidates, and apply CRC gating when configured.',
+    f:['ProfiledCzFrameModulation','CrcProfiledCzFrameModulation','CrcTurboCwzFrameModulation','CrcConditionedCwzFrameModulation','CrcConditionedJointCwzFrameModulation','_frame_profiled_cz_refine','_cz_profile_C!','_cz_update_W!','_cz_candidate_crc_valid','_cz_bp_feedback!','_cz_conditioned_joint_step!','_cz_restart_logits']}]},
  {t:'Candidate selection and payload output',
   d:'Compare source-backed candidates, record the selection reason, remove inner/frame overhead, and return public metrics.',
   f:['_juna_better','_juna_selection_reason','_payload_from_metrics','_frame_payload_metrics','_write_payload_metrics!','demodulate_methods']},
@@ -2014,7 +2017,7 @@ function renderAlgo(){
   html+='<div class="arrow">↓</div>';
   // concept 2 — WHERE JUNA sits in this source tree
   html+=concept('≡','Where JUNA sits: current receiver-family dispatch',
-    'The source contains OFDM+FEC and Partial-FFT baselines plus packet-local and frame-wide refinement families. The stages below follow their shared transmit, acquisition, front-end, decoding, dispatch, and selection entry points.',
+    'The source contains OFDM+FEC and Partial-FFT baselines, packet-local JUNA-Lite, and the frame-wide Profiled C,z family. The stages below follow their shared transmit, acquisition, front-end, decoding, dispatch, and selection entry points.',
     'families');
   html+='<div class="arrow">↓</div>';
   PIPELINE.forEach((st,i)=>{
@@ -2177,6 +2180,7 @@ function artFamilies(cv){const[x,w,h]=hd(cv);
   const groups=[
     {n:'baselines',facades:['JunaOFDMFEC','JunaStandard','JunaPartialFFT']},
     {n:'packet-local',facades:['JunaLite']},
+    {n:'frame-wide',facades:['JunaProfiledCzFrame','JunaCrcProfiledCzFrame','JunaCrcConditionedJointCwzFrame']},
   ];
   const L=86,rowH=(h-26)/groups.length;
   x.textAlign='center';x.fillStyle=AC.ink;x.font='600 10px system-ui';x.fillText('public receiver facades declared in JunaCore.jl',w/2,12);

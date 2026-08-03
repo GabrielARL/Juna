@@ -494,14 +494,25 @@ def check():
             problems.append("S15: Juna.Modulation field inspector is incomplete")
         if not detail.get("interface_methods"):
             problems.append("S15: type inspector lacks interface implementations")
-        if {f["name"] for f in detail.get("facades", [])} != {
-                "JunaOFDMFEC", "JunaPartialFFT", "JunaLite"}:
-            problems.append("S15: type inspector lacks the three public facades")
+        expected_facades = {
+            "JunaOFDMFEC", "JunaPartialFFT", "JunaLite",
+            "JunaProfiledCzFrame", "JunaCrcProfiledCzFrame",
+            "JunaCrcConditionedJointCwzFrame",
+        }
+        if {f["name"] for f in detail.get("facades", [])} != expected_facades:
+            problems.append(
+                "S15: type inspector public facades differ from the catalog")
     source_js = open(os.path.join(HERE, "static", "source.js")).read()
     for marker in ("Static call edge", "doubleClick", "Fields (",
                    "Open in Source definitions"):
         if marker not in source_js:
             problems.append(f"S15: source interaction lost '{marker}'")
+    for facade in ("JunaProfiledCzFrame", "JunaCrcProfiledCzFrame",
+                   "JunaCrcConditionedJointCwzFrame"):
+        marker = f'{facade}: "profiled_cz"'
+        if marker not in source_js:
+            problems.append(
+                f"S15: Source facade link lost Profiled C,z mapping {facade}")
 
     # S16
     for path, label in (
@@ -539,6 +550,21 @@ def check():
         problems.append("S18: default Lite graph does not match its declared stage DAG")
     if any(node.get("kind") != "stage" for node in stage_graph.get("nodes", [])):
         problems.append("S18: default receiver graph contains raw symbol nodes")
+
+    code, text = fetch(base, "/api/graph?receiver=profiled_cz")
+    profiled_graph = json.loads(text).get("data", {}) if code == 200 else {}
+    expected_profiled_stage_ids = {
+        "stage:" + stage_id
+        for receiver in chain["receivers"] if receiver["id"] == "profiled_cz"
+        for stage_id in receiver["path"] + receiver.get("optional_stages", [])
+    }
+    if profiled_graph.get("view") != "stages":
+        problems.append(
+            "S18: Profiled C,z graph does not default to stage view")
+    if {node.get("id") for node in profiled_graph.get("nodes", [])} != \
+            expected_profiled_stage_ids:
+        problems.append(
+            "S18: Profiled C,z graph differs from its declared stage DAG")
 
     code, text = fetch(
         base, "/api/graph?receiver=lite&stage=seed&view=symbols")
@@ -862,6 +888,23 @@ def check():
                for context in alias_context):
         problems.append(
             "S23: receiver=standard did not resolve to canonical OFDM+FEC")
+    profiled_cz = next((receiver for receiver in receiver_data
+                        if receiver.get("id") == "profiled_cz"), None)
+    expected_profiled_cz = {
+        "display_name": "Profiled C,z",
+        "facade": "JunaProfiledCzFrame",
+        "variant_facades": ["JunaCrcProfiledCzFrame",
+                            "JunaCrcConditionedJointCwzFrame"],
+        "mode": "frame_wide_ldpc",
+        "profile": "frame_wide_ldpc",
+        "frame_receiver": "profiled_cz",
+        "objective": "profiled_cz_frame",
+    }
+    if profiled_cz is None or any(
+            profiled_cz.get(key) != value
+            for key, value in expected_profiled_cz.items()):
+        problems.append(
+            "S23: /api/receivers lacks the approved Profiled C,z family")
 
     # S24
     rich_markers = ('id="side"', 'id="net"', 'id="detail"')
@@ -966,18 +1009,29 @@ def check():
         problems.append(
             "S24: Receiver stages names absent source functions: " +
             ", ".join(absent_pipeline_functions))
-    incomplete_receiver_functions = {
-        "_frame_wz_refine",
-        "_frame_wcz_refine",
-        "_frame_turbo_map_refine",
-        "_frame_profiled_gradient_refine",
+    required_profiled_functions = {
+        "ProfiledCzFrameModulation",
+        "CrcProfiledCzFrameModulation",
+        "CrcTurboCwzFrameModulation",
+        "CrcConditionedCwzFrameModulation",
+        "CrcConditionedJointCwzFrameModulation",
+        "_frame_profiled_cz_refine",
+        "_cz_profile_C!",
+        "_cz_update_W!",
+        "_cz_candidate_crc_valid",
+        "_cz_bp_feedback!",
+        "_cz_conditioned_joint_step!",
+        "_cz_restart_logits",
     }
-    advertised_incomplete_receivers = sorted(
-        pipeline_functions & incomplete_receiver_functions)
-    if advertised_incomplete_receivers:
+    missing_profiled_functions = sorted(
+        required_profiled_functions - pipeline_functions)
+    if missing_profiled_functions:
         problems.append(
-            "S24: Receiver stages advertises incomplete receiver paths: " +
-            ", ".join(advertised_incomplete_receivers))
+            "S24: Receiver stages omits Profiled C,z functions: " +
+            ", ".join(missing_profiled_functions))
+    if "Profiled C,z" not in source_explorer_text:
+        problems.append(
+            "S24: Receiver stages omits the approved Profiled C,z label")
     for stale_marker in ("sync_profile", "Rpchan", ":rpchan",
                          "_rpchan_acquire"):
         if stale_marker in source_explorer_text:

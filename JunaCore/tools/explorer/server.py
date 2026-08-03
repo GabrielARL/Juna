@@ -317,14 +317,19 @@ def symbol_detail(sym):
              sym["module"] == "Modulations")
         ]
         if sym["module"] == "Juna" and sym["name"] == "Modulation":
+            public_facades = {
+                facade
+                for receiver in RECEIVERS_CACHE.get()
+                for facade in [receiver["facade"],
+                               *receiver.get("variant_facades", [])]
+            }
             facades = [
                 {"id": candidate["id"], "name": candidate["module"],
                  "kind": "facade"}
                 for candidate in _data["symbols"]
                 if candidate["name"] == "Modulation" and
                 candidate["kind"] == "const" and
-                candidate["module"] in
-                {"JunaOFDMFEC", "JunaPartialFFT", "JunaLite"}
+                candidate["module"] in public_facades
             ]
 
     return {
@@ -412,8 +417,10 @@ def graph_data(query):
             names = {name for st in chain["stages"] if st["id"] in stage_ids
                      for name in st["symbols"]}
             ids = {s["id"] for name in names for s in by_name.get(name, [])}
+            receiver_facades = {
+                catalog["facade"], *catalog.get("variant_facades", [])}
             ids.update(s["id"] for s in symbols
-                       if s.get("module") == catalog["facade"])
+                       if s.get("module") in receiver_facades)
             narrow(ids, "receiver", receiver_id, catalog["display_name"])
 
     suite_key = params.get("suite", [None])[0]
@@ -875,6 +882,10 @@ def page_home():
     strip = " → ".join(
         f'<a href="/chain#{esc(st["id"])}">{esc(st["title"])}</a>'
         for st in (by_stage[stage_id] for stage_id in lite["chain_path"]))
+    receiver_links = " · ".join(
+        f'<a href="/source/graph?receiver={esc(receiver["id"])}">'
+        f'{esc(receiver["display_name"])}</a>'
+        for receiver in RECEIVERS_CACHE.get())
     rows = "".join(
         f"<tr><td><a href='/run/{esc(r['key'])}'>{esc(r['key'])}</a></td>"
         f"<td>{status_badge(r)}</td>"
@@ -887,15 +898,11 @@ def page_home():
             '<span class="badge ok">no recorded failures</span>')
     body = f"""
 <h1>JUNA-Lite explorer</h1>
-<div class="card">Standalone home of the JUNA-Lite receiver. Its history begins
+<div class="card">Standalone Explorer for this JunaCore package. Its history begins
 at sonique <code>research/JunaCore @ {SOURCE_SHA}</code>, but Juna is maintained
-independently. Three public facades:
-OFDM+FEC, Partial-FFT, JUNA-Lite. HEAD:
+independently. Reader-facing receivers: {receiver_links}. HEAD:
 <code>{esc(git_state()['head'])} {esc(git_state()['subject'])}</code><br>
-Explore source:
-<a href="/source/graph?receiver=ofdm_fec">OFDM+FEC</a> ·
-<a href="/source/graph?receiver=partial-fft">Partial-FFT</a> ·
-<a href="/source/graph?receiver=lite">JUNA-Lite</a></div>
+Each receiver link opens its source graph.</div>
 {stale_banner()}
 <h2>Receiver chain</h2>
 <div class="card">{strip}</div>
@@ -1049,10 +1056,10 @@ def page_chain():
         for edge in chain["edges"] if edge.get("condition"))
     body = f"""
 <h1>Receiver chains</h1>
-<div class="card">The two baselines and JUNA-Lite are views over one shared,
-contract-verified stage DAG. A baseline is a complete comparison receiver,
-not an incomplete implementation. Lite extends its Partial-FFT seed only
-when that seed is invalid.</div>
+<div class="card">The receiver entries are views over one shared,
+contract-verified stage DAG. A baseline is a complete comparison receiver.
+JUNA-Lite extends its Partial-FFT seed only when that seed is invalid;
+Profiled C,z processes the complete frame.</div>
 <div class="card"><label>Receiver:
 <select id="receiver-select">{options}</select></label>
 &nbsp; <label>Compare with:
@@ -1081,7 +1088,9 @@ function renderChain() {{
   document.getElementById('receiver-purpose').innerHTML =
     '<b>' + selected.display_name + '</b> · ' + selected.purpose +
     '<details class="receiver-technical"><summary>Technical details</summary>' +
-    '<p><b>Code name</b><br><code>' + selected.facade + '</code></p></details>';
+    '<p><b>Code names</b><br><code>' +
+    [selected.facade].concat(selected.variant_facades || []).join('</code> · <code>') +
+    '</code></p></details>';
   document.getElementById('chain-boxes').innerHTML =
     selected.chain_path.map(function(id, index) {{
       var st = STAGES.find(function(s) {{ return s.id === id; }});

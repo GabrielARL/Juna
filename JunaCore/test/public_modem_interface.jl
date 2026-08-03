@@ -344,54 +344,67 @@ end
     end
 
     @testset "configuration controls are explicit across every receiver mode" begin
-        # requires_bpsk/requires_shifted_band gating was removed. The earlier
-        # rejection branch covered receivers like FullyCoupled/TurboMAP that
-        # lacked BPSK or shifted-band support. All three migrated receivers
-        # (OFDM+FEC, Partial-FFT, Lite) support both, so every configuration
-        # below is valid for every descriptor and the rejection branch would
-        # never fire; scope narrowed to the migrated facades.
         configurations = (
-            (name = "short CP", kwargs = (np = 64,)),
-            (name = "large FFT", kwargs = (nc = 2048, np = 64)),
+            (name = "short CP", kwargs = (np = 64,), requires_bpsk = false,
+             requires_shifted_band = false),
+            (name = "large FFT", kwargs = (nc = 2048, np = 64),
+             requires_bpsk = false, requires_shifted_band = false),
             (name = "compact BPSK code",
-             kwargs = (bpc = 1, ldpc_k = 170, ldpc_n = 680)),
-            (name = "rate-one-half code", kwargs = (ldpc_k = 340, ldpc_n = 680)),
-            (name = "eight partial views", kwargs = (partial_fft_parts = 8,)),
-            (name = "minimum trained p16 pilot comb", kwargs = (pilot_ratio = 1 / 16,)),
-            (name = "maximum supported partial views", kwargs = (partial_fft_parts = 16,)),
+             kwargs = (bpc = 1, ldpc_k = 170, ldpc_n = 680),
+             requires_bpsk = true, requires_shifted_band = false),
+            (name = "rate-one-half code", kwargs = (ldpc_k = 340, ldpc_n = 680),
+             requires_bpsk = false, requires_shifted_band = false),
+            (name = "eight partial views", kwargs = (partial_fft_parts = 8,),
+             requires_bpsk = false, requires_shifted_band = false),
+            (name = "minimum trained p16 pilot comb", kwargs = (pilot_ratio = 1 / 16,),
+             requires_bpsk = false, requires_shifted_band = false),
+            (name = "maximum supported partial views", kwargs = (partial_fft_parts = 16,),
+             requires_bpsk = false, requires_shifted_band = false),
             (name = "half-band large FFT",
-             kwargs = (nc = 2048, np = 128, bw = 0.5)),
+             kwargs = (nc = 2048, np = 128, bw = 0.5),
+             requires_bpsk = false, requires_shifted_band = true),
             (name = "three-quarter-reference-band large FFT",
-             kwargs = (nc = 2048, np = 128, bw = 0.75)),
+             kwargs = (nc = 2048, np = 128, bw = 0.75),
+             requires_bpsk = false, requires_shifted_band = true),
         )
+        source_payload = Vector{Bool}(mseq(9) .> 0)
 
         for descriptor in public_receiver_descriptors(), config in configurations
             @testset "$(descriptor.name) / $(config.name)" begin
                 configured = public_receiver(descriptor; config.kwargs...)
-                @test isvalid(configured, PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
+                supported = (!config.requires_bpsk || descriptor.supports_bpsk) &&
+                    (!config.requires_shifted_band || descriptor.supports_shifted_band)
+                @test isvalid(configured, PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS) ==
+                      supported
 
-                bps = PublicInterfaceModulations.bitspersymbol(configured)
-                for nbits in (1, bps, bps + 1)
-                    @testset "$nbits payload bits" begin
-                        payload = Bool[
-                            isodd(count_ones(37i + 11)) for i in 1:nbits
-                        ]
-                        waveform = PublicInterfaceModulations.modulate(
-                            configured, payload,
-                            PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
-                        metrics, cfo = PublicInterfaceModulations.demodulate(
-                            configured, nbits, waveform,
-                            PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
+                if supported
+                    bps = PublicInterfaceModulations.bitspersymbol(configured)
+                    for nbits in (1, bps, bps + 1)
+                        @testset "$nbits payload bits" begin
+                            payload = Bool[
+                                isodd(count_ones(37i + 11)) for i in 1:nbits
+                            ]
+                            waveform = PublicInterfaceModulations.modulate(
+                                configured, payload,
+                                PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
+                            metrics, cfo = PublicInterfaceModulations.demodulate(
+                                configured, nbits, waveform,
+                                PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
 
-                        @test length(waveform) ==
-                              PublicInterfaceModulations.signallength(
-                                  configured, nbits,
-                                  PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
-                        @test length(metrics) == nbits
-                        @test all(isfinite, metrics)
-                        @test (metrics .> 0) == payload
-                        @test cfo == 0.0
+                            @test length(waveform) ==
+                                  PublicInterfaceModulations.signallength(
+                                      configured, nbits,
+                                      PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
+                            @test length(metrics) == nbits
+                            @test all(isfinite, metrics)
+                            @test (metrics .> 0) == payload
+                            @test cfo == 0.0
+                        end
                     end
+                else
+                    @test_throws ArgumentError PublicInterfaceModulations.modulate(
+                        configured, source_payload[1:170],
+                        PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
                 end
             end
         end

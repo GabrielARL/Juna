@@ -8,8 +8,8 @@
     "(exported from test/runtests.jl), so a renamed function or a dropped suite fails",
     "loudly instead of leaving the chain page stale.",
     "kind: shared = infrastructure both baselines also use; seed = runs once to produce",
-    "the starting candidate; iterative = inside the Lite refinement loop;",
-    "deployment = frame-stateful wrapping of the per-block receiver.",
+    "the starting candidate; iterative = inside a receiver refinement loop;",
+    "deployment = frame-stateful wrapping of a receiver.",
     "evidence: direct = at least one declared suite textually names a stage symbol",
     "(contract-enforced against the coverage scan); behavioral = the declared suites",
     "exercise the stage through the public API without naming internals - rendered",
@@ -31,6 +31,11 @@
       "facade": "JunaLite",
       "path": ["acquisition", "seed", "posterior", "anchors", "refit", "redecode", "keep-best"],
       "optional_stages": ["frame"]
+    },
+    {
+      "id": "profiled_cz",
+      "facade": "JunaProfiledCzFrame",
+      "path": ["acquisition", "frame", "profiled_cz"]
     }
   ],
   "edges": [
@@ -44,7 +49,9 @@
     {"receiver": "lite", "from": "refit", "to": "redecode"},
     {"receiver": "lite", "from": "redecode", "to": "keep-best"},
     {"receiver": "lite", "from": "keep-best", "to": "posterior", "condition": "improved invalid candidate and iterations remain"},
-    {"receiver": "lite", "from": "frame", "to": "acquisition", "condition": "frame-wide deployment wrapper selected"}
+    {"receiver": "lite", "from": "frame", "to": "acquisition", "condition": "frame-wide deployment wrapper selected"},
+    {"receiver": "profiled_cz", "from": "acquisition", "to": "frame"},
+    {"receiver": "profiled_cz", "from": "frame", "to": "profiled_cz"}
   ],
   "stages": [
     {
@@ -178,7 +185,7 @@
     {
       "id": "frame",
       "title": "Frame-wide FEC receiver",
-      "detail": "The per-block Lite receiver deployed across a frame-wide LDPC graph (frame_receiver = :lite / :stateful_lite), as the mechanism suites exercise it.",
+      "detail": "One LDPC/BP graph spans the requested frame. The selected frame receiver processes all block observations before payload metrics are returned.",
       "symbols": [
         "FrameWideLDPCModulation",
         "_modulate_frame_wide_ldpc",
@@ -188,6 +195,41 @@
         "feedback-modes"
       ],
       "kind": "deployment",
+      "evidence": "direct"
+    },
+    {
+      "id": "profiled_cz",
+      "title": "Profiled C,z",
+      "detail": "The base and CRC forms solve C conditional on z and derive W from C. The turbo and conditioned forms use the existing C,W,z controls. BP checks the candidates, and CRC can gate replacement of the frame-wide Lite result.",
+      "symbols": [
+        "ProfiledCzFrameModulation",
+        "CrcProfiledCzFrameModulation",
+        "CrcTurboCwzFrameModulation",
+        "CrcConditionedCwzFrameModulation",
+        "CrcConditionedJointCwzFrameModulation",
+        "_frame_profiled_cz_refine",
+        "_cz_profile_C!",
+        "_cz_update_W!",
+        "_cz_candidate_crc_valid",
+        "_cz_bp_feedback!",
+        "_cz_conditioned_joint_step!",
+        "_cz_restart_logits"
+      ],
+      "suites": [
+        "profiled-cz",
+        "profiled-cz-crc",
+        "profiled-cz-check-degree",
+        "wcz-solves",
+        "profiled-cz-full-dependency",
+        "profiled-cz-objective",
+        "profiled-cz-initialization",
+        "profiled-cz-optimizer",
+        "profiled-cz-block-coordinate",
+        "profiled-cz-candidate",
+        "profiled-cz-end-to-end",
+        "contract"
+      ],
+      "kind": "iterative",
       "evidence": "direct"
     }
   ]

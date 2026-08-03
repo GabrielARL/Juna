@@ -26,17 +26,19 @@ C7  vendored analyzer health: analyze() sees exactly the migrated source
     link route present. This contract checks the analyzer maintained by Juna.
 C8  receivers.json freshness and integrity: it is exported from the Julia
     receiver catalog; receiver ids/facades are unique and exactly match the
-    receivers declared by chain.json.
+    receivers declared by chain.json. Profiled C,z is one reader-facing family
+    whose CRC and conditioned public facades remain source-visible variants.
 C9  multi-receiver DAG integrity: schema version 2, every receiver path and
-    edge references real stages, paths start at acquisition, the three
-    package facades are represented, and conditional edges carry labels.
+    edge references real stages, paths start at acquisition, the catalog
+    facades are represented, and conditional edges carry labels.
 C10 suite applicability is explicit and computable: each registry entry is
     structural, all receivers, one receiver, or a DAG stage; stage-scoped
     suites are declared on that stage; each receiver has universal coverage
     and either a receiver-specific suite or a justified exemption.
-C11 reader-visible stage names exactly match the nine labels approved on
-    2026-08-01, and the combiner-refit description follows the current code by
-    stating that data-anchor confidence values weight the refit.
+C11 reader-visible stage names retain the nine labels approved on 2026-08-01
+    and add the approved Profiled C,z family label; the combiner-refit
+    description follows the current code by stating that data-anchor confidence
+    values weight the refit.
 C12 the interface test uses the four reader-visible result labels approved on
     2026-08-01 and does not retain their ambiguous predecessors.
 """
@@ -65,6 +67,7 @@ APPROVED_STAGE_TITLES = {
     "redecode": "Re-decode",
     "keep-best": "Candidate selection",
     "frame": "Frame-wide FEC receiver",
+    "profiled_cz": "Profiled C,z",
 }
 
 
@@ -167,8 +170,11 @@ def check():
         problems.append("C8: duplicate receiver ids")
     if len(set(facades)) != len(facades):
         problems.append("C8: duplicate receiver facades")
-    if set(receiver_ids) != {"ofdm_fec", "partial-fft", "lite"}:
-        problems.append("C8: canonical receiver IDs must use ofdm_fec")
+    expected_receiver_ids = {"ofdm_fec", "partial-fft", "lite", "profiled_cz"}
+    if set(receiver_ids) != expected_receiver_ids:
+        problems.append(
+            "C8: canonical receiver IDs differ from " +
+            repr(sorted(expected_receiver_ids)))
     ofdm_fec = next((r for r in receivers if r["id"] == "ofdm_fec"), {})
     expected_ofdm_fec = {
         "display_name": "OFDM+FEC",
@@ -181,6 +187,24 @@ def check():
            for key, value in expected_ofdm_fec.items()):
         problems.append("C8: canonical OFDM+FEC catalog fields differ from "
                         f"{expected_ofdm_fec}")
+    profiled_cz = next((r for r in receivers
+                        if r["id"] == "profiled_cz"), {})
+    expected_profiled_cz = {
+        "display_name": "Profiled C,z",
+        "facade": "JunaProfiledCzFrame",
+        "variant_facades": ["JunaCrcProfiledCzFrame",
+                            "JunaCrcConditionedJointCwzFrame"],
+        "mode": "frame_wide_ldpc",
+        "profile": "frame_wide_ldpc",
+        "frame_receiver": "profiled_cz",
+        "objective": "profiled_cz_frame",
+        "chain_path": ["acquisition", "frame", "profiled_cz"],
+    }
+    if any(profiled_cz.get(key) != value
+           for key, value in expected_profiled_cz.items()):
+        problems.append(
+            "C8: Profiled C,z catalog fields differ from " +
+            repr(expected_profiled_cz))
 
     # C9 shared stage DAG integrity
     if chain.get("schema_version") != 2:
@@ -189,8 +213,18 @@ def check():
     chain_ids = [r.get("id") for r in chain_receivers]
     if set(chain_ids) != set(receiver_ids):
         problems.append("C9: chain receiver ids do not match receivers.json")
-    if set(facades) != {"JunaOFDMFEC", "JunaPartialFFT", "JunaLite"}:
-        problems.append("C9: catalog must expose the three package facades")
+    catalog_facades = set(facades)
+    for receiver in receivers:
+        catalog_facades.update(receiver.get("variant_facades", []))
+    expected_facades = {
+        "JunaOFDMFEC", "JunaPartialFFT", "JunaLite",
+        "JunaProfiledCzFrame", "JunaCrcProfiledCzFrame",
+        "JunaCrcConditionedJointCwzFrame",
+    }
+    if catalog_facades != expected_facades:
+        problems.append(
+            "C9: catalog public facades differ from " +
+            repr(sorted(expected_facades)))
     stage_ids = set(ids)
     for receiver in chain_receivers:
         path = receiver.get("path", [])
@@ -266,8 +300,8 @@ def check():
     actual_titles = {stage["id"]: stage.get("title") for stage in stages}
     if actual_titles != APPROVED_STAGE_TITLES:
         problems.append(
-            "C11: stage titles differ from the nine labels approved on "
-            f"2026-08-01: {actual_titles}")
+            "C11: stage titles differ from the approved labels: "
+            f"{actual_titles}")
     refit = next((stage for stage in stages if stage["id"] == "refit"), {})
     if "Data-anchor confidence values weight the refit." not in refit.get(
             "detail", ""):
@@ -324,6 +358,18 @@ def check():
     if "not runtime coverage" not in report.get("note", ""):
         problems.append("C6: source_coverage report note lost the "
                         "static-not-runtime distinction")
+    profiled_facades = {
+        "JunaCore.JunaProfiledCzFrame",
+        "JunaCore.JunaCrcProfiledCzFrame",
+        "JunaCore.JunaCrcConditionedJointCwzFrame",
+    }
+    unresolved_profiled_facades = sorted(
+        item.get("name") for item in report.get("unresolved", [])
+        if item.get("name") in profiled_facades)
+    if unresolved_profiled_facades:
+        problems.append(
+            "C6: source coverage does not recognize Profiled C,z facades: " +
+            ", ".join(unresolved_profiled_facades))
 
     # C7 vendored analyzer health
     from source_symbol_explorer import render_html
@@ -332,7 +378,10 @@ def check():
     expected_files = {"JunaCore.jl", "Juna.jl", "Modulations.jl", "LDPC.jl",
                       os.path.join("juna", "common.jl"),
                       os.path.join("juna", "frame_wide_ldpc.jl"),
-                      os.path.join("juna", "lite.jl")}
+                      os.path.join("juna", "lite.jl"),
+                      os.path.join("juna", "full.jl"),
+                      os.path.join("juna", "coupled.jl"),
+                      os.path.join("juna", "profiled_cz_frame.jl")}
     if files != expected_files:
         problems.append(f"C7: analyzer file set drifted: {sorted(files)}")
     if len(analyzed["symbols"]) < 250:

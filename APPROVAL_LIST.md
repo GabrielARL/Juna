@@ -11,7 +11,7 @@ This is Juna's register. It is governed by `SOP_HUMAN_AI_COWORK.md`.
 - A rejected item keeps its identifier.
 - Silence is not approval.
 
-Next free Juna identifier: **JCM-085**.
+Next free Juna identifier: **JCM-093**.
 
 The earlier D sequence still has a gap. D6 to D12 were approved in another
 session but were never recorded. They remain reserved and must not be reused.
@@ -110,15 +110,26 @@ session but were never recorded. They remain reserved and must not be reused.
 | JCM-075 | approved | Use `Static calls`. User: "continue". |
 | JCM-076 | approved | Use `Public interface`. User: "continue". |
 | JCM-077 | approved | Use `Modulation fields`. User: "continue". |
+| JCM-078 | approved | Restore the complete CRC, turbo, and conditioned C,z receiver family, including its required implementation closure and tests. User: "078b". |
+| JCM-079 | approved | Expose the restored receiver family through JunaCore and the Explorer; update its facade, receiver catalog, Source graph, chain evidence, and contracts together. User: "079a". |
+| JCM-080 | approved | Use `Profiled C,z` as the reader-facing name. Keep the existing source identifiers unless a separate rename is approved. User: "080a". |
 | JCM-081 | approved | Create one scoped Results, receiver, and Explorer commit on `agent/results-workspace`, then prepare human-only fast-forward merges into `human/merge-review` and `main`. Do not merge the already-integrated Claude branch again. User: "81a". |
 | JCM-082 | approved | Track the minimal self-contained Results bundle: the generator, template, rendered page, manifest, view data, and the two 60-frame finalist CSV inputs. Leave the 20-frame screening files and other unused experiment outputs local. User: "082A". |
 | JCM-083 | approved | Keep this merge focused. Repository-backed portions of JCM-027, JCM-030, and JCM-031 through JCM-054 remain pending separate reviewed integration; JCM-040 through JCM-043 remain applied globally, and settled no-edit and rejected decisions remain unchanged. User: "083A". |
 | JCM-084 | approved | Remove absent Rpchan and receiver-function entries from the reader-facing Receiver stages walkthrough so it describes only the current source. User: "084A". |
+| JCM-087 | approved | Import all seven portable Sonique regression tests for the restored `full.jl` and `coupled.jl` closure, preserving assertions while adapting obsolete reader-visible labels to the approved `Profiled C,z` family name. User: "087a". |
+| JCM-088 | approved | Do not add ForwardDiff or the three automatic-differentiation test files; retain the existing finite-difference coverage. User: "088b". |
+| JCM-089 | approved | Attach the imported module tests to the existing `Profiled C,z` Explorer family across Tests, Coverage, Chain, and Source; do not create public Full or Coupled receiver entries. User: "089a". |
+| JCM-090 | approved | After validation, restart the permanent port 8772 Explorer from the `profiled-cz-restore` worktree and verify its live APIs. User: "090a". |
+| JCM-091 | approved | Commit the validated Profiled C,z restoration on `agent/profiled-cz-restore`, including its implementation, public facades, regression tests, Explorer integration, contracts, parity evidence, generated data, and approval record. User: "091a". |
+| JCM-092 | approved | Push `agent/profiled-cz-restore` to the confirmed `origin` at `https://github.com/GabrielARL/Juna.git` so another computer can clone this exact committed copy. User: "092a". |
 
 ## Proposed
 
 | Candidate | Wording or action | Source. |
 |---|---|---|
+| JCM-085a | Update `JunaCore/README.md` to describe JUNA-Lite, Profiled C,z, and the two baselines; list the three existing Profiled C,z facades; keep unrelated receivers in the absent list. | The restored implementation makes the current statement that frame-wide C,z is absent false. |
+| JCM-086a | Use `JunaCore explorer` for the application title, page heading, startup message, and contract descriptions. | `JunaCore` is the existing package name; the Explorer now exposes four reader-selectable receiver families. |
 | JCM-009a | `receiver refinement` | `refinement_objective` in the package interface. |
 | JCM-009b | `JUNA-Lite refinement` | `test/juna_lite_refinement.jl`. |
 | JCM-009c | `candidate refinement` | Candidate and refinement wording in the receiver code. |

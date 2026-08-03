@@ -31,7 +31,9 @@ STATIC_NOTE = ("static textual references only - a hit means the suite NAMES "
 
 _KNOWN_CONTAINERS = {"Juna", "JunaCore", "Modulations", "LDPC",
                      "JunaLite", "JunaOFDMFEC", "JunaPartialFFT",
-                     "JunaStandard"}
+                     "JunaStandard", "JunaProfiledCzFrame",
+                     "JunaCrcProfiledCzFrame",
+                     "JunaCrcConditionedJointCwzFrame"}
 
 
 def scan(root):

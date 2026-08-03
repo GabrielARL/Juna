@@ -6,20 +6,16 @@
 #   sec:method (lines 1919-1964)     OFDM+FEC, Partial-FFT+FEC, and JUNA share one
 #                                    transmitted frame and one public boundary; only
 #                                    receiver processing differs. Here: the OFDM+FEC,
-#                                    Partial-FFT, and Lite modulations all satisfy the
-#                                    same contract on the same 170-bit / 1280-sample
-#                                    frame.
+#                                    Partial-FFT, Lite, and Profiled C,z modulations
+#                                    satisfy the same public contract.
 #   acceptance rule (1928-1932,      Acceptance is payload-exact recovery. The
 #   tab:hyperparams line 2029)       noiseless loopback below applies exactly that
 #                                    rule: every payload bit recovered, bit for bit.
 #   eq:goodput (1934-1939)           payload_rate(128 bits) == 128*24000/1280 == 2400 bit/s.
-#   sec:solver (843)                 :lite runs JUNA-lite (ssec:junalite, 1522); it must
-#                                    survive the full modulate->demodulate path. :full
-#                                    (JUNA-Wz, ssec:gradient-juna, 1622) and :coupled
-#                                    (JUNA-WCz) remain recognized internal mode tags, but
-#                                    their solvers (juna/full.jl, juna/coupled.jl) are not
-#                                    part of this migrated package's src/, so only their
-#                                    mode/profile plumbing is checked here, not execution.
+#   sec:solver (843)                 :lite runs JUNA-lite (ssec:junalite, 1522). The
+#                                    internal :full and :coupled implementations supply
+#                                    the Profiled C,z closure and remain without separate
+#                                    public facades.
 #
 # The noiseless loopback runs UNCONDITIONALLY (it is deterministic and cheap).
 # Set JUNA_INTERFACE_ROUNDTRIP=1 (or `test/runtests.jl roundtrip`) to additionally
@@ -68,12 +64,8 @@ function assert_ldpc_tools_present()
     end
 end
 
-# FullyCoupled, TurboMAP, ProfiledGradient, ProfiledCz*, CrcConditioned*,
-# GuardedPhysical, GradientGuarded, and FrameRLS are dropped below: their
-# facades are absent from JunaCore.jl (scope narrowed to the migrated
-# facades). :full and :coupled keep their mode/profile plumbing in common.jl
-# but are not exercised beyond that, since their
-# solvers (juna/full.jl, juna/coupled.jl) are not part of this package's src/.
+# The Profiled C,z family is public. Its internal :full and :coupled
+# dependencies remain implementation profiles rather than separate facades.
 function assert_receiver_profiles()
     ofdm_fec = Juna.OFDMFECModulation()
     legacy_standard = Juna.StandardModulation()
@@ -81,6 +73,11 @@ function assert_receiver_profiles()
     lite = Juna.LiteModulation()
     full = Juna.FullModulation()
     coupled = Juna.CoupledModulation()
+    profiled_cz = Juna.ProfiledCzFrameModulation()
+    crc_profiled_cz = Juna.CrcProfiledCzFrameModulation()
+    turbo_cwz = Juna.CrcTurboCwzFrameModulation()
+    conditioned_cwz = Juna.CrcConditionedCwzFrameModulation()
+    conditioned_joint = Juna.CrcConditionedJointCwzFrameModulation()
     legacy_full = Juna.Modulation(mode = :robust)
 
     @test ofdm_fec.mode === :ofdm_fec
@@ -89,11 +86,21 @@ function assert_receiver_profiles()
     @test lite.mode === :lite
     @test full.mode === :full
     @test coupled.mode === :coupled
+    @test profiled_cz.frame_receiver === :profiled_cz
+    @test crc_profiled_cz.mode === :crc_profiled_cz_frame
+    @test turbo_cwz.cz_independent_w
+    @test conditioned_cwz.cz_vp_gradient
+    @test conditioned_joint.cz_conditioned_joint
     @test legacy_full.mode === :robust
     @test JunaCore.JunaOFDMFEC.Modulation().mode === :ofdm_fec
     @test JunaCore.JunaStandard.Modulation().mode === :standard
     @test JunaCore.JunaPartialFFT.Modulation().mode === :pfft
     @test JunaCore.JunaLite.Modulation().mode === :lite
+    @test JunaCore.JunaProfiledCzFrame.Modulation().frame_receiver ===
+          :profiled_cz
+    @test JunaCore.JunaCrcProfiledCzFrame.Modulation().frame_crc_bits == 16
+    @test JunaCore.JunaCrcConditionedJointCwzFrame.Modulation().
+          cz_conditioned_joint
     @test Juna.receiver_profile(ofdm_fec) === :ofdm_fec
     @test Juna.receiver_profile(:standard) === :ofdm_fec
     @test Juna.receiver_profile(legacy_standard) === :ofdm_fec
@@ -101,6 +108,8 @@ function assert_receiver_profiles()
     @test Juna.receiver_profile(lite) === :lite
     @test Juna.receiver_profile(full) === :full
     @test Juna.receiver_profile(coupled) === :coupled
+    @test Juna.receiver_profile(profiled_cz) === :frame_wide_ldpc
+    @test Juna.receiver_profile(crc_profiled_cz) === :frame_wide_ldpc
     @test Juna.receiver_profile(legacy_full) === :full
     # the baselines never refine, so BPSK stays legal for them (like Lite)
     @test isvalid(Juna.OFDMFECModulation(bpc = 1, ldpc_k = 170, ldpc_n = 680), FC, FS)
@@ -153,12 +162,8 @@ function assert_pilot_band_ls_objective_contract(m)
     @test Juna._payload_from_metrics(m, code, seed.lpost_metric) == bits
 end
 
-# The declared-refinement dispatch table is intentionally restricted to the
-# three migrated objectives (:none, :pilot_band_ls, :posterior_anchor_ls).
-# :reduced_wz (:full) and :coupled_cwz (:coupled) are recognized Symbols that
-# refinement_objective can still return, but executing either requires
-# juna/full.jl / juna/coupled.jl, which are not part of this package's src/;
-# scope narrowed to the migrated facades' objectives only.
+# The declared-refinement dispatch table covers every reader-selectable
+# receiver family. Receiver-specific suites execute the complete C,z receiver.
 function assert_declared_refinement_contract(m)
     capability = Modulations.refinement_objective(m)
     contracts = Dict{Symbol,Function}(
@@ -167,6 +172,12 @@ function assert_declared_refinement_contract(m)
         :posterior_anchor_ls => receiver -> begin
             @test Juna.receiver_profile(receiver) === :lite
             @test isdefined(Juna, :_juna_step)
+        end,
+        :profiled_cz_frame => receiver -> begin
+            @test Juna.receiver_profile(receiver) === :frame_wide_ldpc
+            @test receiver.frame_receiver === :profiled_cz
+            @test isdefined(Juna, :_frame_profiled_cz_refine)
+            @test isdefined(Juna, :_CoupledProblem)
         end,
     )
 
@@ -239,8 +250,7 @@ end
 
     @testset "shared receiver catalog covers every public runtime mode" begin
         assert_public_receiver_catalog()
-        # The FrameRLS name-membership check is dropped: its facade is absent
-        # from JunaCore.jl (scope narrowed to the migrated facades).
+        # FrameRLS remains outside this package's public facade set.
     end
 
     @testset "declared refinement capability matches an executable objective" begin
@@ -252,9 +262,14 @@ end
             ("JunaPartialFFT module", JunaCore.JunaPartialFFT.Modulation()),
             ("default JUNA-lite", Juna.Modulation()),
             ("JunaLite module", JunaCore.JunaLite.Modulation()),
+            ("Profiled C,z", JunaCore.JunaProfiledCzFrame.Modulation()),
+            ("Profiled C,z", JunaCore.JunaCrcProfiledCzFrame.Modulation()),
+            ("Profiled C,z", JunaCore.JunaCrcConditionedJointCwzFrame.Modulation()),
         )
         expected = (:none, :none, :none, :pilot_band_ls, :pilot_band_ls,
-                    :posterior_anchor_ls, :posterior_anchor_ls)
+                    :posterior_anchor_ls, :posterior_anchor_ls,
+                    :profiled_cz_frame, :profiled_cz_frame,
+                    :profiled_cz_frame)
 
         for ((name, provider), objective) in zip(providers, expected)
             @testset "$name declares $objective" begin
@@ -262,14 +277,6 @@ end
                 assert_declared_refinement_contract(provider)
             end
         end
-        # FullyCoupled, TurboMAP, ProfiledGradient, ProfiledCz*, Crc*,
-        # FrameWideLDPC, FrameRLS, :full ("JUNA-Wz"), :coupled ("JUNA-WCz"),
-        # and the legacy :robust alias are dropped from this executable-
-        # objective loop: their facades are absent, or (for :full/:coupled)
-        # their solvers live in juna/full.jl / juna/coupled.jl, which are not
-        # part of this migrated package's src/. Scope narrowed to the three
-        # migrated facades' objectives: OFDM+FEC -> :none,
-        # Partial-FFT -> :pilot_band_ls, Lite -> :posterior_anchor_ls.
     end
 
     @testset "The default receiver is JUNA-Lite" begin
