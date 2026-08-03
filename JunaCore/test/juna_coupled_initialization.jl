@@ -1,10 +1,11 @@
 #!/usr/bin/env julia
 #
-# JUNA-WCz Step 7: translate one real receiver block into the constrained
+# Translate one OFDM symbol into the constrained
 # coupled problem and construct a deterministic, feasible C/W/z starting point.
 #
 # The adapter is the boundary between the proven miniature objective and the
-# deployed OFDM/LDPC receiver. The initializer must use the Partial-FFT/BP seed;
+# deployed OFDM/LDPC receiver. The initializer must use the Partial-FFT/BP
+# initial candidate;
 # an all-zero z start would make many LDPC parity gradients uninformative.
 #
 # Run alone: julia --project=. test/juna_coupled_initialization.jl
@@ -24,12 +25,13 @@ function coupled_receiver_fixture()
     codeword = CoupledInitJuna._encode(code, message)
     waveform = CoupledInitJuna._modulate_block(m, layout, codeword)
     yparts = CoupledInitJuna._branch_observations(m, waveform)
-    seed = CoupledInitJuna._seed_candidate(m, code, layout, yparts)
-    (; m, code, layout, payload, codeword, yparts, seed)
+    initial_candidate = CoupledInitJuna._initial_candidate(
+        m, code, layout, yparts)
+    (; m, code, layout, payload, codeword, yparts, initial_candidate)
 end
 
-@testset verbose = true "Profiled C,z" begin
-    @testset "receiver block maps exactly into the coupled problem" begin
+@testset verbose = true "C,W,z initialization" begin
+    @testset "one OFDM symbol maps exactly into the coupled problem" begin
         f = coupled_receiver_fixture()
         problem = CoupledInitJuna._coupled_problem_from_receiver(
             f.m, f.code, f.layout, f.yparts,
@@ -63,16 +65,16 @@ end
         )
     end
 
-    @testset "seed initialization is deterministic finite and clamp-safe" begin
+    @testset "initialization is deterministic finite and clamp-safe" begin
         f = coupled_receiver_fixture()
         problem = CoupledInitJuna._coupled_problem_from_receiver(
             f.m, f.code, f.layout, f.yparts,
         )
         state1 = CoupledInitJuna._initial_coupled_state(
-            f.m, f.code, f.layout, problem, f.seed,
+            f.m, f.code, f.layout, problem, f.initial_candidate,
         )
         state2 = CoupledInitJuna._initial_coupled_state(
-            f.m, f.code, f.layout, problem, f.seed,
+            f.m, f.code, f.layout, problem, f.initial_candidate,
         )
 
         @test state1.W == state2.W
@@ -88,7 +90,7 @@ end
         @test sum(abs2, state1.C) > 0
 
         unclamped = findall(.!problem.inner_pilot_mask)
-        expected_z = clamp.(-f.seed.lpost_metric, -10.0, 10.0)
+        expected_z = clamp.(-f.initial_candidate.lpost_metric, -10.0, 10.0)
         @test state1.z[unclamped] == expected_z[unclamped]
         @test tanh.(state1.z[problem.inner_pilot_mask] ./ 2) ≈
               [bit ? -tanh(5.0) : tanh(5.0)
@@ -109,7 +111,7 @@ end
             f.m, f.code, f.layout, f.yparts,
         )
         initialized = CoupledInitJuna._initial_coupled_state(
-            f.m, f.code, f.layout, problem, f.seed,
+            f.m, f.code, f.layout, problem, f.initial_candidate,
         )
 
         no_C = CoupledInitJuna._CoupledState(
@@ -136,9 +138,12 @@ end
             problem, no_W; weights = combiner_weights,
         ).total
 
-        short_seed = merge(f.seed, (; lpost_metric = f.seed.lpost_metric[1:end-1]))
+        short_initial_candidate = merge(
+            f.initial_candidate,
+            (; lpost_metric = f.initial_candidate.lpost_metric[1:end-1]),
+        )
         @test_throws DimensionMismatch CoupledInitJuna._initial_coupled_state(
-            f.m, f.code, f.layout, problem, short_seed,
+            f.m, f.code, f.layout, problem, short_initial_candidate,
         )
     end
 
@@ -151,7 +156,8 @@ end
             ComplexF64(NaN, 0)
         observation_error = try
             CoupledInitJuna._initial_coupled_state(
-                f.m, f.code, f.layout, bad_observations, f.seed,
+                f.m, f.code, f.layout, bad_observations,
+                f.initial_candidate,
             )
             nothing
         catch err
@@ -163,12 +169,13 @@ end
         problem = CoupledInitJuna._coupled_problem_from_receiver(
             f.m, f.code, f.layout, f.yparts,
         )
-        metrics = copy(f.seed.lpost_metric)
+        metrics = copy(f.initial_candidate.lpost_metric)
         metrics[1] = NaN
-        bad_seed = merge(f.seed, (; lpost_metric = metrics))
+        bad_initial_candidate = merge(
+            f.initial_candidate, (; lpost_metric = metrics))
         metric_error = try
             CoupledInitJuna._initial_coupled_state(
-                f.m, f.code, f.layout, problem, bad_seed,
+                f.m, f.code, f.layout, problem, bad_initial_candidate,
             )
             nothing
         catch err

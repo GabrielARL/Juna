@@ -1,9 +1,9 @@
 #!/usr/bin/env julia
 #
-# Baseline receivers — the paper's OFDM+FEC (:ofdm_fec) and Partial FFT+FEC
-# (:pfft) benchmark branches as first-class public modes.
+# Baseline receivers — the paper's OFDM+FEC (:ofdm_fec) and Partial-FFT+FEC
+# (:pfft) benchmarks as first-class public modes.
 #
-# Paper claims protected (papers/main.tex):
+# Paper claims protected (reference papers/gab/joe.tex):
 #   sec:method            "We evaluate three receivers on the same transmitted
 #                          schedule": the two baselines must be REAL public
 #                          receivers, not just columns of an internal table.
@@ -33,7 +33,7 @@ pfft_payload(n::Integer) = Bool[isodd(count_ones(23i + 11)) for i in 1:Int(n)]
 # The equalization suite's piecewise fixture through the PUBLIC waveform: a
 # distinct complex gain per partial-FFT window, i.e. a channel that changes
 # within one OFDM symbol. One-tap equalization provably fails here while the
-# per-band branch combiner succeeds — the discrimination the paper claims.
+# Partial-FFT combiner succeeds — the discrimination the paper claims.
 function pfft_piecewise_waveform(m, bits)
     waveform = collect(PfftModulations.modulate(m, bits, PFFT_FC, PFFT_FS))
     gains = ComplexF64[1.45 - 0.35im, 0.62 + 0.75im, -0.35 + 1.2im, 1.05 + 0.18im]
@@ -47,7 +47,7 @@ function pfft_piecewise_waveform(m, bits)
 end
 
 @testset verbose = true "Partial-FFT and OFDM+FEC baseline receivers" begin
-    @testset "one partial-FFT view is the full useful-symbol FFT" begin
+    @testset "one Partial-FFT view is the full useful-symbol FFT" begin
         m = PfftJuna.PartialFFTModulation(
             nc=1024, np=256, bpc=1, partial_fft_parts=1)
         rng = Xoshiro(20_260_725)
@@ -94,13 +94,13 @@ end
         @test count((ofdm_fec_metrics .> 0) .!= bits) > 0
     end
 
-    @testset "lite refinement builds on the pfft seed and never falls behind it" begin
+    @testset "six fixed noisy packets compare Lite with its Partial-FFT initial candidate" begin
         pfft = PfftJuna.PartialFFTModulation()
         lite = PfftJuna.LiteModulation()
         bits = pfft_payload(PfftModulations.bitspersymbol(pfft))
 
-        # clean channel: the seed is already valid, refinement keeps it, and the
-        # two public receivers emit IDENTICAL metrics
+        # On a clean channel, the initial candidate is already valid. Refinement
+        # keeps it, and the two public receivers emit identical metrics.
         clean = PfftModulations.modulate(pfft, bits, PFFT_FC, PFFT_FS)
         clean_pfft, _ = PfftModulations.demodulate(
             pfft, length(bits), clean, PFFT_FC, PFFT_FS)
@@ -109,8 +109,8 @@ end
         @test clean_lite == clean_pfft
         @test (clean_pfft .> 0) == bits
 
-        # seeded waterfall edge: posterior-anchor refinement must not lose to
-        # its own seed in aggregate on the shared fixture
+        # Across six fixed noisy packets, posterior-anchor refinement must have
+        # no more aggregate bit errors than its Partial-FFT initial candidate.
         rng = Xoshiro(20_260_401)
         sigma = sqrt(10.0^(-1.5 / 10) / 2)
         pfft_errors = 0
@@ -125,7 +125,7 @@ end
             lite_errors += count((ml .> 0) .!= packet)
         end
         @test pfft_errors > 0            # the edge fixture is genuinely noisy
-        @test lite_errors <= pfft_errors # refinement never loses to its seed here
+        @test lite_errors <= pfft_errors
     end
 
     @testset "both baselines roundtrip the compact BPSK code" begin

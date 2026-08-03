@@ -32,7 +32,7 @@ function conditional_fixture()
     (; problem, state, weights)
 end
 
-@testset verbose=true "Profiled C,z" begin
+@testset verbose=true "Conditional response updates" begin
     fixture = conditional_fixture()
     problem, state, weights = fixture.problem, fixture.state, fixture.weights
 
@@ -62,7 +62,7 @@ end
     @test all(isfinite, result.loss_history)
 end
 
-@testset verbose=true "Profiled C,z" begin
+@testset verbose=true "Conditional combining updates" begin
     fixture = conditional_fixture()
     problem, weights = fixture.problem, fixture.weights
 

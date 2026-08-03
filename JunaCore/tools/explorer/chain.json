@@ -7,8 +7,8 @@
     "against the analyzer's symbol table and every suite key against suites.json",
     "(exported from test/runtests.jl), so a renamed function or a dropped suite fails",
     "loudly instead of leaving the chain page stale.",
-    "kind: shared = infrastructure both baselines also use; seed = runs once to produce",
-    "the starting candidate; iterative = inside a receiver refinement loop;",
+    "kind: shared = infrastructure both baselines also use; initial = runs once to produce",
+    "the initial candidate; iterative = inside a receiver refinement loop;",
     "deployment = frame-stateful wrapping of a receiver.",
     "evidence: direct = at least one declared suite textually names a stage symbol",
     "(contract-enforced against the coverage scan); behavioral = the declared suites",
@@ -24,12 +24,12 @@
     {
       "id": "partial-fft",
       "facade": "JunaPartialFFT",
-      "path": ["acquisition", "seed"]
+      "path": ["acquisition", "initial-candidate"]
     },
     {
       "id": "lite",
       "facade": "JunaLite",
-      "path": ["acquisition", "seed", "posterior", "anchors", "refit", "redecode", "keep-best"],
+      "path": ["acquisition", "initial-candidate", "posterior", "anchors", "refit", "redecode", "keep-best"],
       "optional_stages": ["frame"]
     },
     {
@@ -40,10 +40,10 @@
   ],
   "edges": [
     {"receiver": "ofdm_fec", "from": "acquisition", "to": "ofdm_fec"},
-    {"receiver": "partial-fft", "from": "acquisition", "to": "seed"},
-    {"receiver": "lite", "from": "acquisition", "to": "seed"},
-    {"receiver": "lite", "from": "seed", "to": "keep-best", "condition": "valid seed: return without refinement"},
-    {"receiver": "lite", "from": "seed", "to": "posterior", "condition": "invalid seed: enter refinement"},
+    {"receiver": "partial-fft", "from": "acquisition", "to": "initial-candidate"},
+    {"receiver": "lite", "from": "acquisition", "to": "initial-candidate"},
+    {"receiver": "lite", "from": "initial-candidate", "to": "keep-best", "condition": "valid initial candidate: return without refinement"},
+    {"receiver": "lite", "from": "initial-candidate", "to": "posterior", "condition": "invalid initial candidate: enter refinement"},
     {"receiver": "lite", "from": "posterior", "to": "anchors"},
     {"receiver": "lite", "from": "anchors", "to": "refit"},
     {"receiver": "lite", "from": "refit", "to": "redecode"},
@@ -57,7 +57,7 @@
     {
       "id": "acquisition",
       "title": "Packet acquisition",
-      "detail": "LFM synchronization, guard handling, and partial-FFT views.",
+      "detail": "LFM synchronization, initial resampling, and partial-FFT views.",
       "symbols": [
         "_sync_waveform",
         "_coarse_doppler",
@@ -83,17 +83,17 @@
         "smoke",
         "contract"
       ],
-      "kind": "seed",
-      "evidence": "behavioral"
+      "kind": "initial",
+      "evidence": "direct"
     },
     {
-      "id": "seed",
-      "title": "Partial-FFT/FEC seed path",
-      "detail": "Pilot-trained per-band combining (with the OFDM+FEC candidate as fallback comparator) equalizes and BP-decodes the initial candidate. Lite starts where Partial-FFT+FEC ends; a valid seed returns immediately.",
+      "id": "initial-candidate",
+      "title": "Partial-FFT/FEC initial candidate",
+      "detail": "Pilot-trained per-band combining computes the Partial-FFT/FEC initial candidate. The OFDM+FEC result is also computed, and candidate selection keeps the better result. Lite returns a valid initial candidate without refinement.",
       "symbols": [
-        "_seed_candidate",
-        "_front_end_seed_candidate",
-        "_select_front_end_seed",
+        "_initial_candidate",
+        "_select_initial_candidate",
+        "_initial_candidate_from_ofdm_fec_and_partial_fft",
         "_demodulate_block_partial",
         "_ofdm_fec_candidate"
       ],
@@ -101,13 +101,13 @@
         "pfft",
         "smoke"
       ],
-      "kind": "seed",
+      "kind": "initial",
       "evidence": "behavioral"
     },
     {
       "id": "posterior",
       "title": "Posterior means and confidences",
-      "detail": "BP posterior log-metrics become symbol decisions and per-tone confidences.",
+      "detail": "BP posterior log-metrics become symbol decisions and per-carrier confidences.",
       "symbols": [
         "_posterior_symbols",
         "_posterior_confidence"
@@ -122,7 +122,7 @@
     {
       "id": "anchors",
       "title": "Anchor selection",
-      "detail": "Pilots always anchor; confident data decisions join up to the anchor cap. The :frozen/:genie/:graded arms swap decision anchors for nothing or for (corrupted) truth without changing the code path.",
+      "detail": "Pilots always anchor; confident data decisions join up to the anchor cap. These arms replace posterior decisions with transmitted symbols. A null result shows only that this receiver’s refit did not improve with those anchors.",
       "symbols": [
         "_juna_anchor_targets",
         "_genie_block",
@@ -152,7 +152,7 @@
     {
       "id": "redecode",
       "title": "Re-decode",
-      "detail": "The refit combiner re-equalizes the partial-FFT views and BP re-decodes into a fresh candidate; payload extraction credits correct bits.",
+      "detail": "The refit combiner re-equalizes the partial-FFT views, BP re-decodes a fresh candidate, and payload extraction returns payload-bit estimates.",
       "symbols": [
         "_candidate_from_equalized",
         "_payload_from_metrics"
@@ -167,7 +167,7 @@
     {
       "id": "keep-best",
       "title": "Candidate selection",
-      "detail": "Keep the best candidate by validity then syndrome; stop on success, non-improvement, or the iteration limit.",
+      "detail": "Keep the best candidate by validity, syndrome, candidate score with its margin, then posterior magnitude. Stop on success, non-improvement, or the iteration limit.",
       "symbols": [
         "_juna_better",
         "_juna_step",
@@ -200,7 +200,7 @@
     {
       "id": "profiled_cz",
       "title": "Profiled C,z",
-      "detail": "The base and CRC forms solve C conditional on z and derive W from C. The turbo and conditioned forms use the existing C,W,z controls. BP checks the candidates, and CRC can gate replacement of the frame-wide Lite result.",
+      "detail": "Profiled C,z first computes the OFDM+FEC and frame-wide Lite candidates. With zero update steps it returns frame-wide Lite. C is solved conditional on z; W is derived from C or updated by the selected form. BP checks the candidates, and CRC when present can gate replacement of the frame-wide Lite result.",
       "symbols": [
         "ProfiledCzFrameModulation",
         "CrcProfiledCzFrameModulation",

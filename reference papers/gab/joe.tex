@@ -573,7 +573,7 @@ constructor maps it to $d_v=6$ message-column edges in the Tanner graph.
 \node[box, fill=labGoldLight, draw=labGold, minimum width=26mm] at (2.6,-4.65)
   {$341$ outer pilots\\[-1pt]\tiny one every 3 active tones};
 \node[box, fill=labBlueLight, draw=labBlue, minimum width=37mm] at (6.3,-4.65)
-  {$681$ QPSK data tones\\[-1pt]\tiny carry $1362$ coded bits};
+  {$682$ QPSK data tones\\[-1pt]\tiny 680 carry $1360$ coded bits};
 
 % FEC layer row.
 \draw[arr, labTeal] (6.3,-5.05) -- (4.25,-5.55);
@@ -584,9 +584,9 @@ constructor maps it to $d_v=6$ message-column edges in the Tanner graph.
 \node[box, fill=labVioletLight, draw=labViolet, minimum width=24mm, right=0pt of msgPay] (msgAnc)
   {$170$ inner pilots\\[-1pt]\tiny known message bits};
 \node[box, fill=labGoldLight, draw=labGold, minimum width=18mm, right=2mm of msgAnc] (parity)
-  {$1022$ parity\\[-1pt]\tiny $\mathbf v=\Hm\mathbf u$};
+  {$1020$ parity\\[-1pt]\tiny $\mathbf v=\Hm\mathbf u$};
 \node[note, anchor=west] at (0.8,-6.85)
-  {message row $k=340$: violet positions are clamped before BP; parity completes $n_b=1362$};
+  {message row $k=340$: violet positions are clamped before BP; parity completes $n_b=1360$};
 
 % Anchor placement row.
 \foreach \i in {0,...,15} {
@@ -607,7 +607,7 @@ constructor maps it to $d_v=6$ message-column edges in the Tanner graph.
       minimum width=83mm, minimum height=82mm, anchor=north west] (tannerPanel)
       at (9.2,0) {};
 \node[title, anchor=west] at (10.0,-0.6)
-  {Tanner graph slice: $\Hc=[\Hm\ \mathbf I_m]$, $k=340$, $m=1022$};
+  {Tanner graph slice: $\Hc=[\Hm\ \mathbf I_m]$, $k=340$, $m=1020$};
 \node[note, anchor=west] at (10.0,-1.12)
   {$d_v=6$ message-column edges; each parity node has one identity edge};
 
@@ -663,9 +663,10 @@ constructor maps it to $d_v=6$ message-column edges in the Tanner graph.
 }
 \caption{Workbench-style packet-structure and Tanner-graph example for
 \cfg{n1024\_cp256\_sym1\_p3\_r0p25\_dc4\_sig1\_ip2}. The physical OFDM layer
-has $1022$ active tones per symbol, split into $341$ outer frequency-domain
-pilots and $681$ QPSK data tones. The logical FEC layer maps $k=340$ systematic
-message bits and $m=1022$ parity bits to $n_b=1362$ coded bits. Inner pilots are
+has $1023$ active tones per symbol, split into $341$ outer frequency-domain
+pilots and $682$ QPSK data tones. Of these, $680$ data tones carry the coded
+bits and the remaining two are fixed to one. The logical FEC layer maps $k=340$
+systematic message bits and $m=1020$ parity bits to $n_b=1360$ coded bits. Inner pilots are
 known positions inside the message row ($170$ anchors for \cfg{ip2}); they are
 not extra OFDM pilot tones. In the Tanner graph, violet anchor variables enter
 BP with clamped LLRs, green payload variables are unknown, and gold parity
@@ -2019,7 +2020,8 @@ $d_{\rm cfg}=8$, QPSK \\
 Component & Value \\
 \midrule
 Partial-FFT windows & 4 temporal views \\
-Partial-FFT RLS bands & 4 frequency bands (unless config states otherwise) \\
+Partial-FFT RLS bands & 4 frequency bands in these benchmark runs;
+implementation default: 16 \\
 RLS forgetting / ridge & $\lambda=0.98$, $\delta=10^{-2}$ \\
 FEC decoder & LDPC BP, fast min-sum in profiled runs \\
 BP iterations & 8 fast-LDPC, 24 BP cap \\

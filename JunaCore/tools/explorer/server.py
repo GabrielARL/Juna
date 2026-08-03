@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""JUNA-Lite explorer - unified workbench for the migrated package.
+"""JunaCore explorer - unified workbench for the package.
 
 Serves http://127.0.0.1:8772/ with pages Home | Tests | Map | Chain |
 Source | Coverage | Health | Progress, all rendered by one shell, plus a
@@ -35,6 +35,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
+EXPERIMENTS_ROOT = os.path.join(ROOT, "experiments")
 sys.path.insert(0, HERE)
 
 import source_coverage  # noqa: E402
@@ -119,10 +120,15 @@ RECEIVERS_CACHE = _Cache(_load_receivers,
 # Old Explorer links remain valid, but every response and replacement URL uses
 # the approved canonical receiver ID.
 RECEIVER_ALIASES = {"standard": "ofdm_fec"}
+STAGE_ALIASES = {"standard": "ofdm_fec", "seed": "initial-candidate"}
 
 
 def canonical_receiver_id(receiver_id):
     return RECEIVER_ALIASES.get(receiver_id, receiver_id)
+
+
+def canonical_stage_id(stage_id):
+    return STAGE_ALIASES.get(stage_id, stage_id)
 
 
 ANALYZE_CACHE = _Cache(lambda: source_symbols.analyze(os.path.join(ROOT, "src")),
@@ -395,7 +401,7 @@ def graph_data(query):
                "file", file_name, f"src/{file_name}")
 
     chain = CHAIN_CACHE.get()
-    stage_id = params.get("stage", [None])[0]
+    stage_id = canonical_stage_id(params.get("stage", [None])[0])
     if stage_id:
         stage = next((s for s in chain["stages"] if s["id"] == stage_id),
                      None)
@@ -433,7 +439,8 @@ def graph_data(query):
         narrow((s["id"] for name in names for s in by_name.get(name, [])),
                "suite", suite_key, f"Suite: {suite_key}")
 
-    token = params.get("symbol", [None])[0]
+    symbol_id = params.get("symbol_id", [None])[0]
+    token = symbol_id or params.get("symbol", [None])[0]
     if token:
         sym = _symbol_lookup(token)
         if sym:
@@ -480,7 +487,8 @@ def graph_data(query):
         return {"context": context, "view": "stages", "nodes": nodes,
                 "edges": edges, "note": TAXONOMY_NOTE}
 
-    selected = {s["id"] for s in symbols} if chosen is None else chosen
+    available_ids = {s["id"] for s in symbols}
+    selected = available_ids if chosen is None else chosen & available_ids
     selected_symbols = [s for s in symbols if s["id"] in selected]
 
     # Multiple Julia methods with the same module/name are one visual concept.
@@ -545,7 +553,8 @@ def palette_index():
         if s["kind"] == "module":
             continue
         items.append({"label": s["name"], "kind": "symbol",
-                      "href": f"/source#sym={urllib.parse.quote(s['name'])}",
+                      "symbol_id": s["id"],
+                      "href": f"/source/inspector#sym={s['id']}",
                       "hint": f"{s['kind']} · {s['module']} · {s['file']}"})
     return items
 
@@ -598,9 +607,9 @@ RUNS_LOCK = threading.Lock()
 HEALTH_CHECKS = [
     ("source-file-check", "Source file check",
      ["julia", "--project=.", "test/source_file_check.jl"]),
-    ("explorer-data", "Explorer data C1-C12",
+    ("explorer-data", "Explorer data C1-C13",
      ["python3", "tools/explorer/explorer_contract.py"]),
-    ("server-behavior", "Explorer server S1-S21",
+    ("server-behavior", "Explorer server S1-S25",
      ["python3", "tools/explorer/server_contract.py"]),
     ("package-load", "Package load",
      ["julia", "--project=.", "-e", 'using JunaCore; println("load OK")']),
@@ -767,7 +776,8 @@ a { color:var(--accent); }
 .tests-table .run-action { width:7rem; min-width:7rem; white-space:nowrap; }
 .stage { border:1px solid var(--line); border-left:4px solid var(--accent);
          border-radius:8px; padding:.6rem .9rem; margin:.45rem 0;
-         cursor:pointer; background:var(--card); }
+         cursor:pointer; background:var(--card); display:block; width:100%;
+         text-align:left; color:inherit; font:inherit; white-space:normal; }
 .stage:hover { border-color:var(--accent); }
 .stage .kind { float:right; }
 .arrow { text-align:center; color:var(--muted); margin:-.1rem 0; }
@@ -837,7 +847,7 @@ def shell(title, active, body, wide=False):
                   f"{len(gs['untracked'])} untracked package files</div>")
     return (f"<!DOCTYPE html><html><head><meta charset='utf-8'>"
             f"<meta name='viewport' content='width=device-width,initial-scale=1'>"
-            f"<title>{html.escape(title)} · JUNA-Lite explorer</title>"
+            f"<title>{html.escape(title)} · JunaCore explorer</title>"
             f"<style>{CSS}</style></head><body>"
             f"<nav>{nav}</nav>{banner}<main{main_class}>{body}</main>"
             f'<script type="module" src="/static/palette.js"></script>'
@@ -881,7 +891,8 @@ def page_home():
     by_stage = {st["id"]: st for st in chain["stages"]}
     strip = " → ".join(
         f'<a href="/chain#{esc(st["id"])}">{esc(st["title"])}</a>'
-        for st in (by_stage[stage_id] for stage_id in lite["chain_path"]))
+        for st in (by_stage[canonical_stage_id(stage_id)]
+                   for stage_id in lite["chain_path"]))
     receiver_links = " · ".join(
         f'<a href="/source/graph?receiver={esc(receiver["id"])}">'
         f'{esc(receiver["display_name"])}</a>'
@@ -897,12 +908,14 @@ def page_home():
     hsum = (f'<span class="badge bad">{len(hbad)} failing</span>' if hbad else
             '<span class="badge ok">no recorded failures</span>')
     body = f"""
-<h1>JUNA-Lite explorer</h1>
-<div class="card">Standalone Explorer for this JunaCore package. Its history begins
-at sonique <code>research/JunaCore @ {SOURCE_SHA}</code>, but Juna is maintained
-independently. Reader-facing receivers: {receiver_links}. HEAD:
-<code>{esc(git_state()['head'])} {esc(git_state()['subject'])}</code><br>
-Each receiver link opens its source graph.</div>
+<h1>JunaCore explorer</h1>
+<div class="card">Standalone Explorer for this JunaCore package. Current Juna
+commit: <code>{esc(git_state()['head'])} {esc(git_state()['subject'])}</code>.<br>
+Reader-facing receivers: {receiver_links}. Each receiver link opens its source
+graph.
+<details class="suite-details"><summary>Technical details</summary>
+<p>Historical source: Sonique <code>research/JunaCore @ {SOURCE_SHA}</code>.
+Juna is maintained independently.</p></details></div>
 {stale_banner()}
 <h2>Receiver chain</h2>
 <div class="card">{strip}</div>
@@ -1058,7 +1071,8 @@ def page_chain():
 <h1>Receiver chains</h1>
 <div class="card">The receiver entries are views over one shared,
 contract-verified stage DAG. A baseline is a complete comparison receiver.
-JUNA-Lite extends its Partial-FFT seed only when that seed is invalid;
+JUNA-Lite extends its Partial-FFT/FEC initial candidate only when that
+candidate is invalid;
 Profiled C,z processes the complete frame.</div>
 <div class="card"><label>Receiver:
 <select id="receiver-select">{options}</select></label>
@@ -1074,8 +1088,12 @@ description, tests, and technical details.</div></div></div>
 var MODEL = {payload};
 var STAGES = MODEL.stages;
 var RECEIVER_ALIASES = {{standard: 'ofdm_fec'}};
+var STAGE_ALIASES = {{standard: 'ofdm_fec', seed: 'initial-candidate'}};
 function canonicalReceiverId(id) {{
   return RECEIVER_ALIASES[id] || id;
+}}
+function canonicalStageId(id) {{
+  return STAGE_ALIASES[id] || id;
 }}
 function receiver(id) {{
   var canonical = canonicalReceiverId(id);
@@ -1093,20 +1111,24 @@ function renderChain() {{
     '</code></p></details>';
   document.getElementById('chain-boxes').innerHTML =
     selected.chain_path.map(function(id, index) {{
+      id = canonicalStageId(id);
       var st = STAGES.find(function(s) {{ return s.id === id; }});
       var shared = comparedPath.indexOf(id) >= 0;
       var marker = compared ? (shared ? 'shared' : 'selected only') : st.kind;
       return (index ? '<div class="arrow">↓</div>' : '') +
-        '<div class="stage" id="' + st.id + '" data-stage="' + st.id + '">' +
+        '<button class="stage" type="button" id="' + st.id +
+        '" data-stage="' + st.id + '">' +
         '<span class="badge kind">' + marker + '</span><b>' + st.title +
-        '</b></div>';
+        '</b></button>';
     }}).join('') +
     (MODEL.optionalStages[selected.id] || []).map(function(id) {{
+      id = canonicalStageId(id);
       var st = STAGES.find(function(s) {{ return s.id === id; }});
       return '<div class="arrow">optional deployment wrapper</div>' +
-        '<div class="stage" id="' + st.id + '" data-stage="' + st.id + '">' +
+        '<button class="stage" type="button" id="' + st.id +
+        '" data-stage="' + st.id + '">' +
         '<span class="badge kind">optional</span><b>' + st.title +
-        '</b></div>';
+        '</b></button>';
     }}).join('');
   document.querySelectorAll('#chain-boxes .stage').forEach(function(node) {{
     node.addEventListener('click', function() {{ show(node.dataset.stage); }});
@@ -1118,6 +1140,7 @@ function renderChain() {{
   history.replaceState(null, '', url.pathname + url.search + location.hash);
 }}
 function show(id) {{
+  id = canonicalStageId(id);
   var st = STAGES.find(function(s) {{ return s.id === id; }});
   if (!st) return;
   var evCls = st.evidence === "direct" ? "ok" : "warn";
@@ -1158,7 +1181,7 @@ if (receiver(requestedCompare)) {{
 document.getElementById('receiver-select').addEventListener('change', renderChain);
 document.getElementById('compare-select').addEventListener('change', renderChain);
 renderChain();
-if (location.hash) show(location.hash.slice(1));
+if (location.hash) show(canonicalStageId(location.hash.slice(1)));
 </script>"""
     return shell("Chain", "/chain", body)
 
@@ -1173,7 +1196,7 @@ def page_source(mode="inspector"):
         entries = "".join(
             f'<a class="symlink" data-id="{s["id"]}" '
             f'data-name="{esc(s["name"])}" '
-            f'href="#sym={urllib.parse.quote(s["name"])}">{esc(s["name"])}'
+            f'href="#sym={s["id"]}">{esc(s["name"])}'
             f"</a>"
             for s in sorted(per_file[f], key=lambda s: (s["name"], s["line"])))
         groups += (f'<details class="symgroup" open><summary>{esc(f)} '
@@ -1226,6 +1249,9 @@ def page_source_legacy():
     page = source_symbols.render_html(False, analyzed,
                                       os.path.join(ROOT, "src"), locked=True,
                                       embedded=True)
+    page = page.replace(
+        "<title>JunaCore source definition explorer</title>",
+        "<title>Source · JunaCore explorer</title>", 1)
     bridge_css = """
 <style>
 #explorer-source-bridge{position:fixed;left:0;right:0;bottom:0;z-index:99999;
@@ -1386,7 +1412,7 @@ refreshes every 5 s. Terminal equivalent:
 
 def _latest_experiment_results():
     """Newest experiments/*/results/results_view.html, or None."""
-    pattern = os.path.join(ROOT, "experiments", "*", "results",
+    pattern = os.path.join(EXPERIMENTS_ROOT, "*", "results",
                            "results_view.html")
     candidates = glob.glob(pattern)
     candidates or (_ for _ in ()).throw(FileNotFoundError(pattern))
@@ -1422,7 +1448,7 @@ def _experiment_result_file(experiment_id, filename):
     """Resolve one known result file without allowing path traversal."""
     if not experiment_id or not _EXPERIMENT_ID_RE.fullmatch(experiment_id):
         raise FileNotFoundError("missing or unsafe experiment ID")
-    experiments = os.path.realpath(os.path.join(ROOT, "experiments"))
+    experiments = os.path.realpath(EXPERIMENTS_ROOT)
     path = os.path.realpath(os.path.join(experiments, experiment_id,
                                          "results", filename))
     if os.path.commonpath((experiments, path)) != experiments:
@@ -1461,7 +1487,8 @@ shows the newest one.</div>"""
 <h1>Experiment results</h1>
 <p style="margin:.2rem 0 .6rem;text-align:right">
 <a href="{view_url}" target="_blank">Open in its own tab</a></p>
-<iframe src="{view_url}" style="width:100%;height:calc(100vh - 150px);
+<iframe src="{view_url}" sandbox="allow-scripts"
+style="width:100%;height:calc(100vh - 150px);
 border:1px solid var(--line, #ccc);border-radius:6px;background:white">
 </iframe>"""
     return shell("Results", "/results", body, wide=True)
@@ -1509,11 +1536,13 @@ function poll() {{
   }});
 }}
 function start() {{
-  fetch('/run/' + KEY + '/start', {{method: 'POST'}}).then(function() {{
+  fetch('/run/' + KEY + '/start', {{method: 'POST',
+    headers: {{'Content-Type': 'application/json'}}, body: '{{}}'}}).then(function() {{
     seen = 0; poll(); }});
 }}
 function cancel() {{
-  fetch('/run/' + KEY + '/cancel', {{method: 'POST'}});
+  fetch('/run/' + KEY + '/cancel', {{method: 'POST',
+    headers: {{'Content-Type': 'application/json'}}, body: '{{}}'}});
 }}
 poll();
 </script>"""
@@ -1525,11 +1554,15 @@ STATIC_FILES = {"palette.js", "source.js", "health.js"}
 
 
 class Handler(BaseHTTPRequestHandler):
-    def _send(self, text, code=200, ctype="text/html; charset=utf-8"):
+    def _send(self, text, code=200, ctype="text/html; charset=utf-8",
+              headers=None):
         data = text.encode() if isinstance(text, str) else text
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(data)))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(data)
 
@@ -1650,7 +1683,10 @@ class Handler(BaseHTTPRequestHandler):
                               _experiment_result_file(experiment_id,
                                                       "results_view.html"))
                     with open(result, "rb") as fh:
-                        return self._send(fh.read(), ctype="text/html")
+                        return self._send(
+                            fh.read(), ctype="text/html",
+                            headers={"Content-Security-Policy":
+                                     "sandbox allow-scripts"})
                 except FileNotFoundError:
                     return self._send("no experiment results yet", 404,
                                       "text/plain")
@@ -1704,6 +1740,14 @@ class Handler(BaseHTTPRequestHandler):
                                     f"</pre>"), 500)
 
     def do_POST(self):
+        expected_origin = "http://" + (self.headers.get("Host") or "")
+        if self.headers.get("Origin") != expected_origin:
+            return self._send('{"error": "forbidden origin"}', 403,
+                              "application/json")
+        content_type = self.headers.get("Content-Type", "").split(";", 1)[0]
+        if content_type.strip().casefold() != "application/json":
+            return self._send('{"error": "application/json required"}', 415,
+                              "application/json")
         if self.path == "/api/health/run":
             length = int(self.headers.get("Content-Length") or 0)
             body = self.rfile.read(length).decode() if length else "{}"
@@ -1749,7 +1793,7 @@ def main():
     ap.add_argument("--port", type=int, default=8772)
     args = ap.parse_args()
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    print(f"JUNA-Lite explorer: http://127.0.0.1:{args.port}/ (root {ROOT})")
+    print(f"JunaCore explorer: http://127.0.0.1:{args.port}/ (root {ROOT})")
     server.serve_forever()
 
 

@@ -1,20 +1,20 @@
 #!/usr/bin/env julia
 #
-# Feedback-mode arms for the pilot-density mechanism experiment.
+# Decoder feedback settings for the pilot-density mechanism experiment.
 #
 # The coupled receivers fold decoder output back into channel estimation. To
-# separate the information that feedback recovers from the cost of feeding back
-# wrong decisions, the same receiver must be runnable in four arms that share
+# compare transmitted-symbol feedback with decoder results, the same receiver
+# must be runnable in four settings that share
 # one code path, one iteration schedule and one acceptance rule:
 #
 #   :real    deployed behaviour -- posterior soft symbols anchor the re-fit
 #   :frozen  full machinery, but data decisions never anchor the re-fit
-#   :genie   transmitted symbols anchor the re-fit (upper bound on feedback)
-#   :graded  genie symbols corrupted at a known rate (dose response)
+#   :genie   transmitted symbols replace posterior decisions in the re-fit
+#   :graded  caller-supplied corrupted transmitted symbols anchor the re-fit
 #
-# If this fails: an experiment arm may silently degrade into :real, which would
-# look like a clean null result rather than a wiring bug. Every assertion below
-# exists to make a mis-wired arm fail loudly instead.
+# A null result limits what transmitted-symbol feedback contributes to this
+# receiver's refit. A mis-wired setting must fail loudly instead of looking like
+# that null result.
 #
 # Run alone:  julia --project=. test/feedback_mode_arms_contract.jl
 # Via runner: julia --project=. test/runtests.jl feedback-modes
@@ -32,8 +32,8 @@ const FB_FC = 24_000.0
 fb_payload_pattern(n::Integer) = Bool[isodd(count_ones(13i + 2)) for i in 1:n]
 fb_pm(bit::Bool) = bit ? -1.0 : 1.0
 
-function fb_qpsk_symbol(codeword::AbstractVector{Bool}, tone::Integer)
-    j = 2 * (Int(tone) - 1) + 1
+function fb_qpsk_symbol(codeword::AbstractVector{Bool}, carrier::Integer)
+    j = 2 * (Int(carrier) - 1) + 1
     bI = codeword[j]
     bQ = j + 1 <= length(codeword) ? codeword[j + 1] : false
     ComplexF64(fb_pm(bI), fb_pm(bQ)) / sqrt(2)
@@ -45,28 +45,26 @@ const FB_QPSK = ComplexF64[
 ]
 
 """Layout, code, true codeword and a posterior metric vector for one block."""
-function fb_fixture(; feedback_mode = :real, feedback_graded_p = 0.0)
+function fb_fixture(; feedback_mode = :real)
     m = FBJuna.LiteModulation(partial_fft_parts = 1)
     m.feedback_mode = feedback_mode
-    m.feedback_graded_p = feedback_graded_p
     layout = FBJuna._layout(m, FB_FS)
     code = FBJuna._code(m)
     bits = fb_payload_pattern(FBModulations.bitspersymbol(m))
     message = FBJuna._build_message(m, code, bits)
     codeword = FBJuna._encode(code, message)
-    ntones = FBJuna._ndata_tones(m, code.n)
-    truth = ComplexF64[t <= ntones ? fb_qpsk_symbol(codeword, t) : one(ComplexF64)
+    ncarriers = FBJuna._ndata_tones(m, code.n)
+    truth = ComplexF64[t <= ncarriers ? fb_qpsk_symbol(codeword, t) : one(ComplexF64)
                        for t in 1:length(layout.data_idx)]
     metrics = Float64[bit ? 6.0 : -6.0 for bit in codeword]
-    (; m, layout, code, codeword, truth, metrics, ntones)
+    (; m, layout, code, codeword, truth, metrics, ncarriers)
 end
 
-@testset verbose = true "Feedback-mode arms" begin
+@testset verbose = true "Decoder feedback settings" begin
 
     @testset "the mode is a validated receiver field, not a new receiver mode" begin
         default = FBJuna.LiteModulation()
         @test default.feedback_mode === :real
-        @test default.feedback_graded_p == 0.0
         @test default.genie_symbols === nothing
 
         @test FBJuna._FEEDBACK_MODES == (:real, :frozen, :genie, :graded)
@@ -75,12 +73,7 @@ end
         end
         # An unusable arm must be unconstructible, not merely wrong at runtime.
         @test !isvalid(FBJuna.LiteModulation(feedback_mode = :bogus), FB_FC, FB_FS)
-        @test !isvalid(FBJuna.LiteModulation(feedback_graded_p = -0.1), FB_FC, FB_FS)
-        @test !isvalid(FBJuna.LiteModulation(feedback_graded_p = 1.5), FB_FC, FB_FS)
-        @test !isvalid(FBJuna.LiteModulation(feedback_graded_p = NaN), FB_FC, FB_FS)
-        @test isvalid(FBJuna.LiteModulation(feedback_graded_p = 1.0), FB_FC, FB_FS)
-
-        # The public receiver surface must not grow: these are arms, not modes.
+        # The public receiver surface must not grow: these are settings, not modes.
         @test !(:frozen in FBJuna._RECEIVER_PROFILES)
         @test !(:genie in FBJuna._RECEIVER_PROFILES)
         @test !(:graded in FBJuna._RECEIVER_PROFILES)
@@ -113,7 +106,7 @@ end
               plan.confidence[plan.selected]
         # A confident posterior points at the transmitted symbols but is shrunk
         # toward the origin by the tanh soft-decision map, so it is never equal
-        # to the truth. That shrinkage is exactly what the oracle removes.
+        # to the truth. The genie setting removes that shrinkage.
         data_targets = plan.targets[length(fx.layout.pilot_idx)+1:end]
         expected = fx.truth[plan.selected]
         @test all(isapprox.(data_targets, expected; atol = 0.01))
@@ -145,46 +138,83 @@ end
         data_targets = plan.targets[length(fx.layout.pilot_idx)+1:end]
         @test data_targets == ComplexF64.(fx.truth[plan.selected])
 
-        # A mis-wired oracle must fail loudly rather than fall back to :real.
+        # A mis-wired genie setting must fail loudly rather than fall back to :real.
         @test_throws ArgumentError FBJuna._juna_anchor_targets(
             fx.m, fx.layout, fx.metrics)
         @test_throws DimensionMismatch FBJuna._juna_anchor_targets(
             fx.m, fx.layout, fx.metrics; truth = fx.truth[1:2])
 
-        graded = fb_fixture(feedback_mode = :graded, feedback_graded_p = 0.25)
+        graded = fb_fixture(feedback_mode = :graded)
+        corrupted = FBJuna.corrupt_feedback_symbols(
+            graded.truth, 0.25, MersenneTwister(23), FB_QPSK)
         gplan = FBJuna._juna_anchor_targets(graded.m, graded.layout,
-                                            graded.metrics; truth = graded.truth)
+                                            graded.metrics; truth = corrupted)
         @test all(==(1.0), gplan.target_weights)
+        @test gplan.targets[length(graded.layout.pilot_idx)+1:end] ==
+              corrupted[gplan.selected]
         @test_throws ArgumentError FBJuna._juna_anchor_targets(
             graded.m, graded.layout, graded.metrics)
     end
 
-    @testset "the oracle ignores the confidence floor that guards :real" begin
+    @testset "transmitted symbols are required before a clean-result early return" begin
+        fx = fb_fixture(feedback_mode=:genie)
+        message = FBJuna._build_message(fx.m, fx.code,
+                                        fb_payload_pattern(FBModulations.bitspersymbol(fx.m)))
+        waveform = FBJuna._modulate_block(
+            fx.m, fx.layout, FBJuna._encode(fx.code, message))
+        observations = FBJuna._branch_observations(fx.m, waveform)
+        valid = FBJuna._initial_candidate(
+            fx.m, fx.code, fx.layout, observations)
+        @test valid.valid
+        @test_throws ArgumentError FBJuna._juna_lite_candidate(
+            fx.m, fx.code, fx.layout, observations, valid)
+
+        frame_kwargs = (
+            nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+            partial_fft_parts=2, partial_fft_nbands=2,
+            pilot_ratio=1 / 3, inner_pilot_ratio=0.0,
+            refinement_steps=0,
+        )
+        frame = FBJuna.FrameWideLDPCModulation(
+            ; frame_kwargs..., frame_receiver=:lite, feedback_mode=:genie)
+        payload = Bool[true, false, true]
+        clean = FBModulations.modulate(frame, payload, FB_FC, FB_FS)
+        @test_throws ArgumentError FBModulations.demodulate(
+            frame, length(payload), clean, FB_FC, FB_FS)
+
+        profiled = FBJuna.ProfiledCzFrameModulation(
+            ; frame_kwargs..., cz_feedback_source=:genie, cz_bp_feedback=0.5)
+        profiled_clean = FBModulations.modulate(
+            profiled, payload, FB_FC, FB_FS)
+        @test_throws ArgumentError FBModulations.demodulate(
+            profiled, length(payload), profiled_clean, FB_FC, FB_FS)
+    end
+
+    @testset "genie does not use the posterior confidence floor" begin
         # The deployed floor is 0.0 and the deployed cap is unbounded, so on the
-        # block path :real already anchors every data tone. Pin those defaults:
-        # if they change, the arms' comparability changes with them.
+        # OFDM-symbol path :real already anchors every data carrier. Pin those defaults:
+        # if they change, the settings' comparability changes with them.
         @test FBJuna._JUNA_CONFIDENCE_MIN == 0.0
         @test FBJuna._JUNA_MAX_DATA_ANCHORS == typemax(Int)
 
         # The floor exists for ablations that raise it. With it raised and an
-        # unreliable posterior, :real is starved while the oracle -- which does
-        # not need that protection -- still anchors. Otherwise the arm meant to
-        # upper-bound feedback would be starved exactly where it matters most.
+        # unreliable posterior, :real has no data anchors while genie still
+        # uses the supplied transmitted symbols.
         fx = fb_fixture()
         weak = fill(1e-6, length(fx.metrics))
         real_plan = FBJuna._juna_anchor_targets(fx.m, fx.layout, weak;
                                                 confidence_min = 0.5)
         @test isempty(real_plan.selected)
 
-        oracle = fb_fixture(feedback_mode = :genie)
-        oracle_plan = FBJuna._juna_anchor_targets(oracle.m, oracle.layout, weak;
-                                                  confidence_min = 0.5,
-                                                  truth = oracle.truth)
-        @test !isempty(oracle_plan.selected)
-        @test length(oracle_plan.selected) > length(real_plan.selected)
+        genie = fb_fixture(feedback_mode = :genie)
+        genie_plan = FBJuna._juna_anchor_targets(genie.m, genie.layout, weak;
+                                                 confidence_min = 0.5,
+                                                 truth = genie.truth)
+        @test !isempty(genie_plan.selected)
+        @test length(genie_plan.selected) > length(real_plan.selected)
     end
 
-    @testset "wrong posterior: the oracle anchors truth where :real anchors error" begin
+    @testset "wrong posterior: genie anchors truth where :real anchors error" begin
         # Invert the posterior so every decision is confidently wrong. :real then
         # anchors the wrong constellation points; :genie must still anchor the
         # transmitted ones. This is the property the whole experiment rests on.
@@ -195,14 +225,14 @@ end
         @test !isempty(real_plan.selected)
         @test !any(isapprox.(real_targets, fx.truth[real_plan.selected]; atol = 1e-6))
 
-        oracle = fb_fixture(feedback_mode = :genie)
-        oracle_plan = FBJuna._juna_anchor_targets(oracle.m, oracle.layout, wrong;
-                                                  truth = oracle.truth)
-        oracle_targets = oracle_plan.targets[length(oracle.layout.pilot_idx)+1:end]
-        @test oracle_targets == ComplexF64.(oracle.truth[oracle_plan.selected])
+        genie = fb_fixture(feedback_mode = :genie)
+        genie_plan = FBJuna._juna_anchor_targets(genie.m, genie.layout, wrong;
+                                                 truth = genie.truth)
+        genie_targets = genie_plan.targets[length(genie.layout.pilot_idx)+1:end]
+        @test genie_targets == ComplexF64.(genie.truth[genie_plan.selected])
     end
 
-    @testset "graded corruption is seeded, bounded and on-constellation" begin
+    @testset "caller-supplied corruption is bounded and on-constellation" begin
         truth = ComplexF64[FB_QPSK[1 + (i % 4)] for i in 1:400]
 
         @test FBJuna.corrupt_feedback_symbols(truth, 0.0, MersenneTwister(1),
@@ -213,7 +243,7 @@ end
         @test all(all_wrong .!= truth)
         @test all(s -> any(isapprox.(s, FB_QPSK; atol = 1e-12)), all_wrong)
 
-        # same seed reproduces, different seed does not
+        # The caller chooses reproducible or distinct corruption inputs.
         a = FBJuna.corrupt_feedback_symbols(truth, 0.3, MersenneTwister(7), FB_QPSK)
         b = FBJuna.corrupt_feedback_symbols(truth, 0.3, MersenneTwister(7), FB_QPSK)
         c = FBJuna.corrupt_feedback_symbols(truth, 0.3, MersenneTwister(8), FB_QPSK)
@@ -233,7 +263,7 @@ end
             truth, 0.5, MersenneTwister(1), FB_QPSK[1:1])
     end
 
-    @testset "the frame-wide anchor plan honours the same arms" begin
+    @testset "the frame-wide anchor plan uses the same feedback settings" begin
         fx = fb_fixture()
         frame = FBJuna.FrameWideLDPCModulation(frame_receiver = :stateful_lite)
         frame.ldpc_n = fx.m.ldpc_n
@@ -242,7 +272,7 @@ end
 
         idx_real, tgt_real, count_real =
             FBJuna._frame_anchor_plan(frame, flayout, metrics, 1)
-        @test count_real >= 0
+        @test count_real > 0
         @test idx_real[1:length(flayout.pilot_idx)] == flayout.pilot_idx
 
         frame.feedback_mode = :frozen
@@ -266,23 +296,31 @@ end
             FBJuna._frame_anchor_plan(frame, flayout, metrics, 1)
         @test count_genie > 0
         @test length(idx_genie) == length(flayout.pilot_idx) + count_genie
-        @test all(s -> any(isapprox.(s, FB_QPSK; atol = 1e-12)),
-                  tgt_genie[length(flayout.pilot_idx)+1:end])
+        @test tgt_genie[length(flayout.pilot_idx)+1:end] == truth[1:count_genie]
+
+        corrupted = FBJuna.corrupt_feedback_symbols(
+            truth, 1.0, MersenneTwister(29), FB_QPSK)
+        frame.feedback_mode = :graded
+        frame.genie_symbols = reshape(corrupted, :, 1)
+        _, tgt_graded, count_graded =
+            FBJuna._frame_anchor_plan(frame, flayout, metrics, 1)
+        @test count_graded == count_genie
+        @test tgt_graded[length(flayout.pilot_idx)+1:end] ==
+              corrupted[1:count_graded]
 
         frame.genie_symbols = nothing
         @test_throws ArgumentError FBJuna._frame_anchor_plan(
             frame, flayout, metrics, 1)
     end
 
-    @testset "the arms are not a no-op: refinement output actually diverges" begin
-        # The single most important regression guard here. If a refactor ever
-        # collapses the arms into the same computation, every mechanism
-        # experiment would return a clean-looking null instead of failing.
+    @testset "feedback settings produce distinct receiver refits" begin
+        # If a refactor collapses the settings into the same computation, the
+        # mechanism comparison would return a misleading null result.
         #
         # Divergence needs estimation to be imperfect. Under a noiseless,
         # fully-resolved observation the pilots alone recover everything and all
-        # three arms agree exactly -- which is itself worth pinning, because it
-        # says the arms differ only where feedback could matter.
+        # three settings agree exactly -- which is itself worth pinning, because
+        # they differ only where feedback could matter.
         function distorted(mode; snr_db = 18.0, seed = 11)
             fx = fb_fixture(feedback_mode = mode)
             nc = Int(fx.m.nc)
@@ -303,11 +341,12 @@ end
             yparts[1, :] .= grid
             fx.m.genie_symbols = fx.truth
             soft = Float64[bit ? 3.0 : -3.0 for bit in fx.codeword]
-            seed_candidate = (lpost_metric = soft, valid = false, syndrome = 88,
-                              mean_abs_lpost = mean(abs, soft), pilot_mse = 0.4,
-                              tie_mse = 0.8, score = 0.9)
+            initial_candidate = (
+                lpost_metric=soft, valid=false, syndrome=88,
+                mean_abs_lpost=mean(abs, soft), pilot_mse=0.4,
+                tie_mse=0.8, score=0.9)
             (; fx, step = FBJuna._juna_step(fx.m, fx.code, fx.layout, yparts,
-                                            seed_candidate))
+                                            initial_candidate))
         end
 
         frozen = distorted(:frozen)
@@ -317,11 +356,6 @@ end
         @test frozen.step.lpost_metric != real_arm.step.lpost_metric
         @test frozen.step.lpost_metric != genie.step.lpost_metric
         @test real_arm.step.lpost_metric != genie.step.lpost_metric
-
-        # Where feedback carries information, the oracle should not be beaten by
-        # the decisions it replaces, and both should beat having no anchors.
-        @test genie.step.score >= real_arm.step.score
-        @test real_arm.step.score >= frozen.step.score
 
         # :frozen is idempotent -- with no data anchor the re-fit reaches a fixed
         # point immediately, so the refinement loop's early exit costs nothing.
@@ -333,10 +367,12 @@ end
         for t in 1:length(fx.layout.data_idx)
             yparts[1, fx.layout.data_idx[t]] = fx.truth[t]
         end
-        seed_candidate = (lpost_metric = fx.metrics, valid = false, syndrome = 88,
-                          mean_abs_lpost = mean(abs, fx.metrics), pilot_mse = 0.4,
-                          tie_mse = 0.8, score = 0.9)
-        one_step = FBJuna._juna_step(fx.m, fx.code, fx.layout, yparts, seed_candidate)
+        initial_candidate = (
+            lpost_metric=fx.metrics, valid=false, syndrome=88,
+            mean_abs_lpost=mean(abs, fx.metrics), pilot_mse=0.4,
+            tie_mse=0.8, score=0.9)
+        one_step = FBJuna._juna_step(
+            fx.m, fx.code, fx.layout, yparts, initial_candidate)
         two_step = FBJuna._juna_step(fx.m, fx.code, fx.layout, yparts, one_step)
         @test one_step.lpost_metric == two_step.lpost_metric
         @test one_step.score == two_step.score

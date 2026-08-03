@@ -527,18 +527,20 @@ function _profile_initial_coupled_C!(C,
   C
 end
 
-# Deterministic feasible start: pilot-trained W, BP-seeded bit logits, and a
+# Deterministic feasible start: pilot-trained W, initial BP bit logits, and a
 # bandwise ridge profile of C conditional on those relaxed symbols.
 function _initial_coupled_state(m::Modulation,
                                 code::_Code,
                                 layout::_Layout,
                                 problem::_CoupledProblem,
-                                seed)
-  hasproperty(seed, :lpost_metric) ||
-    throw(ArgumentError("coupled initialization requires seed posterior metrics"))
-  metrics = seed.lpost_metric
+                                initial_candidate)
+  hasproperty(initial_candidate, :lpost_metric) ||
+    throw(ArgumentError(
+      "coupled initialization requires initial posterior metrics"))
+  metrics = initial_candidate.lpost_metric
   length(metrics) == problem.nbits ||
-    throw(DimensionMismatch("seed metrics must have length $(problem.nbits)"))
+    throw(DimensionMismatch(
+      "initial metrics must have length $(problem.nbits)"))
   all(isfinite, problem.observations) ||
     throw(ArgumentError("coupled initialization requires finite observations"))
   all(isfinite, metrics) ||
@@ -1404,29 +1406,33 @@ function _coupled_candidate(m::Modulation,
                             code::_Code,
                             layout::_Layout,
                             yparts,
-                            seed;
+                            initial_candidate;
                             weights::_CoupledWeights = _COUPLED_RUNTIME_WEIGHTS,
                             config::_CoupledOptimizerConfig = _COUPLED_PUBLIC_CONFIG)
   problem = _coupled_problem_from_receiver(m, code, layout, yparts)
-  initial = _initial_coupled_state(m, code, layout, problem, seed)
+  initial = _initial_coupled_state(
+    m, code, layout, problem, initial_candidate)
   solved = _coupled_wcz_solve(problem, initial; weights = weights, config = config)
   _coupled_state_candidate(m, code, layout, problem, solved.state)
 end
 
 # Decoder-facing non-regression gate: the coupled optimizer may lower its
 # scalar objective without producing a better LDPC candidate, so retain the
-# seed unless the shared validity/syndrome/score ordering accepts the result.
+# initial candidate unless the shared validity/syndrome/score ordering accepts
+# the result.
 function _juna_wcz_candidate(m::Modulation,
                              code::_Code,
                              layout::_Layout,
                              yparts,
-                             seed=nothing;
+                             initial_candidate=nothing;
                              weights::_CoupledWeights = _COUPLED_RUNTIME_WEIGHTS,
                              config::Union{Nothing,_CoupledOptimizerConfig} = nothing)
-  seed === nothing && (seed = _seed_candidate(m, code, layout, yparts))
+  initial_candidate === nothing &&
+    (initial_candidate = _initial_candidate(m, code, layout, yparts))
   resolved_config = config === nothing ? _wcz_optimizer_config(m) : config
   candidate = _coupled_candidate(
-    m, code, layout, yparts, seed; weights = weights, config = resolved_config,
+    m, code, layout, yparts, initial_candidate;
+    weights = weights, config = resolved_config,
   )
-  _juna_better(seed, candidate) ? candidate : seed
+  _juna_better(initial_candidate, candidate) ? candidate : initial_candidate
 end

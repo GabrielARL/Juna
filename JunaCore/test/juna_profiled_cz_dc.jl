@@ -7,7 +7,7 @@ using JunaCore
 const CzDcJuna = JunaCore.Juna
 const CzDcMods = JunaCore.Modulations
 
-@testset verbose=true "Profiled C,z" begin
+@testset verbose=true "Profiled C,z code settings" begin
     base_kwargs = (
         nc=64, np=16, ldpc_k=20, ldpc_n=40,
         ldpc_method=:evenboth, ldpc_seed=1, ldpc_no4cycle=false,
@@ -17,12 +17,12 @@ const CzDcMods = JunaCore.Modulations
     fc, fs = 24_000.0, 24_000.0
     frame_blocks = 2
 
-    @testset "dc=$dc shares code provenance and runs theta=(C,z)" for dc in 2:4
+    @testset "per-column check count $check_count uses the same code and updates C and z" for check_count in 2:4
         lite = CzDcJuna.FrameWideLDPCModulation(
-            ; base_kwargs..., ldpc_npc=dc, frame_receiver=:lite,
+            ; base_kwargs..., ldpc_npc=check_count, frame_receiver=:lite,
             refinement_steps=0)
         gradient = JunaCore.JunaProfiledCzFrame.Modulation(
-            ; base_kwargs..., ldpc_npc=dc, refinement_steps=1)
+            ; base_kwargs..., ldpc_npc=check_count, refinement_steps=1)
 
         lite_code = CzDcJuna._frame_code(lite, frame_blocks)
         gradient_code = CzDcJuna._frame_code(gradient, frame_blocks)
@@ -31,7 +31,7 @@ const CzDcMods = JunaCore.Modulations
               (gradient_code.k, gradient_code.n, gradient_code.npc,
                gradient_code.method, gradient_code.seed,
                gradient_code.no4cycle)
-        @test lite_code.npc == dc
+        @test lite_code.npc == check_count
         @test lite_code.method == "evenboth"
         @test lite_code.seed == 1
         @test lite_code.no4cycle === false
@@ -40,11 +40,11 @@ const CzDcMods = JunaCore.Modulations
 
         nbits = frame_blocks * CzDcMods.bitspersymbol(gradient) - 3
         payload = Bool[
-            isodd(count_ones((31 + dc) * i + 7))
+            isodd(count_ones((31 + check_count) * i + 7))
             for i in 1:nbits
         ]
         waveform = CzDcMods.modulate(gradient, payload, fc, fs)
-        rng = Xoshiro(0x435a_0000 + dc)
+        rng = Xoshiro(0x435a_0000 + check_count)
         noisy = waveform .+ 0.8 .* (
             randn(rng, length(waveform)) .+
             im .* randn(rng, length(waveform)))
@@ -57,7 +57,7 @@ const CzDcMods = JunaCore.Modulations
         trace = CzDcJuna._cz_gradient_last_trace(gradient)
 
         @test result.profile === :profiled_cz
-        @test code.npc == dc
+        @test code.npc == check_count
         @test trace.scope === :frame
         @test trace.optimized_variables == (:C, :z)
         @test trace.independent_w_parameters == 0
@@ -66,10 +66,10 @@ const CzDcMods = JunaCore.Modulations
         @test all(isfinite, result.best.lpost_metric)
     end
 
-    @testset "invalid dc is rejected" begin
-        invalid_dc = base_kwargs.ldpc_n - base_kwargs.ldpc_k + 1
+    @testset "invalid per-column check count is rejected" begin
+        invalid_check_count = base_kwargs.ldpc_n - base_kwargs.ldpc_k + 1
         modem = JunaCore.JunaProfiledCzFrame.Modulation(
-            ; base_kwargs..., ldpc_npc=invalid_dc)
+            ; base_kwargs..., ldpc_npc=invalid_check_count)
         @test !CzDcMods.isvalid(modem, fc, fs)
     end
 end

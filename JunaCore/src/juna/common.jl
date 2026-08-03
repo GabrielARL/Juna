@@ -1,5 +1,5 @@
 # JUNA modulation. Defaults reproduce the JOE paper red_1 controlled config
-# n1024_cp256_sym1_p3_r0p25_dc4_sig1_ip2: QPSK, pilot every 3 active tones,
+# n1024_cp256_sym1_p3_r0p25_dc4_sig1_ip2: QPSK, pilot every 3 active carriers,
 # LDPC rate 0.25, inner pilots every 2 message positions.
 Base.@kwdef mutable struct Modulation <: Modulations.Modulation
   nc::UInt16 = 1024
@@ -7,10 +7,10 @@ Base.@kwdef mutable struct Modulation <: Modulations.Modulation
   bw::Float64 = 1.0                    # occupied bandwidth as a fraction of the 24 kHz reference width
   dc0::Int16 = 0                       # RF-centre offset from the 24 kHz reference, in kHz
   bpc::Int = 2                       # bits per data carrier: 1=BPSK, 2=QPSK
-  pilot_ratio::Float64 = 1/3         # outer comb-pilot density (fraction of active tones); snapped to the nearest 1/k spacing
+  pilot_ratio::Float64 = 1/3         # outer comb-pilot density (fraction of active carriers); snapped to the nearest 1/k spacing
   inner_pilot_ratio::Float64 = 1/2   # inner-pilot density among message bits (0 = off); snapped to the nearest 1/k spacing
   sync::Bool = false                 # enable the LFM sync/acquisition wrapping
-  frame_duration_s::Float64 = 1.0     # maximum complete frame duration, including sync and guard
+  frame_duration_s::Float64 = 1.0     # maximum complete frame duration, including synchronization
   ldpc_k::Int = 340
   ldpc_n::Int = 1360
   ldpc_npc::Int = 3                  # dc: per-column check count passed to make-ldpc
@@ -20,7 +20,7 @@ Base.@kwdef mutable struct Modulation <: Modulations.Modulation
   partial_fft_parts::Int = 4
   partial_fft_nbands::Int = 16
   mode::Symbol = :lite               # receiver: canonical modes plus the legacy :standard and :robust aliases
-  frame_receiver::Symbol = :stateful_lite # frame-wide FEC front end/refiner; preserves the original stateful receiver by default
+  frame_receiver::Symbol = :stateful_lite # frame-wide FEC receiver; preserves the original stateful receiver by default
   frame_crc_bits::Int = 0            # 0=legacy framing; 16=one external CRC-16/CCITT over the complete frame payload
   frame_code_horizon::Int = 0        # 0=one graph over all blocks; h>0=disconnected h-block graph components
   cz_crc_gate::Bool = true           # when CRC is present, require a certified rescue before replacing Lite
@@ -33,7 +33,7 @@ Base.@kwdef mutable struct Modulation <: Modulations.Modulation
   cz_em_damping::Float64 = 0.5        # accepted fraction of each posterior-moment C solve
   cz_independent_w::Bool = false       # refit W from reliable BP pseudo-pilots instead of deriving it from C
   cz_bp_feedback::Float64 = 0.0        # BP-posterior blend into z between turbo iterations
-  cz_feedback_source::Symbol = :legacy # :legacy preserves deployed path; Experiment-B uses :frozen/:real/:genie
+  cz_feedback_source::Symbol = :legacy # :legacy preserves deployed path; the feedback comparison uses :frozen/:real/:genie
   cz_vp_gradient::Bool = false         # variable-projection z-gradient: expected-variance objective + undamped C/W at the gradient point
   cz_conditioned_joint::Bool = false   # simultaneous hand-gradient C,W,z proposals with pilot/trust gating
   cz_joint_c_radius::Float64 = 0.05    # maximum relative C displacement per accepted joint step
@@ -46,19 +46,14 @@ Base.@kwdef mutable struct Modulation <: Modulations.Modulation
   # Mechanism-experiment arms for decoder feedback into channel estimation.
   # :real   deployed behaviour -- posterior soft symbols anchor the re-fit
   # :frozen full coupled machinery, but data decisions never anchor the re-fit
-  # :genie  true transmitted symbols anchor the re-fit (upper bound on feedback)
-  # :graded genie symbols corrupted at rate feedback_graded_p (dose response)
+  # :genie  transmitted symbols anchor the re-fit
+  # :graded uses transmitted symbols corrupted by the experiment harness
   # Only :real is a deployable receiver; the others exist to separate the
   # information recovered from feedback from the cost of feeding back errors.
   feedback_mode::Symbol = :real
-  feedback_graded_p::Float64 = 0.0
   code::Any = nothing
   layout::Any = nothing
   bp_scratch::Any = nothing
-  fully_coupled_trace::Any = nothing
-  turbo_map_trace::Any = nothing
-  guarded_physical_trace::Any = nothing
-  gradient_guarded_trace::Any = nothing
   profiled_gradient_trace::Any = nothing
   cz_gradient_trace::Any = nothing
   # Ground truth for the Lite :genie/:graded arms and the C,z :genie arm,
@@ -66,7 +61,6 @@ Base.@kwdef mutable struct Modulation <: Modulations.Modulation
   # nothing and never read it; a missing oracle grid is a hard error rather than
   # a silent fallback to :real, so a mis-wired arm cannot masquerade as a result.
   genie_symbols::Any = nothing
-  feedback_trace::Any = nothing
 end
 
 const _MODE_OFDM_FEC = :ofdm_fec
@@ -76,10 +70,6 @@ const _MODE_PFFT = :pfft
 const _MODE_LITE = :lite
 const _MODE_FULL = :full
 const _MODE_COUPLED = :coupled
-const _MODE_FULLY_COUPLED = :fully_coupled
-const _MODE_TURBO_MAP = :turbo_map
-const _MODE_GUARDED_PHYSICAL = :guarded_physical
-const _MODE_GRADIENT_GUARDED = :gradient_guarded
 const _MODE_PROFILED_GRADIENT = :profiled_gradient
 const _MODE_PROFILED_CZ = :profiled_cz
 const _MODE_FRAME_WIDE_LDPC = :frame_wide_ldpc
@@ -90,19 +80,14 @@ const _REFERENCE_BANDWIDTH_HZ = 24_000.0
 const _FRAME_RECEIVER_PROFILES =
   (_MODE_OFDM_FEC, _MODE_PFFT, _MODE_LITE,
    _MODE_FULL, _MODE_COUPLED,
-   _MODE_FULLY_COUPLED, _MODE_TURBO_MAP,
    _MODE_PROFILED_GRADIENT, _MODE_PROFILED_CZ,
    :stateful_lite)
 const _RECEIVER_PROFILES =
   (_MODE_OFDM_FEC, _MODE_PFFT, _MODE_LITE,
    _MODE_FULL, _MODE_COUPLED,
-   _MODE_FULLY_COUPLED, _MODE_TURBO_MAP, _MODE_GUARDED_PHYSICAL,
-   _MODE_GRADIENT_GUARDED, _MODE_PROFILED_GRADIENT,
    _MODE_FRAME_WIDE_LDPC)
 const _PUBLIC_RECEIVER_MODES =
-  (_MODE_OFDM_FEC, _MODE_PFFT, _MODE_LITE, _MODE_FULLY_COUPLED,
-   _MODE_TURBO_MAP, _MODE_PROFILED_GRADIENT,
-   _MODE_FRAME_WIDE_LDPC, _MODE_CRC_PROFILED_CZ_FRAME)
+  (_MODE_OFDM_FEC, _MODE_PFFT, _MODE_LITE, _MODE_FRAME_WIDE_LDPC)
 
 receiver_profile(mode::Symbol) =
   mode === :standard ? _MODE_OFDM_FEC :
@@ -121,11 +106,6 @@ function Modulations.refinement_objective(m::Modulation)
   profile === _MODE_LITE && return :posterior_anchor_ls
   profile === _MODE_FULL && return :reduced_wz
   profile === _MODE_COUPLED && return :coupled_cwz
-  profile === _MODE_FULLY_COUPLED && return :fully_coupled_equalization
-  profile === _MODE_TURBO_MAP && return :list_turbo_map
-  profile === _MODE_GUARDED_PHYSICAL && return :guarded_physical_fusion
-  profile === _MODE_GRADIENT_GUARDED && return :gradient_guarded_channel
-  profile === _MODE_PROFILED_GRADIENT && return :profiled_gradient_decode
   profile === _MODE_FRAME_WIDE_LDPC &&
     m.frame_receiver === _MODE_PROFILED_CZ &&
     return :profiled_cz_frame
@@ -146,16 +126,6 @@ FullModulation(; kwargs...) =
   Modulation(; (; kwargs..., mode = _MODE_FULL)...)
 CoupledModulation(; kwargs...) =
   Modulation(; (; kwargs..., mode = _MODE_COUPLED)...)
-FullyCoupledModulation(; kwargs...) =
-  Modulation(; (; kwargs..., mode = _MODE_FULLY_COUPLED)...)
-TurboMAPModulation(; kwargs...) =
-  Modulation(; (; kwargs..., mode = _MODE_TURBO_MAP)...)
-GuardedPhysicalModulation(; kwargs...) =
-  Modulation(; (; kwargs..., mode = _MODE_GUARDED_PHYSICAL)...)
-GradientGuardedModulation(; kwargs...) =
-  Modulation(; (; kwargs..., mode = _MODE_GRADIENT_GUARDED)...)
-ProfiledGradientModulation(; kwargs...) =
-  Modulation(; (; kwargs..., mode = _MODE_PROFILED_GRADIENT)...)
 FrameWideLDPCModulation(; kwargs...) =
   Modulation(; (; kwargs..., mode = _MODE_FRAME_WIDE_LDPC)...)
 ProfiledCzFrameModulation(; kwargs...) =
@@ -202,7 +172,7 @@ function CrcTurboCwzFrameModulation(; kwargs...)
 end
 
 """
-Construct the conditioned-C/W/z Experiment-B control or treatment.
+Construct the conditioned-C/W/z comparison control or treatment.
 
 Both arms share every receiver setting. `cz_conditioned_joint=false` disables
 only the simultaneous conditioned proposal; setting it to `true` enables that
@@ -257,7 +227,7 @@ function _frame_receiver_profile(m::Modulation)
 end
 
 # Fixed internal constants — folded out of the user-facing config (they are numerical
-# defaults / solver internals nobody tunes per run). The _GRAD_* knobs only take effect
+# defaults / solver internals nobody tunes per run). The _GRAD_* parameters only take effect
 # when receiver_profile(m) === :full.
 const _BP_ITERS = 20                           # belief-propagation iterations
 const _JUNA_ITERS = 2                          # JUNA refinement passes
@@ -286,7 +256,7 @@ const _GRAD_BETA1 = 0.9
 const _GRAD_BETA2 = 0.999
 const _GRAD_EPS_ADAM = 1e-8
 const _SYNC_LEN = 2048                         # LFM sync samples front+back when sync=true (best estimation in a len×bw×SNR sweep)
-const _SYNC_BW = 0.9                           # chirp sweep as a fraction of the baseband band (sharp delay-Doppler peak, small guard)
+const _SYNC_BW = 0.9                           # chirp sweep as a fraction of the baseband band (sharp delay-Doppler peak)
 const _SYNC_PROFILE_LFM = :lfm
 
 const _FEEDBACK_REAL = :real
@@ -362,9 +332,6 @@ function Modulations.init(m::Modulation, fc, fs)
   m.code = nothing
   m.layout = nothing
   m.bp_scratch = nothing
-  m.fully_coupled_trace = nothing
-  m.guarded_physical_trace = nothing
-  m.gradient_guarded_trace = nothing
   m.profiled_gradient_trace = nothing
   m.cz_gradient_trace = nothing
   nothing
@@ -409,7 +376,7 @@ function _ratio_spacing(ratio::Real, kmin::Int)
   pick = abs(ratio - 1 / klo) <= abs(ratio - 1 / khi) ? klo : khi   # nearest unit fraction 1/k to the ratio
   max(kmin, pick)
 end
-_pilot_spacing(m::Modulation) = _ratio_spacing(m.pilot_ratio, 2)              # outer comb pilot every k-th active tone (k >= 2)
+_pilot_spacing(m::Modulation) = _ratio_spacing(m.pilot_ratio, 2)              # outer comb pilot every k-th active carrier (k >= 2)
 _inner_pilot_spacing(m::Modulation) = _ratio_spacing(m.inner_pilot_ratio, 1)  # inner pilot every k-th message bit (0 = off)
 
 # Unknown payload bits per block = message bits minus inner pilots.
@@ -452,14 +419,10 @@ function Base.isvalid(m::Modulation, fc, fs)
   0 < m.partial_fft_nbands <= N || return false
   profile = receiver_profile(m)
   profile in _RECEIVER_PROFILES || return false
-  profile in (_MODE_FULL, _MODE_COUPLED, _MODE_FULLY_COUPLED, _MODE_TURBO_MAP,
-              _MODE_GUARDED_PHYSICAL, _MODE_GRADIENT_GUARDED,
-              _MODE_PROFILED_GRADIENT) &&
+  profile in (_MODE_FULL, _MODE_COUPLED) &&
     _bpc(m) != 2 && return false
   m.refinement_steps >= -1 || return false
   m.feedback_mode in _FEEDBACK_MODES || return false
-  isfinite(m.feedback_graded_p) &&
-    0.0 <= m.feedback_graded_p <= 1.0 || return false
   if profile === _MODE_FRAME_WIDE_LDPC
     m.frame_crc_bits in (0, 16) || return false
     m.frame_code_horizon >= 0 || return false
@@ -486,7 +449,7 @@ function Base.isvalid(m::Modulation, fc, fs)
     frame_profile = m.frame_receiver === :standard ?
       _MODE_OFDM_FEC : m.frame_receiver
     frame_profile in _FRAME_RECEIVER_PROFILES || return false
-    frame_profile in (_MODE_FULL, _MODE_COUPLED, _MODE_TURBO_MAP,
+    frame_profile in (_MODE_FULL, _MODE_COUPLED,
                       _MODE_PROFILED_GRADIENT, _MODE_PROFILED_CZ) &&
       _bpc(m) != 2 &&
       return false
@@ -574,10 +537,6 @@ end
 function Modulations.demodulate(m::Modulation, nbits, x, fc, fs)
   receiver_profile(m) === _MODE_FRAME_WIDE_LDPC &&
     return _demodulate_frame_wide_ldpc(m, nbits, x, fc, fs)
-  receiver_profile(m) === _MODE_FULLY_COUPLED &&
-    return _demodulate_fully_coupled(m, nbits, x, fc, fs)
-  receiver_profile(m) === _MODE_GUARDED_PHYSICAL &&
-    return _demodulate_guarded_physical(m, nbits, x, fc, fs)
   nbits, waveform, code, layout, nblocks =
     _prepare_demodulation(m, nbits, x, fc, fs)
   cfo = 0.0
@@ -601,12 +560,11 @@ end
 function demodulate_methods(m::Modulation, nbits, x, fc, fs)
   receiver_profile(m) === _MODE_FRAME_WIDE_LDPC &&
     return _demodulate_frame_methods(m, nbits, x, fc, fs)
-  receiver_profile(m) === _MODE_FULLY_COUPLED &&
-    return _demodulate_fully_coupled_methods(m, nbits, x, fc, fs)
-  receiver_profile(m) === _MODE_GUARDED_PHYSICAL &&
-    return _demodulate_guarded_physical_methods(m, nbits, x, fc, fs)
   nbits, waveform, code, layout, nblocks =
     _prepare_demodulation(m, nbits, x, fc, fs)
+  if m.sync
+    waveform, _ = _coarse_doppler(m, waveform, fc, fs, nblocks)
+  end
   _require_block_samples(m, waveform, nblocks)
 
   ofdm_fec = Vector{Float64}(undef, Int(nbits))
@@ -619,16 +577,20 @@ function demodulate_methods(m::Modulation, nbits, x, fc, fs)
     block = @view waveform[lo:hi]
     yparts = _branch_observations(m, block)
     ofdm_fec_candidate = _ofdm_fec_candidate(m, code, layout, yparts)
-    seed = _seed_candidate(m, code, layout, yparts)
-    juna_seed = _select_front_end_seed(ofdm_fec_candidate, seed)
-    juna_candidate = _juna_candidate(m, code, layout, yparts, juna_seed)
+    partial_candidate = _initial_candidate(m, code, layout, yparts)
+    initial_candidate = _select_initial_candidate(
+      ofdm_fec_candidate, partial_candidate)
+    juna_candidate = _juna_candidate(
+      m, code, layout, yparts, initial_candidate)
     spos = _write_payload_metrics!(ofdm_fec, spos, m, code, ofdm_fec_candidate.lpost_metric, Int(nbits))
-    ppos = _write_payload_metrics!(partial, ppos, m, code, seed.lpost_metric, Int(nbits))
+    ppos = _write_payload_metrics!(
+      partial, ppos, m, code, partial_candidate.lpost_metric, Int(nbits))
     jpos = _write_payload_metrics!(juna, jpos, m, code, juna_candidate.lpost_metric, Int(nbits))
   end
 
+  provenance = m.mode === _MODE_STANDARD ? _MODE_STANDARD : receiver_profile(m)
   (ofdm_fec=ofdm_fec, partial=partial, juna=juna,
-   provenance=receiver_profile(m), standard=ofdm_fec)
+   provenance, standard=ofdm_fec)
 end
 
 _blocklen(m::Modulation) = Int(m.nc) + Int(m.np)
@@ -664,7 +626,7 @@ end
 """
     frameblockcount(m, fs)
 
-Largest positive number of complete OFDM blocks whose synchronization
+Largest positive number of complete OFDM symbols whose synchronization
 overhead and samples fit within `m.frame_duration_s`.
 """
 function Modulations.frameblockcount(m::Modulation, fs::Real)
@@ -678,7 +640,7 @@ function Modulations.frameblockcount(m::Modulation, fs::Real)
   available = budget - overhead
   blocks = fld(available, _blocklen(m))
   blocks >= 1 || throw(ArgumentError(
-    "frame duration $(m.frame_duration_s) s cannot hold one complete OFDM block after $overhead overhead samples"))
+    "frame duration $(m.frame_duration_s) s cannot hold one complete OFDM symbol after $overhead overhead samples"))
   blocks
 end
 
@@ -838,7 +800,7 @@ function _code(m::Modulation)
 end
 
 # Build the LDPC code through the shared LDPC.jl builder. `ldpc_npc` (the per-column
-# check count dc) is the configurable knob; the make-ldpc construction is fixed to the
+# check count dc) is the configurable setting; the make-ldpc construction is fixed to the
 # _LDPC_METHOD constant ("evencol") and threaded in here as the `method` argument.
 function _code_method(m::Modulation)
   m.ldpc_method === :auto && return _LDPC_METHOD
@@ -1054,7 +1016,7 @@ end
 
 # ----- modulation -------------------------------------------------------------
 
-# BPSK consumes one coded bit per data tone. QPSK consumes an I/Q pair using
+# BPSK consumes one coded bit per data carrier. QPSK consumes an I/Q pair using
 # bit 0 -> +1 and bit 1 -> -1, then divides by sqrt(2) for unit symbol power.
 function _carrier_symbol(m::Modulation, codeword::AbstractVector{Bool}, tone::Int)
   if _bpc(m) == 1
@@ -1067,7 +1029,7 @@ function _carrier_symbol(m::Modulation, codeword::AbstractVector{Bool}, tone::In
   end
 end
 
-# Render one LDPC codeword as one CP-OFDM block: deterministic outer pilots and
+# Render one LDPC codeword as one CP-OFDM symbol: deterministic outer pilots and
 # coded data fill frequency bins, IFFT creates N time samples, the final L samples
 # become the cyclic prefix, and standard-deviation normalization fixes block scale.
 function _modulate_block(m::Modulation, layout::_Layout, codeword::AbstractVector{Bool})
@@ -1099,7 +1061,7 @@ function _modulate_block(m::Modulation, layout::_Layout, codeword::AbstractVecto
   block
 end
 
-# ----- demodulation branches --------------------------------------------------
+# ----- demodulation paths -----------------------------------------------------
 
 function _demodulate_block(m::Modulation, code::_Code, layout::_Layout, waveform)
   _payload_from_metrics(m, code, _demodulate_block_candidate(m, code, layout, waveform).lpost_metric)
@@ -1108,13 +1070,14 @@ end
 function _demodulate_block_candidate(m::Modulation, code::_Code, layout::_Layout, waveform)
   yparts = _branch_observations(m, waveform)
   profile = receiver_profile(m)
-  # Benchmark baselines stop at their own front end: OFDM+FEC never pays for
-  # the partial-FFT seed, and :pfft is the pure partial column of
+  # Benchmark baselines stop at their own result: OFDM+FEC never computes
+  # the Partial-FFT initial candidate, and :pfft is the pure partial column of
   # demodulate_methods (no OFDM+FEC fallback, no refinement).
   profile === _MODE_OFDM_FEC && return _ofdm_fec_candidate(m, code, layout, yparts)
-  profile === _MODE_PFFT && return _seed_candidate(m, code, layout, yparts)
-  seed = _front_end_seed_candidate(m, code, layout, yparts)
-  _juna_candidate(m, code, layout, yparts, seed)
+  profile === _MODE_PFFT && return _initial_candidate(m, code, layout, yparts)
+  initial_candidate = _initial_candidate_from_ofdm_fec_and_partial_fft(
+    m, code, layout, yparts)
+  _juna_candidate(m, code, layout, yparts, initial_candidate)
 end
 
 function _demodulate_block_ofdm_fec(m::Modulation, code::_Code, layout::_Layout, yparts)
@@ -1125,7 +1088,7 @@ end
 _demodulate_block_standard(args...) = _demodulate_block_ofdm_fec(args...)
 
 function _demodulate_block_partial(m::Modulation, code::_Code, layout::_Layout, yparts)
-  _payload_from_metrics(m, code, _seed_candidate(m, code, layout, yparts).lpost_metric)
+  _payload_from_metrics(m, code, _initial_candidate(m, code, layout, yparts).lpost_metric)
 end
 
 function _ofdm_fec_candidate(m::Modulation, code::_Code, layout::_Layout, yparts)
@@ -1180,41 +1143,45 @@ end
 # (reduced-gradient Adam over W,z), or :coupled (exact conditional C/W solves
 # with Adam only on z). :robust is
 # accepted as a legacy alias for :full.
-function _demodulate_block_juna(m::Modulation, code::_Code, layout::_Layout, yparts, seed=nothing)
-  _payload_from_metrics(m, code, _juna_candidate(m, code, layout, yparts, seed).lpost_metric)
+function _demodulate_block_juna(m::Modulation, code::_Code, layout::_Layout,
+                                yparts, initial_candidate=nothing)
+  _payload_from_metrics(
+    m, code,
+    _juna_candidate(m, code, layout, yparts, initial_candidate).lpost_metric)
 end
 
-function _juna_candidate(m::Modulation, code::_Code, layout::_Layout, yparts, seed=nothing)
+function _juna_candidate(m::Modulation, code::_Code, layout::_Layout, yparts,
+                         initial_candidate=nothing)
   profile = receiver_profile(m)
   profile === _MODE_OFDM_FEC && return _ofdm_fec_candidate(m, code, layout, yparts)
   profile === _MODE_PFFT &&
-    return seed === nothing ? _seed_candidate(m, code, layout, yparts) : seed
+    return initial_candidate === nothing ?
+      _initial_candidate(m, code, layout, yparts) : initial_candidate
   profile === _MODE_FRAME_WIDE_LDPC &&
-    return seed === nothing ? _seed_candidate(m, code, layout, yparts) : seed
-  profile === _MODE_COUPLED && return _juna_wcz_candidate(m, code, layout, yparts, seed)
-  profile === _MODE_TURBO_MAP && return _turbo_map_candidate(m, code, layout, yparts, seed)
-  profile === _MODE_GRADIENT_GUARDED &&
-    return _gradient_guarded_candidate(m, code, layout, yparts, seed)
-  profile === _MODE_PROFILED_GRADIENT &&
-    return _profiled_gradient_candidate(m, code, layout, yparts, seed)
-  profile === _MODE_FULL && return _juna_wz_candidate(m, code, layout, yparts, seed)
-  _juna_lite_candidate(m, code, layout, yparts, seed)
+    return initial_candidate === nothing ?
+      _initial_candidate(m, code, layout, yparts) : initial_candidate
+  profile === _MODE_COUPLED && return _juna_wcz_candidate(
+    m, code, layout, yparts, initial_candidate)
+  profile === _MODE_FULL && return _juna_wz_candidate(
+    m, code, layout, yparts, initial_candidate)
+  _juna_lite_candidate(m, code, layout, yparts, initial_candidate)
 end
 
-function _seed_candidate(m::Modulation, code::_Code, layout::_Layout, yparts)
+function _initial_candidate(m::Modulation, code::_Code, layout::_Layout, yparts)
   equalized = _equalize_from_targets(m, yparts, layout, layout.pilot_idx, layout.pilot_syms)
   _candidate_from_equalized(m, code, layout, equalized)
 end
 
-function _select_front_end_seed(ofdm_fec, partial)
+function _select_initial_candidate(ofdm_fec, partial)
   partial.valid && return partial
   ofdm_fec.valid ? ofdm_fec : partial
 end
 
-function _front_end_seed_candidate(m::Modulation, code::_Code, layout::_Layout, yparts)
-  partial = _seed_candidate(m, code, layout, yparts)
+function _initial_candidate_from_ofdm_fec_and_partial_fft(
+    m::Modulation, code::_Code, layout::_Layout, yparts)
+  partial = _initial_candidate(m, code, layout, yparts)
   partial.valid && return partial
-  _select_front_end_seed(_ofdm_fec_candidate(m, code, layout, yparts), partial)
+  _select_initial_candidate(_ofdm_fec_candidate(m, code, layout, yparts), partial)
 end
 
 function _decode_candidate(m::Modulation, code::_Code, layout::_Layout, equalized, metrics, pilot_mse)
@@ -1564,7 +1531,7 @@ end
 
 # ----- posterior soft information ---------------------------------------------
 
-# Per-tone posterior-mean constellation points from posterior metrics.
+# Per-carrier posterior-mean constellation points from posterior metrics.
 function _posterior_symbols(m::Modulation, lpost_metric)
   if _bpc(m) == 1
     anchors = Vector{ComplexF64}(undef, length(lpost_metric))
@@ -1586,7 +1553,7 @@ function _posterior_symbols(m::Modulation, lpost_metric)
   end
 end
 
-# Per-tone confidence: BPSK |xi|, QPSK min(|xi_I|, |xi_Q|).
+# Per-carrier confidence: BPSK |xi|, QPSK min(|xi_I|, |xi_Q|).
 function _posterior_confidence(m::Modulation, lpost_metric)
   if _bpc(m) == 1
     confidence = Vector{Float64}(undef, length(lpost_metric))

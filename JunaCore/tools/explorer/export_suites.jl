@@ -13,10 +13,44 @@
 # emitter honest.
 
 const EXPORT_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
-include(joinpath(EXPORT_ROOT, "test", "runtests.jl"))  # loads SUITES; runs nothing
+const _REGISTRY_ONLY_KEY = "JUNA_SUITE_REGISTRY_ONLY"
+const _REGISTRY_ONLY_PRIOR = get(ENV, _REGISTRY_ONLY_KEY, nothing)
+ENV[_REGISTRY_ONLY_KEY] = "1"
+try
+    include(joinpath(EXPORT_ROOT, "test", "runtests.jl"))
+finally
+    if _REGISTRY_ONLY_PRIOR === nothing
+        delete!(ENV, _REGISTRY_ONLY_KEY)
+    else
+        ENV[_REGISTRY_ONLY_KEY] = _REGISTRY_ONLY_PRIOR
+    end
+end
 
-_json_escape(s::AbstractString) =
-    replace(replace(replace(s, "\\" => "\\\\"), "\"" => "\\\""), "\n" => "\\n")
+function _json_escape(s::AbstractString)
+    io = IOBuffer()
+    for char in s
+        if char == '"'
+            print(io, "\\\"")
+        elseif char == '\\'
+            print(io, "\\\\")
+        elseif char == '\b'
+            print(io, "\\b")
+        elseif char == '\f'
+            print(io, "\\f")
+        elseif char == '\n'
+            print(io, "\\n")
+        elseif char == '\r'
+            print(io, "\\r")
+        elseif char == '\t'
+            print(io, "\\t")
+        elseif Int(char) < 0x20
+            print(io, "\\u", lpad(string(Int(char), base=16), 4, '0'))
+        else
+            print(io, char)
+        end
+    end
+    String(take!(io))
+end
 
 function _emit(io, suites)
     println(io, "{")
@@ -40,6 +74,12 @@ function _emit(io, suites)
     println(io, "}")
 end
 
-out = isempty(ARGS) ? joinpath(@__DIR__, "suites.json") : ARGS[1]
-open(io -> _emit(io, SUITES), out, "w")
-println("wrote ", out, " (", length(SUITES), " suites)")
+function main()
+    out = isempty(ARGS) ? joinpath(@__DIR__, "suites.json") : ARGS[1]
+    open(io -> _emit(io, SUITES), out, "w")
+    println("wrote ", out, " (", length(SUITES), " suites)")
+end
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end

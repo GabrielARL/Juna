@@ -7,7 +7,7 @@ using LinearAlgebra
 const CrcJuna = JunaCore.Juna
 const CrcMods = JunaCore.Modulations
 
-@testset verbose=true "Profiled C,z" begin
+@testset verbose=true "CRC and conditioned Profiled C,z forms" begin
     @testset "CRC-16/CCITT framing" begin
         bytes = codeunits("123456789")
         bits = Bool[
@@ -89,7 +89,7 @@ const CrcMods = JunaCore.Modulations
             z, posterior[1:3], inner_mask, inner_bits, 0.5, 6.0)
     end
 
-    @testset "Experiment-B C,z feedback changes values only" begin
+    @testset "C,z decoder feedback changes values only" begin
         default = CrcJuna.CrcProfiledCzFrameModulation()
         @test default.cz_feedback_source === :legacy
         @test CrcJuna._CZ_FEEDBACK_SOURCES ==
@@ -160,7 +160,7 @@ const CrcMods = JunaCore.Modulations
             initial, posterior, inner_mask, inner_bits, 1, 8, 6.0)
     end
 
-    @testset "Experiment-B conditioned control differs by one knob" begin
+    @testset "conditioned control differs by one setting" begin
         control = CrcJuna.CrcConditionedCwzFrameModulation(
             nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
             partial_fft_parts=2, partial_fft_nbands=2,
@@ -199,7 +199,7 @@ const CrcMods = JunaCore.Modulations
             for name in fieldnames(typeof(expected_legacy)))
     end
 
-    @testset "Experiment-B CRC gate changes selection only" begin
+    @testset "CRC gate changes selection only" begin
         kwargs = (
             nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
             partial_fft_parts=2, partial_fft_nbands=2,

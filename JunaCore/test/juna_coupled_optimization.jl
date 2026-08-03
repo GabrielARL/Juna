@@ -82,13 +82,15 @@ function real_solver_fixture()
         m, layout, CoupledSolveJuna._encode(code, message),
     )
     yparts = CoupledSolveJuna._branch_observations(m, waveform)
-    seed = CoupledSolveJuna._seed_candidate(m, code, layout, yparts)
+    initial_candidate = CoupledSolveJuna._initial_candidate(
+        m, code, layout, yparts)
     problem = CoupledSolveJuna._coupled_problem_from_receiver(m, code, layout, yparts)
-    initial = CoupledSolveJuna._initial_coupled_state(m, code, layout, problem, seed)
+    initial = CoupledSolveJuna._initial_coupled_state(
+        m, code, layout, problem, initial_candidate)
     (; m, code, layout, problem, initial)
 end
 
-@testset verbose = true "Profiled C,z" begin
+@testset verbose = true "Conditional C,W,z optimization" begin
     @testset "optimizer configuration is explicit and rejects unsafe values" begin
         config = CoupledSolveJuna._validate_coupled_optimizer_config(
             CoupledSolveJuna._CoupledOptimizerConfig(),

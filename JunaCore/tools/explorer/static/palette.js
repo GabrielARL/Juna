@@ -25,6 +25,7 @@ let input = null;
 let list = null;
 let filtered = [];
 let selectedIndex = -1;
+let previousFocus = null;
 
 function injectStyle() {
   if (document.getElementById(STYLE_ID)) return;
@@ -122,10 +123,14 @@ function buildOverlay() {
   input.className = "jx-palette-input";
   input.type = "text";
   input.setAttribute("aria-label", "Command palette search");
+  input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("aria-controls", "jx-palette-options");
   input.placeholder = "Jump to page, suite, stage, code name, module…";
 
   list = document.createElement("ul");
   list.className = "jx-palette-list";
+  list.id = "jx-palette-options";
+  list.setAttribute("role", "listbox");
 
   card.appendChild(input);
   card.appendChild(list);
@@ -184,12 +189,16 @@ function renderList(query) {
     li.textContent = items === null ? "Loading…" : "No matches";
     list.appendChild(li);
     selectedIndex = -1;
+    input.removeAttribute("aria-activedescendant");
     return;
   }
 
   filtered.forEach((item, i) => {
     const li = document.createElement("li");
     li.className = "jx-palette-row" + (i === 0 ? " jx-selected" : "");
+    li.id = "jx-palette-option-" + i;
+    li.setAttribute("role", "option");
+    li.setAttribute("aria-selected", i === 0 ? "true" : "false");
 
     const badge = document.createElement("span");
     badge.className = "jx-palette-badge";
@@ -219,15 +228,23 @@ function renderList(query) {
   });
 
   selectedIndex = 0;
+  input.setAttribute("aria-activedescendant", "jx-palette-option-0");
 }
 
 function updateSelectionClasses() {
   const rows = list.querySelectorAll(".jx-palette-row");
   rows.forEach((row, i) => {
-    row.classList.toggle("jx-selected", i === selectedIndex);
+    const selected = i === selectedIndex;
+    row.classList.toggle("jx-selected", selected);
+    row.setAttribute("aria-selected", selected ? "true" : "false");
   });
   const active = rows[selectedIndex];
-  if (active && active.scrollIntoView) active.scrollIntoView({ block: "nearest" });
+  if (active) {
+    input.setAttribute("aria-activedescendant", active.id);
+    if (active.scrollIntoView) active.scrollIntoView({ block: "nearest" });
+  } else {
+    input.removeAttribute("aria-activedescendant");
+  }
 }
 
 function moveSelection(delta) {
@@ -273,8 +290,9 @@ function isOpen() {
   return !!overlay && overlay.style.display !== "none" && overlay.style.display !== "";
 }
 
-function open() {
+function open(trigger) {
   buildOverlay();
+  previousFocus = trigger || document.activeElement;
   overlay.style.display = "flex";
   input.value = "";
   input.focus();
@@ -284,6 +302,10 @@ function open() {
 function close() {
   if (!overlay) return;
   overlay.style.display = "none";
+  if (previousFocus && typeof previousFocus.focus === "function") {
+    previousFocus.focus();
+  }
+  previousFocus = null;
 }
 
 function toggle() {
@@ -306,6 +328,6 @@ document.addEventListener("click", (ev) => {
   const target = ev.target && ev.target.closest ? ev.target.closest("#palette-open") : null;
   if (target) {
     ev.preventDefault();
-    open();
+    open(target);
   }
 });

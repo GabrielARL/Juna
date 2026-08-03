@@ -2,13 +2,13 @@
 #
 # Payload and block sizing — the frame arithmetic behind BER/PSR/goodput accounting.
 #
-# Paper claims protected (papers/main.tex):
-#   sec:method (lines 1966-1971)      Benchmark geometry n1024_cp256_..._r0p25_..._ip2:
+# Paper claims protected (reference papers/gab/joe.tex):
+#   sec:method                        Benchmark geometry n1024_cp256_..._r0p25_..._ip2:
 #                                     N=1024, CP=256, LDPC rate 0.25, inner pilot
 #                                     every 2nd message bit.
-#   fig:packet-tanner-example caption Message row k=340 splits into 170 known
-#   (lines 670-679, esp. 674)         inner-pilot anchors + 170 unknown payload bits.
-#   eq:goodput (lines 1934-1939)      k_payload excludes inner-pilot message bits —
+#   fig:packet-tanner-example         Message row k=340 splits into 170 known
+#                                     inner-pilot anchors + 170 unknown payload bits.
+#   eq:goodput                        k_payload excludes inner-pilot message bits —
 #                                     so bitspersymbol must count ONLY the 170
 #                                     unknown bits, never the full k=340 or n=1360.
 #
@@ -35,7 +35,7 @@ const PAYLOAD_SIZING_FS = 24_000.0
     m = PayloadSizingJuna.LiteModulation()
     @test PayloadSizingModulations.init(m, PAYLOAD_SIZING_FC, PAYLOAD_SIZING_FS) === nothing
 
-    @testset "defaults are the paper benchmark geometry (main.tex:1966-1971)" begin
+    @testset "defaults are the paper benchmark geometry" begin
         @test Int(m.nc) == 1024        # N
         @test Int(m.np) == 256         # CP length
         @test Int(m.ldpc_k) == 340
@@ -43,7 +43,7 @@ const PAYLOAD_SIZING_FS = 24_000.0
         @test m.ldpc_k / m.ldpc_n == 0.25  # r0p25
     end
 
-    @testset "block = 1280 samples; payload = 170 of k=340 bits (main.tex:674)" begin
+    @testset "OFDM symbol = 1280 samples; payload = 170 of k=340 bits" begin
         @test PayloadSizingJuna._blocklen(m) == 1280           # 1024 + 256
         # ip2: 170 inner-pilot anchors leave 170 unknown payload bits per block.
         @test PayloadSizingModulations.bitspersymbol(m) == 170
@@ -77,8 +77,8 @@ const PAYLOAD_SIZING_FS = 24_000.0
         @test PayloadSizingModulations.bitspersymbol(every_third_inner) == 226
     end
 
-    # The paper's packets carry a known sync preamble (main.tex:1953); the LFM
-    # length 2048 is a package constant (_SYNC_LEN, src/juna/common.jl:62), not a
+    # The paper's packets carry a known sync preamble; the LFM length 2048 is a
+    # package constant (_SYNC_LEN), not a
     # paper number — this pins the pre+postamble overhead at 2*2048 = 4096 samples.
     @testset "sync adds exactly 4096 samples regardless of block count" begin
         sync_enabled = PayloadSizingJuna.LiteModulation(sync = true)

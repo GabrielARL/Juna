@@ -1,7 +1,7 @@
 #!/usr/bin/env julia
 #
-# JUNA-WCz Step 10: final public evidence on clean multi-block data, controlled
-# residual ICI plus seeded AWGN, coupled dispatch/benefit, and warmed execution.
+# JUNA-WCz end-to-end evidence on clean multi-block data, fixed residual ICI and
+# AWGN, coupled dispatch, and warmed execution.
 #
 # The impairment is a residual frequency offset of 0.08 subcarrier spacings:
 # x[n] * exp(j*2*pi*0.08*n/N). It creates inter-carrier interference without
@@ -68,10 +68,13 @@ function coupled_e2e_candidates(m, bits, snr_db::Real)
     code = CoupledE2EJuna._code(m)
     layout = CoupledE2EJuna._layout(m, COUPLED_E2E_FS)
     yparts = CoupledE2EJuna._branch_observations(m, impaired)
-    seed = CoupledE2EJuna._seed_candidate(m, code, layout, yparts)
-    direct = CoupledE2EJuna._coupled_candidate(m, code, layout, yparts, seed)
-    dispatched = CoupledE2EJuna._juna_candidate(m, code, layout, yparts, seed)
-    (; impaired, code, layout, seed, direct, dispatched)
+    initial_candidate = CoupledE2EJuna._initial_candidate(
+        m, code, layout, yparts)
+    direct = CoupledE2EJuna._coupled_candidate(
+        m, code, layout, yparts, initial_candidate)
+    dispatched = CoupledE2EJuna._juna_candidate(
+        m, code, layout, yparts, initial_candidate)
+    (; impaired, code, layout, initial_candidate, direct, dispatched)
 end
 
 function coupled_e2e_candidate_errors(m, code, candidate, bits)
@@ -79,7 +82,7 @@ function coupled_e2e_candidate_errors(m, code, candidate, bits)
     count(decoded .!= bits)
 end
 
-@testset verbose = true "Profiled C,z" begin
+@testset verbose = true "Coupled receiver on clean and impaired signals" begin
     @testset "seeded noise is stable across Julia versions" begin
         @test coupled_e2e_stable_normal(6, COUPLED_E2E_SEED) == [
             0.4285736083984375,
@@ -110,7 +113,7 @@ end
         @test cfo == 0.0
     end
 
-    @testset "residual ICI plus seeded AWGN has a real waterfall" begin
+    @testset "fixed residual ICI and AWGN produce more errors at lower SNR" begin
         m = CoupledE2EJuna.CoupledModulation()
         bits = coupled_e2e_payload(CoupledE2EModulations.bitspersymbol(m))
         high = coupled_e2e_errors(m, bits, 12.0)
@@ -136,7 +139,8 @@ end
         lite_metrics, _ = CoupledE2EModulations.demodulate(
             lite, length(bits), f.impaired, COUPLED_E2E_FC, COUPLED_E2E_FS,
         )
-        seed_errors = coupled_e2e_candidate_errors(m, f.code, f.seed, bits)
+        initial_errors = coupled_e2e_candidate_errors(
+            m, f.code, f.initial_candidate, bits)
         direct_errors = coupled_e2e_candidate_errors(m, f.code, f.direct, bits)
         dispatched_errors = coupled_e2e_candidate_errors(
             m, f.code, f.dispatched, bits,
@@ -144,12 +148,12 @@ end
         public_errors = count((public_metrics .> 0) .!= bits)
         lite_errors = count((lite_metrics .> 0) .!= bits)
 
-        @test CoupledE2EJuna._juna_better(f.seed, f.direct)
+        @test CoupledE2EJuna._juna_better(f.initial_candidate, f.direct)
         @test f.dispatched.lpost_metric == f.direct.lpost_metric
-        @test f.dispatched.syndrome < f.seed.syndrome
-        @test (f.seed.syndrome, f.direct.syndrome,
-               seed_errors, direct_errors) == (130, 99, 22, 17)
-        @test direct_errors < seed_errors
+        @test f.dispatched.syndrome < f.initial_candidate.syndrome
+        @test (f.initial_candidate.syndrome, f.direct.syndrome,
+               initial_errors, direct_errors) == (130, 99, 22, 17)
+        @test direct_errors < initial_errors
         @test dispatched_errors == direct_errors
         @test public_errors == dispatched_errors
         @test public_errors < lite_errors
@@ -161,31 +165,33 @@ end
         m = CoupledE2EJuna.CoupledModulation()
         bits = coupled_e2e_payload(CoupledE2EModulations.bitspersymbol(m))
         f = coupled_e2e_candidates(m, bits, 1.5)
-        seed_errors = coupled_e2e_candidate_errors(m, f.code, f.seed, bits)
+        initial_errors = coupled_e2e_candidate_errors(
+            m, f.code, f.initial_candidate, bits)
         selected_errors = coupled_e2e_candidate_errors(
             m, f.code, f.dispatched, bits,
         )
 
-        @test CoupledE2EJuna._juna_better(f.seed, f.direct)
-        @test f.dispatched.syndrome < f.seed.syndrome
-        @test (f.seed.syndrome, f.dispatched.syndrome,
-               seed_errors, selected_errors) == (16, 0, 1, 0)
-        @test selected_errors <= seed_errors + 4
+        @test CoupledE2EJuna._juna_better(f.initial_candidate, f.direct)
+        @test f.dispatched.syndrome < f.initial_candidate.syndrome
+        @test (f.initial_candidate.syndrome, f.dispatched.syndrome,
+               initial_errors, selected_errors) == (16, 0, 1, 0)
+        @test selected_errors <= initial_errors + 4
         @test selected_errors < length(bits) ÷ 2
-        seed_syndrome = f.seed.syndrome
+        initial_syndrome = f.initial_candidate.syndrome
         selected_syndrome = f.dispatched.syndrome
-        @info "Profiled C,z proxy/truth tradeoff" seed_syndrome selected_syndrome seed_errors selected_errors
+        @info "Profiled C,z proxy/truth tradeoff" initial_syndrome selected_syndrome initial_errors selected_errors
     end
 
-    @testset "valid 3 dB seed is retained" begin
+    @testset "valid 3 dB initial candidate is retained" begin
         m = CoupledE2EJuna.CoupledModulation()
         bits = coupled_e2e_payload(CoupledE2EModulations.bitspersymbol(m))
         f = coupled_e2e_candidates(m, bits, 3.0)
 
-        @test f.seed.valid
-        @test f.seed.syndrome == 0
-        @test coupled_e2e_candidate_errors(m, f.code, f.seed, bits) == 0
-        @test f.dispatched.lpost_metric == f.seed.lpost_metric
+        @test f.initial_candidate.valid
+        @test f.initial_candidate.syndrome == 0
+        @test coupled_e2e_candidate_errors(
+            m, f.code, f.initial_candidate, bits) == 0
+        @test f.dispatched.lpost_metric == f.initial_candidate.lpost_metric
     end
 
     @testset "warmed one-block decode remains correct" begin

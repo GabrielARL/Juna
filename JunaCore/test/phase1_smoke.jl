@@ -16,7 +16,7 @@ const FS = 24_000.0
 @testset "package smoke: clean-channel roundtrip" begin
   for (name, provider) in (
       ("OFDM+FEC", () -> JunaCore.JunaOFDMFEC.Modulation()),
-      ("PartialFFT", () -> JunaCore.JunaPartialFFT.Modulation()),
+      ("Partial-FFT", () -> JunaCore.JunaPartialFFT.Modulation()),
       ("Lite", () -> JunaCore.JunaLite.Modulation()),
       ("Profiled C,z", () -> JunaCore.JunaProfiledCzFrame.Modulation(
           nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,

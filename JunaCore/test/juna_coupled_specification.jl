@@ -181,8 +181,8 @@ function independently_profile_C(problem, z;
     C
 end
 
-@testset verbose = true "Profiled C,z" begin
-    @testset "the Stage 1 contract has stable types and frozen values" begin
+@testset verbose = true "C,W,z objective and gradients" begin
+    @testset "constrained-problem settings have stable types and fixed values" begin
         spec = CoupledSpecJuna._COUPLED_SOLVER_SPEC
 
         @test spec isa CoupledSpecJuna._CoupledSolverSpec
@@ -1029,7 +1029,7 @@ end
         end
     end
 
-    @testset "expected-variance (VP) objective gradient matches centered finite differences" begin
+    @testset "expected-variance variable-projection objective gradient matches centered finite differences" begin
         problem, state = gradient_fixture()
         gradient = CoupledSpecJuna._CoupledGradient(problem)
         weights = CoupledSpecJuna._CoupledWeights(observation = 0.8)

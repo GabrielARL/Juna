@@ -11,7 +11,11 @@ This is Juna's register. It is governed by `SOP_HUMAN_AI_COWORK.md`.
 - A rejected item keeps its identifier.
 - Silence is not approval.
 
-Next free Juna identifier: **JCM-093**.
+Next free Juna identifier: **JCM-115**.
+
+Next free Claude identifier: **CL-21**. The former spoken labels CL-22
+through CL-27 are provenance only; their decisions are recorded without
+collision as JCM-097 through JCM-102.
 
 The earlier D sequence still has a gap. D6 to D12 were approved in another
 session but were never recorded. They remain reserved and must not be reused.
@@ -117,19 +121,96 @@ session but were never recorded. They remain reserved and must not be reused.
 | JCM-082 | approved | Track the minimal self-contained Results bundle: the generator, template, rendered page, manifest, view data, and the two 60-frame finalist CSV inputs. Leave the 20-frame screening files and other unused experiment outputs local. User: "082A". |
 | JCM-083 | approved | Keep this merge focused. Repository-backed portions of JCM-027, JCM-030, and JCM-031 through JCM-054 remain pending separate reviewed integration; JCM-040 through JCM-043 remain applied globally, and settled no-edit and rejected decisions remain unchanged. User: "083A". |
 | JCM-084 | approved | Remove absent Rpchan and receiver-function entries from the reader-facing Receiver stages walkthrough so it describes only the current source. User: "084A". |
+| JCM-086 | approved | Use `JunaCore explorer` for the application title, page heading, startup message, and contract descriptions. User: "I approve all changes you propose". |
 | JCM-087 | approved | Import all seven portable Sonique regression tests for the restored `full.jl` and `coupled.jl` closure, preserving assertions while adapting obsolete reader-visible labels to the approved `Profiled C,z` family name. User: "087a". |
 | JCM-088 | approved | Do not add ForwardDiff or the three automatic-differentiation test files; retain the existing finite-difference coverage. User: "088b". |
 | JCM-089 | approved | Attach the imported module tests to the existing `Profiled C,z` Explorer family across Tests, Coverage, Chain, and Source; do not create public Full or Coupled receiver entries. User: "089a". |
 | JCM-090 | approved | After validation, restart the permanent port 8772 Explorer from the `profiled-cz-restore` worktree and verify its live APIs. User: "090a". |
 | JCM-091 | approved | Commit the validated Profiled C,z restoration on `agent/profiled-cz-restore`, including its implementation, public facades, regression tests, Explorer integration, contracts, parity evidence, generated data, and approval record. User: "091a". |
 | JCM-092 | approved | Push `agent/profiled-cz-restore` to the confirmed `origin` at `https://github.com/GabrielARL/Juna.git` so another computer can clone this exact committed copy. User: "092a". |
+| JCM-093 | approved | Repair stale `source_symbol_explorer.py` references by removing absent facade modules, dead functions, the nonexistent `sync_profile` field, and `:rpchan` entries. Formerly recorded as JCM-057 on `agent/integrate-source-graph`; re-recorded under CL-20 because reconciled JCM-057 names a different approved decision. User: "I approve all." |
+| JCM-094 | approved | Record the then-approved application of JCM-032's `branch` wording in the Explorer. Formerly recorded as JCM-058 on `agent/integrate-source-graph`; re-recorded under CL-20 and subsequently superseded for current reader prose by JCM-052's `partial-FFT view` wording. User: "I approve all." |
+| JCM-095 | approved | Present Source files as a reload-rescanned `Kind` / `Count` / `What it is` table whose values come from the analyzer. Formerly recorded as JCM-059 on `agent/integrate-source-graph`; re-recorded under CL-20 because reconciled JCM-059 names a different approved decision. User: "I approve all." |
+| JCM-096 | approved | Name the checked source files in the reader introduction generated from `test/runtests.jl`. Formerly recorded as JCM-060 on `agent/integrate-source-graph`; re-recorded under CL-20 because reconciled JCM-060 names a different approved decision. User: "I approve all." |
+| JCM-097 | approved | Use `hydrophone` in reader-facing wording for the receiving element; retain `lane` only where it is an existing source field or code identifier and explain it at that point. This re-records the former spoken CL-22 decision. User: "I approve all." |
+| JCM-098 | approved | Include the `:pfft` receiver arm in the shared public-interface execution check and retain that arm during reconciliation. This re-records the former spoken CL-23 decision. User: "I approve all." |
+| JCM-099 | approved | Keep the three Gabriel2 reader rules: explain the observable operation first; use one reader-facing term for one meaning; state each requirement once and identify its test. Keep the closing test: if a reader must guess what a term means, the wording is not finished. This re-records the former spoken Gabriel2 decision. User: "I approve all." |
+| JCM-100 | approved | Apply the reader layer to terminal list output, CLI title matching, and `Pkg.test` titles while retaining technical titles in Technical details. This re-records the former spoken terminal-title decision and supersedes the colliding CL-24a record. User: "I approve all." |
+| JCM-101 | approved | Use `search` instead of `sweep` in reader-facing test wording; retain an existing code identifier only where changing it would alter the implementation interface. This re-records the former spoken search-wording decision. User: "I approve all." |
+| JCM-102 | approved | During reconciliation, keep the twelve approved reader-facing test titles from `agent/integrate-source-graph`, including `Each receiver recovers its own clean test bits`, `Every receiver sends and recovers test bits`, and `Standard, Partial FFT, and JUNA-Lite provide the same operations`; do not restore conformity's interim titles such as `Clean transmission and recovery`. Preserve the restored four-receiver implementation and its additional Profiled C,z suites. This re-records the former spoken test-title decision. User: "I approve all." |
+| JCM-103 | open | Decide which Mandar checker governs document completion: (a) the global Codex checker, (b) the repository checker, or (c) require both copies to be identical before either governs. On the conformity `joe.tex`, both return `OK`, while `--list-terms` reports 229 and 227 terms; the only inventory difference is the synthetic checker placeholders `BLOCK` and `MATH`. Neither checker verifies vocabulary provenance, coined terminology, or prior agreement. |
+| JCM-104 | approved | Use `Profiled C,z combiner weights and zero-update result` for `profiled-cz` in both title layers. This records 28-1 with the approved `combiner weights` wording. User: "you do all the changes". |
+| JCM-105 | approved | Use `Profiled C,z CRC, turbo, and conditioned forms` for `profiled-cz-crc` in both title layers. This records 28-2. User: "you do all the changes". |
+| JCM-106 | approved | Use `Profiled C,z under three code settings` for `profiled-cz-check-degree` in both title layers. This records 28-3. User: "you do all the changes". |
+| JCM-107 | approved | Use `Profiled C,z response and combining updates` for `wcz-solves` in both title layers. This records 28-4. User: "you do all the changes". |
+| JCM-108 | approved | Use `Profiled C,z W,z calculations` for `profiled-cz-full-dependency` in both title layers. This records 28-5 without the unexplained word `shared`. User: "you do all the changes". |
+| JCM-109 | approved | Use `Profiled C,z objective and gradient checks` for `profiled-cz-objective` in both title layers. This records 28-6. User: "you do all the changes". |
+| JCM-110 | approved | Use `Profiled C,z starting values` for `profiled-cz-initialization` in both title layers. This records 28-7. User: "you do all the changes". |
+| JCM-111 | approved | Use `Profiled C,z conditional updates and rollback` for `profiled-cz-optimizer` in both title layers. This records 28-8. User: "you do all the changes". |
+| JCM-112 | approved | Use `Profiled C,z update cycles` for `profiled-cz-block-coordinate` in both title layers. This records 28-9. User: "you do all the changes". |
+| JCM-113 | approved | Use `Profiled C,z candidate selection` for `profiled-cz-candidate` in both title layers. This records 28-10. User: "you do all the changes". |
+| JCM-114 | approved | Use `Profiled C,z clean and impaired receiver checks` for `profiled-cz-end-to-end` in both title layers; do not imply error-free recovery for every noisy case. This records 28-11. User: "you do all the changes". |
+
+## Concurrent Claude decisions reconciled
+
+| ID | State | Decision. |
+|---|---|---|
+| CL-3 | approved | Rename the retained Source-description action to `Open in Source definitions`; keep the link and its route-contract coverage. User: "I approve all." |
+| CL-8 | approved | Keep `JunaStandard` as a backward-compatible facade: JCM-071 and CX-009a retain the legacy constructor, and the interface and source-layout tests construct it. User: "I approve all." |
+| CL-9 | approved | Fold the `Modulation` binding signature and source location into `Defined at`; do not keep a separate reader-visible `Modulation binding` row. User: "I approve all." |
+| CL-10 | approved | Use `_initial_candidate`, `_select_initial_candidate`, and `_initial_candidate_from_ofdm_fec_and_partial_fft`; CX-017 supersedes the interim `front_end` candidates. User: "I approve all." |
+| CL-11 | approved | In `common.jl`, describe the stage as the `frame-wide FEC receiver`; remove `front end` from that comment, consistent with JCM-050c and CX-017. User: "I approve all." |
+| CL-12 | approved | In `common.jl`, write `Benchmark baselines stop at their own result`; do not call that endpoint a `front end` or `demodulator`. User: "I approve all." |
+| CL-18 | approved | Remove the reused `CL-1/2/3` citations from `test/source_file_check.jl` and state each source divergence directly. User: "I approve all." |
+| CL-19 | approved | The human performs this merge using a conflict map regenerated after the conformity commit; agents may prepare and review it but do not merge, preserving JCM-025 and JCM-081. User: "I approve all." |
+| CL-20 | approved | Keep the reconciled register's JCM-057 through JCM-060 allocations and re-record the four concurrent Claude decisions as JCM-093 through JCM-096 with their former IDs noted as provenance. User: "I approve all." |
+
+## Conformity audit decisions
+
+The `CX` sequence is the stable, one-decision-per-row sequence used for the
+cross-tree conformity audit. It does not fill or renumber any `JCM` gap. The
+user approved every row below with: "I approve all changes you propose".
+
+| ID | State | Decision. |
+|---|---|---|
+| CX-001 | approved | Remove accepted standalone and frame receiver settings whose implementations are absent; test every accepted setting through a public execution path. |
+| CX-002 | approved | Give `demodulate_methods` the same synchronization and initial-resampling path as public `demodulate`, including a time-dilated waveform test. |
+| CX-003 | approved | Validate required transmitted-symbol input before valid-candidate and zero-step early returns in block and frame receivers. |
+| CX-004 | approved | At zero Profiled C,z steps, return the frame Lite starting result for every Profiled form; retain OFDM+FEC as a benchmark. |
+| CX-005 | approved | Remove the unused `feedback_graded_p` and `feedback_trace` fields; callers supply corrupted transmitted symbols explicitly, with block and frame tests. |
+| CX-006 | approved | Remove the unsupported feedback-score ordering assertion while retaining the output-divergence checks. |
+| CX-007 | approved | When ridge is zero and the central response is zero, `_cz_mmse_weights!` returns zero combiner weights. |
+| CX-008 | approved | Treat the string form of `LDPC.create` as a strict parsed compatibility form: reject unknown or extra tokens and require `0 < k < n`. |
+| CX-009a | approved | Preserve legacy constructors, query aliases, the `standard` result field, and `:standard` provenance for `StandardModulation`; keep the current five-field result shape without guaranteeing the former exact tuple shape. |
+| CX-010a | approved | Keep the implementation geometry of 1023 active carriers, 341 pilots, 682 data carriers, and an LDPC length of 1360; correct the paper and test references. |
+| CX-011a | approved | Keep the implementation default of 16 frequency bands and describe the paper benchmark accurately as four bands. |
+| CX-012 | approved | Replace nonexistent and line-number-fragile paper references in tests with `reference papers/gab/joe.tex` and stable labels. |
+| CX-013 | approved | Make the shared interface contract explicitly check the Lite default and equality with the four reader-selectable modes; describe declared implementation separately from receiver execution. |
+| CX-014 | approved | Give the eleven Profiled C,z suites distinct operation-based reader titles and add a fixed separator between CLI keys and file names. |
+| CX-015 | approved | Limit the three performance descriptions to the packets, impairment, objective, and state dimensions actually checked. |
+| CX-016 | approved | Remove unused receiver-descriptor fields and add a synchronization round trip for all four reader-selectable receivers. |
+| CX-017 | approved | Apply `initial candidate` across source, tests, and Explorer; remove generic reader-facing `front end` and name the OFDM+FEC and Partial-FFT results directly. |
+| CX-018 | approved | Describe Profiled C,z in two layers: complete-frame replacement behavior for readers, then conditional C, z, and W processing for technical detail. |
+| CX-019 | approved | Make the receiver chain match the implementation: synchronization, carriers, payload-bit estimates, complete candidate order, Profiled baselines, and zero-step behavior. |
+| CX-020 | approved | State that genie arms replace posterior decisions with transmitted symbols and that a null result is limited to this receiver's refit. |
+| CX-021 | approved | Correct Health streaming offsets, status values, timestamp units, and contract labeling; add multi-chunk, status, and timestamp contracts. |
+| CX-022 | approved | Link overloaded source definitions by stable symbol identity rather than name alone. |
+| CX-023 | approved | Stop treating Julia file names as qualified symbols in coverage and include `Modulations`, `LDPC`, and facade containers. |
+| CX-024 | approved | Sandbox rendered Results HTML while preserving its scripts, and require matching-origin JSON requests for mutation endpoints. |
+| CX-025 | approved | Remove nonexistent `JNR-001` through `JNR-019` approval claims and use actual decisions or neutral contract wording. |
+| CX-026 | approved | Escape every JSON control character correctly in both Julia exporters and test round trips. |
+| CX-027 | approved | Put the complete server-contract fixture lifecycle under temporary-directory and `try/finally` cleanup. |
+| CX-028 | approved | Give chain stages keyboard-operable buttons and command-palette listbox/option semantics with focus restoration. |
+| CX-029 | approved | Change standalone analyzer scan and restart mutations from unprotected GET requests to protected POST requests. |
+| CX-030 | approved | Keep Sonique attribution in technical details, show the current Juna commit on Home, and say `current source tree` rather than `pinned`. |
+| CX-031 | approved | Remove the abstract-interface claim that payload rate is always at most the sample rate. |
+| CL-24a | superseded by JCM-100 | Apply the reader layer to CLI matching, list output, and `Pkg.test` titles. The substance is re-recorded under a fresh non-colliding ID. |
 
 ## Proposed
 
 | Candidate | Wording or action | Source. |
 |---|---|---|
 | JCM-085a | Update `JunaCore/README.md` to describe JUNA-Lite, Profiled C,z, and the two baselines; list the three existing Profiled C,z facades; keep unrelated receivers in the absent list. | The restored implementation makes the current statement that frame-wide C,z is absent false. |
-| JCM-086a | Use `JunaCore explorer` for the application title, page heading, startup message, and contract descriptions. | `JunaCore` is the existing package name; the Explorer now exposes four reader-selectable receiver families. |
 | JCM-009a | `receiver refinement` | `refinement_objective` in the package interface. |
 | JCM-009b | `JUNA-Lite refinement` | `test/juna_lite_refinement.jl`. |
 | JCM-009c | `candidate refinement` | Candidate and refinement wording in the receiver code. |

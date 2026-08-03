@@ -62,9 +62,9 @@ function _frame_code_horizon(m::Modulation, nblocks::Integer)
     "frame code horizon must be nonnegative"))
   requested == 0 && return blocks
   requested <= blocks || throw(ArgumentError(
-    "frame code horizon $requested exceeds the $blocks physical OFDM blocks"))
+    "frame code horizon $requested exceeds the $blocks physical OFDM symbols"))
   blocks % requested == 0 || throw(ArgumentError(
-    "frame code horizon $requested must divide the $blocks physical OFDM blocks"))
+    "frame code horizon $requested must divide the $blocks physical OFDM symbols"))
   requested
 end
 
@@ -187,7 +187,7 @@ function _build_frame_message(m::Modulation, code::_Code,
   blocks = Int(nblocks)
   block_k = Int(m.ldpc_k)
   code.k == blocks * block_k ||
-    throw(ArgumentError("frame LDPC message length does not match its OFDM block count"))
+    throw(ArgumentError("frame LDPC message length does not match its OFDM symbol count"))
   capacity = _frame_message_payload_capacity(m, blocks)
   length(payload) <= capacity ||
     throw(ArgumentError("frame holds $capacity payload bits, got $(length(payload))"))
@@ -211,7 +211,7 @@ function _frame_payload_metrics(m::Modulation, code::_Code, metrics,
   blocks = Int(nblocks)
   block_k = Int(m.ldpc_k)
   code.k == blocks * block_k ||
-    throw(ArgumentError("frame LDPC message length does not match its OFDM block count"))
+    throw(ArgumentError("frame LDPC message length does not match its OFDM symbol count"))
   output = Vector{Float64}(undef, Int(nbits))
   mparity = code.n - code.k
   isp = _inner_pilot_spacing(m)
@@ -354,27 +354,24 @@ function _frame_anchor_plan(m::Modulation, layout::_Layout, posterior_metrics,
   lo = 1 + (block - 1) * block_n
   hi = block * block_n
   hi <= length(posterior_metrics) || throw(DimensionMismatch(
-    "frame posterior does not cover OFDM block $block"))
+    "frame posterior does not cover OFDM symbol $block"))
   block_metrics = @view posterior_metrics[lo:hi]
   soft_symbols = _posterior_symbols(m, block_metrics)
   confidence = _posterior_confidence(m, block_metrics)
   count_data = min(length(layout.data_idx), length(soft_symbols), length(confidence))
   oracle = m.feedback_mode in _FEEDBACK_ORACLE_MODES
-  truth = _genie_block(m.genie_symbols, block)
+  truth = _required_feedback_truth(m, layout, block_n, block)
   if oracle
-    truth === nothing && throw(ArgumentError(
-      "feedback_mode $(m.feedback_mode) requires transmitted symbols; " *
-      "none were supplied"))
     length(truth) >= count_data || throw(DimensionMismatch(
-      "genie symbols cover $(length(truth)) tones but $count_data are in play"))
+      "genie symbols cover $(length(truth)) carriers but $count_data are in play"))
   end
   candidates = Tuple{Int,Float64,ComplexF64}[]
   sizehint!(candidates, count_data)
   @inbounds for data_position in 1:count_data
     c = confidence[data_position]
-    # The oracle skips the confidence floor: that floor exists to suppress
-    # unreliable decisions, a protection a genie does not need. Suppressing them
-    # would starve the arm that is meant to upper-bound feedback's value.
+    # Transmitted-symbol anchors skip the confidence floor because that floor
+    # suppresses unreliable decisions. This arm only tests whether this
+    # receiver's refit improves with those anchors.
     oracle || c >= _FRAME_JUNA_CONFIDENCE_MIN || continue
     push!(candidates, (
       layout.data_idx[data_position], c,
@@ -400,10 +397,10 @@ function _frame_stateful_band_rls(m::Modulation, layout::_Layout, observations;
     "frame observation branches do not match partial_fft_parts"))
   nfft == Int(m.nc) || throw(DimensionMismatch(
     "frame observation carriers do not match nc"))
-  nblocks > 0 || throw(ArgumentError("frame RLS needs at least one OFDM block"))
+  nblocks > 0 || throw(ArgumentError("frame RLS needs at least one OFDM symbol"))
   posterior_metrics === nothing ||
     length(posterior_metrics) == nblocks * Int(m.ldpc_n) ||
-    throw(DimensionMismatch("frame posterior length does not match its OFDM blocks"))
+    throw(DimensionMismatch("frame posterior length does not match its OFDM symbols"))
 
   nbands = min(Int(m.partial_fft_nbands), length(layout.active))
   band_ids = _frame_rls_band_ids(layout, nbands, nfft)
@@ -689,9 +686,9 @@ function _frame_static_trace(m::Modulation, code::_Code, layout::_Layout,
   candidate = _frame_candidate(m, code, layout, equalized)
   (
     profile=profile,
-    seed=candidate,
+    initial_candidate=candidate,
     best=candidate,
-    seed_equalized=equalized,
+    initial_equalized=equalized,
     best_equalized=equalized,
     selected_iteration=0,
     data_anchor_counts=Int[],
@@ -700,24 +697,27 @@ end
 
 function _frame_lite_refine(m::Modulation, code::_Code, layout::_Layout,
                             observations)
-  seed_equalized = _frame_independent_equalized(
+  nblocks = size(observations, 3)
+  block_n = Int(m.ldpc_n)
+  for block in 1:nblocks
+    _required_feedback_truth(m, layout, block_n, block)
+  end
+  initial_equalized = _frame_independent_equalized(
     m, layout, observations, _MODE_PFFT)
-  seed = _frame_candidate(m, code, layout, seed_equalized)
-  seed.valid && return (
+  initial_candidate = _frame_candidate(m, code, layout, initial_equalized)
+  initial_candidate.valid && return (
     profile=_MODE_LITE,
-    seed,
-    best=seed,
-    seed_equalized,
-    best_equalized=seed_equalized,
+    initial_candidate,
+    best=initial_candidate,
+    initial_equalized,
+    best_equalized=initial_equalized,
     selected_iteration=0,
     data_anchor_counts=Int[],
   )
 
-  nblocks = size(observations, 3)
-  block_n = Int(m.ldpc_n)
-  current = seed
-  best = seed
-  best_equalized = seed_equalized
+  current = initial_candidate
+  best = initial_candidate
+  best_equalized = initial_equalized
   selected_iteration = 0
   all_anchor_counts = Int[]
   for iteration in 1:_JUNA_ITERS
@@ -751,9 +751,9 @@ function _frame_lite_refine(m::Modulation, code::_Code, layout::_Layout,
   end
   (
     profile=_MODE_LITE,
-    seed,
+    initial_candidate,
     best,
-    seed_equalized,
+    initial_equalized,
     best_equalized,
     selected_iteration,
     data_anchor_counts=all_anchor_counts,
@@ -928,9 +928,10 @@ end
 function _frame_wz_refine(m::Modulation, code::_Code, layout::_Layout,
                           observations)
   nblocks = size(observations, 3)
-  seed_equalized = _frame_independent_equalized(
+  initial_equalized = _frame_independent_equalized(
     m, layout, observations, _MODE_PFFT)
-  seed = _frame_candidate(m, code, layout, seed_equalized)
+  initial_candidate = _frame_candidate(
+    m, code, layout, initial_equalized)
 
   W = Array{ComplexF64}(undef,
     Int(m.partial_fft_parts), length(layout.bands), nblocks)
@@ -939,7 +940,8 @@ function _frame_wz_refine(m::Modulation, code::_Code, layout::_Layout,
       m, @view(observations[:, :, block]), layout)
   end
   W0 = copy(W)
-  z = clamp.(-Float64.(seed.lpost_metric), -_GRAD_CLIP_Z, _GRAD_CLIP_Z)
+  z = clamp.(-Float64.(initial_candidate.lpost_metric),
+             -_GRAD_CLIP_Z, _GRAD_CLIP_Z)
   z0 = copy(z)
   confidence = _posterior_confidence(m, z0)
 
@@ -951,8 +953,8 @@ function _frame_wz_refine(m::Modulation, code::_Code, layout::_Layout,
   vz = zeros(Float64, length(z))
   scratch = _GradientScratch(m, code)
 
-  best = seed
-  best_equalized = seed_equalized
+  best = initial_candidate
+  best_equalized = initial_equalized
   selected_iteration = 0
   best_loss = _frame_wz_loss_and_grad!(
     m, code, layout, gW, gz, W, z, W0, z0,
@@ -996,9 +998,9 @@ function _frame_wz_refine(m::Modulation, code::_Code, layout::_Layout,
   end
   (
     profile=_MODE_FULL,
-    seed,
+    initial_candidate,
     best,
-    seed_equalized,
+    initial_equalized,
     best_equalized,
     selected_iteration,
     data_anchor_counts=Int[],
@@ -1053,11 +1055,11 @@ end
 function _frame_initial_coupled_state(m::Modulation,
                                       layout::_Layout,
                                       problem,
-                                      seed_metrics)
-  length(seed_metrics) == problem.nbits || throw(DimensionMismatch(
-    "frame WCz seed slice must match one OFDM block"))
+                                      initial_metrics)
+  length(initial_metrics) == problem.nbits || throw(DimensionMismatch(
+    "frame WCz initial metrics must match one OFDM symbol"))
   W = _initial_gradient_W(m, problem.observations, layout)
-  z = clamp.(-Float64.(seed_metrics), -_GRAD_CLIP_Z, _GRAD_CLIP_Z)
+  z = clamp.(-Float64.(initial_metrics), -_GRAD_CLIP_Z, _GRAD_CLIP_Z)
   @inbounds for bit in eachindex(z)
     problem.inner_pilot_mask[bit] || continue
     z[bit] = problem.inner_pilot_bits[bit] ?
@@ -1189,9 +1191,10 @@ function _frame_wcz_refine(m::Modulation, code::_Code, layout::_Layout,
     "frame JUNA-WCz implements QPSK only"))
   nblocks = size(observations, 3)
   block_n = Int(m.ldpc_n)
-  seed_equalized = _frame_independent_equalized(
+  initial_equalized = _frame_independent_equalized(
     m, layout, observations, _MODE_PFFT)
-  seed = _frame_candidate(m, code, layout, seed_equalized)
+  initial_candidate = _frame_candidate(
+    m, code, layout, initial_equalized)
 
   inner_pairs = _frame_global_inner_pairs(m, code)
   inner_mask = falses(code.n)
@@ -1210,7 +1213,7 @@ function _frame_wcz_refine(m::Modulation, code::_Code, layout::_Layout,
       m,
       layout,
       problems[block],
-      @view(seed.lpost_metric[
+      @view(initial_candidate.lpost_metric[
         1 + (block - 1) * block_n:block * block_n]),
     )
     for block in 1:nblocks
@@ -1218,7 +1221,7 @@ function _frame_wcz_refine(m::Modulation, code::_Code, layout::_Layout,
   gradients = [_CoupledGradient(problem) for problem in problems]
   scratches = [_CoupledScratch(problem) for problem in problems]
 
-  z = clamp.(-Float64.(seed.lpost_metric),
+  z = clamp.(-Float64.(initial_candidate.lpost_metric),
              -_GRAD_CLIP_Z, _GRAD_CLIP_Z)
   @inbounds for bit in eachindex(z)
     inner_mask[bit] || continue
@@ -1237,8 +1240,8 @@ function _frame_wcz_refine(m::Modulation, code::_Code, layout::_Layout,
     m, code, problems, states, gradients, scratches,
     gz, z, inner_mask, inner_bits, parity_relaxed, parity_grad,
     parity_prefix, parity_clamped)
-  best = seed
-  best_equalized = seed_equalized
+  best = initial_candidate
+  best_equalized = initial_equalized
   selected_iteration = 0
 
   config = _wcz_optimizer_config(m)
@@ -1281,191 +1284,32 @@ function _frame_wcz_refine(m::Modulation, code::_Code, layout::_Layout,
 
   (
     profile=_MODE_COUPLED,
-    seed,
+    initial_candidate,
     best,
-    seed_equalized,
+    initial_equalized,
     best_equalized,
     selected_iteration,
     data_anchor_counts=Int[],
   )
 end
 
-function _frame_turbo_map_heldout_loss(problems, states, holdout_positions)
-  isempty(problems) && return Inf
-  total = 0.0
-  @inbounds for block in eachindex(problems)
-    total += _turbo_map_heldout_loss(
-      problems[block], states[block], holdout_positions)
-  end
-  total / length(problems)
-end
-
-function _frame_turbo_map_entry(candidate, problems, states,
-                                holdout_positions, training_loss, iteration)
-  (
-    candidate,
-    valid=candidate.valid,
-    syndrome=candidate.syndrome,
-    heldout_loss=_frame_turbo_map_heldout_loss(
-      problems, states, holdout_positions),
-    training_loss=Float64(training_loss),
-    iteration=Int(iteration),
-  )
-end
-
-# Frame-wide Turbo-MAP uses the same block-separable physical states as WCz,
-# but one global relaxed codeword and one global BP graph.  Each checkpoint is
-# ranked by validity, global syndrome, and a pilot fold that is excluded from
-# the W solve.  This is the frame analogue of `_turbo_map_candidate`.
-function _frame_turbo_map_refine(m::Modulation, code::_Code,
-                                 layout::_Layout, observations)
-  _bpc(m) == 2 || throw(ArgumentError(
-    "frame Turbo-MAP implements QPSK only"))
-  nblocks = size(observations, 3)
-  block_n = Int(m.ldpc_n)
-  seed_equalized = _frame_independent_equalized(
-    m, layout, observations, _MODE_PFFT)
-  seed = _frame_candidate(m, code, layout, seed_equalized)
-
-  inner_pairs = _frame_global_inner_pairs(m, code)
-  inner_mask = falses(code.n)
-  inner_bits = falses(code.n)
-  @inbounds for (position, bit) in inner_pairs
-    inner_mask[position] = true
-    inner_bits[position] = bit
-  end
-  problems = [
-    _frame_coupled_problem(
-      m, code, layout, observations, block, inner_pairs)
-    for block in 1:nblocks
-  ]
-  states = [
-    _frame_initial_coupled_state(
-      m,
-      layout,
-      problems[block],
-      @view(seed.lpost_metric[
-        1 + (block - 1) * block_n:block * block_n]),
-    )
-    for block in 1:nblocks
-  ]
-  gradients = [_CoupledGradient(problem) for problem in problems]
-  scratches = [_CoupledScratch(problem) for problem in problems]
-  training_pilot_positions, holdout_positions =
-    _turbo_map_pilot_split(first(problems))
-
-  z = clamp.(-Float64.(seed.lpost_metric),
-             -_GRAD_CLIP_Z, _GRAD_CLIP_Z)
-  @inbounds for bit in eachindex(z)
-    inner_mask[bit] || continue
-    z[bit] = inner_bits[bit] ? -_GRAD_CLIP_Z : _GRAD_CLIP_Z
-  end
-  gz = zeros(Float64, length(z))
-  mz = zeros(Float64, length(z))
-  vz = zeros(Float64, length(z))
-  parity_relaxed = zeros(Float64, code.n)
-  parity_grad = zeros(Float64, code.n)
-  max_degree = maximum((length(check) for check in code.check_vars); init=0)
-  parity_prefix = zeros(Float64, max_degree)
-  parity_clamped = zeros(Float64, max_degree)
-
-  initial_loss = _frame_coupled_loss_and_grad!(
-    m, code, problems, states, gradients, scratches,
-    gz, z, inner_mask, inner_bits, parity_relaxed, parity_grad,
-    parity_prefix, parity_clamped)
-  initial_entry = _frame_turbo_map_entry(
-    seed, problems, states, holdout_positions, initial_loss, 0)
-  entries = [initial_entry]
-  selected = initial_entry
-  selected_equalized = seed_equalized
-
-  config = _wcz_optimizer_config(m)
-  if !seed.valid
-    for iteration in 1:config.steps
-      @inbounds for block in 1:nblocks
-        _coupled_exact_C!(
-          problems[block], states[block];
-          weights=_COUPLED_RUNTIME_WEIGHTS,
-          scratch=scratches[block])
-        _coupled_exact_W!(
-          problems[block], states[block];
-          weights=_COUPLED_RUNTIME_WEIGHTS,
-          scratch=scratches[block],
-          pilot_positions=training_pilot_positions)
-      end
-      _frame_coupled_loss_and_grad!(
-        m, code, problems, states, gradients, scratches,
-        gz, z, inner_mask, inner_bits, parity_relaxed, parity_grad,
-        parity_prefix, parity_clamped)
-      _adam_step_real!(
-        z, mz, vz, gz, iteration,
-        config.alpha_z, config.beta1, config.beta2, config.epsilon,
-        config.gradient_clip, config.logit_clip)
-      @inbounds for bit in eachindex(z)
-        inner_mask[bit] || continue
-        z[bit] = inner_bits[bit] ? -config.logit_clip : config.logit_clip
-      end
-
-      loss = _frame_coupled_loss_and_grad!(
-        m, code, problems, states, gradients, scratches,
-        gz, z, inner_mask, inner_bits, parity_relaxed, parity_grad,
-        parity_prefix, parity_clamped)
-      isfinite(loss) || break
-      candidate = _frame_wcz_candidate(
-        m, code, layout, problems, states, z)
-      entry = _frame_turbo_map_entry(
-        candidate, problems, states, holdout_positions, loss, iteration)
-      push!(entries, entry)
-      if _turbo_map_rank(entry) < _turbo_map_rank(selected)
-        selected = entry
-        selected_equalized = _frame_coupled_equalized(
-          m, layout, problems, states)
-      end
-      selected.valid && break
-    end
-  end
-
-  m.turbo_map_trace = (
-    scope=:frame,
-    candidate_count=length(entries),
-    selected_iteration=selected.iteration,
-    training_pilots=first(problems).pilot_idx[training_pilot_positions],
-    holdout_pilots=first(problems).pilot_idx[holdout_positions],
-    entries=[(
-      valid=entry.valid,
-      syndrome=entry.syndrome,
-      heldout_loss=entry.heldout_loss,
-      training_loss=entry.training_loss,
-      iteration=entry.iteration,
-    ) for entry in entries],
-  )
-  (
-    profile=_MODE_TURBO_MAP,
-    seed,
-    best=selected.candidate,
-    seed_equalized,
-    best_equalized=selected_equalized,
-    selected_iteration=selected.iteration,
-    data_anchor_counts=Int[],
-  )
-end
-
 function _frame_juna_refine(m::Modulation, code::_Code, layout::_Layout,
                             observations)
-  seed_fit = _frame_stateful_band_rls(m, layout, observations)
-  seed = _frame_candidate(m, code, layout, seed_fit.equalized)
-  seed.valid && return (
-    seed,
-    best=seed,
-    seed_equalized=seed_fit.equalized,
-    best_equalized=seed_fit.equalized,
+  initial_fit = _frame_stateful_band_rls(m, layout, observations)
+  initial_candidate = _frame_candidate(
+    m, code, layout, initial_fit.equalized)
+  initial_candidate.valid && return (
+    initial_candidate,
+    best=initial_candidate,
+    initial_equalized=initial_fit.equalized,
+    best_equalized=initial_fit.equalized,
     selected_iteration=0,
     data_anchor_counts=Int[],
   )
 
-  current = seed
-  best = seed
-  best_equalized = seed_fit.equalized
+  current = initial_candidate
+  best = initial_candidate
+  best_equalized = initial_fit.equalized
   selected_iteration = 0
   all_anchor_counts = Int[]
   for iteration in 1:_FRAME_JUNA_ITERS
@@ -1484,9 +1328,9 @@ function _frame_juna_refine(m::Modulation, code::_Code, layout::_Layout,
     candidate.valid && break
   end
   (
-    seed,
+    initial_candidate,
     best,
-    seed_equalized=seed_fit.equalized,
+    initial_equalized=initial_fit.equalized,
     best_equalized,
     selected_iteration,
     data_anchor_counts=all_anchor_counts,
@@ -1518,9 +1362,9 @@ function _frame_profiled_gradient_refine(m::Modulation, code::_Code,
     )
     return (
       profile=_MODE_PROFILED_GRADIENT,
-      seed=lite.best,
+      initial_candidate=lite.best,
       best=lite.best,
-      seed_equalized=lite.best_equalized,
+      initial_equalized=lite.best_equalized,
       best_equalized=lite.best_equalized,
       selected_iteration=0,
       data_anchor_counts=Int[],
@@ -1544,9 +1388,9 @@ function _frame_profiled_gradient_refine(m::Modulation, code::_Code,
   )
   (
     profile=_MODE_PROFILED_GRADIENT,
-    seed=lite.best,
+    initial_candidate=lite.best,
     best=choose_gradient ? gradient.best : lite.best,
-    seed_equalized=lite.best_equalized,
+    initial_equalized=lite.best_equalized,
     best_equalized=choose_gradient ? gradient.best_equalized : lite.best_equalized,
     selected_iteration=choose_gradient ? gradient.selected_iteration : 0,
     data_anchor_counts=Int[],
@@ -1568,11 +1412,6 @@ function _frame_receiver_trace(m::Modulation, code::_Code, layout::_Layout,
     return _frame_wz_refine(m, code, layout, observations)
   profile === _MODE_COUPLED &&
     return _frame_wcz_refine(m, code, layout, observations)
-  profile === _MODE_FULLY_COUPLED &&
-    return _frame_fully_coupled_refine(m, code, layout, observations)
-  profile === _MODE_TURBO_MAP &&
-    return _frame_turbo_map_refine(
-      m, code, layout, observations)
   profile === _MODE_PROFILED_GRADIENT &&
     return _frame_profiled_gradient_refine(
       m, code, layout, observations)

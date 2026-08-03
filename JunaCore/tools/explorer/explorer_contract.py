@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Data contracts for the JUNA-Lite explorer.
+"""Data contracts for the JunaCore explorer.
 
 Run:  python3 tools/explorer/explorer_contract.py       (exit 0 = all hold)
 
@@ -10,7 +10,7 @@ C2  suites.json integrity: parses; keys unique; every suite file exists under
 C3  registry completeness: every test/*.jl except test/support/ appears in the
     registry, so a new suite cannot exist outside the catalog.
 C4  chain.json integrity: parses; stage ids unique; kind in
-    {shared, seed, iterative, deployment}; evidence in {direct, behavioral};
+    {shared, initial, iterative, deployment}; evidence in {direct, behavioral};
     every stage symbol exists in the analyzer symbol table; every stage suite
     key exists in suites.json.
 C5  evidence honesty: every evidence="direct" stage has at least one declared
@@ -41,6 +41,9 @@ C11 reader-visible stage names retain the nine labels approved on 2026-08-01
     values weight the refit.
 C12 the interface test uses the four reader-visible result labels approved on
     2026-08-01 and does not retain their ambiguous predecessors.
+C13 the eleven Profiled C,z suites use the approved operation-specific title
+    in both the technical and reader-facing layers, so the Tests rows remain
+    distinguishable without opening their details.
 """
 import json
 import os
@@ -55,12 +58,12 @@ sys.path.insert(0, HERE)
 import source_coverage  # noqa: E402
 from source_symbol_explorer import analyze  # noqa: E402
 
-ALLOWED_KINDS = {"shared", "seed", "iterative", "deployment"}
+ALLOWED_KINDS = {"shared", "initial", "iterative", "deployment"}
 ALLOWED_EVIDENCE = {"direct", "behavioral"}
 APPROVED_STAGE_TITLES = {
     "acquisition": "Packet acquisition",
     "ofdm_fec": "One-tap pilot-interpolated equalization + FEC",
-    "seed": "Partial-FFT/FEC seed path",
+    "initial-candidate": "Partial-FFT/FEC initial candidate",
     "posterior": "Posterior means and confidences",
     "anchors": "Anchor selection",
     "refit": "Combiner refit",
@@ -68,6 +71,19 @@ APPROVED_STAGE_TITLES = {
     "keep-best": "Candidate selection",
     "frame": "Frame-wide FEC receiver",
     "profiled_cz": "Profiled C,z",
+}
+APPROVED_PROFILED_CZ_SUITE_TITLES = {
+    "profiled-cz": "Profiled C,z combiner weights and zero-update result",
+    "profiled-cz-crc": "Profiled C,z CRC, turbo, and conditioned forms",
+    "profiled-cz-check-degree": "Profiled C,z under three code settings",
+    "wcz-solves": "Profiled C,z response and combining updates",
+    "profiled-cz-full-dependency": "Profiled C,z W,z calculations",
+    "profiled-cz-objective": "Profiled C,z objective and gradient checks",
+    "profiled-cz-initialization": "Profiled C,z starting values",
+    "profiled-cz-optimizer": "Profiled C,z conditional updates and rollback",
+    "profiled-cz-block-coordinate": "Profiled C,z update cycles",
+    "profiled-cz-candidate": "Profiled C,z candidate selection",
+    "profiled-cz-end-to-end": "Profiled C,z clean and impaired receiver checks",
 }
 
 
@@ -106,6 +122,20 @@ def check():
         if not os.path.isfile(os.path.join(ROOT, "test", s["file"])):
             problems.append(f"C2: suite '{s['key']}' file test/{s['file']} "
                             "does not exist")
+
+    # C13 approved operation-specific Profiled C,z titles
+    profiled_titles = {
+        suite["key"]: (suite.get("title"), suite.get("reader_title"))
+        for suite in suites
+        if suite.get("receivers") == "receiver:profiled_cz"
+    }
+    if set(profiled_titles) != set(APPROVED_PROFILED_CZ_SUITE_TITLES):
+        problems.append(
+            "C13: Profiled C,z suite keys differ from the approved inventory")
+    for key, expected in APPROVED_PROFILED_CZ_SUITE_TITLES.items():
+        if profiled_titles.get(key) != (expected, expected):
+            problems.append(
+                f"C13: suite '{key}' titles differ from '{expected}'")
 
     # C3 completeness
     registered = {s["file"] for s in suites}
@@ -205,6 +235,19 @@ def check():
         problems.append(
             "C8: Profiled C,z catalog fields differ from " +
             repr(expected_profiled_cz))
+
+    expected_paths = {
+        "ofdm_fec": ["acquisition", "ofdm_fec"],
+        "partial-fft": ["acquisition", "initial-candidate"],
+        "lite": ["acquisition", "initial-candidate", "posterior", "anchors",
+                 "refit", "redecode", "keep-best"],
+        "profiled_cz": ["acquisition", "frame", "profiled_cz"],
+    }
+    actual_paths = {receiver["id"]: receiver.get("chain_path")
+                    for receiver in receivers}
+    if actual_paths != expected_paths:
+        problems.append("C8: reader receiver paths differ from the approved "
+                        "initial-candidate paths: " + repr(actual_paths))
 
     # C9 shared stage DAG integrity
     if chain.get("schema_version") != 2:
@@ -309,7 +352,45 @@ def check():
             "C11: combiner-refit detail does not state the current code's "
             "data-anchor confidence weighting")
 
-    # C12 approved JNR-016 through JNR-019 interface result labels
+    chain_text = json.dumps(chain, ensure_ascii=False)
+    for stale_wording in ("guard handling", "per-tone", "credits correct bits",
+                          "valid seed", "invalid seed", "seed path"):
+        if stale_wording in chain_text:
+            problems.append(
+                f"C11: chain retains superseded reader wording '{stale_wording}'")
+    required_chain_wording = (
+        "LFM synchronization, initial resampling, and partial-FFT views.",
+        "per-carrier confidences",
+        "returns payload-bit estimates",
+        "validity, syndrome, candidate score with its margin, then posterior magnitude",
+        "Profiled C,z first computes the OFDM+FEC and frame-wide Lite candidates.",
+        "With zero update steps it returns frame-wide Lite.",
+        "These arms replace posterior decisions with transmitted symbols. A null result "
+        "shows only that this receiver’s refit did not improve with those anchors.",
+    )
+    for wording in required_chain_wording:
+        if wording not in chain_text:
+            problems.append(f"C11: chain lacks approved wording '{wording}'")
+    if any("front end" in str(value).lower() or
+           "front-end" in str(value).lower()
+           for stage in stages
+           for key, value in stage.items() if key != "symbols"):
+        problems.append("C11: reader-facing chain wording retains generic front end")
+
+    reader_profiled = (
+        "Processes the complete frame and keeps the starting result unless the "
+        "decoder—and CRC when present—accepts an update.")
+    technical_profiled = (
+        "C is solved conditional on z; W is derived from C or updated by the "
+        "selected form.")
+    if profiled_cz.get("purpose") != reader_profiled:
+        problems.append("C11: Profiled C,z reader purpose differs from CX-018")
+    profiled_stage = next((stage for stage in stages
+                           if stage["id"] == "profiled_cz"), {})
+    if technical_profiled not in profiled_stage.get("detail", ""):
+        problems.append("C11: Profiled C,z technical purpose differs from CX-018")
+
+    # C12 contract-pinned interface result labels
     with open(os.path.join(ROOT, "test", "interface_contract.jl")) as fh:
         interface_test = fh.read()
     for marker in (
@@ -371,6 +452,79 @@ def check():
             "C6: source coverage does not recognize Profiled C,z facades: " +
             ", ".join(unresolved_profiled_facades))
 
+    qualified_fixture = [
+        'path = "src/JunaCore.jl"',
+        '# JunaCore.comment_only_typo',
+        'Modulations.no_such_method(x)',
+        'LDPC.no_such_helper(x)',
+        'JunaLite.no_such_facade_method(x)',
+        'JunaCore.JunaProfiledCzFrame',
+    ]
+    qualified_probe = getattr(source_coverage, "unresolved_qualified_references",
+                              None)
+    if qualified_probe is None:
+        problems.append("C6: coverage scanner has no testable qualified-reference helper")
+    else:
+        unresolved_fixture = qualified_probe(qualified_fixture,
+                                              {"JunaProfiledCzFrame"})
+        actual = {(item["line"], item["name"])
+                  for item in unresolved_fixture}
+        expected = {
+            (3, "Modulations.no_such_method"),
+            (4, "LDPC.no_such_helper"),
+            (5, "JunaLite.no_such_facade_method"),
+        }
+        if actual != expected:
+            problems.append(
+                "C6: qualified-reference fixture differs: " + repr(sorted(actual)))
+
+    for contract_name in ("explorer_contract.py", "server_contract.py"):
+        with open(os.path.join(HERE, contract_name), encoding="utf-8") as fh:
+            contract_text = fh.read()
+        if ("J" + "NR-") in contract_text:
+            problems.append(
+                f"C11: {contract_name} claims nonexistent JNR approvals")
+
+    control_codes = [34, 92, 10, 13, 9, 8, 12, 0, 31]
+    control_sample = "".join(chr(code) for code in control_codes)
+    for exporter_name in ("export_receivers.jl", "export_suites.jl"):
+        with open(os.path.join(HERE, exporter_name), encoding="utf-8") as fh:
+            exporter_text = fh.read()
+        for marker in ("char == '\\b'", "char == '\\f'",
+                       "char == '\\r'", "char == '\\t'",
+                       'print(io, "\\\\u"'):
+            if marker not in exporter_text:
+                problems.append(
+                    f"C1: {exporter_name} lacks JSON control escape {marker!r}")
+        main_guard = "abspath(PROGRAM_FILE) == @__FILE__"
+        if main_guard not in exporter_text:
+            problems.append(
+                f"C1: {exporter_name} lacks an include-safe main guard")
+            continue
+        exporter_path = os.path.join(HERE, exporter_name)
+        code_vector = ",".join(str(code) for code in control_codes)
+        probe = (
+            f'include(raw"{exporter_path}"); '
+            f's = String(Char.([{code_vector}])); '
+            'print("\\\"", _json_escape(s), "\\\"")')
+        run = subprocess.run(
+            ["julia", "--project=.", "-e", probe], cwd=ROOT,
+            capture_output=True, text=True, timeout=60)
+        if run.returncode != 0:
+            problems.append(
+                f"C1: {exporter_name} JSON round trip launcher failed: "
+                f"{run.stderr.strip()[-300:]}")
+        else:
+            try:
+                recovered = json.loads(run.stdout)
+            except json.JSONDecodeError as exc:
+                problems.append(
+                    f"C1: {exporter_name} emitted invalid control JSON: {exc}")
+            else:
+                if recovered != control_sample:
+                    problems.append(
+                        f"C1: {exporter_name} control JSON did not round trip")
+
     # C7 vendored analyzer health
     from source_symbol_explorer import render_html
     analyzed = analyze(os.path.join(ROOT, "src"))
@@ -395,6 +549,31 @@ def check():
     if "#sym=" not in page:
         problems.append("C7: analyzer page lost the #sym= deep-link route")
 
+    with tempfile.TemporaryDirectory(prefix="source-id-contract-") as fixture:
+        unrelated = os.path.join(fixture, "00_unrelated.jl")
+        first = os.path.join(fixture, "a.jl")
+        second = os.path.join(fixture, "b.jl")
+        with open(unrelated, "w", encoding="utf-8") as fh:
+            fh.write("module Unrelated\nfunction noise()\nend\nend\n")
+        with open(first, "w", encoding="utf-8") as fh:
+            fh.write("module Alpha\nfunction same(x)\n  x\nend\nend\n")
+        with open(second, "w", encoding="utf-8") as fh:
+            fh.write("module Beta\nfunction same(x, y)\n  x + y\nend\nend\n")
+        with_unrelated = analyze(fixture)
+        os.unlink(unrelated)
+        without_unrelated = analyze(fixture)
+        identity = lambda symbol: (
+            symbol["module"], symbol["name"], symbol["file"],
+            symbol["line"], symbol["sig"])
+        before_ids = {identity(symbol): symbol["id"]
+                      for symbol in with_unrelated["symbols"]
+                      if symbol["file"] != "00_unrelated.jl"}
+        after_ids = {identity(symbol): symbol["id"]
+                     for symbol in without_unrelated["symbols"]}
+        if before_ids != after_ids:
+            problems.append(
+                "C7: public symbol IDs change when an unrelated file changes")
+
     return problems
 
 
@@ -405,4 +584,4 @@ if __name__ == "__main__":
         for p in problems:
             print("  -", p)
         sys.exit(1)
-    print("explorer contract: PASS (C1-C12)")
+    print("explorer contract: PASS (C1-C13)")

@@ -384,7 +384,9 @@ function buildActionsSection(data) {
   wrap.appendChild(actionLink(
     "Open in Source definitions",
     "/source#sym=" + encodeURIComponent(data.name || "") +
-      (data.module ? "&module=" + encodeURIComponent(data.module) : "")
+      (data.module ? "&module=" + encodeURIComponent(data.module) : "") +
+      (data.file ? "&file=" + encodeURIComponent(data.file) : "") +
+      (data.line ? "&line=" + encodeURIComponent(data.line) : "")
   ));
   wrap.appendChild(focusBtn);
   const evidence = data.evidence || {};
@@ -398,8 +400,8 @@ function buildActionsSection(data) {
   wrap.appendChild(actionLink("Show chain", chainHref));
   wrap.appendChild(actionLink(
     "Open graph context",
-    "/source/graph?symbol=" + encodeURIComponent(data.name || "") +
-      "#sym=" + encodeURIComponent(data.name || "")
+    "/source/graph?symbol_id=" + encodeURIComponent(data.id) +
+      "#sym=" + encodeURIComponent(data.id)
   ));
   return wrap;
 }
@@ -736,7 +738,8 @@ function openStage(stageId) {
 
 function showReceiverStages() {
   replaceGraphQuery({
-    stage: null, suite: null, file: null, symbol: null, view: "stages",
+    stage: null, suite: null, file: null, symbol: null, symbol_id: null,
+    view: "stages",
   });
 }
 

@@ -7,7 +7,7 @@ using JunaCore
 const CZJuna = JunaCore.Juna
 const CZMods = JunaCore.Modulations
 
-@testset verbose=true "Profiled C,z" begin
+@testset verbose=true "Profiled C,z receiver" begin
     kwargs = (
         nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
         partial_fft_parts=2, partial_fft_nbands=2,
@@ -38,6 +38,11 @@ const CZMods = JunaCore.Modulations
         C[:, 3, :, :] .= -90 + 20im
         CZJuna._cz_mmse_weights!(W, C; ridge=0.25)
         @test W ≈ before
+
+        fill!(C, 0.0 + 0.0im)
+        fill!(W, 3.0 - 2.0im)
+        CZJuna._cz_mmse_weights!(W, C; ridge=0.0)
+        @test all(iszero, W)
     end
 
     @testset "zero steps exactly reproduce frame Lite" begin
@@ -54,7 +59,61 @@ const CZMods = JunaCore.Modulations
         @test cz_metrics == lite_metrics
         @test signbit.(cz_metrics) == .!payload
         trace = CZJuna._cz_gradient_last_trace(cz)
-        @test trace.selection_reason === :standard_valid_skip
+        @test trace.selection_reason === :zero_steps
+    end
+
+    @testset "zero steps use frame Lite for every Profiled C,z form" begin
+        forms = (
+            CZJuna.ProfiledCzFrameModulation,
+            CZJuna.CrcProfiledCzFrameModulation,
+            CZJuna.CrcTurboCwzFrameModulation,
+            CZJuna.CrcConditionedCwzFrameModulation,
+            CZJuna.CrcConditionedJointCwzFrameModulation,
+        )
+        fc, fs = 24_000.0, 24_000.0
+        for form in forms
+            receiver = form(; kwargs..., refinement_steps=0)
+            lite = CZJuna.FrameWideLDPCModulation(
+                ; kwargs..., frame_receiver=:lite,
+                frame_crc_bits=receiver.frame_crc_bits,
+                refinement_steps=0)
+            nbits = receiver.frame_crc_bits == 0 ? 17 : 3
+            payload = Bool[isodd(i) for i in 1:nbits]
+            waveform = CZMods.modulate(receiver, payload, fc, fs)
+            distorted = copy(waveform)
+            gains = ComplexF64[1.2 + 0.2im, 0.8 - 0.2im]
+            for view in 1:Int(receiver.partial_fft_parts)
+                lo, hi = CZJuna._part_bounds(
+                    Int(receiver.nc), Int(receiver.partial_fft_parts), view)
+                @views distorted[Int(receiver.np)+lo:Int(receiver.np)+hi] .*= gains[view]
+            end
+            lite_metrics, _ = CZMods.demodulate(
+                lite, nbits, distorted, fc, fs)
+            profiled_metrics, _ = CZMods.demodulate(
+                receiver, nbits, distorted, fc, fs)
+            methods = CZJuna.demodulate_methods(
+                receiver, nbits, distorted, fc, fs)
+            _, code, layout, nblocks, observations, _ =
+                CZJuna._prepare_frame_observations(
+                    receiver, nbits, distorted, fc, fs)
+            lite_trace = CZJuna._frame_lite_refine(
+                receiver, code, layout, observations)
+            profiled_trace = CZJuna._frame_receiver_trace(
+                receiver, code, layout, observations;
+                payload_nbits=nbits)
+            ofdm_trace = CZJuna._frame_static_trace(
+                receiver, code, layout, observations, :ofdm_fec)
+            expected_ofdm = CZJuna._frame_payload_metrics(
+                receiver, code, ofdm_trace.best.lpost_metric, nblocks, nbits)
+            @test profiled_metrics == lite_metrics
+            @test methods.juna == lite_metrics
+            @test methods.standard === methods.ofdm_fec
+            @test profiled_trace.best.lpost_metric == lite_trace.best.lpost_metric
+            @test methods.ofdm_fec == expected_ofdm
+            if form === CZJuna.ProfiledCzFrameModulation
+                @test ofdm_trace.best.lpost_metric != lite_trace.best.lpost_metric
+            end
+        end
     end
 
     @testset "C,z trajectory executes and finishes with BP" begin

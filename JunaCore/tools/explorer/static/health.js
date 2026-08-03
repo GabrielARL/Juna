@@ -39,9 +39,15 @@ function statusInfo(last, stale) {
   if (!last) return { text: "—", cls: "" };
   const status = (last.status || "").toUpperCase();
   if (status === "RUNNING") return { text: "RUNNING", cls: "warn" };
-  if (status === "PASS" && stale) return { text: "STALE", cls: "warn" };
-  if (status === "PASS") return { text: "PASS", cls: "ok" };
-  if (status === "FAIL") return { text: "FAIL", cls: "bad" };
+  if ((status === "PASS" || status === "PASSED") && stale) {
+    return { text: "STALE", cls: "warn" };
+  }
+  if (status === "PASS" || status === "PASSED") {
+    return { text: "PASS", cls: "ok" };
+  }
+  if (status === "FAIL" || status === "FAILED") {
+    return { text: "FAIL", cls: "bad" };
+  }
   return { text: status || "—", cls: "" };
 }
 
@@ -52,7 +58,10 @@ function formatSeconds(s) {
 
 function formatEnded(ended) {
   if (!ended) return "—";
-  const d = new Date(ended);
+  const numeric = Number(ended);
+  const d = Number.isFinite(numeric)
+    ? new Date(Number(ended) * 1000)
+    : new Date(ended);
   if (isNaN(d.getTime())) return String(ended);
   return d.toLocaleTimeString([], { hour12: false });
 }
@@ -174,7 +183,9 @@ function pollOnce() {
       const data = unwrap(json) || {};
       if (typeof data.text === "string" && data.text.length > 0) {
         appendLog(data.text);
-        logLength += data.text.length;
+      }
+      if (Number.isInteger(data.seen) && data.seen >= 0) {
+        logLength = data.seen;
       }
       if (data.status === "running") {
         setTimeout(pollOnce, POLL_INTERVAL_MS);

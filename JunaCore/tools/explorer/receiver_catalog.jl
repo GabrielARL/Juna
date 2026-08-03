@@ -28,11 +28,11 @@ const RECEIVERS = [
      frame_receiver = "",
      objective = "pilot_band_ls",
      variant_facades = String[],
-     chain_path = ["acquisition", "seed"],
+     chain_path = ["acquisition", "initial-candidate"],
      role = "baseline",
      specific_suite_exemption =
         "partial-FFT-specific behavior is covered by the shared baseline suite",
-     purpose = "Pilot-trained partial-FFT combining followed by FEC."),
+     purpose = "Pilot-trained partial-FFT combining followed by FEC produces the initial candidate."),
     (id = "lite",
      display_name = "JUNA-Lite",
      facade = "JunaLite",
@@ -41,11 +41,11 @@ const RECEIVERS = [
      frame_receiver = "",
      objective = "posterior_anchor_ls",
      variant_facades = String[],
-     chain_path = ["acquisition", "seed", "posterior", "anchors", "refit",
+     chain_path = ["acquisition", "initial-candidate", "posterior", "anchors", "refit",
                    "redecode", "keep-best"],
      role = "proposed",
      specific_suite_exemption = "",
-     purpose = "Partial-FFT seed plus decoder-guided combiner refinement."),
+     purpose = "Begins with the Partial-FFT/FEC initial candidate, then applies decoder-guided combiner refinement."),
     (id = "profiled_cz",
      display_name = "Profiled C,z",
      facade = "JunaProfiledCzFrame",
@@ -58,7 +58,7 @@ const RECEIVERS = [
      chain_path = ["acquisition", "frame", "profiled_cz"],
      role = "proposed",
      specific_suite_exemption = "",
-     purpose = "Frame-wide variable projection over physical response C and relaxed codeword z, with CRC, turbo, and conditioned forms."),
+     purpose = "Processes the complete frame and keeps the starting result unless the decoder—and CRC when present—accepts an update."),
 ]
 
 function assert_receiver_catalog()

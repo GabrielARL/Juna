@@ -33,7 +33,7 @@ Call edges: a symbol "calls" another when it references that symbol's name (with
 comments/strings stripped first). Same-name calls resolve to the same module when
 possible, else fan out. "Used by" = reverse edges = where to find usage examples.
 """
-import argparse, json, os, re, sys, threading, webbrowser, http.server
+import argparse, hashlib, json, os, re, secrets, sys, threading, webbrowser, http.server
 from urllib.parse import urlparse, parse_qs, unquote
 
 SRC_EXT = (".jl", ".py", ".js", ".jsx", ".ts", ".tsx", ".mjs")
@@ -61,8 +61,9 @@ def read(f):
 def scan_files(root):
     out = []
     for dp, dirs, fs in os.walk(root):
-        dirs[:] = [d for d in dirs if d not in EXCLUDE and not d.startswith(".")]
-        for fn in fs:
+        dirs[:] = sorted(
+            d for d in dirs if d not in EXCLUDE and not d.startswith("."))
+        for fn in sorted(fs):
             if fn.endswith(SRC_EXT):
                 out.append(os.path.join(dp, fn))
     return out
@@ -628,8 +629,21 @@ def build_symbols(files, root):
                              "file": rel, "line": start, "sig": d["sig"], "src": src,
                              "super": d["super"], "recv": d["recv"], "qual": d["qual"],
                              "also": []})
-    for i, s in enumerate(syms):
-        s["id"] = i
+    used_ids = set()
+    for s in syms:
+        identity = "\0".join(str(s.get(key, "")) for key in
+                             ("module", "name", "kind", "file", "line", "sig"))
+        salt = 0
+        while True:
+            material = identity if salt == 0 else f"{identity}\0{salt}"
+            stable_id = int.from_bytes(
+                hashlib.blake2b(material.encode("utf-8"), digest_size=6).digest(),
+                "big")
+            if stable_id not in used_ids:
+                break
+            salt += 1
+        used_ids.add(stable_id)
+        s["id"] = stable_id
         # Module bodies contain definitions, not calls made by a function.
         # Keeping their full source for inspection while excluding it from the
         # lexical call scan avoids invented module-to-every-child call edges.
@@ -645,6 +659,7 @@ WORD = re.compile(r'[A-Za-z_$][\w$]*!?')
 
 def link_symbols(syms):
     name2ids = {}
+    by_id = {s["id"]: s for s in syms}
     for s in syms:
         name2ids.setdefault(s["name"], []).append(s["id"])
     for s in syms:
@@ -656,7 +671,7 @@ def link_symbols(syms):
             cand = name2ids.get(t)
             if not cand:
                 continue
-            same = [c for c in cand if syms[c]["module"] == s["module"]]
+            same = [c for c in cand if by_id[c]["module"] == s["module"]]
             for c in (same or cand):
                 if c != s["id"]:
                     calls.add(c)
@@ -802,10 +817,11 @@ def vis_script():
     return ('<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>')
 
 
-def render_html(serve, data, default_repo="", locked=False, embedded=False):
+def render_html(serve, data, default_repo="", locked=False, embedded=False,
+                mutation_token=""):
     cfg = {"serve": serve, "data": data, "defaultRepo": default_repo,
            "locked": locked, "lockedRoot": default_repo if locked else "",
-           "embedded": embedded,
+           "embedded": embedded, "mutationToken": mutation_token,
            # Cross-link target for the standalone page; when the same page is
            # served inside the workbench at /source, its shared nav rules and
            # these links stay hidden.
@@ -840,7 +856,9 @@ def pick_folder():
 
 
 def serve(port, default_repo, locked=False, open_browser=True):
-    page = render_html(True, None, default_repo, locked=locked)
+    mutation_token = secrets.token_urlsafe(24)
+    page = render_html(True, None, default_repo, locked=locked,
+                       mutation_token=mutation_token)
     locked_root = os.path.abspath(default_repo) if locked else None
 
     class H(http.server.BaseHTTPRequestHandler):
@@ -861,18 +879,41 @@ def serve(port, default_repo, locked=False, open_browser=True):
             u = urlparse(self.path)
             if u.path == "/":
                 self._send(200, "text/html; charset=utf-8", page)
-            elif u.path == "/api/restart":
-                self._send(200, "application/json", '{"ok":true}')
-                threading.Timer(0.3, lambda: os.execv(
-                    sys.executable, [sys.executable, os.path.abspath(__file__)] + sys.argv[1:])).start()
             elif u.path == "/api/pick":
                 if locked_root:
                     self._send(200, "application/json", json.dumps({"error": "locked to the project root"}))
                 else:
                     self._send(200, "application/json", json.dumps(pick_folder()))
+            else:
+                self._send(404, "text/plain", "not found")
+
+        def do_POST(self):
+            u = urlparse(self.path)
+            expected_origin = "http://" + (self.headers.get("Host") or "")
+            if self.headers.get("Origin") != expected_origin:
+                return self._send(403, "application/json",
+                                  '{"error":"forbidden origin"}')
+            content_type = self.headers.get("Content-Type", "").split(";", 1)[0]
+            if content_type.strip().casefold() != "application/json":
+                return self._send(415, "application/json",
+                                  '{"error":"application/json required"}')
+            if self.headers.get("X-Juna-Token") != mutation_token:
+                return self._send(403, "application/json",
+                                  '{"error":"invalid mutation token"}')
+            length = int(self.headers.get("Content-Length") or 0)
+            try:
+                request = json.loads(self.rfile.read(length).decode() or "{}")
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return self._send(400, "application/json",
+                                  '{"error":"bad json"}')
+            if u.path == "/api/restart":
+                self._send(200, "application/json", '{"ok":true}')
+                threading.Timer(0.3, lambda: os.execv(
+                    sys.executable,
+                    [sys.executable, os.path.abspath(__file__)] +
+                    sys.argv[1:])).start()
             elif u.path == "/api/scan":
-                q = parse_qs(u.query)
-                p = locked_root or unquote(q.get("path", [""])[0]).strip()
+                p = locked_root or str(request.get("path", "")).strip()
                 try:
                     if not p:
                         raise ValueError("no folder given")
@@ -1439,7 +1480,7 @@ function select(id){
     `<div class="meta"><span class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${modColor(s.module)}"></span> ${esc(s.module)} &nbsp;·&nbsp; ${esc(s.file)}:${s.line}</div>`+also+docHtml+
     `<div style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 4px">`+
     `<button onclick="openFocus(${id})" style="font-size:11px;padding:3px 8px;background:#0b2536;color:#e2e8f0;border:1px solid var(--acc);border-radius:6px;cursor:pointer">🔵 Static calls</button>`+
-    `<a href="${wbBase()}/source/inspector#sym=${encodeURIComponent(s.module+'.'+s.name)}" title="source-definition evidence for this code name; overloaded methods may be family-level" style="font-size:11px;padding:3px 8px;background:#132615;color:#e2e8f0;border:1px solid #3fb950;border-radius:6px;text-decoration:none">🧪 tests linked to this source</a></div>`+
+    `<a href="${wbBase()}/source/inspector#sym=${encodeURIComponent(s.id)}" title="source-definition evidence for this exact source definition" style="font-size:11px;padding:3px 8px;background:#132615;color:#e2e8f0;border:1px solid #3fb950;border-radius:6px;text-decoration:none">🧪 tests linked to this source</a></div>`+
     diagramNote+
     `<h2>calls (${fns.length})</h2><div class="chips">${callLink(fns)}</div>`+
     (tys.length?`<h2>uses types (${tys.length})</h2><div class="chips">${callLink(tys)}</div>`:'')+
@@ -1781,14 +1822,14 @@ const PARAM_DOC={
  ldpc_k:'LDPC message length — information bits per codeword (includes inner pilots)',
  ldpc_n:'LDPC codeword length — coded bits per block (rate = ldpc_k / ldpc_n)',
  partial_fft_parts:'number of partial-FFT views',
- pilot_ratio:'outer comb-pilot density — fraction of active tones that are pilots; snapped to the nearest 1/k spacing',
+ pilot_ratio:'outer comb-pilot density — fraction of active carriers that are pilots; snapped to the nearest 1/k spacing',
  inner_pilot_ratio:'inner-pilot density among message bits (0 = off); snapped to the nearest 1/k spacing',
  code:'internal cache — the built LDPC code (rebuilt when the LDPC params change)',
- layout:'internal cache — the tone layout (rebuilt when geometry / dc0 / fs change)',
+ layout:'internal cache — the carrier layout (rebuilt when geometry / dc0 / fs change)',
  bp_scratch:'internal cache — preallocated belief-propagation buffers',
 };
 // Source-order display is deliberate: the struct itself is the authority.
-// Hand-maintained knob/advanced groupings had drifted as new receiver fields
+// Hand-maintained parameter groupings had drifted as new receiver fields
 // were added, so every current source field is now shown without reclassification.
 const PARAM_GROUPS={};
 const _HIDE_FIELDS=new Set();
@@ -1857,7 +1898,7 @@ function paramsPageHtml(){
     : '';
   return `<div class="flowpage-h"><button class="backbtn" onclick="closeFlow()" title="return to the explorer">✕ close</button>`+
     `<div class="fp-title">Modulations interface — inputs, outputs &amp; implementations</div>`+
-    `<div class="fp-sub">The current contract in <code>Modulations.jl</code>, followed by the one concrete modem type in this pinned source tree and its constructor facades. Click a method name to open its Static calls. For a field-by-field breakdown, open <span class="objlink" data-goobj="1">🧩 Modulation fields</span>.</div></div>`+
+    `<div class="fp-sub">The current contract in <code>Modulations.jl</code>, followed by the one concrete modem type in the current source tree and its constructor facades. Click a method name to open its Static calls. For a field-by-field breakdown, open <span class="objlink" data-goobj="1">🧩 Modulation fields</span>.</div></div>`+
     `<div class="pwrap"><div class="psec">The interface contract</div>`+
     `<table class="ptab pio"><tr><th>method</th><th>inputs</th><th>output</th></tr>${ifaceRows}</table>`+
     `<div class="psec">Concrete implementation</div>${implCards}${facadeHtml}`+
@@ -1912,7 +1953,7 @@ function objPageHtml(active){
   const groupsHtml=allG.map(g=>{const fs=g.f.filter(n=>map[n]);if(!fs.length)return '';
     return `<div class="ogrp"><div class="ogrp-h">${esc(g.t||'fields')} <span class="objcount">(${fs.length})</span></div><div class="ofields">${fs.map(card).join('')}</div></div>`;}).join('');
   const constsHtml='';
-  const cacheNote=nhidden?`<div class="cachenote">+ ${nhidden} internal memoization cache${nhidden>1?'s':''} — <code>code</code> (built LDPC code), <code>layout</code> (tone layout), <code>bp_scratch</code> (BP buffers): mutable scratch built on first use &amp; reused across calls, not configuration — hidden here.</div>`:'';
+  const cacheNote=nhidden?`<div class="cachenote">+ ${nhidden} internal memoization cache${nhidden>1?'s':''} — <code>code</code> (built LDPC code), <code>layout</code> (carrier layout), <code>bp_scratch</code> (BP buffers): mutable scratch built on first use &amp; reused across calls, not configuration — hidden here.</div>`:'';
   const nf=order.length;
   const badges=`<div class="objbadges"><span class="objbadge">📦 <b>${nf}</b> fields</span>`+
     `<span class="objbadge">${meta.mutable?'✎ mutable':'🔒 immutable'}</span>`+
@@ -1946,7 +1987,7 @@ const PIPELINE=[
   d:'Initialize defaults and receiver state, validate the concrete modulation, normalize the selected receiver profile, and enter the current transmit or receive implementation.',
   f:['receiver_profile','init','isvalid','modulate','demodulate']},
  {t:'Message, code, and OFDM transmit path',art:'packet',
-  d:'Build the current tone layout and LDPC code, insert inner pilots, encode, map carrier symbols, and construct each OFDM block.',
+  d:'Build the current carrier layout and LDPC code, insert inner pilots, encode, map carrier symbols, and construct each OFDM symbol.',
   f:['_layout','_code','_build_message','_encode','_carrier_symbol','_modulate_block'],
   variants:[
    {name:'Frame-wide transmitter',
@@ -1958,15 +1999,15 @@ const PIPELINE=[
  {t:'Receive validation and acquisition',
   d:'Prepare the waveform and enforce block lengths; when sync is enabled, use the coarse-Doppler path. When sync is disabled, use the prepared waveform directly.',
   f:['_prepare_demodulation','_prepare_frame_observations','_require_block_samples','_coarse_doppler']},
- {t:'Partial-FFT observations and seed equalization',art:'pfft',
-  d:'Form per-carrier partial-FFT views from contiguous time windows, build OFDM+FEC and partial-FFT seeds, fit weights for combining, and remove residual pilot response.',
-  f:['_branch_observations','_ofdm_fec_candidate','_seed_candidate','_equalize_from_targets','_fit_branch_weights!','_residual_pilot_equalize']},
+ {t:'Partial-FFT observations and initial candidate',art:'pfft',
+  d:'Form per-carrier partial-FFT views from contiguous time windows, build the OFDM+FEC and Partial-FFT/FEC initial candidates, fit weights for combining, and remove residual pilot response.',
+  f:['_branch_observations','_ofdm_fec_candidate','_initial_candidate','_equalize_from_targets','_fit_branch_weights!','_residual_pilot_equalize']},
  {t:'Soft metrics and LDPC belief propagation',art:'tanner',
   d:'Convert equalized carriers to channel metrics, clamp known inner bits, run the selected BP check update, and measure the parity syndrome.',
   f:['_candidate_from_equalized','_channel_metrics_from_equalized','_decode_candidate','_apply_inner_clamps!','_bp_decode_impl','_syndrome_weight']},
  {t:'Per-block receiver dispatch',
-  d:'Choose the OFDM+FEC/Partial-FFT seed and dispatch the selected packet-local refinement path.',
-  f:['_demodulate_block_candidate','_front_end_seed_candidate','_juna_candidate'],
+  d:'Choose the OFDM+FEC/Partial-FFT initial candidate and dispatch the selected packet-local refinement.',
+  f:['_demodulate_block_candidate','_initial_candidate_from_ofdm_fec_and_partial_fft','_select_initial_candidate','_juna_candidate'],
   variants:[
    {name:'Lite posterior-anchor refinement',
     d:'Construct source-backed anchors and take the current Lite update.',
@@ -2009,15 +2050,15 @@ function renderAlgo(){
     (v.d?`<div class="d">${esc(v.d)}</div>`:'')+chipsFor(v.f)+
     (v.art?`<canvas class="art" data-art="${v.art}"></canvas>`:'')+'</div>').join('');
   let html='<div class="atitle">JunaCore receiver stages — current source</div>'+
-    `<div class="sub">Every function chip below resolves inside the pinned <code>JunaCore/src</code> tree. Click a chip to inspect its exact current source. Matched ${ALGO_HITS[0]}/${ALGO_HITS[1]} source functions.</div>`;
+    `<div class="sub">Every function chip below resolves inside the current <code>JunaCore/src</code> source tree. Click a chip to inspect its exact current source. Matched ${ALGO_HITS[0]}/${ALGO_HITS[1]} source functions.</div>`;
   // concept 1 — WHY (the motivation: residual Doppler -> ICI -> non-diagonal channel)
   html+=concept('?','Why: residual Doppler breaks subcarrier orthogonality → ICI',
-    'Residual time variation / Doppler can break subcarrier orthogonality, so neighbouring subcarriers leak into each other. The frequency-domain channel stops being diagonal (the one-tap OFDM model) and becomes <b>banded</b>. That intercarrier interference is what the partial-FFT front end and JUNA are built to address.',
+    'Residual time variation / Doppler can break subcarrier orthogonality, so neighbouring subcarriers leak into each other. The frequency-domain channel stops being diagonal (the one-tap OFDM model) and becomes <b>banded</b>. That intercarrier interference is what partial-FFT processing and JUNA are built to address.',
     'ici');
   html+='<div class="arrow">↓</div>';
   // concept 2 — WHERE JUNA sits in this source tree
   html+=concept('≡','Where JUNA sits: current receiver-family dispatch',
-    'The source contains OFDM+FEC and Partial-FFT baselines, packet-local JUNA-Lite, and the frame-wide Profiled C,z family. The stages below follow their shared transmit, acquisition, front-end, decoding, dispatch, and selection entry points.',
+    'The source contains OFDM+FEC and Partial-FFT baselines, packet-local JUNA-Lite, and the frame-wide Profiled C,z family. The stages below follow their shared transmit, acquisition, OFDM+FEC and Partial-FFT processing, decoding, dispatch, and selection entry points.',
     'families');
   html+='<div class="arrow">↓</div>';
   PIPELINE.forEach((st,i)=>{
@@ -2059,11 +2100,11 @@ function artPacket(cv){const[x,w,h]=hd(cv);const L=14,top=20,bh=30,fw=w-28;
   box(L,cpW,'rgba(245,158,11,.22)','cyclic prefix','np samples');
   box(L+cpW,payW,'rgba(56,189,248,.16)','OFDM symbol','nc samples from IFFT');
   const ty=top+bh+22,tx0=L+cpW,n=36,cw=payW/n;
-  x.fillStyle=AC.mut;x.font='9px system-ui';x.textAlign='left';x.fillText('subcarriers',L,ty-4);
+  x.fillStyle=AC.mut;x.font='9px system-ui';x.textAlign='left';x.fillText('carriers',L,ty-4);
   for(let i=0;i<n;i++){x.fillStyle=i%3===0?AC.gold:AC.acc;x.fillRect(tx0+i*cw+1,ty,Math.max(1,cw-2),13);}
   x.fillStyle=AC.gold;x.fillRect(L,ty+24,10,10);x.fillStyle=AC.mut;x.fillText('outer pilots (configurable spacing)',L+15,ty+33);
   x.fillStyle=AC.acc;x.fillRect(L+190,ty+24,10,10);x.fillStyle=AC.mut;x.fillText('coded BPSK / QPSK',L+205,ty+33);
-  x.textAlign='center';x.fillText('when sync=true, framing adds LFM synchronization before and after the OFDM blocks',w/2,ty+55);}
+  x.textAlign='center';x.fillText('when sync=true, framing adds LFM synchronization before and after the OFDM symbols',w/2,ty+55);}
 function artPfft(cv){const[x,w,h]=hd(cv);const L=16,top=16,bw=w-32,bh=24,parts=4;
   x.fillStyle='rgba(56,189,248,.14)';x.fillRect(L,top,bw,bh);x.strokeStyle=AC.line;x.strokeRect(L,top,bw,bh);
   x.fillStyle=AC.ink;x.font='10px system-ui';x.fillText('OFDM symbol after CP removal — P=4 schematic; partial_fft_parts is configurable',L+bw/2,top+15);
@@ -2138,7 +2179,7 @@ function artOfdmRx(cv){const[x,w,h]=hd(cv);
 function artLayout(cv){const[x,w,h]=hd(cv);
   const L=14,top=36,bh=26,gw=w-28,n=40,cw=gw/n,dc=n/2,spacing=4,nbands=4;
   x.textAlign='center';x.fillStyle=AC.ink;x.font='600 11px system-ui';x.fillText('JUNA subcarrier grid — one OFDM symbol (frequency axis)',w/2,16);
-  x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText('DC null at centre · gold = comb pilots · blue = data tones · dashed teal = RLS band edges',w/2,29);
+  x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText('DC null at centre · gold = comb pilots · blue = data carriers · dashed teal = RLS band edges',w/2,29);
   for(let i=0;i<n;i++){const cx=L+i*cw;
     if(Math.abs(i-dc)<0.5){x.fillStyle='rgba(100,116,139,.22)';x.fillRect(cx,top,Math.max(1,cw-1),bh);continue;}
     const act=Math.abs(Math.round(i-dc)),pilot=(act%spacing)===0;
@@ -2149,8 +2190,8 @@ function artLayout(cv){const[x,w,h]=hd(cv);
   x.setLineDash([]);
   x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText('DC',L+dc*cw,top+bh+12);
   const ly=top+bh+24;x.textAlign='left';
-  x.fillStyle='rgba(245,158,11,.85)';x.fillRect(L,ly,11,11);x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText('comb pilots — ±1 BPSK channel/phase reference (every k tones, k from pilot_ratio)',L+15,ly+9);
-  x.fillStyle='rgba(56,189,248,.5)';x.fillRect(L,ly+16,11,11);x.fillStyle=AC.mut;x.fillText('data tones — carry LDPC-coded BPSK / QPSK symbols according to bpc',L+15,ly+25);
+  x.fillStyle='rgba(245,158,11,.85)';x.fillRect(L,ly,11,11);x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText('comb pilots — ±1 BPSK channel/phase reference (every k carriers, k from pilot_ratio)',L+15,ly+9);
+  x.fillStyle='rgba(56,189,248,.5)';x.fillRect(L,ly+16,11,11);x.fillStyle=AC.mut;x.fillText('data carriers — carry LDPC-coded BPSK / QPSK symbols according to bpc',L+15,ly+25);
   x.textAlign='center';}
 function artFrame(cv){const[x,w,h]=hd(cv);
   const L=126,R=w-14,top=28,bh=25,gap=8;
@@ -2161,7 +2202,7 @@ function artFrame(cv){const[x,w,h]=hd(cv);
     segments.forEach(s=>{const bw=(R-L)*s[1]/total;
       x.fillStyle=s[2];x.fillRect(bx,y,bw,bh);x.strokeStyle=s[3];x.strokeRect(bx,y,bw,bh);
       x.textAlign='center';x.fillStyle=AC.ink;x.font='9px system-ui';x.fillText(s[0],bx+bw/2,y+16);bx+=bw;});};
-  const block=['OFDM block(s): np CP + nc samples',5,'rgba(56,189,248,.16)',AC.acc];
+  const block=['OFDM symbol(s): np CP + nc samples',5,'rgba(56,189,248,.16)',AC.acc];
   row('sync = false',top,[block]);
   row('sync = true',top+bh+gap,[['LFM sync',1,'rgba(52,211,153,.2)',AC.teal],block,['LFM sync',1,'rgba(52,211,153,.2)',AC.teal]]);
   x.textAlign='center';x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText('These are the two transmit cases in Modulations.modulate.',w/2,top+2*(bh+gap)+8);}
@@ -2175,7 +2216,7 @@ function artMessage(cv){const[x,w,h]=hd(cv);
   const ly=top+bh+22;x.textAlign='left';x.font='9px system-ui';
   x.fillStyle='rgba(167,139,250,.85)';x.fillRect(L,ly,11,11);x.fillStyle=AC.mut;x.fillText('inner pilot — a KNOWN bit every k-th message position, k from inner_pilot_ratio (clamped at the receiver)',L+15,ly+9);
   x.fillStyle='rgba(52,211,153,.5)';x.fillRect(L,ly+16,11,11);x.fillStyle=AC.mut;x.fillText('payload bit — the actual user data',L+15,ly+25);
-  x.textAlign='center';x.fillStyle=AC.gold;x.fillText('→ LDPC-encoded into the codeword → mapped onto DATA tones (not on dedicated carriers like the comb pilots)',w/2,ly+44);}
+  x.textAlign='center';x.fillStyle=AC.gold;x.fillText('→ LDPC-encoded into the codeword → mapped onto data carriers (not on dedicated carriers like the comb pilots)',w/2,ly+44);}
 function artFamilies(cv){const[x,w,h]=hd(cv);
   const groups=[
     {n:'baselines',facades:['JunaOFDMFEC','JunaStandard','JunaPartialFFT']},
@@ -2271,16 +2312,17 @@ async function load(){
     if(CFG.embedded){location.reload();return;}
     msg.textContent='static file: re-run with --serve to load folders';return;
   }
-  let url='/api/scan';
+  let path='';
   if(CFG.locked){msg.style.color='#94a3b8';msg.textContent='scanning project …';}
   else{
-    const path=$('path').value.trim();
+    path=$('path').value.trim();
     if(!path){msg.textContent='enter a folder path';return;}
-    url+='?path='+encodeURIComponent(path);
     msg.style.color='#94a3b8';msg.textContent='scanning '+path+' …';
   }
   try{
-    const r=await fetch(url);
+    const r=await fetch('/api/scan',{method:'POST',
+      headers:{'Content-Type':'application/json','X-Juna-Token':CFG.mutationToken},
+      body:JSON.stringify({path:path})});
     const d=await r.json();
     if(d.error){msg.style.color='#f87171';msg.textContent=d.error;
       showOverlay('Could not scan that folder',`<div class="b">${esc(d.error)}</div>`);return;}
@@ -2290,7 +2332,7 @@ async function load(){
     showOverlay('Scan failed',`<div class="b">${esc(String(e))}</div>`);}
 }
 function emptyState(){
-  if(CFG.locked)return showOverlay('Scanning pinned project…',`<div class="b">Reading <code>${esc((CFG.lockedRoot||'').replace(/\/+$/,''))}</code> … this runs automatically; nothing to load.</div>`);
+  if(CFG.locked)return showOverlay('Scanning current source tree…',`<div class="b">Reading <code>${esc((CFG.lockedRoot||'').replace(/\/+$/,''))}</code> … this runs automatically; nothing to load.</div>`);
   showOverlay('Source Definition Explorer',
     '<div class="b">Explore a codebase through its types, subtyping, and interface methods — then drill into any method.</div>'+
     '<ol><li>Click <b>📁 Load…</b> and pick a project folder (or type a path + Enter).</li>'+
@@ -2311,7 +2353,8 @@ async function browse(){
 $('load').onclick=browse;
 $('reload').onclick=load;
 $('restart').onclick=async()=>{const msg=$('msg');if(!CFG.serve){msg.textContent='restart needs --serve';return;}
-  msg.style.color='#94a3b8';msg.textContent='restarting…';try{await fetch('/api/restart');}catch(e){}setTimeout(()=>location.reload(),1700);};
+  msg.style.color='#94a3b8';msg.textContent='restarting…';try{await fetch('/api/restart',{method:'POST',
+    headers:{'Content-Type':'application/json','X-Juna-Token':CFG.mutationToken},body:'{}'});}catch(e){}setTimeout(()=>location.reload(),1700);};
 $('path').addEventListener('keydown',e=>{if(e.key==='Enter')load();});
 
 if(CFG.locked){
@@ -2319,7 +2362,7 @@ if(CFG.locked){
   $('pin').style.display='inline';
   const r=(CFG.lockedRoot||'').replace(/\/+$/,'');
   $('pinname').textContent=r.split('/').pop()||r;$('pinpath').textContent=r;
-  $('detail').innerHTML='<div class="empty">📌 Pinned to <b>'+esc(r.split('/').pop()||r)+'</b>. Use <b>Types and interface methods</b> — click a type ◇ or an interface method in the graph (a method opens its Static calls), or search on the left.</div>';
+  $('detail').innerHTML='<div class="empty">Current source tree: <b>'+esc(r.split('/').pop()||r)+'</b>. Use <b>Types and interface methods</b> — click a type ◇ or an interface method in the graph (a method opens its Static calls), or search on the left.</div>';
   if(CFG.embedded)$('restart').style.display='none';
 }
 if(typeof vis==='undefined'){
@@ -2362,7 +2405,7 @@ def main():
     if a.serve:
         pre = os.path.abspath(a.root or a.repo) if (a.root or a.repo != ".") else ""
         if a.lock and not pre:
-            ap.error("--lock requires --repo (or --root) to set the pinned project root")
+            ap.error("--lock requires --repo (or --root) to set the current source tree")
         serve(a.port, pre, locked=a.lock, open_browser=not a.no_browser)
         return
     folder = a.root or a.repo

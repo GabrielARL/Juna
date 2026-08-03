@@ -19,6 +19,14 @@ method_args(method, dc; no4cycle=true) =
 
 _ok(p) = isfile(p) && filesize(p) > 0
 
+function _code_dimensions(k, n)
+  k isa Integer && n isa Integer && !(k isa Bool) && !(n isa Bool) ||
+    throw(ArgumentError("LDPC dimensions k and n must be integers"))
+  0 < k < n || throw(ArgumentError(
+    "LDPC dimensions must satisfy 0 < k < n, got k=$k and n=$n"))
+  Int(k), Int(n)
+end
+
 """
     build(k, n; method="evenboth", dc=3, no4cycle=true, seed=1, dir=<cache>)
 
@@ -28,10 +36,11 @@ Construct an `(n-k) x n` LDPC code and return `(; icols, gen, H, pchk)`:
 `method` is `"evenboth"` or `"evencol"`; `dc` is the per-column check count
 (an `Int`, or a make-ldpc degree-distribution string). Artifacts are cached in
 `dir`, keyed by the FULL spec (k, n, seed, method, dc, no4cycle), so changing any
-knob produces a fresh code instead of silently reusing a stale file.
+setting produces a fresh code instead of silently reusing a stale file.
 """
 function build(k, n; method="evenboth", dc=3, no4cycle=true, seed=1,
                dir=joinpath(tempdir(), "jldpc_cache"))
+  k, n = _code_dimensions(k, n)
   0 <= seed <= _MAX_TOOL_SEED || throw(ArgumentError(
     "LDPC helper seed must be between 0 and $(_MAX_TOOL_SEED), got $(seed)"))
   mkpath(dir)
@@ -59,14 +68,22 @@ end
 """
     create(k, n, opts="1 evenboth 3 no4cycle")
 
-Backward-compatible entry: `opts` is the raw `"seed method dc [no4cycle]"` string
-passed to make-ldpc. Returns `(icols, gen)` like before.
+Backward-compatible entry: `opts` is parsed as
+`"seed method dc [no4cycle]"`. `method` must be `evenboth` or `evencol`, and
+no additional tokens are accepted. Returns `(icols, gen)` like before.
 """
 function create(k, n, opts="1 evenboth 3 no4cycle")
+  k, n = _code_dimensions(k, n)
   t = split(opts)
-  length(t) >= 3 || throw(ArgumentError("opts must be \"seed method dc [no4cycle]\", got \"$opts\""))
-  r = build(k, n; seed=parse(Int, t[1]), method=t[2], dc=t[3],
-            no4cycle=(length(t) >= 4 && t[4] == "no4cycle"))
+  length(t) in (3, 4) || throw(ArgumentError(
+    "opts must be \"seed method dc [no4cycle]\", got \"$opts\""))
+  method = t[2]
+  method in ("evenboth", "evencol") || throw(ArgumentError(
+    "LDPC method must be evenboth or evencol, got \"$method\""))
+  no4cycle = length(t) == 4
+  no4cycle && t[4] != "no4cycle" && throw(ArgumentError(
+    "fourth opts token must be no4cycle, got \"$(t[4])\""))
+  r = build(k, n; seed=parse(Int, t[1]), method, dc=t[3], no4cycle)
   (r.icols, r.gen)
 end
 

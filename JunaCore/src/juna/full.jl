@@ -1,15 +1,22 @@
 # ----- reduced-gradient JUNA-Wz (paper §V.E) ---------------------------------
-# Seed from the Partial-FFT combiner, then descend the reduced (W,z) objective
-# with Adam, evaluating each step as a candidate and keeping the best decode.
-function _juna_wz(m::Modulation, code::_Code, layout::_Layout, yparts, seed=nothing)
-  _payload_from_metrics(m, code, _juna_wz_candidate(m, code, layout, yparts, seed).lpost_metric)
+# Start from the Partial-FFT candidate, then descend the reduced (W,z)
+# objective with Adam, evaluating each step and keeping the best decode.
+function _juna_wz(m::Modulation, code::_Code, layout::_Layout, yparts,
+                  initial_candidate=nothing)
+  _payload_from_metrics(
+    m, code,
+    _juna_wz_candidate(
+      m, code, layout, yparts, initial_candidate).lpost_metric)
 end
 
-function _juna_wz_candidate(m::Modulation, code::_Code, layout::_Layout, yparts, seed=nothing)
-  seed = seed === nothing ? _seed_candidate(m, code, layout, yparts) : seed
+function _juna_wz_candidate(m::Modulation, code::_Code, layout::_Layout,
+                            yparts, initial_candidate=nothing)
+  initial_candidate = initial_candidate === nothing ?
+    _initial_candidate(m, code, layout, yparts) : initial_candidate
 
-  best = seed
-  current = _juna_wz_gradient_solve(m, code, layout, yparts, seed)
+  best = initial_candidate
+  current = _juna_wz_gradient_solve(
+    m, code, layout, yparts, initial_candidate)
   _juna_better(best, current) && (best = current)
   best
 end
@@ -31,12 +38,15 @@ function _GradientScratch(m::Modulation, code::_Code)
                    Vector{Float64}(undef, maxdeg), Vector{Float64}(undef, maxdeg))
 end
 
-function _juna_wz_gradient_solve(m::Modulation, code::_Code, layout::_Layout, yparts, seed)
+function _juna_wz_gradient_solve(m::Modulation, code::_Code, layout::_Layout,
+                                 yparts, initial_candidate)
   W = _initial_gradient_W(m, yparts, layout)
   W0 = copy(W)
-  z = Vector{Float64}(undef, length(seed.lpost_metric))
+  z = Vector{Float64}(undef, length(initial_candidate.lpost_metric))
   @inbounds for i in eachindex(z)
-    z[i] = clamp(-Float64(seed.lpost_metric[i]), -_GRAD_CLIP_Z, _GRAD_CLIP_Z)
+    z[i] = clamp(
+      -Float64(initial_candidate.lpost_metric[i]),
+      -_GRAD_CLIP_Z, _GRAD_CLIP_Z)
   end
   z0 = copy(z)
   confidence = _posterior_confidence(m, z0)

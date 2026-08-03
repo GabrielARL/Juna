@@ -5,23 +5,19 @@
 # facades are covered by the receiver-specific family tests.
 
 const PUBLIC_RECEIVER_DESCRIPTORS = (
-    (name = "OFDM+FEC", key = :ofdm_fec, mode = :ofdm_fec,
+    (name = "OFDM+FEC", mode = :ofdm_fec,
      profile = :ofdm_fec, factory = JunaCore.Juna.OFDMFECModulation,
-     supports_bpsk = true, supports_lfm = true, supports_shifted_band = true,
-     supports_synthetic_uwa = true),
-    (name = "Partial-FFT", key = :pfft, mode = :pfft,
+     supports_bpsk = true, supports_shifted_band = true),
+    (name = "Partial-FFT", mode = :pfft,
      profile = :pfft, factory = JunaCore.Juna.PartialFFTModulation,
-     supports_bpsk = true, supports_lfm = true, supports_shifted_band = true,
-     supports_synthetic_uwa = true),
-    (name = "JUNA-Lite", key = :lite, mode = :lite,
+     supports_bpsk = true, supports_shifted_band = true),
+    (name = "JUNA-Lite", mode = :lite,
      profile = :lite, factory = JunaCore.Juna.LiteModulation,
-     supports_bpsk = true, supports_lfm = true, supports_shifted_band = true,
-     supports_synthetic_uwa = true),
-    (name = "Profiled C,z", key = :profiled_cz,
-     mode = :frame_wide_ldpc, profile = :frame_wide_ldpc,
+     supports_bpsk = true, supports_shifted_band = true),
+    (name = "Profiled C,z", mode = :frame_wide_ldpc,
+     profile = :frame_wide_ldpc,
      factory = JunaCore.JunaProfiledCzFrame.Modulation,
-     supports_bpsk = false, supports_lfm = true,
-     supports_shifted_band = true, supports_synthetic_uwa = true),
+     supports_bpsk = false, supports_shifted_band = true),
 )
 
 public_receiver_descriptors() = PUBLIC_RECEIVER_DESCRIPTORS
@@ -33,10 +29,8 @@ function assert_public_receiver_catalog()
                                 public_receiver_descriptors())
 
     @test length(unique(descriptor_modes)) == length(descriptor_modes)
-    # Every catalog mode must be a runtime mode. Variant facades share the
-    # Profiled C,z family's frame-wide mode and are checked in its own suites.
-    @test all(mode -> mode in runtime_modes, descriptor_modes)
     @test descriptor_modes == (:ofdm_fec, :pfft, :lite, :frame_wide_ldpc)
+    @test runtime_modes == descriptor_modes
     for descriptor in public_receiver_descriptors()
         receiver = public_receiver(descriptor)
         @test receiver.mode === descriptor.mode

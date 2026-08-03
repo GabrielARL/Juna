@@ -67,7 +67,7 @@ function coupled_bcd_fixture()
     (; problem, truth, initial, weights)
 end
 
-@testset verbose = true "Profiled C,z" begin
+@testset verbose = true "Block-coordinate C,W,z updates" begin
     @testset "configuration rejects non-finite or non-positive line-search controls" begin
         config = CoupledBCDJuna._validate_coupled_bcd_config(
             CoupledBCDJuna._CoupledBCDConfig(),

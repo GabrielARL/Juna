@@ -20,7 +20,11 @@ function _cz_mmse_weights!(W::AbstractMatrix, C::AbstractArray{<:Number,4};
   @inbounds for group in axes(W, 2)
     h = @view C[:, center, group, 1]
     denominator = sum(abs2, h) + Float64(ridge)
-    @views W[:, group] .= h ./ denominator
+    if iszero(denominator)
+      @views fill!(W[:, group], zero(eltype(W)))
+    else
+      @views W[:, group] .= h ./ denominator
+    end
   end
   W
 end
@@ -107,8 +111,8 @@ function _cz_genie_logits(m::Modulation, nblocks::Integer,
   @inbounds for block in 1:blocks
     symbols = _genie_block(truth, block)
     length(symbols) >= ntones || throw(DimensionMismatch(
-      "genie symbols cover $(length(symbols)) tones in block $block; " *
-      "$ntones coded tones are required"))
+      "genie symbols cover $(length(symbols)) carriers in OFDM symbol $block; " *
+      "$ntones coded carriers are required"))
     for local_bit in 1:bits_per_block
       tone = cld(local_bit, 2)
       component = isodd(local_bit) ?
@@ -125,7 +129,7 @@ end
 """
 Build one source-only C,z feedback checkpoint.
 
-Experiment-B fixes the supported logit indices and their blend weights before
+The feedback comparison fixes the supported logit indices and their blend weights before
 looking at the information source. The arms therefore differ only in `values`:
 the trajectory's initial logits, current BP posteriors, or transmitted symbols.
 """
@@ -448,12 +452,14 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
                                    layout::_Layout, observations;
                                    payload_nbits=nothing)
   _bpc(m) == 2 || throw(ArgumentError(
-    "frame C,z profiled gradient implements QPSK only"))
+    "Profiled C,z implements QPSK only"))
+  nblocks = size(observations, 3)
+  m.cz_feedback_source === :genie &&
+    _cz_genie_logits(m, nblocks, Int(m.ldpc_n), _GRAD_CLIP_Z)
   ofdm_fec = _frame_static_trace(
     m, code, layout, observations, _MODE_OFDM_FEC)
   lite = _frame_lite_refine(m, code, layout, observations)
   config = _wcz_optimizer_config(m)
-  nblocks = size(observations, 3)
   crc_enabled = m.frame_crc_bits > 0 && m.cz_crc_gate
   lite_crc_valid = _cz_candidate_crc_valid(
     m, code, lite.best, nblocks, payload_nbits)
@@ -462,14 +468,13 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
   early_skip = config.steps == 0 ||
     (!m.cz_gate_selection_only && legacy_early_skip)
   if early_skip
-    baseline = (crc_enabled || m.cz_gate_selection_only) ? lite :
+    baseline = config.steps == 0 ? lite :
+      (crc_enabled || m.cz_gate_selection_only) ? lite :
       (ofdm_fec.best.valid ? ofdm_fec : lite)
-    reason = m.cz_gate_selection_only ?
-      (config.steps == 0 ? :zero_steps : :lite_fallback) :
-      crc_enabled ?
-      (config.steps == 0 ? :zero_steps : :lite_crc_valid_skip) :
-      (ofdm_fec.best.valid ? :standard_valid_skip :
-       config.steps == 0 ? :zero_steps : :lite_valid_skip)
+    reason = config.steps == 0 ? :zero_steps :
+      m.cz_gate_selection_only ? :lite_fallback :
+      crc_enabled ? :lite_crc_valid_skip :
+      (ofdm_fec.best.valid ? :ofdm_fec_valid_skip : :lite_valid_skip)
     m.cz_gradient_trace = (
       scope=:frame,
       optimized_variables=(m.cz_independent_w || m.cz_conditioned_joint) ?
@@ -759,9 +764,9 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
   )
   (
     profile=_MODE_PROFILED_CZ,
-    seed=lite.best,
+    initial_candidate=lite.best,
     best=choose_gradient ? best_gradient : lite.best,
-    seed_equalized=lite.best_equalized,
+    initial_equalized=lite.best_equalized,
     best_equalized=choose_gradient ? best_gradient_equalized : lite.best_equalized,
     selected_iteration=choose_gradient ? selected_iteration : 0,
     data_anchor_counts=Int[],

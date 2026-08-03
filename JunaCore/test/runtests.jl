@@ -10,7 +10,7 @@
 #   julia --project=. test/runtests.jl roundtrip          # all + extended roundtrip
 #   julia --project=. -e 'using Pkg; Pkg.test(test_args=["lite"])'
 #
-# A selector matches a suite key, file name, or title (case-insensitive
+# A selector matches a suite key, file name, or reader title (case-insensitive
 # substring). Every test file is also runnable on its own, e.g.
 # `julia --project=. test/ofdm_layout.jl`.
 #
@@ -74,8 +74,8 @@ const SUITES = [
      claim = "the descriptor catalog covers the four reader-selectable receivers; every receiver satisfies Modulations, executes its declared objective, and decodes a noiseless loopback payload-exactly",
      origin = "adapted from the source test and maintained by Juna",
      reader_title = "Checks shared by all receivers",
-     reader_summary = "The receiver list contains OFDM+FEC, Partial FFT, Lite, and Profiled C,z; each receiver provides the required operations, reports its stated refinement method, and recovers a clean payload bit for bit.",
-     method = "The test runs the Partial FFT fit, checks the Lite and Profiled C,z refinement functions, and confirms that the three low-density parity-check helper programs are available. It can repeat recovery over several blocks when requested.",
+     reader_summary = "The receiver list contains OFDM+FEC, Partial-FFT, JUNA-Lite, and Profiled C,z; each receiver provides the required operations, reports its stated refinement method, and recovers a clean payload bit for bit.",
+     method = "The test runs the Partial-FFT fit, checks the JUNA-Lite and Profiled C,z refinement functions, and confirms that the three low-density parity-check helper programs are available. It can repeat recovery over several OFDM symbols when requested.",
      reader_origin = "Adapted from the source test and maintained by Juna."),
     (key = "sizing", file = "payload_block_sizing.jl",
      tier = "universal", receivers = "all",
@@ -83,22 +83,22 @@ const SUITES = [
      claim = "positive payload sizes exclude inner pilots (170 unknown of k=340), reject zero, and count 1280-sample blocks (N=1024 + CP 256)",
      origin = "copied during migration and now maintained by Juna",
      reader_title = "Payload and signal length",
-     reader_summary = "Under the paper settings, one 1,280-sample block carries 170 payload bits; larger payloads use whole additional blocks, zero bits are rejected, and synchronization adds 4,096 samples.",
+     reader_summary = "Under the paper settings, one 1,280-sample OFDM symbol carries 170 payload bits; larger payloads use whole additional OFDM symbols, zero bits are rejected, and synchronization adds 4,096 samples.",
      method = "The expected values are fixed numbers from the paper rather than values recalculated from the receiver settings.",
      reader_origin = "Copied during migration and now maintained by Juna."),
     (key = "layout", file = "ofdm_layout.jl",
      tier = "mechanism", receivers = "stage:acquisition",
-     title = "OFDM tone layout and band partition",
-     claim = "DC-nulled active tones split into comb pilots and data bands; bw times the fixed 24 kHz reference sets occupied width, fs sets the FFT occupancy fraction, and dc0 tunes the RF centre from 24 kHz without shifting baseband bins",
+     title = "OFDM carrier layout and band partition",
+     claim = "DC-nulled active carriers split into comb pilots and data bands; bw times the fixed 24 kHz reference sets occupied width, fs sets the FFT occupancy fraction, and dc0 tunes the RF centre from 24 kHz without shifting baseband bins",
      origin = "copied during migration and now maintained by Juna",
      reader_title = "Pilot, data, and frequency bands",
-     reader_summary = "The test checks which frequency tones carry pilots and data, how the tones divide into receiver bands, how many coded bits fit, and how bandwidth and centre frequency affect the occupied frequencies.",
-     method = "It checks the exact tone counts, pilot pattern, divisions into 16 bands and four bands, data capacity, and changes caused by bandwidth and centre frequency.",
+     reader_summary = "The test checks which carriers carry pilots and data, how the carriers divide into receiver bands, how many coded bits fit, and how bandwidth and centre frequency affect the occupied frequencies.",
+     method = "It checks the exact carrier counts, pilot pattern, divisions into 16 bands and four bands, data capacity, and changes caused by bandwidth and centre frequency.",
      reader_origin = "Copied during migration and now maintained by Juna."),
     (key = "lite", file = "juna_lite_refinement.jl",
      tier = "receiver-specific", receivers = "receiver:lite",
      title = "JUNA-lite soft-anchor refinement",
-     claim = "posterior metrics become confidence-weighted soft data anchors, JUNA-lite refits an invalid seed into a finite valid candidate, and valid seeds are preserved",
+     claim = "posterior metrics become confidence-weighted soft data anchors, JUNA-lite refits an invalid initial candidate into a finite valid candidate, and valid initial candidates are preserved",
      origin = "copied during migration and now maintained by Juna",
      reader_title = "JUNA-Lite second equalization pass",
      reader_summary = "JUNA-Lite turns decoder results into weighted data values for a second equalization pass, improves an invalid first result, and retains an already valid result.",
@@ -106,120 +106,120 @@ const SUITES = [
      reader_origin = "Copied during migration and now maintained by Juna."),
     (key = "pfft", file = "partial_fft_receiver.jl",
      tier = "mechanism", receivers = "all",
-     title = "Baseline receivers: OFDM+FEC and partial FFT",
-     claim = "the paper's OFDM+FEC and Partial FFT+FEC benchmark receivers are public modes pinned to their demodulate_methods columns, per-band combining survives the within-symbol channel one-tap cannot, lite never loses to its own seed, and both baselines roundtrip BPSK",
+     title = "Baseline receivers: OFDM+FEC and Partial-FFT",
+     claim = "Across six fixed noisy packets, JUNA-Lite has no more aggregate bit errors than its Partial-FFT starting result.",
      origin = "copied during migration and now maintained by Juna",
-     reader_title = "OFDM+FEC and partial fast Fourier transform receivers",
+     reader_title = "OFDM+FEC and Partial-FFT receivers",
      reader_summary = "The two receiver choices use distinct processing paths and recover a clean payload; the partial transform also handles the selected channel that changes within one symbol and defeats the OFDM+FEC receiver.",
-     method = "The test compares each public result with its direct receiver result, exercises the selected changing channel, and checks six fixed noisy packets. Across those packets, JUNA-Lite must have no more aggregate bit errors than its Partial FFT starting result.",
+     method = "The test compares each public result with its direct receiver result, exercises the selected changing channel, and checks six fixed noisy packets. Across those packets, JUNA-Lite must have no more aggregate bit errors than its Partial-FFT initial candidate.",
      reader_origin = "Copied during migration and now maintained by Juna."),
     (key = "profiled-cz", file = "juna_profiled_cz_frame.jl",
      tier = "receiver-specific", receivers = "receiver:profiled_cz",
-     title = "Profiled C,z",
+     title = "Profiled C,z combiner weights and zero-update result",
      claim = "the public Profiled C,z receiver derives its combiner from C, reproduces frame Lite at zero steps, and executes a finite frame-wide C,z trajectory",
      origin = "copied from sonique research/JunaCoreTests @ d49fff0 and now maintained by Juna",
-     reader_title = "Profiled C,z",
+     reader_title = "Profiled C,z combiner weights and zero-update result",
      reader_summary = "The receiver derives its combining weights from the estimated response, matches the frame Lite result when no update is requested, and completes a frame-wide C,z update.",
      method = "It checks the public receiver identity, the central C response used for combining, a clean zero-step frame, and one noisy update.",
      reader_origin = "Copied from the source test and now maintained by Juna."),
     (key = "profiled-cz-crc", file = "juna_crc_profiled_cz_frame.jl",
      tier = "receiver-specific", receivers = "receiver:profiled_cz",
-     title = "Profiled C,z",
+     title = "Profiled C,z CRC, turbo, and conditioned forms",
      claim = "the CRC, turbo, and conditioned C,z forms preserve their fixed settings, feedback controls, restart controls, gradient checks, and clean frame behavior",
      origin = "copied from sonique research/JunaCoreTests @ d49fff0 and now maintained by Juna",
-     reader_title = "Profiled C,z",
+     reader_title = "Profiled C,z CRC, turbo, and conditioned forms",
      reader_summary = "The CRC, turbo, and conditioned forms use the approved frame settings, keep their control and treatment settings distinct, and complete their receiver checks.",
      method = "It checks framing, receiver settings, feedback, restarts, conditional updates, gradient calculations, and clean frame execution.",
      reader_origin = "Copied from the source test and now maintained by Juna."),
     (key = "profiled-cz-check-degree", file = "juna_profiled_cz_dc.jl",
      tier = "receiver-specific", receivers = "receiver:profiled_cz",
-     title = "Profiled C,z",
-     claim = "Profiled C,z shares frame-code provenance with frame Lite and executes finite trajectories for check degrees two through four",
+     title = "Profiled C,z under three code settings",
+     claim = "Profiled C,z uses the same frame code as frame Lite and executes finite trajectories for per-column check counts two through four",
      origin = "copied from sonique research/JunaCoreTests @ d49fff0 and now maintained by Juna",
-     reader_title = "Profiled C,z",
+     reader_title = "Profiled C,z under three code settings",
      reader_summary = "The receiver uses the same frame code as frame Lite and completes its update for three low-density parity-check code settings.",
      method = "It compares code construction, runs one noisy update for each setting, and rejects an invalid check degree.",
      reader_origin = "Copied from the source test and now maintained by Juna."),
     (key = "wcz-solves", file = "juna_wcz_conditional_solves.jl",
      tier = "mechanism", receivers = "receiver:profiled_cz",
-     title = "Profiled C,z",
+     title = "Profiled C,z response and combining updates",
      claim = "the exact conditional C and W updates do not increase their objective, satisfy their gradients, and preserve inner-pilot clamps",
      origin = "copied from sonique research/JunaCoreTests @ d49fff0 and now maintained by Juna",
-     reader_title = "Profiled C,z",
+     reader_title = "Profiled C,z response and combining updates",
      reader_summary = "The response and combining updates reduce or retain the same objective and preserve the known inner-pilot bits.",
      method = "It evaluates the objective and gradients before and after each exact update, then checks posterior-moment response and combiner updates.",
      reader_origin = "Copied from the source test and now maintained by Juna."),
     (key = "profiled-cz-full-dependency", file = "juna_full_refinement.jl",
      tier = "mechanism", receivers = "receiver:profiled_cz",
-     title = "Profiled C,z",
+     title = "Profiled C,z W,z calculations",
      claim = "the restored W,z dependency has finite and finite-difference-checked gradients and retains its best diagnostic candidate",
      origin = "copied from sonique research/JunaCoreTests @ d49fff0 and now maintained by Juna",
-     reader_title = "Profiled C,z",
+     reader_title = "Profiled C,z W,z calculations",
      reader_summary = "The shared W,z calculations return finite values, agree with finite-difference checks, and retain the best decoded candidate.",
      method = "It checks QPSK symbol construction, parity gradients, the complete loss and gradients, and candidate selection on compact synthetic data.",
      reader_origin = "Copied from the source test and now maintained by Juna."),
     (key = "profiled-cz-objective", file = "juna_coupled_specification.jl",
      tier = "mechanism", receivers = "receiver:profiled_cz",
-     title = "Profiled C,z",
+     title = "Profiled C,z objective and gradient checks",
      claim = "the shared C,W,z objective has checked shapes, clamps, scalar terms, centered finite-difference gradients, and quadratic Taylor convergence",
      origin = "copied from sonique research/JunaCoreTests @ d49fff0 and now maintained by Juna",
-     reader_title = "Profiled C,z",
+     reader_title = "Profiled C,z objective and gradient checks",
      reader_summary = "The shared C,W,z calculations use the expected shapes and fixed bits, and their gradients agree with independent finite-difference checks.",
      method = "It checks each objective term, invalid settings, fixed inner-pilot bits, all real gradient coordinates, and the Taylor remainder on compact synthetic problems.",
      reader_origin = "Copied from the source test and now maintained by Juna."),
     (key = "profiled-cz-initialization", file = "juna_coupled_initialization.jl",
      tier = "mechanism", receivers = "receiver:profiled_cz",
-     title = "Profiled C,z",
-     claim = "one Partial-FFT and FEC block maps into the constrained problem and deterministically initializes finite pilot-trained W, profiled C, and decoder-seeded z",
+     title = "Profiled C,z starting values",
+     claim = "one OFDM symbol and its FEC codeword map into the constrained problem and deterministically initialize finite pilot-trained W, profiled C, and z from decoder results",
      origin = "copied from sonique research/JunaCoreTests @ d49fff0 and now maintained by Juna",
-     reader_title = "Profiled C,z",
-     reader_summary = "A receiver block produces the expected constrained problem and the same finite starting values on every run.",
+     reader_title = "Profiled C,z starting values",
+     reader_summary = "One OFDM symbol and its FEC codeword produce the expected constrained problem and the same finite starting values on every run.",
      method = "It checks the carrier, pilot, code, clamp, response, and combining data before rejecting non-finite inputs.",
      reader_origin = "Copied from the source test and now maintained by Juna."),
     (key = "profiled-cz-optimizer", file = "juna_coupled_optimization.jl",
      tier = "mechanism", receivers = "receiver:profiled_cz",
-     title = "Profiled C,z",
+     title = "Profiled C,z conditional updates and rollback",
      claim = "exact conditional C and W updates with bounded Adam updates of z preserve clamps, record finite losses, and retain the best finite checkpoint",
      origin = "copied from sonique research/JunaCoreTests @ d49fff0 and now maintained by Juna",
-     reader_title = "Profiled C,z",
+     reader_title = "Profiled C,z conditional updates and rollback",
      reader_summary = "The conditional response and combining updates preserve fixed bits, keep finite loss records, and return the best update.",
      method = "It checks valid optimizer settings, zero-update behavior, a synthetic recovery, rollback after a bad update, and receiver initialization.",
      reader_origin = "Copied from the source test and now maintained by Juna."),
     (key = "profiled-cz-block-coordinate", file = "juna_coupled_block_coordinate.jl",
      tier = "mechanism", receivers = "receiver:profiled_cz",
-     title = "Profiled C,z",
-     claim = "the diagnostic block-coordinate solver uses the shared objective and backtracking keeps every complete cycle finite and non-increasing",
+     title = "Profiled C,z update cycles",
+     claim = "The two solvers share the initial objective and state dimensions.",
      origin = "copied from sonique research/JunaCoreTests @ d49fff0 and now maintained by Juna",
-     reader_title = "Profiled C,z",
-     reader_summary = "Each complete block-coordinate update remains finite and does not increase the shared objective.",
-     method = "It checks rejected settings, zero-cycle behavior, every accepted cycle, and agreement with the deployed conditional solver.",
+     reader_title = "Profiled C,z update cycles",
+     reader_summary = "The two solvers share the initial objective and state dimensions.",
+     method = "It checks rejected settings, zero-cycle behavior, every accepted cycle, and the same initial objective and state dimensions.",
      reader_origin = "Copied from the source test and now maintained by Juna."),
     (key = "profiled-cz-candidate", file = "juna_coupled_candidate.jl",
      tier = "mechanism", receivers = "receiver:profiled_cz",
-     title = "Profiled C,z",
-     claim = "the optimized C,W,z state becomes a finite FEC candidate and diagnostic candidate selection does not regress its seed",
+     title = "Profiled C,z candidate selection",
+     claim = "the optimized C,W,z state becomes a finite FEC candidate and diagnostic candidate selection does not regress its initial candidate",
      origin = "copied from sonique research/JunaCoreTests @ d49fff0 and now maintained by Juna",
-     reader_title = "Profiled C,z",
+     reader_title = "Profiled C,z candidate selection",
      reader_summary = "An optimized state produces finite decoder values, and candidate selection does not replace a better starting result.",
      method = "It constructs a clean synthetic block, performs two conditional updates, builds a candidate, and checks selection through the shared interface.",
      reader_origin = "Copied from the source test and now maintained by Juna."),
     (key = "profiled-cz-end-to-end", file = "juna_coupled_end_to_end.jl",
      tier = "mechanism", receivers = "receiver:profiled_cz",
-     title = "Profiled C,z",
-     claim = "the internal coupled receiver decodes clean and impaired synthetic fixtures, bounds its candidate trade-off, and retains a valid seed",
+     title = "Profiled C,z clean and impaired receiver checks",
+     claim = "The fixed impairment produces more errors at lower SNR.",
      origin = "copied from sonique research/JunaCoreTests @ d49fff0 and now maintained by Juna",
-     reader_title = "Profiled C,z",
-     reader_summary = "The internal receiver recovers clean data, behaves consistently under fixed interference and noise, and retains an already valid result.",
+     reader_title = "Profiled C,z clean and impaired receiver checks",
+     reader_summary = "The fixed impairment produces more errors at lower SNR.",
      method = "It uses deterministic synthetic noise, clean and impaired signals, candidate comparisons, and a warmed one-block decode.",
      reader_origin = "Copied from the source test and now maintained by Juna."),
     (key = "feedback-modes", file = "feedback_mode_arms_contract.jl",
      tier = "mechanism", receivers = "stage:anchors",
-     title = "Decoder-feedback mechanism arms",
-     claim = "the coupled receivers expose validated :real/:frozen/:genie/:graded feedback arms that share one code path, so frozen anchors no data decision, the oracle arms anchor transmitted symbols at unit weight and fail loudly without them, and graded corruption is seeded, bounded and on-constellation",
+     title = "Decoder feedback settings",
+     claim = "genie replaces posterior decisions with transmitted symbols; a null result limits what transmitted-symbol feedback contributes to this receiver's refit",
      origin = "copied during migration and now maintained by Juna",
      reader_title = "Decoder feedback settings",
-     reader_summary = "The four settings use normal decoder output, pilots only, transmitted symbols, or transmitted symbols changed at a set rate; they share one processing path and differ where expected.",
-     method = "The test checks accepted settings, required transmitted symbols, repeatable symbol changes, handling for each block, and the resulting refinement output.",
+     reader_summary = "The real setting uses decoder results, frozen uses pilots only, and genie replaces posterior decisions with transmitted symbols. A null result limits what transmitted-symbol feedback contributes to this receiver's refit.",
+     method = "The test checks accepted settings, required transmitted symbols, handling for each block and frame, and the resulting refinement output.",
      reader_origin = "Copied during migration and now maintained by Juna."),
 ]
 
@@ -227,15 +227,16 @@ _suite_matches(suite, sel) = begin
     s = lowercase(sel)
     occursin(s, lowercase(suite.key)) ||
         occursin(s, lowercase(suite.file)) ||
-        occursin(s, lowercase(suite.title))
+        occursin(s, lowercase(suite.title)) ||
+        occursin(s, lowercase(suite.reader_title))
 end
 
 function _print_map()
     for suite in SUITES
-        println(rpad(suite.key, 18), suite.file)
-        println("    ", suite.title)
-        println("    claim: ", suite.claim)
-        println("    origin: ", suite.origin)
+        println(suite.key, " | ", suite.file)
+        println("    reader title: ", suite.reader_title)
+        println("    summary: ", suite.reader_summary)
+        println("    origin: ", suite.reader_origin)
     end
 end
 
@@ -249,17 +250,18 @@ function _run(selectors::Vector{String})
     wants_roundtrip && (ENV["JUNA_INTERFACE_ROUNDTRIP"] = "1")
     @testset "JunaCore" begin
         for suite in chosen
-            @testset "$(suite.title)" begin
+            @testset "$(suite.reader_title)" begin
                 include(suite.file)
             end
         end
     end
 end
 
-# Run only when invoked as the program (Pkg.test or direct); when another
-# script includes this file to read the SUITES registry (the explorer's
-# export_suites.jl), loading must stay side-effect free.
-if abspath(PROGRAM_FILE) == @__FILE__
+# Pkg.test includes this file instead of making it PROGRAM_FILE, while direct
+# invocation executes it as the program. The Explorer exporter sets the
+# registry-only flag around its include so that loading SUITES stays
+# side-effect free only in that explicit case.
+if get(ENV, "JUNA_SUITE_REGISTRY_ONLY", "0") != "1"
     args = String.(ARGS)
     if length(args) == 1 && lowercase(args[1]) == "list"
         _print_map()

@@ -2,11 +2,11 @@
 #
 # Public modem interface — the modulate/demodulate boundary every receiver shares.
 #
-# Paper claims protected (papers/main.tex):
-#   sec:method (lines 1919-1964)   All receivers are compared on the same transmitted
+# Paper claims protected (reference papers/gab/joe.tex):
+#   sec:method                     All receivers are compared on the same transmitted
 #                                  frame through one public modulate/demodulate
 #                                  boundary; only the receiver processing differs.
-#   eq:goodput (lines 1934-1939)   Throughput accounting divides payload bits by the
+#   eq:goodput                     Throughput accounting divides payload bits by the
 #                                  full airtime (CP, pilots, FEC parity, sync all
 #                                  included), so payload_rate must equal
 #                                  nbits * fs / signallength with real numbers:
@@ -110,7 +110,7 @@ end
         assert_interface_methods(m)
         @test PublicInterfaceModulations.init(m, PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS) === nothing
         @test isvalid(m, PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
-        @test PublicInterfaceModulations.bitspersymbol(m) == 170  # k=340 minus 170 ip2 anchors (main.tex:674)
+        @test PublicInterfaceModulations.bitspersymbol(m) == 170
     end
 
     @testset "payload transfer: exact block fill (170 bits) and padded (171 bits)" begin
@@ -156,7 +156,7 @@ end
     end
 
     @testset "fc/fs sweep preserves every receiver's public roundtrip" begin
-        payload = Vector{Bool}(mseq(7) .> 0)  # 127 bits: one non-trivial OFDM block
+        payload = Vector{Bool}(mseq(7) .> 0)  # 127 bits: one non-trivial OFDM symbol
         carrier_frequencies = (12_000.0, 24_000.0, 48_000.0)
         sample_rates = (9_600.0, 12_000.0, 24_000.0)
 
@@ -190,10 +190,57 @@ end
         end
     end
 
-    @testset "payload_rate matches eq:goodput accounting (main.tex:1934-1939)" begin
-        # One 1280-sample block carries 170 payload bits at fs = 24 kHz:
+    @testset "demodulate_methods uses synchronization and initial resampling" begin
+        receiver = PublicInterfaceJuna.LiteModulation(sync=true)
+        payload = Vector{Bool}(mseq(7) .> 0)
+        waveform = PublicInterfaceModulations.modulate(
+            receiver, payload, PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
+        received_waveforms = (
+            clean=waveform,
+            time_dilated=PublicInterfaceJuna._resample_to(
+                waveform, round(Int, 1.003 * length(waveform))),
+        )
+        for (name, received) in pairs(received_waveforms)
+            @testset "$name" begin
+                public_metrics, _ = PublicInterfaceModulations.demodulate(
+                    receiver, length(payload), received,
+                    PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
+                methods = PublicInterfaceJuna.demodulate_methods(
+                    receiver, length(payload), received,
+                    PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
+                @test methods.juna == public_metrics
+                @test (methods.juna .> 0) == payload
+                @test methods.standard === methods.ofdm_fec
+            end
+        end
+    end
+
+    @testset "synchronization roundtrip for all four reader-selectable receivers" begin
+        compact = (
+            nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+            partial_fft_parts=2, partial_fft_nbands=2,
+            pilot_ratio=1 / 3, inner_pilot_ratio=0.0,
+            sync=true, refinement_steps=0,
+        )
+        payload = Bool[true, false, true]
+        for descriptor in public_receiver_descriptors()
+            @testset "$(descriptor.name)" begin
+                receiver = public_receiver(descriptor; compact...)
+                waveform = PublicInterfaceModulations.modulate(
+                    receiver, payload, PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
+                metrics, cfo = PublicInterfaceModulations.demodulate(
+                    receiver, length(payload), waveform,
+                    PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
+                @test (metrics .> 0) == payload
+                @test isfinite(cfo)
+            end
+        end
+    end
+
+    @testset "payload_rate matches eq:goodput accounting" begin
+        # One 1280-sample OFDM symbol carries 170 payload bits at fs = 24 kHz:
         #   170 * 24000 / 1280 = 3187.5 bit/s.
-        # 171 bits force a second block: 171 * 24000 / 2560 = 1603.125 bit/s.
+        # 171 bits force a second OFDM symbol: 171 * 24000 / 2560 = 1603.125 bit/s.
         @test PublicInterfaceModulations.signallength(
             m, 170, PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS) == 1280
         @test PublicInterfaceModulations.signallength(
@@ -308,7 +355,7 @@ end
                         compared, tested_distorted)
                     ofdm_fec_candidate = PublicInterfaceJuna._ofdm_fec_candidate(
                         compared, code, layout, yparts)
-                    partial_candidate = PublicInterfaceJuna._seed_candidate(
+                    partial_candidate = PublicInterfaceJuna._initial_candidate(
                         compared, code, layout, yparts)
                     juna_candidate = PublicInterfaceJuna._juna_candidate(
                         compared, code, layout, yparts, partial_candidate)
@@ -331,8 +378,8 @@ end
                 @test count((distorted_paths.ofdm_fec .> 0) .!= payload) > 0
                 @test (distorted_paths.partial .> 0) == payload
                 if descriptor.profile === :ofdm_fec
-                    # The OFDM+FEC baseline's own column IS the one-tap
-                    # branch: it must inherit that branch's failure here,
+                    # The OFDM+FEC baseline's own result uses one FFT and must
+                    # retain that result's failure here,
                     # not be rescued by another receiver's refinement.
                     @test distorted_paths.juna == distorted_paths.ofdm_fec
                 else
@@ -354,11 +401,11 @@ end
              requires_bpsk = true, requires_shifted_band = false),
             (name = "rate-one-half code", kwargs = (ldpc_k = 340, ldpc_n = 680),
              requires_bpsk = false, requires_shifted_band = false),
-            (name = "eight partial views", kwargs = (partial_fft_parts = 8,),
+            (name = "eight Partial-FFT views", kwargs = (partial_fft_parts = 8,),
              requires_bpsk = false, requires_shifted_band = false),
             (name = "minimum trained p16 pilot comb", kwargs = (pilot_ratio = 1 / 16,),
              requires_bpsk = false, requires_shifted_band = false),
-            (name = "maximum supported partial views", kwargs = (partial_fft_parts = 16,),
+            (name = "maximum supported Partial-FFT views", kwargs = (partial_fft_parts = 16,),
              requires_bpsk = false, requires_shifted_band = false),
             (name = "half-band large FFT",
              kwargs = (nc = 2048, np = 128, bw = 0.5),
@@ -410,7 +457,7 @@ end
         end
     end
 
-    @testset "non-default rate and pilot geometry keeps the strongest clean front end" begin
+    @testset "non-default rate and pilot geometry compare OFDM+FEC and Partial-FFT results" begin
         kwargs = (
             nc = 1024,
             bpc = 2,
@@ -439,10 +486,9 @@ end
                 @test (paths.ofdm_fec .> 0) == payload
                 @test (paths.juna .> 0) == payload
                 if descriptor.profile === :pfft
-                    # The pure partial combiner is exactly the weak front
-                    # end this pilot geometry exposes: its public failure
-                    # here is WHY every refined receiver must select the
-                    # stronger OFDM+FEC seed above. No fallback may hide it.
+                    # This pilot geometry exposes a weak Partial-FFT result.
+                    # Its public failure is why each refined receiver selects
+                    # the stronger OFDM+FEC initial candidate above.
                     @test metrics == paths.partial
                     @test count((metrics .> 0) .!= payload) > 0
                 else

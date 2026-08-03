@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static source-to-test reference scanner for the JUNA-Lite explorer.
+"""Static source-to-test reference scanner for the JunaCore explorer.
 
 HONESTY CONTRACT: everything this module reports is a STATIC TEXTUAL
 reference — "this suite names this source symbol" — never runtime execution
@@ -36,6 +36,42 @@ _KNOWN_CONTAINERS = {"Juna", "JunaCore", "Modulations", "LDPC",
                      "JunaCrcConditionedJointCwzFrame"}
 
 
+def _blank_non_code(match):
+    """Preserve newlines while making comments and literals unsearchable."""
+    return "".join("\n" if char == "\n" else " " for char in match.group(0))
+
+
+def _qualified_code_lines(lines):
+    text = "".join(
+        line if line.endswith("\n") else line + "\n" for line in lines)
+    patterns = (
+        r"#=.*?=#",
+        r'"""(?:\\.|(?!""").)*"""',
+        r'"(?:\\.|[^"\\])*"',
+        r"'(?:\\.|[^'\\])*'",
+        r"#[^\n]*",
+    )
+    for pattern in patterns:
+        text = re.sub(pattern, _blank_non_code, text, flags=re.S)
+    return text.splitlines()
+
+
+def unresolved_qualified_references(lines, names):
+    """Return real code references whose qualified trailing name is absent."""
+    containers = "|".join(
+        re.escape(name) for name in sorted(_KNOWN_CONTAINERS,
+                                           key=len, reverse=True))
+    qualified = re.compile(
+        rf"\b({containers})\.([A-Za-z_][A-Za-z0-9_!]*)")
+    known_names = set(names) | _KNOWN_CONTAINERS
+    unresolved = []
+    for lineno, line in enumerate(_qualified_code_lines(lines), 1):
+        for match in qualified.finditer(line):
+            if match.group(2) not in known_names:
+                unresolved.append({"line": lineno, "name": match.group(0)})
+    return unresolved
+
+
 def scan(root):
     data = analyze(os.path.join(root, "src"))
     names = {}
@@ -52,8 +88,6 @@ def scan(root):
     combined = re.compile(
         r"(?<![A-Za-z0-9_!])(" + "|".join(re.escape(n) for n in ordered) +
         r")(?![A-Za-z0-9_!])")
-    qualified = re.compile(r"\b(JunaCore|Juna)\.([A-Za-z_][A-Za-z0-9_!]*)")
-
     with open(os.path.join(root, "tools", "explorer", "suites.json")) as fh:
         suites = json.load(fh)["suites"]
 
@@ -67,15 +101,13 @@ def scan(root):
             continue
         hits = {}
         with open(path) as fh:
-            for lineno, line in enumerate(fh, 1):
+            lines = fh.readlines()
+            for lineno, line in enumerate(lines, 1):
                 for m in combined.finditer(line):
                     hits.setdefault(m.group(1), []).append(lineno)
-                for m in qualified.finditer(line):
-                    trailing = m.group(2)
-                    if trailing not in names and trailing not in _KNOWN_CONTAINERS:
-                        report["unresolved"].append(
-                            {"suite": su["key"], "line": lineno,
-                             "name": m.group(0)})
+            for item in unresolved_qualified_references(lines, names):
+                report["unresolved"].append(
+                    {"suite": su["key"], **item})
         report["suites"][su["key"]] = {
             "file": su["file"],
             "direct": {n: lines[:50] for n, lines in sorted(hits.items())},

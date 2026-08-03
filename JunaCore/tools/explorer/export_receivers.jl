@@ -6,8 +6,31 @@
 include(joinpath(@__DIR__, "receiver_catalog.jl"))
 assert_receiver_catalog()
 
-_json_escape(s::AbstractString) =
-    replace(replace(replace(s, "\\" => "\\\\"), "\"" => "\\\""), "\n" => "\\n")
+function _json_escape(s::AbstractString)
+    io = IOBuffer()
+    for char in s
+        if char == '"'
+            print(io, "\\\"")
+        elseif char == '\\'
+            print(io, "\\\\")
+        elseif char == '\b'
+            print(io, "\\b")
+        elseif char == '\f'
+            print(io, "\\f")
+        elseif char == '\n'
+            print(io, "\\n")
+        elseif char == '\r'
+            print(io, "\\r")
+        elseif char == '\t'
+            print(io, "\\t")
+        elseif Int(char) < 0x20
+            print(io, "\\u", lpad(string(Int(char), base=16), 4, '0'))
+        else
+            print(io, char)
+        end
+    end
+    String(take!(io))
+end
 
 function _strings(io, values)
     print(io, "[", join(["\"" * _json_escape(v) * "\"" for v in values], ", "),
@@ -41,6 +64,12 @@ function _emit(io, receivers)
     println(io, "}")
 end
 
-out = isempty(ARGS) ? joinpath(@__DIR__, "receivers.json") : ARGS[1]
-open(io -> _emit(io, RECEIVERS), out, "w")
-println("wrote ", out, " (", length(RECEIVERS), " receivers)")
+function main()
+    out = isempty(ARGS) ? joinpath(@__DIR__, "receivers.json") : ARGS[1]
+    open(io -> _emit(io, RECEIVERS), out, "w")
+    println("wrote ", out, " (", length(RECEIVERS), " receivers)")
+end
+
+if abspath(PROGRAM_FILE) == @__FILE__
+    main()
+end

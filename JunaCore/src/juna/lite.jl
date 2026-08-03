@@ -1,16 +1,22 @@
-# JUNA-lite: seed from the Partial-FFT combiner (so JUNA starts where Partial
-# FFT+FEC ends), then re-fit the combiner toward BP posterior means as soft data
-# anchors and keep the best re-decode.
-function _juna_lite(m::Modulation, code::_Code, layout::_Layout, yparts, seed=nothing)
-  _payload_from_metrics(m, code, _juna_lite_candidate(m, code, layout, yparts, seed).lpost_metric)
+# JUNA-lite starts from the Partial-FFT candidate, then re-fits the combiner
+# toward BP posterior means as soft data anchors and keeps the best re-decode.
+function _juna_lite(m::Modulation, code::_Code, layout::_Layout, yparts,
+                    initial_candidate=nothing)
+  _payload_from_metrics(
+    m, code,
+    _juna_lite_candidate(
+      m, code, layout, yparts, initial_candidate).lpost_metric)
 end
 
-function _juna_lite_candidate(m::Modulation, code::_Code, layout::_Layout, yparts, seed=nothing)
-  seed = seed === nothing ? _seed_candidate(m, code, layout, yparts) : seed
-  seed.valid && return seed
+function _juna_lite_candidate(m::Modulation, code::_Code, layout::_Layout,
+                              yparts, initial_candidate=nothing)
+  _required_feedback_truth(m, layout, code.n, 1)
+  initial_candidate = initial_candidate === nothing ?
+    _initial_candidate(m, code, layout, yparts) : initial_candidate
+  initial_candidate.valid && return initial_candidate
 
-  current = seed
-  best = seed
+  current = initial_candidate
+  best = initial_candidate
   for _ in 1:_JUNA_ITERS
     candidate = _juna_step(m, code, layout, yparts, current)
     _juna_better(best, candidate) && (best = candidate)
@@ -36,6 +42,19 @@ _genie_block(truth::AbstractVector, block::Integer) =
   block == 1 ? truth :
   throw(DimensionMismatch(
     "genie symbols cover one block; block $block was requested"))
+
+function _required_feedback_truth(m::Modulation, layout::_Layout,
+                                  ncoded::Integer, block::Integer)
+  m.feedback_mode in _FEEDBACK_ORACLE_MODES || return nothing
+  truth = _genie_block(m.genie_symbols, block)
+  truth === nothing && throw(ArgumentError(
+    "feedback_mode $(m.feedback_mode) requires transmitted symbols; " *
+    "none were supplied"))
+  count_data = min(length(layout.data_idx), _ndata_tones(m, ncoded))
+  length(truth) >= count_data || throw(DimensionMismatch(
+    "genie symbols cover $(length(truth)) carriers but $count_data are in play"))
+  truth
+end
 
 function _juna_anchor_targets(m::Modulation,
                               layout::_Layout,
@@ -64,17 +83,15 @@ function _juna_anchor_targets(m::Modulation,
             selected = Int[], confidence)
   end
 
-  # Oracle arms: the anchors carry the transmitted symbols instead of posterior
-  # decisions.  :graded receives truth that the caller has already corrupted at
-  # a known rate, so the receiver stays deterministic and both oracle arms share
-  # one path.  Anchors are weighted 1.0 because a genie is certain; that makes
-  # this an upper bound on what feedback can contribute, so a null result here
-  # is strong evidence that no recoverable channel information exists.
+  # These arms replace posterior decisions with transmitted symbols. A null
+  # result shows only that this receiver's refit did not improve with those
+  # anchors. :graded receives symbols that the caller has already corrupted, so
+  # the receiver stays deterministic and both arms share one path.
   if mode in _FEEDBACK_ORACLE_MODES
     truth === nothing && throw(ArgumentError(
       "feedback_mode $mode requires transmitted symbols; none were supplied"))
     length(truth) >= n || throw(DimensionMismatch(
-      "genie symbols cover $(length(truth)) tones but $n data tones are in play"))
+      "genie symbols cover $(length(truth)) carriers but $n data carriers are in play"))
     selected = collect(1:n)
     if length(selected) > max_data_anchors
       # Same top-k rule as :real, so the arms differ in anchor VALUES rather
@@ -130,7 +147,8 @@ end
 
 function _juna_step(m::Modulation, code::_Code, layout::_Layout, yparts, current)
   anchors = _juna_anchor_targets(m, layout, current.lpost_metric;
-                                 truth = _genie_block(m.genie_symbols, 1))
+                                 truth = _required_feedback_truth(
+                                   m, layout, code.n, 1))
   equalized = _equalize_from_targets(
     m, yparts, layout, anchors.target_idx, anchors.targets;
     target_weights = anchors.target_weights,

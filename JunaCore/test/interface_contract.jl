@@ -2,17 +2,17 @@
 #
 # Interface contract — the end-to-end executable contract for every receiver path.
 #
-# Paper claims protected (papers/main.tex):
-#   sec:method (lines 1919-1964)     OFDM+FEC, Partial-FFT+FEC, and JUNA share one
+# Paper claims protected (reference papers/gab/joe.tex):
+#   sec:method                       OFDM+FEC, Partial-FFT+FEC, and JUNA share one
 #                                    transmitted frame and one public boundary; only
 #                                    receiver processing differs. Here: the OFDM+FEC,
 #                                    Partial-FFT, Lite, and Profiled C,z modulations
 #                                    satisfy the same public contract.
-#   acceptance rule (1928-1932,      Acceptance is payload-exact recovery. The
-#   tab:hyperparams line 2029)       noiseless loopback below applies exactly that
+#   tab:hyperparams                  Acceptance is payload-exact recovery. The
+#                                    noiseless loopback below applies exactly that
 #                                    rule: every payload bit recovered, bit for bit.
-#   eq:goodput (1934-1939)           payload_rate(128 bits) == 128*24000/1280 == 2400 bit/s.
-#   sec:solver (843)                 :lite runs JUNA-lite (ssec:junalite, 1522). The
+#   eq:goodput                       payload_rate(128 bits) == 128*24000/1280 == 2400 bit/s.
+#   sec:solver; ssec:junalite        :lite runs JUNA-lite. The
 #                                    internal :full and :coupled implementations supply
 #                                    the Profiled C,z closure and remain without separate
 #                                    public facades.
@@ -62,6 +62,74 @@ function assert_ldpc_tools_present()
         path = joinpath(ROOT, "tools", "ldpc", tool)
         @test isfile(path)
     end
+end
+
+function assert_ldpc_create_input_contract()
+    for (k, n) in ((0, 40), (40, 40), (41, 40), (-1, 40))
+        @test_throws ArgumentError JunaCore.LDPC.create(k, n, "1 evenboth 2")
+    end
+    @test_throws ArgumentError JunaCore.LDPC.create(true, 40, "1 evenboth 2")
+    @test_throws ArgumentError JunaCore.LDPC.create(20.0, 40, "1 evenboth 2")
+    @test_throws ArgumentError JunaCore.LDPC.create(20, 40, "1 evenboth")
+    @test_throws ArgumentError JunaCore.LDPC.create(20, 40, "1 unknown 2")
+    @test_throws ArgumentError JunaCore.LDPC.create(
+        20, 40, "1 evenboth 2 cycle")
+    @test_throws ArgumentError JunaCore.LDPC.create(
+        20, 40, "1 evenboth 2 unexpected")
+    @test_throws ArgumentError JunaCore.LDPC.create(
+        20, 40, "1 evenboth 2 no4cycle extra")
+end
+
+function assert_ofdm_fec_compatibility()
+    compact = (
+        nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+        partial_fft_parts=2, partial_fft_nbands=2,
+        pilot_ratio=1 / 3, inner_pilot_ratio=0.0,
+        refinement_steps=0,
+    )
+    canonical = Juna.OFDMFECModulation(; compact...)
+    legacy = Juna.StandardModulation(; compact...)
+    payload = Bool[isodd(i) for i in 1:17]
+    waveform = Modulations.modulate(canonical, payload, FC, FS)
+    canonical_metrics, _ = Modulations.demodulate(
+        canonical, length(payload), waveform, FC, FS)
+    legacy_metrics, _ = Modulations.demodulate(
+        legacy, length(payload), waveform, FC, FS)
+    @test legacy_metrics == canonical_metrics
+
+    canonical_methods = Juna.demodulate_methods(
+        canonical, length(payload), waveform, FC, FS)
+    legacy_methods = Juna.demodulate_methods(
+        legacy, length(payload), waveform, FC, FS)
+    @test canonical_methods.provenance === :ofdm_fec
+    @test legacy_methods.provenance === :standard
+    @test legacy_methods.ofdm_fec == canonical_methods.ofdm_fec
+    @test legacy_methods.standard === legacy_methods.ofdm_fec
+
+    code = Juna._code(canonical)
+    layout = Juna._layout(canonical, FS)
+    observations = Juna._branch_observations(canonical, waveform)
+    @test Juna._standard_candidate(canonical, code, layout, observations) ==
+          Juna._ofdm_fec_candidate(canonical, code, layout, observations)
+
+    frame_canonical = Juna.FrameWideLDPCModulation(
+        ; compact..., frame_receiver=:ofdm_fec)
+    frame_legacy = Juna.FrameWideLDPCModulation(
+        ; compact..., frame_receiver=:standard)
+    frame_payload = Bool[true, false, true]
+    frame_waveform = Modulations.modulate(
+        frame_canonical, frame_payload, FC, FS)
+    frame_canonical_metrics, _ = Modulations.demodulate(
+        frame_canonical, length(frame_payload), frame_waveform, FC, FS)
+    frame_legacy_metrics, _ = Modulations.demodulate(
+        frame_legacy, length(frame_payload), frame_waveform, FC, FS)
+    @test frame_legacy_metrics == frame_canonical_metrics
+    @test Juna._frame_receiver_profile(frame_canonical) === :ofdm_fec
+    @test Juna._frame_receiver_profile(frame_legacy) === :ofdm_fec
+    frame_methods = Juna.demodulate_methods(
+        frame_legacy, length(frame_payload), frame_waveform, FC, FS)
+    @test frame_methods.provenance === :frame_wide_ldpc
+    @test frame_methods.standard === frame_methods.ofdm_fec
 end
 
 # The Profiled C,z family is public. Its internal :full and :coupled
@@ -120,9 +188,9 @@ end
 
 # :pilot_band_ls is the ONLY objective the Partial-FFT baseline solves: the
 # pilot-trained per-band ridge LS of eq:pfft-ls. Executable contract: the
-# fitted branch weights must satisfy the ridge normal equations against an
-# INDEPENDENT recomputation, and the resulting seed candidate must decode a
-# clean block payload-exactly.
+# fitted combiner weights must satisfy the ridge normal equations against an
+# INDEPENDENT recomputation, and the resulting initial candidate must decode a
+# clean OFDM-symbol payload exactly.
 function assert_pilot_band_ls_objective_contract(m)
     @test Juna.receiver_profile(m) === :pfft
     @test isvalid(m, FC, FS)
@@ -157,9 +225,10 @@ function assert_pilot_band_ls_objective_contract(m)
     residual = gram * weights - rhs
     @test maximum(abs, residual) < 1e-8 * max(maximum(abs, rhs), 1.0)
 
-    seed = Juna._seed_candidate(m, code, layout, yparts)
-    @test seed.valid
-    @test Juna._payload_from_metrics(m, code, seed.lpost_metric) == bits
+    initial_candidate = Juna._initial_candidate(m, code, layout, yparts)
+    @test initial_candidate.valid
+    @test Juna._payload_from_metrics(
+        m, code, initial_candidate.lpost_metric) == bits
 end
 
 # The declared-refinement dispatch table covers every reader-selectable
@@ -244,16 +313,24 @@ end
         assert_ldpc_tools_present()
     end
 
+    @testset "LDPC.create rejects invalid dimensions and option strings" begin
+        assert_ldpc_create_input_contract()
+    end
+
     @testset "Receiver mode names map to their expected profiles" begin
         assert_receiver_profiles()
     end
 
-    @testset "shared receiver catalog covers every public runtime mode" begin
+    @testset "OFDM+FEC canonical and compatibility names give the same result" begin
+        assert_ofdm_fec_compatibility()
+    end
+
+    @testset "shared receiver catalog covers the four reader-selectable families" begin
         assert_public_receiver_catalog()
         # FrameRLS remains outside this package's public facade set.
     end
 
-    @testset "declared refinement capability matches an executable objective" begin
+    @testset "declared refinement identifies the required implementation" begin
         providers = (
             ("unrelated interface implementation", InterfaceOnlyModulation()),
             ("OFDM+FEC baseline", Juna.OFDMFECModulation()),
@@ -280,6 +357,7 @@ end
     end
 
     @testset "The default receiver is JUNA-Lite" begin
+        @test Juna.receiver_profile(Juna.Modulation()) === :lite
         assert_modulation_contract(Juna.Modulation())
     end
 

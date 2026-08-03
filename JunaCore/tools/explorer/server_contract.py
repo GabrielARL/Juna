@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Behavior contract for the JUNA-Lite explorer server.
+"""Behavior contract for the JunaCore explorer server.
 
 Run:  python3 tools/explorer/server_contract.py       (exit 0 = holds)
 
@@ -26,8 +26,9 @@ S8  every JSON API (/api/repository, /api/suites, /api/chain,
 S9  /api/symbol/<known-name> resolves with sig/file/line, resolved
     calls/callers, chain_stages, and the five-key evidence block;
     /api/symbol/no-such-symbol-xyz 404s.
-S10 /health renders every fixed allowlist check row; POST /api/health/run
-    with an unknown check name is rejected 400 (never executed).
+S10 /health renders every fixed allowlist check row, uses the stream cursor,
+    stored status values, epoch timestamp units, and current contract label;
+    POST /api/health/run with an unknown check name is rejected 400.
 S11 the dirty-state banner appears on pages exactly when the scoped
     package tree is dirty (consistency with independently computed
     `git status --porcelain -- .`).
@@ -65,7 +66,8 @@ S21 Map uses the approved Package files heading, plain section summaries, and
     four collapsed Technical details sections while retaining the exact package
     paths and program names inside those details.
 S22 Results resolves an explicit experiment ID, preserves query-routed views,
-    serves that experiment's completeness manifest, and rejects unsafe IDs.
+    serves that experiment's completeness manifest, rejects unsafe IDs,
+    isolates rendered experiment HTML, and protects mutation endpoints.
 S23 OFDM+FEC is the canonical Explorer receiver, while the legacy
     receiver=standard query resolves to that canonical receiver.
 S24 Source promotes the rich three-pane analyzer to /source, retains the
@@ -78,6 +80,7 @@ S25 a full source rescan discovers a newly added .jl file without restarting
 """
 import json
 import os
+import re as _re
 import shutil
 import subprocess
 import sys
@@ -105,16 +108,29 @@ HEALTH_CHECKS = ["source-file-check", "explorer-data", "server-behavior",
                  "package-load", "pkg-test", "fixed-results"]
 
 
-def fetch(base, path, method="GET", body=None):
+def fetch(base, path, method="GET", body=None, headers=None):
+    request_headers = dict(headers) if headers is not None else {}
+    if body is not None:
+        request_headers.setdefault("Content-Type", "application/json")
+    if method == "POST" and headers is None:
+        request_headers["Origin"] = base
     req = urllib.request.Request(base + path, method=method,
-                                 data=body.encode() if body else None,
-                                 headers={"Content-Type": "application/json"}
-                                 if body else {})
+                                 data=body.encode() if body is not None else None,
+                                 headers=request_headers)
     try:
         with urllib.request.urlopen(req) as resp:
             return resp.status, resp.read().decode()
     except urllib.error.HTTPError as err:
         return err.code, err.read().decode()
+
+
+def fetch_with_headers(base, path):
+    req = urllib.request.Request(base + path)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return resp.status, resp.read().decode(), dict(resp.headers.items())
+    except urllib.error.HTTPError as err:
+        return err.code, err.read().decode(), dict(err.headers.items())
 
 def browser_dom(base, path):
     chrome = next((candidate for candidate in
@@ -131,22 +147,51 @@ def browser_dom(base, path):
 
 
 def check():
-    experiments = os.path.join(ROOT, "experiments")
-    os.makedirs(experiments, exist_ok=True)
-    fixture = tempfile.mkdtemp(prefix="server-contract-", dir=experiments)
-    fixture_id = os.path.basename(fixture)
+    temporary = tempfile.TemporaryDirectory(prefix="juna-explorer-contract-")
+    fixture_id = "results-fixture"
+    fixture = os.path.join(temporary.name, fixture_id)
     fixture_results = os.path.join(fixture, "results")
-    os.makedirs(fixture_results)
+    os.makedirs(fixture_results, exist_ok=True)
     with open(os.path.join(fixture_results, "results_view.html"), "w") as fh:
-        fh.write('<!doctype html><div data-results-view="fixture">fixture</div>')
+        fh.write('<!doctype html><body data-results-view="fixture">fixture'
+                 '<script>document.body.dataset.scriptRan="yes"</script>'
+                 '</body>')
     with open(os.path.join(fixture_results, "results_manifest.json"), "w") as fh:
         json.dump({"schema_version": 1, "experiment_id": fixture_id,
                    "row_count": 2, "columns": ["channel", "lane"]}, fh)
 
+    source_root = os.path.join(temporary.name, "src")
+    shutil.copytree(os.path.join(ROOT, "src"), source_root)
+    original_experiments = getattr(server, "EXPERIMENTS_ROOT", None)
+    original_analyze_cache = server.ANALYZE_CACHE
+    server.EXPERIMENTS_ROOT = temporary.name
+    server.ANALYZE_CACHE = server._Cache(
+        lambda: analyze(source_root),
+        lambda: sorted(
+            os.path.join(base, filename)
+            for base, _dirs, files in os.walk(source_root)
+            for filename in files if filename.endswith(".jl")))
+
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
     port = httpd.server_address[1]
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
     base = f"http://127.0.0.1:{port}"
+    try:
+        return _check_running_server(base, fixture_id, source_root)
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=5)
+        server.ANALYZE_CACHE = original_analyze_cache
+        if original_experiments is None:
+            del server.EXPERIMENTS_ROOT
+        else:
+            server.EXPERIMENTS_ROOT = original_experiments
+        temporary.cleanup()
+
+
+def _check_running_server(base, fixture_id, source_root):
     problems = []
 
     with open(os.path.join(HERE, "suites.json")) as fh:
@@ -166,6 +211,20 @@ def check():
         for label in NAV_LABELS:
             if f">{label}</a>" not in text:
                 problems.append(f"S1: {path} lost nav label '{label}'")
+        if "JunaCore explorer</title>" not in text:
+            problems.append(f"S1: {path} browser title is not JunaCore explorer")
+    home_page = pages.get("/", "")
+    if "<h1>JunaCore explorer</h1>" not in home_page:
+        problems.append("S1: Home heading is not JunaCore explorer")
+    home_primary = _re.sub(r"<details\b[^>]*>.*?</details>", "", home_page,
+                           flags=_re.S)
+    if server.git_state()["head"] not in home_primary:
+        problems.append("S1: Home primary copy omits the current Juna commit")
+    if "Sonique" in home_primary or "sonique" in home_primary:
+        problems.append("S1: Sonique attribution escaped Technical details")
+    if not _re.search(r"<details\b[^>]*>.*?[Ss]onique.*?</details>",
+                      home_page, flags=_re.S):
+        problems.append("S1: Home Technical details omit Sonique attribution")
 
     # S2
     cov = pages.get("/coverage", "")
@@ -190,7 +249,6 @@ def check():
             if not s.get(field):
                 problems.append(
                     f"S4: suite '{s['key']}' has no {field} explanation")
-    import re as _re
     normalized_tests_page = " ".join(tests_page.split())
     for marker in (
             "This page lists the tests included with JUNA-Lite.",
@@ -387,6 +445,19 @@ def check():
     code, _ = fetch(base, "/api/symbol/no-such-symbol-xyz")
     if code != 404:
         problems.append(f"S9: unknown symbol returned {code}, expected 404")
+    code, symbols_text = fetch(base, "/api/symbols")
+    symbol_rows = (json.loads(symbols_text).get("data", [])
+                   if code == 200 else [])
+    modulation_ids = [str(symbol["id"]) for symbol in symbol_rows
+                      if symbol.get("name") == "Modulation"]
+    if len(modulation_ids) < 2:
+        problems.append("S9: stable-overload fixture found fewer than two "
+                        "Modulation definitions")
+    for symbol_id in modulation_ids:
+        code, detail_text = fetch(base, "/api/symbol/" + symbol_id)
+        if code != 200 or str(json.loads(detail_text).get("data", {}).get("id")) != symbol_id:
+            problems.append(
+                f"S9: stable symbol ID {symbol_id} did not resolve exactly")
 
     # S10
     health_page = pages.get("/health", "")
@@ -398,6 +469,20 @@ def check():
     if code != 400:
         problems.append(f"S10: unknown health check returned {code}, "
                         "expected 400")
+    health_js = open(os.path.join(HERE, "static", "health.js"),
+                     encoding="utf-8").read()
+    for marker, meaning in (
+            ("logLength = data.seen", "server stream cursor"),
+            ('status === "PASSED"', "stored passed status"),
+            ('status === "FAILED"', "stored failed status"),
+            ("Number(ended) * 1000", "epoch-seconds timestamp")):
+        if marker not in health_js:
+            problems.append(f"S10: Health client lost {meaning} marker "
+                            f"'{marker}'")
+    if "Explorer server S1-S25" not in health_page:
+        problems.append("S10: /health contract label is not S1-S25")
+    if "Explorer server S1-S21" in health_page:
+        problems.append("S10: /health retains stale S1-S21 label")
 
     # S11
     banner = "UNCOMMITTED PACKAGE STATE"
@@ -454,6 +539,27 @@ def check():
         if condition and condition not in chain_page:
             problems.append(
                 f"S14: /chain lost edge condition '{condition}'")
+    chain_dom, chain_error = browser_dom(base, "/chain?receiver=lite")
+    if chain_dom is None:
+        problems.append(f"S14: keyboard stage controls not checked: "
+                        f"{chain_error}")
+    else:
+        button_ids = _re.findall(
+            r'<button[^>]*class="stage"[^>]*data-stage="([a-z0-9-]+)"',
+            chain_dom)
+        button_count = len(button_ids)
+        lite = next((receiver for receiver in receivers
+                     if receiver["id"] == "lite"), None)
+        declared_lite = next((receiver for receiver in chain["receivers"]
+                              if receiver["id"] == "lite"), None)
+        expected_buttons = (
+            len(lite.get("chain_path", [])) +
+            len(declared_lite.get("optional_stages", []))
+            if lite and declared_lite else 0)
+        if button_count != expected_buttons:
+            problems.append(
+                f"S14: Lite chain has {button_count} native stage buttons; "
+                f"expected {expected_buttons}")
 
     # S15
     graph_code, graph_page = fetch(base, "/source/graph?receiver=lite")
@@ -463,7 +569,7 @@ def check():
                  'data-source-mode="graph"', 'id="source-context"'):
         if text not in graph_page:
             problems.append(f"S15: graph mode lost '{text}'")
-    for query in ("receiver=lite", "stage=seed", "suite=pfft",
+    for query in ("receiver=lite", "stage=initial-candidate", "suite=pfft",
                   "file=juna%2Flite.jl"):
         code, text = fetch(base, "/api/graph?" + query)
         if code != 200:
@@ -513,6 +619,16 @@ def check():
         if marker not in source_js:
             problems.append(
                 f"S15: Source facade link lost Profiled C,z mapping {facade}")
+    if modulation_ids:
+        code, identity_graph_text = fetch(
+            base, "/api/graph?symbol_id=" + modulation_ids[0])
+        identity_graph = (json.loads(identity_graph_text).get("data", {})
+                          if code == 200 else {})
+        if not any(context.get("kind") == "symbol" and
+                   str(context.get("value")) == modulation_ids[0]
+                   for context in identity_graph.get("context", [])):
+            problems.append(
+                "S15: graph symbol_id did not preserve exact source identity")
 
     # S16
     for path, label in (
@@ -567,7 +683,7 @@ def check():
             "S18: Profiled C,z graph differs from its declared stage DAG")
 
     code, text = fetch(
-        base, "/api/graph?receiver=lite&stage=seed&view=symbols")
+        base, "/api/graph?receiver=lite&stage=initial-candidate&view=symbols")
     symbol_graph = json.loads(text).get("data", {}) if code == 200 else {}
     if symbol_graph.get("view") != "symbols":
         problems.append("S18: stage drill-down did not enter symbol view")
@@ -581,7 +697,7 @@ def check():
         problems.append("S18: overloads were not grouped in symbol view")
 
     code, text = fetch(
-        base, "/api/graph?receiver=lite&stage=seed&view=all")
+        base, "/api/graph?receiver=lite&stage=initial-candidate&view=all")
     all_graph = json.loads(text).get("data", {}) if code == 200 else {}
     if all_graph.get("view") != "all":
         problems.append("S18: show-all graph did not report all mode")
@@ -626,10 +742,16 @@ def check():
             if server.esc(marker) not in primary and marker not in primary:
                 problems.append(
                     f"S19: /run/{suite['key']} lost primary marker '{marker}'")
+        primary_without_reader_copy = primary
+        for reader_field in ("reader_title", "reader_summary"):
+            reader_copy = suite.get(reader_field, "")
+            if reader_copy:
+                primary_without_reader_copy = primary_without_reader_copy.replace(
+                    server.esc(reader_copy), "").replace(reader_copy, "")
         for hidden in (suite["title"], suite["claim"], suite["origin"],
                        f"julia --project=. test/{suite['file']}",
                        '<pre id="out"'):
-            if hidden and hidden != suite["reader_title"] and hidden in primary:
+            if hidden and hidden in primary_without_reader_copy:
                 problems.append(
                     f"S19: /run/{suite['key']} exposes technical content "
                     f"outside details: '{hidden}'")
@@ -643,7 +765,7 @@ def check():
                     f"S19: /run/{suite['key']} details lost '{marker}'")
         expected_title = (
             f"<title>{server.esc(suite['reader_title'])} · "
-            "JUNA-Lite explorer</title>")
+            "JunaCore explorer</title>")
         if expected_title not in run_page:
             problems.append(
                 f"S19: /run/{suite['key']} browser title is not reader-facing")
@@ -653,7 +775,16 @@ def check():
                 problems.append(
                     f"S19: /run/{suite['key']} lost runner behavior '{marker}'")
 
-    # S20 approved JNR-001 through JNR-006 reader vocabulary
+    end_to_end = next((suite for suite in suites
+                       if suite["key"] == "profiled-cz-end-to-end"), None)
+    expected_impairment_summary = (
+        "The fixed impairment produces more errors at lower SNR.")
+    if end_to_end is None or expected_impairment_summary not in \
+            end_to_end.get("reader_summary", ""):
+        problems.append(
+            "S19: profiled-cz-end-to-end reader summary differs from CX-015")
+
+    # S20 contract-pinned reader vocabulary
     code, map_page = fetch(base, "/map")
     if code != 200:
         problems.append(f"S20: /map returned {code}")
@@ -760,18 +891,26 @@ def check():
                    'symbol: "code name"'):
         if marker not in palette_js:
             problems.append(f"S20: palette lost approved wording '{marker}'")
+    for marker in ('setAttribute("role", "listbox")',
+                   'setAttribute("role", "option")',
+                   'setAttribute("aria-selected"',
+                   'setAttribute("aria-activedescendant"',
+                   "previousFocus", "previousFocus.focus()"):
+        if marker not in palette_js:
+            problems.append(
+                f"S20: palette lost keyboard/listbox behavior '{marker}'")
 
     code, original_page = fetch(base, "/source-advanced")
     if code != 200:
         problems.append(f"S20: /source-advanced returned {code}")
-    for marker in ("JunaCore source definition explorer",
+    for marker in ("JunaCore explorer",
                    "JunaCore source definitions",
                    "Source definition not found", "Code name"):
         if marker not in original_page:
             problems.append(
                 f"S20: original analyzer lost approved wording '{marker}'")
 
-    # S21 approved JNR-007 through JNR-015 Map structure and wording
+    # S21 contract-pinned Map structure and wording
     primary_map = _re.sub(
         r'<details\b[^>]*class="suite-details map-details"[^>]*>.*?</details>',
         "", map_page, flags=_re.S)
@@ -851,9 +990,32 @@ def check():
         problems.append("S22: /results did not retain the explicit experiment ID")
     if "Unregistered experiment output" in results_index:
         problems.append("S22: /results retained the removed experiment banner")
-    code, results_view = fetch(base, "/results/view?" + stable_query)
+    iframe_match = _re.search(r'<iframe\b([^>]*)>', results_index)
+    iframe_attributes = iframe_match.group(1) if iframe_match else ""
+    if 'sandbox="allow-scripts"' not in iframe_attributes:
+        problems.append("S22: Results iframe is not sandboxed with scripts")
+    for unsafe_permission in ("allow-same-origin", "allow-forms",
+                              "allow-top-navigation"):
+        if unsafe_permission in iframe_attributes:
+            problems.append(
+                f"S22: Results iframe grants unsafe '{unsafe_permission}'")
+    code, results_view, result_headers = fetch_with_headers(
+        base, "/results/view?" + stable_query)
     if code != 200 or 'data-results-view="fixture"' not in results_view:
         problems.append("S22: stable results view did not serve the requested experiment")
+    csp = next((value for key, value in result_headers.items()
+                if key.casefold() == "content-security-policy"), "")
+    if csp != "sandbox allow-scripts":
+        problems.append(
+            f"S22: direct Results view CSP is {csp!r}, expected "
+            "'sandbox allow-scripts'")
+    result_dom, result_error = browser_dom(
+        base, "/results/view?" + stable_query)
+    if result_dom is None:
+        problems.append(f"S22: Results script preservation not checked: "
+                        f"{result_error}")
+    elif 'data-script-ran="yes"' not in result_dom:
+        problems.append("S22: sandboxed Results view did not preserve scripts")
     code, manifest_text = fetch(
         base, "/results/manifest?experiment=" + fixture_id)
     if code != 200:
@@ -865,6 +1027,38 @@ def check():
     code, _ = fetch(base, "/results/view?experiment=..%2Foutside")
     if code != 404:
         problems.append(f"S22: unsafe experiment ID returned {code}, expected 404")
+    mutation_body = '{"check":"no-such-contract-check"}'
+    for label, headers in (
+            ("missing Origin", {"Content-Type": "application/json"}),
+            ("foreign Origin", {"Content-Type": "application/json",
+                                "Origin": "https://attacker.invalid"}),
+            ("null Origin", {"Content-Type": "application/json",
+                             "Origin": "null"})):
+        code, _ = fetch(base, "/api/health/run", method="POST",
+                        body=mutation_body, headers=headers)
+        if code != 403:
+            problems.append(f"S22: mutation with {label} returned {code}, "
+                            "expected 403")
+    code, _ = fetch(
+        base, "/api/health/run", method="POST", body=mutation_body,
+        headers={"Content-Type": "text/plain", "Origin": base})
+    if code != 415:
+        problems.append(
+            f"S22: non-JSON same-origin mutation returned {code}, expected 415")
+    code, _ = fetch(
+        base, "/api/health/run", method="POST", body=mutation_body,
+        headers={"Content-Type": "application/json", "Origin": base})
+    if code != 400:
+        problems.append(
+            f"S22: valid same-origin JSON did not reach normal validation: {code}")
+    code, _ = fetch(
+        base, "/run/no-such-suite/start", method="POST", body="{}",
+        headers={"Content-Type": "application/json",
+                 "Origin": "https://attacker.invalid"})
+    if code != 403:
+        problems.append(
+            f"S22: suite mutation with foreign Origin returned {code}, "
+            "expected 403")
 
     # S23
     code, receiver_text = fetch(base, "/api/receivers")
@@ -888,6 +1082,22 @@ def check():
                for context in alias_context):
         problems.append(
             "S23: receiver=standard did not resolve to canonical OFDM+FEC")
+    code, stage_alias_text = fetch(base, "/api/graph?stage=standard")
+    stage_alias_data = (json.loads(stage_alias_text).get("data", {})
+                        if code == 200 else {})
+    if not any(context.get("kind") == "stage" and
+               context.get("value") == "ofdm_fec"
+               for context in stage_alias_data.get("context", [])):
+        problems.append(
+            "S23: stage=standard did not resolve to canonical ofdm_fec")
+    chain_alias_dom, chain_alias_error = browser_dom(base, "/chain#standard")
+    if chain_alias_dom is None:
+        problems.append(
+            f"S23: /chain#standard alias not checked: {chain_alias_error}")
+    elif ('<h2>One-tap pilot-interpolated equalization + FEC</h2>' not in
+          chain_alias_dom):
+        problems.append(
+            "S23: /chain#standard did not open the OFDM+FEC stage")
     profiled_cz = next((receiver for receiver in receiver_data
                         if receiver.get("id") == "profiled_cz"), None)
     expected_profiled_cz = {
@@ -957,6 +1167,24 @@ def check():
     if "/source/inspector#sym=" not in src_page:
         problems.append(
             "S24: primary Source evidence link misses the Inspector")
+    inspector_links = _re.findall(
+        r'<a class="symlink"[^>]*data-id="([^"]+)"[^>]*href="#sym=([^"&]+)"',
+        inspector_page)
+    if not inspector_links or any(symbol_id != href_id
+                                  for symbol_id, href_id in inspector_links):
+        problems.append(
+            "S24: Inspector list links are not exact stable symbol IDs")
+    code, palette_text = fetch(base, "/api/palette")
+    palette_data = (json.loads(palette_text).get("data", [])
+                    if code == 200 else [])
+    palette_symbols = [item for item in palette_data
+                       if item.get("kind") == "symbol"]
+    if not palette_symbols or any(
+            "symbol_id" not in item or
+            item.get("href") != f'/source/inspector#sym={item["symbol_id"]}'
+            for item in palette_symbols):
+        problems.append(
+            "S24: palette source-definition links do not use stable IDs")
 
     rich_dom, rich_error = browser_dom(base, "/source#sym=_juna_step")
     if rich_dom is None:
@@ -970,7 +1198,10 @@ def check():
 
     inspector_dom, inspector_error = browser_dom(
         base, "/source/inspector#sym=Juna.Modulation")
-    expected_source_link = 'href="/source#sym=Modulation&amp;module=Juna"'
+    expected_source_link = (
+        'href="/source#sym=Modulation&amp;module=Juna&amp;file=' +
+        urllib.parse.quote(detail.get("file", ""), safe="") +
+        '&amp;line=' + str(detail.get("line", "")) + '"')
     if inspector_dom is None:
         problems.append(
             f"S24: Inspector Source link not checked: {inspector_error}")
@@ -994,6 +1225,26 @@ def check():
         HERE, "source_symbol_explorer.py")
     with open(source_explorer_path, encoding="utf-8") as source_handle:
         source_explorer_text = source_handle.read()
+    get_handler = source_explorer_text.split(
+        "def do_GET(self):", 1)[1].split("def do_POST(self):", 1)[0] \
+        if "def do_POST(self):" in source_explorer_text else source_explorer_text
+    if ('u.path == "/api/scan"' in get_handler or
+            'u.path == "/api/restart"' in get_handler):
+        problems.append(
+            "S24: standalone analyzer retains mutation routes under GET")
+    for marker in ("def do_POST(self):", 'u.path == "/api/scan"',
+                   'u.path == "/api/restart"', "mutation_token",
+                   'headers.get("Origin")'):
+        if marker not in source_explorer_text:
+            problems.append(
+                f"S24: standalone mutation protection lost '{marker}'")
+    if "current source tree" not in source_explorer_text:
+        problems.append(
+            "S24: standalone analyzer does not say current source tree")
+    if "pinned source tree" in source_explorer_text or \
+            "pinned project" in source_explorer_text:
+        problems.append(
+            "S24: standalone analyzer retains pinned-tree wording")
     pipeline_text = source_explorer_text.split(
         "const PIPELINE=[", 1)[1].split("const MODPRI=", 1)[0]
     pipeline_functions = {
@@ -1068,7 +1319,7 @@ def check():
     if any(symbol.get("name") == probe_name for symbol in before):
         problems.append("S25: source-rescan probe name already exists")
     probe_path = os.path.join(
-        ROOT, "src", "juna", "server_contract_rescan_probe.jl")
+        source_root, "juna", "server_contract_rescan_probe.jl")
     try:
         with open(probe_path, "w") as fh:
             fh.write(f"function {probe_name}()\n  nothing\nend\n")
@@ -1082,8 +1333,6 @@ def check():
         if os.path.exists(probe_path):
             os.unlink(probe_path)
 
-    httpd.shutdown()
-    shutil.rmtree(fixture, ignore_errors=True)
     return problems
 
 

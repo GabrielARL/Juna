@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 #
-# JUNA-WCz Step 9: turn the bounded C/W/z solution into an LDPC candidate and
+# Turn the bounded C/W/z solution into an LDPC candidate and
 # expose it through the same public Modulations boundary as Lite and Full.
 #
 # Run alone: julia --project=. test/juna_coupled_candidate.jl
@@ -24,18 +24,19 @@ function coupled_candidate_fixture()
     codeword = CoupledCandidateJuna._encode(code, message)
     waveform = CoupledCandidateJuna._modulate_block(m, layout, codeword)
     yparts = CoupledCandidateJuna._branch_observations(m, waveform)
-    seed = CoupledCandidateJuna._seed_candidate(m, code, layout, yparts)
-    (; m, code, layout, payload, yparts, seed)
+    initial_candidate = CoupledCandidateJuna._initial_candidate(
+        m, code, layout, yparts)
+    (; m, code, layout, payload, yparts, initial_candidate)
 end
 
-@testset verbose = true "Profiled C,z" begin
+@testset verbose = true "C,W,z candidate selection" begin
     @testset "optimized state becomes a finite decoder candidate" begin
         f = coupled_candidate_fixture()
         problem = CoupledCandidateJuna._coupled_problem_from_receiver(
             f.m, f.code, f.layout, f.yparts,
         )
         initial = CoupledCandidateJuna._initial_coupled_state(
-            f.m, f.code, f.layout, problem, f.seed,
+            f.m, f.code, f.layout, problem, f.initial_candidate,
         )
         solved = CoupledCandidateJuna._coupled_wcz_solve(
             problem, initial;
@@ -55,19 +56,23 @@ end
         ) == f.payload
     end
 
-    @testset "coupled candidate selection cannot regress the seed" begin
+    @testset "coupled candidate selection cannot regress the initial candidate" begin
         f = coupled_candidate_fixture()
         config = CoupledCandidateJuna._CoupledOptimizerConfig(steps = 2)
         direct = CoupledCandidateJuna._coupled_candidate(
-            f.m, f.code, f.layout, f.yparts, f.seed; config = config,
+            f.m, f.code, f.layout, f.yparts, f.initial_candidate;
+            config = config,
         )
         selected = CoupledCandidateJuna._juna_wcz_candidate(
-            f.m, f.code, f.layout, f.yparts, f.seed; config = config,
+            f.m, f.code, f.layout, f.yparts, f.initial_candidate;
+            config = config,
         )
 
         @test all(isfinite, direct.lpost_metric)
-        @test !CoupledCandidateJuna._juna_better(f.seed, f.seed)
-        @test !CoupledCandidateJuna._juna_better(selected, f.seed)
+        @test !CoupledCandidateJuna._juna_better(
+            f.initial_candidate, f.initial_candidate)
+        @test !CoupledCandidateJuna._juna_better(
+            selected, f.initial_candidate)
         @test CoupledCandidateJuna._payload_from_metrics(
             f.m, f.code, selected.lpost_metric,
         ) == f.payload

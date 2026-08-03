@@ -58,7 +58,7 @@ Base.isvalid
     bitspersymbol(m::Modulation)
 
 Get the length in bits of a modulation symbol or block. For OFDM systems, this is
-the number of information bits that are carried in a single OFDM block. For a single
+the number of information bits that are carried in a single OFDM symbol. For a single
 carrier QPSK system, bitspersymbol is 2, as every QPSK symbol carries 2 bits.
 """
 function bitspersymbol end
@@ -107,7 +107,7 @@ refinement_objective(::Modulation) = :none
 Effective payload bit rate in bits/second for transmitting `nbits` information bits:
 `nbits * fs / signallength(m, nbits, fc, fs)`. Since `signallength` already includes
 every overhead (cyclic prefix, pilots, FEC parity, and any sync preamble/postamble),
-this is the *useful* throughput at baseband rate `fs` — always ≤ `fs`.
+this is the *useful* throughput at baseband rate `fs`.
 """
 payload_rate(m::Modulation, nbits, fc, fs) = nbits * fs / signallength(m, nbits, fc, fs)
 
