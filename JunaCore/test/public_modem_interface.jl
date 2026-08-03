@@ -87,8 +87,8 @@ function direct_frame_paths(m, waveform, nbits::Integer)
     _, code, layout, blocks, observations, _ =
         PublicInterfaceJuna._prepare_frame_observations(
             m, nbits, waveform, PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
-    standard = PublicInterfaceJuna._frame_static_trace(
-        m, code, layout, observations, :standard).best
+    ofdm_fec = PublicInterfaceJuna._frame_static_trace(
+        m, code, layout, observations, :ofdm_fec).best
     partial = PublicInterfaceJuna._frame_static_trace(
         m, code, layout, observations, :pfft).best
     juna = PublicInterfaceJuna._frame_receiver_trace(
@@ -96,9 +96,10 @@ function direct_frame_paths(m, waveform, nbits::Integer)
     payload(candidate) = PublicInterfaceJuna._frame_payload_metrics(
         m, code, candidate.lpost_metric, blocks, nbits)
     (
-        standard=payload(standard),
+        ofdm_fec=payload(ofdm_fec),
         partial=payload(partial),
         juna=payload(juna),
+        standard=payload(ofdm_fec),
     )
 end
 
@@ -232,7 +233,7 @@ end
             tx, payload, PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
 
         # Four different gains within one OFDM symbol create the regime where
-        # the partial-FFT combiner is supposed to differ from one standard FFT.
+        # the partial-FFT combiner is supposed to differ from one OFDM+FEC FFT.
         distorted = copy(waveform)
         gains = ComplexF64[1.45 - 0.35im, 0.62 + 0.75im,
                            -0.35 + 1.2im, 1.05 + 0.18im]
@@ -254,15 +255,16 @@ end
                 paths = PublicInterfaceJuna.demodulate_methods(
                     compared, length(payload), tested_waveform,
                     PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
-                @test keys(paths) == (:standard, :partial, :juna, :provenance)
+                @test keys(paths) == (:ofdm_fec, :partial, :juna, :provenance, :standard)
                 @test paths.provenance === descriptor.profile
-                for metrics in (paths.standard, paths.partial, paths.juna)
+                @test paths.standard === paths.ofdm_fec
+                for metrics in (paths.ofdm_fec, paths.partial, paths.juna)
                     @test metrics isa Vector{Float64}
                     @test length(metrics) == length(payload)
                     @test all(isfinite, metrics)
                     @test (metrics .> 0) == payload
                 end
-                @test paths.standard !== paths.partial
+                @test paths.ofdm_fec !== paths.partial
                 @test paths.partial !== paths.juna
 
                 public_metrics, _ = PublicInterfaceModulations.demodulate(
@@ -304,36 +306,39 @@ end
                         compared, PUBLIC_INTERFACE_FS)
                     yparts = PublicInterfaceJuna._branch_observations(
                         compared, tested_distorted)
-                    standard_candidate = PublicInterfaceJuna._standard_candidate(
+                    ofdm_fec_candidate = PublicInterfaceJuna._ofdm_fec_candidate(
                         compared, code, layout, yparts)
                     partial_candidate = PublicInterfaceJuna._seed_candidate(
                         compared, code, layout, yparts)
                     juna_candidate = PublicInterfaceJuna._juna_candidate(
                         compared, code, layout, yparts, partial_candidate)
                     (
-                        standard=direct_payload_metrics(
-                            compared, code, standard_candidate, length(payload)),
+                        ofdm_fec=direct_payload_metrics(
+                            compared, code, ofdm_fec_candidate, length(payload)),
                         partial=direct_payload_metrics(
                             compared, code, partial_candidate, length(payload)),
                         juna=direct_payload_metrics(
                             compared, code, juna_candidate, length(payload)),
+                        standard=direct_payload_metrics(
+                            compared, code, ofdm_fec_candidate, length(payload)),
                     )
                 end
 
-                @test distorted_paths.standard == direct_paths.standard
+                @test distorted_paths.ofdm_fec == direct_paths.ofdm_fec
+                @test distorted_paths.standard == distorted_paths.ofdm_fec
                 @test distorted_paths.partial == direct_paths.partial
                 @test distorted_paths.juna == direct_paths.juna
-                @test count((distorted_paths.standard .> 0) .!= payload) > 0
+                @test count((distorted_paths.ofdm_fec .> 0) .!= payload) > 0
                 @test (distorted_paths.partial .> 0) == payload
-                if descriptor.profile === :standard
-                    # The standard baseline's own column IS the one-tap
+                if descriptor.profile === :ofdm_fec
+                    # The OFDM+FEC baseline's own column IS the one-tap
                     # branch: it must inherit that branch's failure here,
                     # not be rescued by another receiver's refinement.
-                    @test distorted_paths.juna == distorted_paths.standard
+                    @test distorted_paths.juna == distorted_paths.ofdm_fec
                 else
                     @test (distorted_paths.juna .> 0) == payload
                 end
-                @test distorted_paths.standard != distorted_paths.partial
+                @test distorted_paths.ofdm_fec != distorted_paths.partial
             end
         end
     end
@@ -342,7 +347,7 @@ end
         # requires_bpsk/requires_shifted_band gating was removed. The earlier
         # rejection branch covered receivers like FullyCoupled/TurboMAP that
         # lacked BPSK or shifted-band support. All three migrated receivers
-        # (Standard, Partial-FFT, Lite) support both, so every configuration
+        # (OFDM+FEC, Partial-FFT, Lite) support both, so every configuration
         # below is valid for every descriptor and the rejection branch would
         # never fire; scope narrowed to the migrated facades.
         configurations = (
@@ -418,13 +423,13 @@ end
                     m, length(payload), waveform,
                     PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
 
-                @test (paths.standard .> 0) == payload
+                @test (paths.ofdm_fec .> 0) == payload
                 @test (paths.juna .> 0) == payload
                 if descriptor.profile === :pfft
                     # The pure partial combiner is exactly the weak front
                     # end this pilot geometry exposes: its public failure
                     # here is WHY every refined receiver must select the
-                    # stronger standard seed above. No fallback may hide it.
+                    # stronger OFDM+FEC seed above. No fallback may hide it.
                     @test metrics == paths.partial
                     @test count((metrics .> 0) .!= payload) > 0
                 else

@@ -1,0 +1,556 @@
+{
+ "paths": [
+  {
+   "label": "red1 lane 1",
+   "channel": "red1",
+   "winner": {
+    "algorithm_id": "standard",
+    "nfft": 512,
+    "cp": 16,
+    "code_rate": 0.5,
+    "outer_spacing": 3,
+    "inner_spacing": 4,
+    "check_degree": 10,
+    "horizon": 0,
+    "mean_effective_rate_bps": 1922.8668941979522,
+    "min_effective_rate_bps": 1880.136518771331,
+    "mean_psr": 0.75,
+    "ber": 0.004452875399361023
+   },
+   "others": [
+    {
+     "algorithm_id": "lite",
+     "mean_effective_rate_bps": 1833.203125,
+     "mean_psr": 0.6499999999999999,
+     "ber": 0.001793628808864266
+    },
+    {
+     "algorithm_id": "adaptive_lite",
+     "mean_effective_rate_bps": 1922.8668941979522,
+     "mean_psr": 0.75,
+     "ber": 0.004452875399361023
+    }
+   ],
+   "pfft": {
+    "algorithm_id": "pfft",
+    "nfft": 2048,
+    "cp": 32,
+    "code_rate": 0.25,
+    "outer_spacing": 3,
+    "inner_spacing": 10,
+    "check_degree": 10,
+    "horizon": 4,
+    "mean_effective_rate_bps": 1143.9175257731958,
+    "min_effective_rate_bps": 1096.9072164948454,
+    "mean_psr": 0.6083333333333334,
+    "ber": 0.0003769188596491228
+   }
+  },
+  {
+   "label": "red1 lane 2",
+   "channel": "red1",
+   "winner": {
+    "algorithm_id": "lite",
+    "nfft": 2048,
+    "cp": 64,
+    "code_rate": 0.5,
+    "outer_spacing": 3,
+    "inner_spacing": 4,
+    "check_degree": 8,
+    "horizon": 4,
+    "mean_effective_rate_bps": 1995.7142857142853,
+    "min_effective_rate_bps": 1917.9591836734692,
+    "mean_psr": 0.6416666666666666,
+    "ber": 0.006477608267716536
+   },
+   "others": [
+    {
+     "algorithm_id": "standard",
+     "mean_effective_rate_bps": 188.77796901893288,
+     "mean_psr": 0.05,
+     "ber": 0.15938183807439826
+    },
+    {
+     "algorithm_id": "adaptive_lite",
+     "mean_effective_rate_bps": 1995.7142857142853,
+     "mean_psr": 0.6416666666666666,
+     "ber": 0.006477608267716536
+    }
+   ],
+   "pfft": {
+    "algorithm_id": "pfft",
+    "nfft": 2048,
+    "cp": 32,
+    "code_rate": 0.25,
+    "outer_spacing": 3,
+    "inner_spacing": 8,
+    "check_degree": 10,
+    "horizon": 4,
+    "mean_effective_rate_bps": 1081.4690721649486,
+    "min_effective_rate_bps": 1005.3092783505156,
+    "mean_psr": 0.5916666666666667,
+    "ber": 0.0002820078962210942
+   }
+  },
+  {
+   "label": "red1 lane 3",
+   "channel": "red1",
+   "winner": {
+    "algorithm_id": "lite",
+    "nfft": 2048,
+    "cp": 128,
+    "code_rate": 0.5,
+    "outer_spacing": 5,
+    "inner_spacing": 10,
+    "check_degree": 8,
+    "horizon": 4,
+    "mean_effective_rate_bps": 3625.25625,
+    "min_effective_rate_bps": 3588.6375,
+    "mean_psr": 0.825,
+    "ber": 0.0037677077999658643
+   },
+   "others": [
+    {
+     "algorithm_id": "standard",
+     "mean_effective_rate_bps": 3465.838926174497,
+     "mean_psr": 0.9416666666666667,
+     "ber": 1.823486506199854e-05
+    },
+    {
+     "algorithm_id": "adaptive_lite",
+     "mean_effective_rate_bps": 3625.25625,
+     "mean_psr": 0.825,
+     "ber": 0.0037677077999658643
+    }
+   ],
+   "pfft": {
+    "algorithm_id": "pfft",
+    "nfft": 2048,
+    "cp": 128,
+    "code_rate": 0.5,
+    "outer_spacing": 5,
+    "inner_spacing": 5,
+    "check_degree": 10,
+    "horizon": 4,
+    "mean_effective_rate_bps": 2472.8500000000004,
+    "min_effective_rate_bps": 2407.775,
+    "mean_psr": 0.6333333333333333,
+    "ber": 0.028143808426174928
+   }
+  },
+  {
+   "label": "red2 lane 1",
+   "channel": "red2",
+   "winner": {
+    "algorithm_id": "standard",
+    "nfft": 512,
+    "cp": 32,
+    "code_rate": 0.25,
+    "outer_spacing": 3,
+    "inner_spacing": 10,
+    "check_degree": 10,
+    "horizon": 0,
+    "mean_effective_rate_bps": 1280.1342281879195,
+    "min_effective_rate_bps": 1204.8322147651006,
+    "mean_psr": 0.8500000000000001,
+    "ber": 0.00015597147950089128
+   },
+   "others": [
+    {
+     "algorithm_id": "lite",
+     "mean_effective_rate_bps": 1240.816326530612,
+     "mean_psr": 0.6666666666666667,
+     "ber": 0.0008257949561403508
+    },
+    {
+     "algorithm_id": "adaptive_lite",
+     "mean_effective_rate_bps": 1255.03355704698,
+     "mean_psr": 0.8333333333333334,
+     "ber": 0.00019496434937611408
+    }
+   ],
+   "pfft": {
+    "algorithm_id": "pfft",
+    "nfft": 2048,
+    "cp": 0,
+    "code_rate": 0.25,
+    "outer_spacing": 3,
+    "inner_spacing": 5,
+    "check_degree": 10,
+    "horizon": 2,
+    "mean_effective_rate_bps": 282.65625,
+    "min_effective_rate_bps": 272.1875,
+    "mean_psr": 0.225,
+    "ber": 0.020949937810945275
+   }
+  },
+  {
+   "label": "red2 lane 2",
+   "channel": "red2",
+   "winner": {
+    "algorithm_id": "standard",
+    "nfft": 512,
+    "cp": 32,
+    "code_rate": 0.5,
+    "outer_spacing": 3,
+    "inner_spacing": 5,
+    "check_degree": 10,
+    "horizon": 0,
+    "mean_effective_rate_bps": 2062.281879194631,
+    "min_effective_rate_bps": 2017.4496644295302,
+    "mean_psr": 0.7666666666666666,
+    "ber": 0.01967003493013972
+   },
+   "others": [
+    {
+     "algorithm_id": "lite",
+     "mean_effective_rate_bps": 67.24832214765101,
+     "mean_psr": 0.025,
+     "ber": 0.19624189121756486
+    },
+    {
+     "algorithm_id": "adaptive_lite",
+     "mean_effective_rate_bps": 2062.281879194631,
+     "mean_psr": 0.7666666666666666,
+     "ber": 0.020484031936127745
+    }
+   ],
+   "pfft": {
+    "algorithm_id": "pfft",
+    "nfft": 1024,
+    "cp": 32,
+    "code_rate": 0.25,
+    "outer_spacing": 3,
+    "inner_spacing": 10,
+    "check_degree": 10,
+    "horizon": 2,
+    "mean_effective_rate_bps": 468.5051546391753,
+    "min_effective_rate_bps": 430.1030927835052,
+    "mean_psr": 0.5083333333333333,
+    "ber": 0.006026286353467561
+   }
+  },
+  {
+   "label": "red2 lane 3",
+   "channel": "red2",
+   "winner": {
+    "algorithm_id": "standard",
+    "nfft": 512,
+    "cp": 32,
+    "code_rate": 0.5,
+    "outer_spacing": 3,
+    "inner_spacing": 10,
+    "check_degree": 10,
+    "horizon": 0,
+    "mean_effective_rate_bps": 2422.5503355704695,
+    "min_effective_rate_bps": 2321.6107382550335,
+    "mean_psr": 0.8,
+    "ber": 0.014924091312056737
+   },
+   "others": [
+    {
+     "algorithm_id": "lite",
+     "mean_effective_rate_bps": 75.70469798657719,
+     "mean_psr": 0.025,
+     "ber": 0.17791722074468086
+    },
+    {
+     "algorithm_id": "adaptive_lite",
+     "mean_effective_rate_bps": 2422.5503355704695,
+     "mean_psr": 0.8,
+     "ber": 0.015503102836879433
+    }
+   ],
+   "pfft": {
+    "algorithm_id": "pfft",
+    "nfft": 2048,
+    "cp": 0,
+    "code_rate": 0.25,
+    "outer_spacing": 5,
+    "inner_spacing": 5,
+    "check_degree": 10,
+    "horizon": 4,
+    "mean_effective_rate_bps": 658.88671875,
+    "min_effective_rate_bps": 540.625,
+    "mean_psr": 0.325,
+    "ber": 0.0010468850353243418
+   }
+  },
+  {
+   "label": "red3 lane 1",
+   "channel": "red3",
+   "winner": {
+    "algorithm_id": "standard",
+    "nfft": 512,
+    "cp": 32,
+    "code_rate": 0.5,
+    "outer_spacing": 3,
+    "inner_spacing": 10,
+    "check_degree": 10,
+    "horizon": 0,
+    "mean_effective_rate_bps": 2498.2550335570468,
+    "min_effective_rate_bps": 2473.020134228188,
+    "mean_psr": 0.825,
+    "ber": 0.010123005319148936
+   },
+   "others": [
+    {
+     "algorithm_id": "lite",
+     "mean_effective_rate_bps": 0.0,
+     "mean_psr": 0.0,
+     "ber": 0.20271471553610504
+    },
+    {
+     "algorithm_id": "adaptive_lite",
+     "mean_effective_rate_bps": 2498.2550335570468,
+     "mean_psr": 0.825,
+     "ber": 0.011040004432624113
+    }
+   ],
+   "pfft": {
+    "algorithm_id": "pfft",
+    "nfft": 2048,
+    "cp": 32,
+    "code_rate": 0.125,
+    "outer_spacing": 5,
+    "inner_spacing": 8,
+    "check_degree": 10,
+    "horizon": 0,
+    "mean_effective_rate_bps": 297.5968992248062,
+    "min_effective_rate_bps": 270.5426356589147,
+    "mean_psr": 0.3666666666666667,
+    "ber": 0.0025549188156638015
+   }
+  },
+  {
+   "label": "red3 lane 2",
+   "channel": "red3",
+   "winner": {
+    "algorithm_id": "standard",
+    "nfft": 512,
+    "cp": 16,
+    "code_rate": 0.5,
+    "outer_spacing": 5,
+    "inner_spacing": 10,
+    "check_degree": 10,
+    "horizon": 0,
+    "mean_effective_rate_bps": 2994.6757679180887,
+    "min_effective_rate_bps": 2994.6757679180887,
+    "mean_psr": 0.8,
+    "ber": 0.013145058351568198
+   },
+   "others": [
+    {
+     "algorithm_id": "lite",
+     "mean_effective_rate_bps": 61.34228187919463,
+     "mean_psr": 0.016666666666666666,
+     "ber": 0.1605055616338439
+    },
+    {
+     "algorithm_id": "adaptive_lite",
+     "mean_effective_rate_bps": 2971.7747440273038,
+     "mean_psr": 0.8166666666666667,
+     "ber": 0.012851716375914462
+    }
+   ],
+   "pfft": {
+    "algorithm_id": "pfft",
+    "nfft": 2048,
+    "cp": 128,
+    "code_rate": 0.25,
+    "outer_spacing": 5,
+    "inner_spacing": 10,
+    "check_degree": 10,
+    "horizon": 0,
+    "mean_effective_rate_bps": 935.0,
+    "min_effective_rate_bps": 907.5,
+    "mean_psr": 0.5666666666666667,
+    "ber": 0.0009240128558310376
+   }
+  },
+  {
+   "label": "red3 lane 3",
+   "channel": "red3",
+   "winner": {
+    "algorithm_id": "standard",
+    "nfft": 512,
+    "cp": 16,
+    "code_rate": 0.5,
+    "outer_spacing": 5,
+    "inner_spacing": 10,
+    "check_degree": 8,
+    "horizon": 0,
+    "mean_effective_rate_bps": 3119.4539249146756,
+    "min_effective_rate_bps": 2994.6757679180887,
+    "mean_psr": 0.8333333333333334,
+    "ber": 0.0053359773887673234
+   },
+   "others": [
+    {
+     "algorithm_id": "lite",
+     "mean_effective_rate_bps": 61.34228187919463,
+     "mean_psr": 0.016666666666666666,
+     "ber": 0.17424325309992705
+    },
+    {
+     "algorithm_id": "adaptive_lite",
+     "mean_effective_rate_bps": 3119.4539249146756,
+     "mean_psr": 0.8333333333333334,
+     "ber": 0.00649389132020423
+    }
+   ],
+   "pfft": {
+    "algorithm_id": "pfft",
+    "nfft": 2048,
+    "cp": 16,
+    "code_rate": 0.25,
+    "outer_spacing": 5,
+    "inner_spacing": 8,
+    "check_degree": 10,
+    "horizon": 0,
+    "mean_effective_rate_bps": 796.6536964980545,
+    "min_effective_rate_bps": 714.2412451361868,
+    "mean_psr": 0.48333333333333334,
+    "ber": 0.0011744570349386213
+   }
+  },
+  {
+   "label": "red4 lane 1",
+   "channel": "red4",
+   "winner": {
+    "algorithm_id": "standard",
+    "nfft": 512,
+    "cp": 16,
+    "code_rate": 0.5,
+    "outer_spacing": 5,
+    "inner_spacing": 10,
+    "check_degree": 10,
+    "horizon": 0,
+    "mean_effective_rate_bps": 3618.566552901024,
+    "min_effective_rate_bps": 3556.1774744027302,
+    "mean_psr": 0.9666666666666666,
+    "ber": 0.0013584974471188914
+   },
+   "others": [
+    {
+     "algorithm_id": "lite",
+     "mean_effective_rate_bps": 566.3339070567986,
+     "mean_psr": 0.15,
+     "ber": 0.12168809263311452
+    },
+    {
+     "algorithm_id": "adaptive_lite",
+     "mean_effective_rate_bps": 3587.372013651877,
+     "mean_psr": 0.9583333333333333,
+     "ber": 0.0028309628008752735
+    }
+   ],
+   "pfft": {
+    "algorithm_id": "pfft",
+    "nfft": 2048,
+    "cp": 32,
+    "code_rate": 0.25,
+    "outer_spacing": 5,
+    "inner_spacing": 10,
+    "check_degree": 10,
+    "horizon": 4,
+    "mean_effective_rate_bps": 1637.416237113402,
+    "min_effective_rate_bps": 1505.6701030927836,
+    "mean_psr": 0.725,
+    "ber": 0.00015120392559625698
+   }
+  },
+  {
+   "label": "red4 lane 2",
+   "channel": "red4",
+   "winner": {
+    "algorithm_id": "standard",
+    "nfft": 512,
+    "cp": 0,
+    "code_rate": 0.5,
+    "outer_spacing": 5,
+    "inner_spacing": 10,
+    "check_degree": 10,
+    "horizon": 0,
+    "mean_effective_rate_bps": 3173.6111111111113,
+    "min_effective_rate_bps": 3046.6666666666665,
+    "mean_psr": 0.8333333333333334,
+    "ber": 0.00837208242159008
+   },
+   "others": [
+    {
+     "algorithm_id": "lite",
+     "mean_effective_rate_bps": 629.2598967297763,
+     "mean_psr": 0.16666666666666669,
+     "ber": 0.11894602479941649
+    },
+    {
+     "algorithm_id": "adaptive_lite",
+     "mean_effective_rate_bps": 3173.6111111111113,
+     "mean_psr": 0.8333333333333334,
+     "ber": 0.009288384390955508
+    }
+   ],
+   "pfft": {
+    "algorithm_id": "pfft",
+    "nfft": 2048,
+    "cp": 16,
+    "code_rate": 0.25,
+    "outer_spacing": 5,
+    "inner_spacing": 5,
+    "check_degree": 10,
+    "horizon": 4,
+    "mean_effective_rate_bps": 1378.1735751295337,
+    "min_effective_rate_bps": 1344.5595854922278,
+    "mean_psr": 0.6833333333333333,
+    "ber": 0.0001798330122029544
+   }
+  },
+  {
+   "label": "red4 lane 3",
+   "channel": "red4",
+   "winner": {
+    "algorithm_id": "standard",
+    "nfft": 512,
+    "cp": 16,
+    "code_rate": 0.5,
+    "outer_spacing": 5,
+    "inner_spacing": 10,
+    "check_degree": 10,
+    "horizon": 0,
+    "mean_effective_rate_bps": 3587.372013651877,
+    "min_effective_rate_bps": 3493.7883959044366,
+    "mean_psr": 0.9583333333333333,
+    "ber": 0.0017824580598103574
+   },
+   "others": [
+    {
+     "algorithm_id": "lite",
+     "mean_effective_rate_bps": 1038.2788296041308,
+     "mean_psr": 0.275,
+     "ber": 0.1068494711889132
+    },
+    {
+     "algorithm_id": "adaptive_lite",
+     "mean_effective_rate_bps": 3587.372013651877,
+     "mean_psr": 0.9583333333333333,
+     "ber": 0.0017824580598103574
+    }
+   ],
+   "pfft": {
+    "algorithm_id": "pfft",
+    "nfft": 2048,
+    "cp": 128,
+    "code_rate": 0.5,
+    "outer_spacing": 5,
+    "inner_spacing": 10,
+    "check_degree": 10,
+    "horizon": 2,
+    "mean_effective_rate_bps": 1106.439393939394,
+    "min_effective_rate_bps": 1051.1174242424242,
+    "mean_psr": 0.3333333333333333,
+    "ber": 0.10048499372361064
+   }
+  }
+ ]
+}

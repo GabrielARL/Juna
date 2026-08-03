@@ -7,15 +7,15 @@
 using JunaCore
 
 const RECEIVERS = [
-    (id = "standard",
-     display_name = "Standard OFDM + FEC",
-     facade = "JunaStandard",
-     mode = "standard",
-     profile = "standard",
-     chain_path = ["acquisition", "standard"],
+    (id = "ofdm_fec",
+     display_name = "OFDM+FEC",
+     facade = "JunaOFDMFEC",
+     mode = "ofdm_fec",
+     profile = "ofdm_fec",
+     chain_path = ["acquisition", "ofdm_fec"],
      role = "baseline",
      specific_suite_exemption =
-        "standard-specific behavior is covered by the shared baseline suite",
+        "OFDM+FEC behavior is covered by the shared baseline suite",
      purpose = "One-tap pilot-interpolated OFDM equalization followed by FEC."),
     (id = "partial-fft",
      display_name = "Partial-FFT + FEC",
@@ -43,7 +43,7 @@ function assert_receiver_catalog()
     @assert length(unique(r.id for r in RECEIVERS)) == length(RECEIVERS)
     @assert length(unique(r.facade for r in RECEIVERS)) == length(RECEIVERS)
     @assert Set(r.facade for r in RECEIVERS) ==
-            Set(["JunaStandard", "JunaPartialFFT", "JunaLite"])
+            Set(["JunaOFDMFEC", "JunaPartialFFT", "JunaLite"])
     for receiver in RECEIVERS
         facade = getfield(JunaCore, Symbol(receiver.facade))
         modem = facade.Modulation()

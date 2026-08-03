@@ -303,7 +303,9 @@ function buildFacadesSection(data) {
       href: "/source/graph?receiver=" +
         encodeURIComponent(
           {
-            JunaStandard: "standard",
+            JunaOFDMFEC: "ofdm_fec",
+            // Backward-compatible facade; canonical links use JunaOFDMFEC.
+            JunaStandard: "ofdm_fec",
             JunaPartialFFT: "partial-fft",
             JunaLite: "lite",
           }[facade.name] || ""
@@ -377,11 +379,9 @@ function buildActionsSection(data) {
   const chainHref = stages.length > 0 ? "/chain#" + stages[0].id : "/chain";
 
   wrap.appendChild(actionLink(
-    "Open in original analyzer",
-    "/source-advanced#sym=" +
-      encodeURIComponent(
-        [data.module, data.name].filter(Boolean).join(".")
-      )
+    "Open in Source definitions",
+    "/source#sym=" + encodeURIComponent(data.name || "") +
+      (data.module ? "&module=" + encodeURIComponent(data.module) : "")
   ));
   wrap.appendChild(focusBtn);
   const evidence = data.evidence || {};
@@ -743,6 +743,12 @@ function toggleShowAll() {
 }
 
 function loadContextGraph() {
+  const params = new URLSearchParams(location.search);
+  if (params.get("receiver") === "standard") {
+    params.set("receiver", "ofdm_fec");
+    const canonical = "?" + params.toString();
+    history.replaceState(null, "", location.pathname + canonical + location.hash);
+  }
   let query = location.search || "";
   if (!query) {
     query = "?receiver=lite";

@@ -57,7 +57,7 @@ ALLOWED_KINDS = {"shared", "seed", "iterative", "deployment"}
 ALLOWED_EVIDENCE = {"direct", "behavioral"}
 APPROVED_STAGE_TITLES = {
     "acquisition": "Packet acquisition",
-    "standard": "One-tap pilot-interpolated equalization + FEC",
+    "ofdm_fec": "One-tap pilot-interpolated equalization + FEC",
     "seed": "Partial-FFT/FEC seed path",
     "posterior": "Posterior means and confidences",
     "anchors": "Anchor selection",
@@ -167,6 +167,20 @@ def check():
         problems.append("C8: duplicate receiver ids")
     if len(set(facades)) != len(facades):
         problems.append("C8: duplicate receiver facades")
+    if set(receiver_ids) != {"ofdm_fec", "partial-fft", "lite"}:
+        problems.append("C8: canonical receiver IDs must use ofdm_fec")
+    ofdm_fec = next((r for r in receivers if r["id"] == "ofdm_fec"), {})
+    expected_ofdm_fec = {
+        "display_name": "OFDM+FEC",
+        "facade": "JunaOFDMFEC",
+        "mode": "ofdm_fec",
+        "profile": "ofdm_fec",
+        "chain_path": ["acquisition", "ofdm_fec"],
+    }
+    if any(ofdm_fec.get(key) != value
+           for key, value in expected_ofdm_fec.items()):
+        problems.append("C8: canonical OFDM+FEC catalog fields differ from "
+                        f"{expected_ofdm_fec}")
 
     # C9 shared stage DAG integrity
     if chain.get("schema_version") != 2:
@@ -175,7 +189,7 @@ def check():
     chain_ids = [r.get("id") for r in chain_receivers]
     if set(chain_ids) != set(receiver_ids):
         problems.append("C9: chain receiver ids do not match receivers.json")
-    if set(facades) != {"JunaStandard", "JunaPartialFFT", "JunaLite"}:
+    if set(facades) != {"JunaOFDMFEC", "JunaPartialFFT", "JunaLite"}:
         problems.append("C9: catalog must expose the three package facades")
     stage_ids = set(ids)
     for receiver in chain_receivers:

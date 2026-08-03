@@ -1,0 +1,101 @@
+{
+  "columns": [
+    "channel",
+    "lane",
+    "phase",
+    "start_index",
+    "algorithm_id",
+    "nfft",
+    "cp",
+    "code_rate",
+    "outer_spacing",
+    "inner_spacing",
+    "check_degree",
+    "horizon",
+    "seed",
+    "frames",
+    "frame_blocks",
+    "payload_bits_per_frame",
+    "successful_frames",
+    "psr",
+    "payload_bits",
+    "bit_errors",
+    "ber",
+    "decode_failures",
+    "decode_seconds",
+    "effective_rate_bps",
+    "run"
+  ],
+  "coverage": {
+    "3arm": [
+      "red1 1",
+      "red1 2",
+      "red1 3",
+      "red2 1",
+      "red2 2",
+      "red2 3",
+      "red3 1",
+      "red3 2",
+      "red3 3",
+      "red4 1",
+      "red4 2",
+      "red4 3"
+    ],
+    "pfft": [
+      "red1 1",
+      "red1 2",
+      "red1 3",
+      "red2 1",
+      "red2 2",
+      "red2 3",
+      "red3 1",
+      "red3 2",
+      "red3 3",
+      "red4 1",
+      "red4 2",
+      "red4 3"
+    ]
+  },
+  "display_columns": [
+    "psr",
+    "ber",
+    "channel",
+    "lane",
+    "algorithm_id",
+    "nfft",
+    "cp",
+    "code_rate",
+    "outer_spacing",
+    "inner_spacing",
+    "check_degree",
+    "payload_bits_per_frame",
+    "successful_frames",
+    "decode_failures",
+    "decode_seconds",
+    "effective_rate_bps",
+    "run"
+  ],
+  "experiment_id": "2026-08-01-red-lite-search",
+  "numeric_policy": "raw_rows preserves every source cell exactly; rows contains unrounded numeric values for sorting and plotting",
+  "result_scope": "60-frame confirmation",
+  "row_count": 288,
+  "schema_version": 1,
+  "sources": [
+    {
+      "excluded_rows": {
+        "adaptive_lite": 96
+      },
+      "included_rows": 192,
+      "path": "results/red_config_finalists_20db_seeds6to7.csv",
+      "sha256": "ca75f40c86898a12e299bd2d3e735208fe06f8fca1ca286144a67bc518f67f4a",
+      "source_rows": 288
+    },
+    {
+      "excluded_rows": {},
+      "included_rows": 96,
+      "path": "results_pfft/red_config_finalists_20db_seeds6to7.csv",
+      "sha256": "e943fb200868d3c53a8878c51f6c5b83382039fdad6c22afec6ff89fbc9158ae",
+      "source_rows": 96
+    }
+  ]
+}

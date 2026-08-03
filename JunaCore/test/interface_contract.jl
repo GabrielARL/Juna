@@ -5,7 +5,7 @@
 # Paper claims protected (papers/main.tex):
 #   sec:method (lines 1919-1964)     OFDM+FEC, Partial-FFT+FEC, and JUNA share one
 #                                    transmitted frame and one public boundary; only
-#                                    receiver processing differs. Here: the Standard,
+#                                    receiver processing differs. Here: the OFDM+FEC,
 #                                    Partial-FFT, and Lite modulations all satisfy the
 #                                    same contract on the same 170-bit / 1280-sample
 #                                    frame.
@@ -75,29 +75,35 @@ end
 # but are not exercised beyond that, since their
 # solvers (juna/full.jl, juna/coupled.jl) are not part of this package's src/.
 function assert_receiver_profiles()
-    standard = Juna.StandardModulation()
+    ofdm_fec = Juna.OFDMFECModulation()
+    legacy_standard = Juna.StandardModulation()
     pfft = Juna.PartialFFTModulation()
     lite = Juna.LiteModulation()
     full = Juna.FullModulation()
     coupled = Juna.CoupledModulation()
     legacy_full = Juna.Modulation(mode = :robust)
 
-    @test standard.mode === :standard
+    @test ofdm_fec.mode === :ofdm_fec
+    @test legacy_standard.mode === :standard
     @test pfft.mode === :pfft
     @test lite.mode === :lite
     @test full.mode === :full
     @test coupled.mode === :coupled
     @test legacy_full.mode === :robust
+    @test JunaCore.JunaOFDMFEC.Modulation().mode === :ofdm_fec
     @test JunaCore.JunaStandard.Modulation().mode === :standard
     @test JunaCore.JunaPartialFFT.Modulation().mode === :pfft
     @test JunaCore.JunaLite.Modulation().mode === :lite
-    @test Juna.receiver_profile(standard) === :standard
+    @test Juna.receiver_profile(ofdm_fec) === :ofdm_fec
+    @test Juna.receiver_profile(:standard) === :ofdm_fec
+    @test Juna.receiver_profile(legacy_standard) === :ofdm_fec
     @test Juna.receiver_profile(pfft) === :pfft
     @test Juna.receiver_profile(lite) === :lite
     @test Juna.receiver_profile(full) === :full
     @test Juna.receiver_profile(coupled) === :coupled
     @test Juna.receiver_profile(legacy_full) === :full
     # the baselines never refine, so BPSK stays legal for them (like Lite)
+    @test isvalid(Juna.OFDMFECModulation(bpc = 1, ldpc_k = 170, ldpc_n = 680), FC, FS)
     @test isvalid(Juna.StandardModulation(bpc = 1, ldpc_k = 170, ldpc_n = 680), FC, FS)
     @test isvalid(Juna.PartialFFTModulation(bpc = 1, ldpc_k = 170, ldpc_n = 680), FC, FS)
     @test !isvalid(Juna.Modulation(mode = :unknown), FC, FS)
@@ -240,8 +246,8 @@ end
     @testset "declared refinement capability matches an executable objective" begin
         providers = (
             ("unrelated interface implementation", InterfaceOnlyModulation()),
-            ("Standard OFDM baseline", Juna.StandardModulation()),
-            ("JunaStandard module", JunaCore.JunaStandard.Modulation()),
+            ("OFDM+FEC baseline", Juna.OFDMFECModulation()),
+            ("JunaOFDMFEC module", JunaCore.JunaOFDMFEC.Modulation()),
             ("Partial-FFT baseline", Juna.PartialFFTModulation()),
             ("JunaPartialFFT module", JunaCore.JunaPartialFFT.Modulation()),
             ("default JUNA-lite", Juna.Modulation()),
@@ -262,7 +268,7 @@ end
         # objective loop: their facades are absent, or (for :full/:coupled)
         # their solvers live in juna/full.jl / juna/coupled.jl, which are not
         # part of this migrated package's src/. Scope narrowed to the three
-        # migrated facades' objectives: Standard -> :none,
+        # migrated facades' objectives: OFDM+FEC -> :none,
         # Partial-FFT -> :pilot_band_ls, Lite -> :posterior_anchor_ls.
     end
 

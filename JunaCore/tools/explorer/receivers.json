@@ -1,7 +1,7 @@
 {
   "generated_from": "tools/explorer/receiver_catalog.jl",
   "receivers": [
-    {"id": "standard", "display_name": "Standard OFDM + FEC", "facade": "JunaStandard", "mode": "standard", "profile": "standard", "chain_path": ["acquisition", "standard"], "role": "baseline", "specific_suite_exemption": "standard-specific behavior is covered by the shared baseline suite", "purpose": "One-tap pilot-interpolated OFDM equalization followed by FEC."},
+    {"id": "ofdm_fec", "display_name": "OFDM+FEC", "facade": "JunaOFDMFEC", "mode": "ofdm_fec", "profile": "ofdm_fec", "chain_path": ["acquisition", "ofdm_fec"], "role": "baseline", "specific_suite_exemption": "OFDM+FEC behavior is covered by the shared baseline suite", "purpose": "One-tap pilot-interpolated OFDM equalization followed by FEC."},
     {"id": "partial-fft", "display_name": "Partial-FFT + FEC", "facade": "JunaPartialFFT", "mode": "pfft", "profile": "pfft", "chain_path": ["acquisition", "seed"], "role": "baseline", "specific_suite_exemption": "partial-FFT-specific behavior is covered by the shared baseline suite", "purpose": "Pilot-trained partial-FFT combining followed by FEC."},
     {"id": "lite", "display_name": "JUNA-Lite", "facade": "JunaLite", "mode": "lite", "profile": "lite", "chain_path": ["acquisition", "seed", "posterior", "anchors", "refit", "redecode", "keep-best"], "role": "proposed", "specific_suite_exemption": "", "purpose": "Partial-FFT seed plus decoder-guided combiner refinement."}
   ]

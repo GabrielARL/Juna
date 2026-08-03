@@ -16,7 +16,7 @@ const FS = 24_000.0
 
 @testset "phase-1 migration smoke: clean-channel roundtrip" begin
   for (name, provider) in (
-      ("Standard", () -> JunaCore.JunaStandard.Modulation()),
+      ("OFDM+FEC", () -> JunaCore.JunaOFDMFEC.Modulation()),
       ("PartialFFT", () -> JunaCore.JunaPartialFFT.Modulation()),
       ("Lite", () -> JunaCore.JunaLite.Modulation()),
   )

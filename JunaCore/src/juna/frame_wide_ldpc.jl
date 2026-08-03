@@ -664,13 +664,14 @@ function _frame_independent_equalized(m::Modulation,
                                       layout::_Layout,
                                       observations,
                                       profile::Symbol)
-  profile in (_MODE_STANDARD, _MODE_PFFT) ||
-    throw(ArgumentError("independent frame equalization needs standard or pfft"))
+  profile = receiver_profile(profile)
+  profile in (_MODE_OFDM_FEC, _MODE_PFFT) ||
+    throw(ArgumentError("independent frame equalization needs OFDM+FEC or pfft"))
   nblocks = size(observations, 3)
   equalized = zeros(ComplexF64, Int(m.nc), nblocks)
   @inbounds for block in 1:nblocks
     yparts = @view observations[:, :, block]
-    equalized[:, block] .= if profile === _MODE_STANDARD
+    equalized[:, block] .= if profile === _MODE_OFDM_FEC
       _residual_pilot_equalize(m, layout, _sum_branches(yparts))
     else
       _equalize_from_targets(
@@ -682,6 +683,7 @@ end
 
 function _frame_static_trace(m::Modulation, code::_Code, layout::_Layout,
                              observations, profile::Symbol)
+  profile = receiver_profile(profile)
   equalized = _frame_independent_equalized(
     m, layout, observations, profile)
   candidate = _frame_candidate(m, code, layout, equalized)
@@ -755,59 +757,6 @@ function _frame_lite_refine(m::Modulation, code::_Code, layout::_Layout,
     best_equalized,
     selected_iteration,
     data_anchor_counts=all_anchor_counts,
-  )
-end
-
-function _frame_adaptive_seed_equalized(
-    m::Modulation, layout::_Layout, observations)
-  nblocks = size(observations, 3)
-  equalized = zeros(ComplexF64, Int(m.nc), nblocks)
-  selected_parts = Vector{Int}(undef, nblocks)
-  choices = Vector{NamedTuple}(undef, nblocks)
-  @inbounds for block in 1:nblocks
-    yparts = @view observations[:, :, block]
-    choice = _pilot_guarded_front_end_choice(m, layout, yparts)
-    choices[block] = choice
-    selected_parts[block] = choice.selected_parts
-    equalized[:, block] .= choice.selected_parts == 1 ?
-      _residual_pilot_equalize(m, layout, _sum_branches(yparts)) :
-      _equalize_from_targets(
-        m, yparts, layout, layout.pilot_idx, layout.pilot_syms)
-  end
-  (; equalized, selected_parts, choices)
-end
-
-function _frame_adaptive_lite_refine(
-    m::Modulation, code::_Code, layout::_Layout, observations)
-  adaptive = _frame_adaptive_seed_equalized(m, layout, observations)
-  seed = _frame_candidate(m, code, layout, adaptive.equalized)
-  if seed.valid
-    return (
-      profile=_MODE_ADAPTIVE_LITE,
-      seed,
-      best=seed,
-      seed_equalized=adaptive.equalized,
-      best_equalized=adaptive.equalized,
-      selected_iteration=0,
-      data_anchor_counts=Int[],
-      selected_frontend_parts=adaptive.selected_parts,
-      frontend_choices=adaptive.choices,
-    )
-  end
-
-  refined = _frame_lite_refine(m, code, layout, observations)
-  best_is_seed = _juna_better(refined.best, seed)
-  (
-    profile=_MODE_ADAPTIVE_LITE,
-    seed,
-    best=best_is_seed ? seed : refined.best,
-    seed_equalized=adaptive.equalized,
-    best_equalized=best_is_seed ?
-      adaptive.equalized : refined.best_equalized,
-    selected_iteration=best_is_seed ? 0 : refined.selected_iteration,
-    data_anchor_counts=refined.data_anchor_counts,
-    selected_frontend_parts=adaptive.selected_parts,
-    frontend_choices=adaptive.choices,
   )
 end
 
@@ -1607,16 +1556,14 @@ end
 function _frame_receiver_trace(m::Modulation, code::_Code, layout::_Layout,
                                observations; payload_nbits=nothing)
   profile = _frame_receiver_profile(m)
-  profile === _MODE_STANDARD &&
+  profile === _MODE_OFDM_FEC &&
     return _frame_static_trace(
-      m, code, layout, observations, _MODE_STANDARD)
+      m, code, layout, observations, _MODE_OFDM_FEC)
   profile === _MODE_PFFT &&
     return _frame_static_trace(
       m, code, layout, observations, _MODE_PFFT)
   profile === _MODE_LITE &&
     return _frame_lite_refine(m, code, layout, observations)
-  profile === _MODE_ADAPTIVE_LITE &&
-    return _frame_adaptive_lite_refine(m, code, layout, observations)
   profile === _MODE_FULL &&
     return _frame_wz_refine(m, code, layout, observations)
   profile === _MODE_COUPLED &&
@@ -1667,20 +1614,22 @@ end
 function _demodulate_frame_methods(m::Modulation, nbits, x, fc, fs)
   nbits2, code, layout, nblocks, observations, _ =
     _prepare_frame_observations(m, nbits, x, fc, fs)
-  standard = _frame_static_trace(
-    m, code, layout, observations, _MODE_STANDARD).best
+  ofdm_fec = _frame_static_trace(
+    m, code, layout, observations, _MODE_OFDM_FEC).best
   partial = _frame_static_trace(
     m, code, layout, observations, _MODE_PFFT).best
   juna = _frame_receiver_trace(
     m, code, layout, observations; payload_nbits=nbits2).best
+  ofdm_fec_metrics = _frame_payload_metrics(
+    m, code, ofdm_fec.lpost_metric, nblocks, nbits2)
   (
-    standard=_frame_payload_metrics(
-      m, code, standard.lpost_metric, nblocks, nbits2),
+    ofdm_fec=ofdm_fec_metrics,
     partial=_frame_payload_metrics(
       m, code, partial.lpost_metric, nblocks, nbits2),
     juna=_frame_payload_metrics(
       m, code, juna.lpost_metric, nblocks, nbits2),
     provenance=receiver_profile(m),
+    standard=ofdm_fec_metrics,
   )
 end
 

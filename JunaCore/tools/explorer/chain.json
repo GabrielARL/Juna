@@ -17,9 +17,9 @@
   ],
   "receivers": [
     {
-      "id": "standard",
-      "facade": "JunaStandard",
-      "path": ["acquisition", "standard"]
+      "id": "ofdm_fec",
+      "facade": "JunaOFDMFEC",
+      "path": ["acquisition", "ofdm_fec"]
     },
     {
       "id": "partial-fft",
@@ -34,7 +34,7 @@
     }
   ],
   "edges": [
-    {"receiver": "standard", "from": "acquisition", "to": "standard"},
+    {"receiver": "ofdm_fec", "from": "acquisition", "to": "ofdm_fec"},
     {"receiver": "partial-fft", "from": "acquisition", "to": "seed"},
     {"receiver": "lite", "from": "acquisition", "to": "seed"},
     {"receiver": "lite", "from": "seed", "to": "keep-best", "condition": "valid seed: return without refinement"},
@@ -50,7 +50,7 @@
     {
       "id": "acquisition",
       "title": "Packet acquisition",
-      "detail": "LFM synchronization, guard handling, and partial-FFT branch observations.",
+      "detail": "LFM synchronization, guard handling, and partial-FFT views.",
       "symbols": [
         "_sync_waveform",
         "_coarse_doppler",
@@ -65,11 +65,11 @@
       "evidence": "direct"
     },
     {
-      "id": "standard",
+      "id": "ofdm_fec",
       "title": "One-tap pilot-interpolated equalization + FEC",
-      "detail": "Pilot-interpolated one-tap equalization produces the Standard baseline candidate and FEC result, with no partial-FFT combining or refinement.",
+      "detail": "Pilot-interpolated one-tap equalization produces the OFDM+FEC candidate and FEC result, with no partial-FFT combining or refinement.",
       "symbols": [
-        "_standard_candidate"
+        "_ofdm_fec_candidate"
       ],
       "suites": [
         "pfft",
@@ -82,17 +82,16 @@
     {
       "id": "seed",
       "title": "Partial-FFT/FEC seed path",
-      "detail": "Pilot-trained per-band combining (with the standard one-tap branch as fallback comparator) equalizes and BP-decodes the initial candidate. Lite starts where Partial-FFT+FEC ends; a valid seed returns immediately.",
+      "detail": "Pilot-trained per-band combining (with the OFDM+FEC candidate as fallback comparator) equalizes and BP-decodes the initial candidate. Lite starts where Partial-FFT+FEC ends; a valid seed returns immediately.",
       "symbols": [
         "_seed_candidate",
         "_front_end_seed_candidate",
         "_select_front_end_seed",
         "_demodulate_block_partial",
-        "_standard_candidate"
+        "_ofdm_fec_candidate"
       ],
       "suites": [
         "pfft",
-        "adaptive-lite",
         "smoke"
       ],
       "kind": "seed",
@@ -146,7 +145,7 @@
     {
       "id": "redecode",
       "title": "Re-decode",
-      "detail": "The refit combiner re-equalizes the branch spectra and BP re-decodes into a fresh candidate; payload extraction credits correct bits.",
+      "detail": "The refit combiner re-equalizes the partial-FFT views and BP re-decodes into a fresh candidate; payload extraction credits correct bits.",
       "symbols": [
         "_candidate_from_equalized",
         "_payload_from_metrics"
@@ -186,8 +185,7 @@
         "_demodulate_frame_wide_ldpc"
       ],
       "suites": [
-        "feedback-modes",
-        "adaptive-lite"
+        "feedback-modes"
       ],
       "kind": "deployment",
       "evidence": "direct"

@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 #
-# Baseline receivers — the paper's OFDM+FEC (:standard) and Partial FFT+FEC
+# Baseline receivers — the paper's OFDM+FEC (:ofdm_fec) and Partial FFT+FEC
 # (:pfft) benchmark branches as first-class public modes.
 #
 # Paper claims protected (papers/main.tex):
@@ -8,7 +8,7 @@
 #                          schedule": the two baselines must be REAL public
 #                          receivers, not just columns of an internal table.
 #   eq:pfft-ls             :pfft is the pilot-trained per-band ridge LS combiner
-#                          and nothing more (no standard fallback, no refinement).
+#                          and nothing more (no OFDM+FEC fallback, no refinement).
 #   eq:ofdm5-band-index    the band partition drives the combiner :pfft uses.
 #
 # The dispatch pins are the load-bearing tests: each public mode must equal its
@@ -46,7 +46,7 @@ function pfft_piecewise_waveform(m, bits)
     waveform
 end
 
-@testset verbose = true "Partial-FFT and standard baseline receivers" begin
+@testset verbose = true "Partial-FFT and OFDM+FEC baseline receivers" begin
     @testset "one partial-FFT view is the full useful-symbol FFT" begin
         m = PfftJuna.PartialFFTModulation(
             nc=1024, np=256, bpc=1, partial_fft_parts=1)
@@ -58,39 +58,40 @@ end
         @test vec(observation) ≈ fft(useful) rtol=2e-14 atol=2e-12
     end
 
-    @testset "public :standard and :pfft equal their three-path columns" begin
+    @testset "public :ofdm_fec and :pfft equal their receiver columns" begin
         pfft = PfftJuna.PartialFFTModulation()
-        standard = PfftJuna.StandardModulation()
+        ofdm_fec = PfftJuna.OFDMFECModulation()
         bits = pfft_payload(PfftModulations.bitspersymbol(pfft))
         distorted = pfft_piecewise_waveform(pfft, bits)
 
         paths = PfftJuna.demodulate_methods(
-            standard, length(bits), distorted, PFFT_FC, PFFT_FS)
-        standard_metrics, standard_cfo = PfftModulations.demodulate(
-            standard, length(bits), distorted, PFFT_FC, PFFT_FS)
+            ofdm_fec, length(bits), distorted, PFFT_FC, PFFT_FS)
+        ofdm_fec_metrics, ofdm_fec_cfo = PfftModulations.demodulate(
+            ofdm_fec, length(bits), distorted, PFFT_FC, PFFT_FS)
         pfft_metrics, pfft_cfo = PfftModulations.demodulate(
             pfft, length(bits), distorted, PFFT_FC, PFFT_FS)
 
         # the fixture must genuinely separate the columns, or the pins prove nothing
-        @test paths.standard != paths.partial
-        @test standard_metrics == paths.standard
+        @test paths.ofdm_fec != paths.partial
+        @test paths.standard == paths.ofdm_fec
+        @test ofdm_fec_metrics == paths.ofdm_fec
         @test pfft_metrics == paths.partial
-        @test standard_cfo == pfft_cfo == 0.0
+        @test ofdm_fec_cfo == pfft_cfo == 0.0
     end
 
     @testset "per-band combining survives the channel one-tap cannot" begin
         pfft = PfftJuna.PartialFFTModulation()
-        standard = PfftJuna.StandardModulation()
+        ofdm_fec = PfftJuna.OFDMFECModulation()
         bits = pfft_payload(PfftModulations.bitspersymbol(pfft))
         distorted = pfft_piecewise_waveform(pfft, bits)
 
         pfft_metrics, _ = PfftModulations.demodulate(
             pfft, length(bits), distorted, PFFT_FC, PFFT_FS)
-        standard_metrics, _ = PfftModulations.demodulate(
-            standard, length(bits), distorted, PFFT_FC, PFFT_FS)
+        ofdm_fec_metrics, _ = PfftModulations.demodulate(
+            ofdm_fec, length(bits), distorted, PFFT_FC, PFFT_FS)
 
         @test (pfft_metrics .> 0) == bits
-        @test count((standard_metrics .> 0) .!= bits) > 0
+        @test count((ofdm_fec_metrics .> 0) .!= bits) > 0
     end
 
     @testset "lite refinement builds on the pfft seed and never falls behind it" begin
@@ -128,7 +129,7 @@ end
     end
 
     @testset "both baselines roundtrip the compact BPSK code" begin
-        for factory in (PfftJuna.StandardModulation, PfftJuna.PartialFFTModulation)
+        for factory in (PfftJuna.OFDMFECModulation, PfftJuna.PartialFFTModulation)
             m = factory(bpc = 1, ldpc_k = 170, ldpc_n = 680)
             @test isvalid(m, PFFT_FC, PFFT_FS)
             bits = pfft_payload(PfftModulations.bitspersymbol(m))
@@ -142,5 +143,5 @@ end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    println("Partial-FFT and standard baseline receiver checks passed")
+    println("Partial-FFT and OFDM+FEC baseline receiver checks passed")
 end

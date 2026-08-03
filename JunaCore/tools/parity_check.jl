@@ -15,7 +15,7 @@ const PC_FC = 24_000.0
 const PC_FS = 24_000.0
 const PC_SCENARIOS = (("clean", 0.0), ("mild_noise", 0.05))
 const PC_RECEIVERS = (
-    ("standard", JunaCore.Juna.StandardModulation),
+    ("ofdm_fec", JunaCore.Juna.OFDMFECModulation),
     ("partial-fft", JunaCore.Juna.PartialFFTModulation),
     ("lite", JunaCore.Juna.LiteModulation),
 )
@@ -51,7 +51,7 @@ end
 function load_golden(path)
     text = read(path, String)
     Dict(m.captures[1] => m.captures[2]
-         for m in eachmatch(r"\"([a-z-]+\.[a-z_]+)\"\s*:\s*\"([0-9a-f]{64})\"",
+         for m in eachmatch(r"\"([a-z_-]+\.[a-z_]+)\"\s*:\s*\"([0-9a-f]{64})\"",
                             text))
 end
 

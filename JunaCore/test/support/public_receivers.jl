@@ -1,14 +1,14 @@
 # Shared descriptors for cross-cutting public-boundary tests.
 #
 # Migrated subset: this catalog covers exactly the three public facades of
-# this package (Standard OFDM, Partial-FFT, JUNA-Lite). The runtime constant
+# this package (OFDM+FEC, Partial-FFT, JUNA-Lite). The runtime constant
 # Juna._PUBLIC_RECEIVER_MODES still enumerates the earlier full nine-receiver
 # family. The catalog therefore asserts subset membership in the runtime list
 # plus an exact match against this package's three facades.
 
 const PUBLIC_RECEIVER_DESCRIPTORS = (
-    (name = "Standard OFDM", key = :standard, mode = :standard,
-     profile = :standard, factory = JunaCore.Juna.StandardModulation,
+    (name = "OFDM+FEC", key = :ofdm_fec, mode = :ofdm_fec,
+     profile = :ofdm_fec, factory = JunaCore.Juna.OFDMFECModulation,
      supports_bpsk = true, supports_lfm = true, supports_shifted_band = true,
      supports_synthetic_uwa = true),
     (name = "Partial-FFT", key = :pfft, mode = :pfft,
@@ -34,7 +34,7 @@ function assert_public_receiver_catalog()
     # facades. Every catalog mode must be a runtime mode, and the catalog must
     # match this package's facades exactly.
     @test all(mode -> mode in runtime_modes, descriptor_modes)
-    @test descriptor_modes == (:standard, :pfft, :lite)
+    @test descriptor_modes == (:ofdm_fec, :pfft, :lite)
     for descriptor in public_receiver_descriptors()
         receiver = public_receiver(descriptor)
         @test receiver.mode === descriptor.mode

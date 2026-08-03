@@ -13,15 +13,21 @@ module JunaLite
   const Modulation = Juna.LiteModulation
 end
 
+module JunaOFDMFEC
+  # Paper baseline: one-tap pilot-interpolated OFDM equalization + FEC, no refinement.
+  export Modulation
+  const Modulation = getfield(parentmodule(@__MODULE__), :Juna).OFDMFECModulation
+end
+
 module JunaStandard
-  # Paper baseline: one-tap pilot-interpolated equalization + FEC, no refinement.
+  # Compatibility facade preserving the former constructor and mode value.
   export Modulation
   const Modulation = getfield(parentmodule(@__MODULE__), :Juna).StandardModulation
 end
 
 module JunaPartialFFT
   # Paper baseline: pilot-trained per-band partial-FFT combining + FEC (the
-  # pure partial column of demodulate_methods, no standard fallback, no
+  # pure partial column of demodulate_methods, no OFDM+FEC fallback, no
   # refinement).
   export Modulation
   const Modulation = getfield(parentmodule(@__MODULE__), :Juna).PartialFFTModulation

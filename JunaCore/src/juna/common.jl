@@ -19,8 +19,7 @@ Base.@kwdef mutable struct Modulation <: Modulations.Modulation
   ldpc_no4cycle::Bool = true         # request make-ldpc's length-4-cycle elimination
   partial_fft_parts::Int = 4
   partial_fft_nbands::Int = 16
-  frontend_guard_min_relative_gain::Float64 = 0.02 # held-out pilot gain required to retain P>1
-  mode::Symbol = :lite               # receiver: canonical modes plus the legacy :robust alias
+  mode::Symbol = :lite               # receiver: canonical modes plus the legacy :standard and :robust aliases
   frame_receiver::Symbol = :stateful_lite # frame-wide FEC front end/refiner; preserves the original stateful receiver by default
   frame_crc_bits::Int = 0            # 0=legacy framing; 16=one external CRC-16/CCITT over the complete frame payload
   frame_code_horizon::Int = 0        # 0=one graph over all blocks; h>0=disconnected h-block graph components
@@ -62,7 +61,6 @@ Base.@kwdef mutable struct Modulation <: Modulations.Modulation
   gradient_guarded_trace::Any = nothing
   profiled_gradient_trace::Any = nothing
   cz_gradient_trace::Any = nothing
-  adaptive_frontend_trace::Any = nothing
   # Ground truth for the Lite :genie/:graded arms and the C,z :genie arm,
   # attached per frame by the experiment harness. Deployed receivers leave this
   # nothing and never read it; a missing oracle grid is a hard error rather than
@@ -71,10 +69,11 @@ Base.@kwdef mutable struct Modulation <: Modulations.Modulation
   feedback_trace::Any = nothing
 end
 
+const _MODE_OFDM_FEC = :ofdm_fec
+# Compatibility constant for code using the former mode value.
 const _MODE_STANDARD = :standard
 const _MODE_PFFT = :pfft
 const _MODE_LITE = :lite
-const _MODE_ADAPTIVE_LITE = :adaptive_lite
 const _MODE_FULL = :full
 const _MODE_COUPLED = :coupled
 const _MODE_FULLY_COUPLED = :fully_coupled
@@ -89,23 +88,24 @@ const _MODE_ROBUST = :robust
 const _REFERENCE_CENTER_HZ = 24_000.0
 const _REFERENCE_BANDWIDTH_HZ = 24_000.0
 const _FRAME_RECEIVER_PROFILES =
-  (_MODE_STANDARD, _MODE_PFFT, _MODE_LITE, _MODE_ADAPTIVE_LITE,
+  (_MODE_OFDM_FEC, _MODE_PFFT, _MODE_LITE,
    _MODE_FULL, _MODE_COUPLED,
    _MODE_FULLY_COUPLED, _MODE_TURBO_MAP,
    _MODE_PROFILED_GRADIENT, _MODE_PROFILED_CZ,
    :stateful_lite)
 const _RECEIVER_PROFILES =
-  (_MODE_STANDARD, _MODE_PFFT, _MODE_LITE, _MODE_ADAPTIVE_LITE,
+  (_MODE_OFDM_FEC, _MODE_PFFT, _MODE_LITE,
    _MODE_FULL, _MODE_COUPLED,
    _MODE_FULLY_COUPLED, _MODE_TURBO_MAP, _MODE_GUARDED_PHYSICAL,
    _MODE_GRADIENT_GUARDED, _MODE_PROFILED_GRADIENT,
    _MODE_FRAME_WIDE_LDPC)
 const _PUBLIC_RECEIVER_MODES =
-  (_MODE_STANDARD, _MODE_PFFT, _MODE_LITE, _MODE_FULLY_COUPLED,
+  (_MODE_OFDM_FEC, _MODE_PFFT, _MODE_LITE, _MODE_FULLY_COUPLED,
    _MODE_TURBO_MAP, _MODE_PROFILED_GRADIENT,
    _MODE_FRAME_WIDE_LDPC, _MODE_CRC_PROFILED_CZ_FRAME)
 
 receiver_profile(mode::Symbol) =
+  mode === :standard ? _MODE_OFDM_FEC :
   mode === _MODE_ROBUST ? _MODE_FULL :
   mode === _MODE_CRC_PROFILED_CZ_FRAME ?
     _MODE_FRAME_WIDE_LDPC : mode
@@ -113,14 +113,12 @@ receiver_profile(m::Modulation) = receiver_profile(m.mode)
 
 function Modulations.refinement_objective(m::Modulation)
   profile = receiver_profile(m)
-  # The paper's benchmark baselines: :standard optimizes nothing (one-tap
+  # The paper's OFDM+FEC benchmark optimizes nothing (one-tap
   # interpolated equalization, declared :none), while :pfft's only objective
   # is the pilot-trained per-band ridge LS it solves in closed form
   # (eq:pfft-ls), so that is the capability it must prove executable.
   profile === _MODE_PFFT && return :pilot_band_ls
   profile === _MODE_LITE && return :posterior_anchor_ls
-  profile === _MODE_ADAPTIVE_LITE &&
-    return :pilot_guarded_posterior_anchor_ls
   profile === _MODE_FULL && return :reduced_wz
   profile === _MODE_COUPLED && return :coupled_cwz
   profile === _MODE_FULLY_COUPLED && return :fully_coupled_equalization
@@ -135,21 +133,15 @@ function Modulations.refinement_objective(m::Modulation)
   :none
 end
 
+OFDMFECModulation(; kwargs...) =
+  Modulation(; (; kwargs..., mode = _MODE_OFDM_FEC)...)
+# Compatibility factory preserving the former public mode value.
 StandardModulation(; kwargs...) =
   Modulation(; (; kwargs..., mode = _MODE_STANDARD)...)
 PartialFFTModulation(; kwargs...) =
   Modulation(; (; kwargs..., mode = _MODE_PFFT)...)
 LiteModulation(; kwargs...) =
   Modulation(; (; kwargs..., mode = _MODE_LITE)...)
-function AdaptiveLiteModulation(; kwargs...)
-  supplied = (; kwargs...)
-  threshold = haskey(supplied, :frontend_guard_min_relative_gain) ?
-    Float64(supplied.frontend_guard_min_relative_gain) : 0.02
-  isfinite(threshold) && 0 <= threshold < 1 || throw(ArgumentError(
-    "frontend_guard_min_relative_gain must be finite and in [0, 1)"))
-  Modulation(; (; kwargs..., mode = _MODE_ADAPTIVE_LITE,
-                 frontend_guard_min_relative_gain=threshold)...)
-end
 FullModulation(; kwargs...) =
   Modulation(; (; kwargs..., mode = _MODE_FULL)...)
 CoupledModulation(; kwargs...) =
@@ -261,7 +253,7 @@ end
 function _frame_receiver_profile(m::Modulation)
   receiver_profile(m) === _MODE_FRAME_WIDE_LDPC ||
     throw(ArgumentError("frame receiver profile only applies to frame-wide LDPC"))
-  m.frame_receiver
+  m.frame_receiver === :standard ? _MODE_OFDM_FEC : m.frame_receiver
 end
 
 # Fixed internal constants — folded out of the user-facing config (they are numerical
@@ -310,7 +302,6 @@ const _LDPC_METHOD = "evencol"                 # make-ldpc construction
 const _PARTIAL_FFT_NBANDS = 16                 # frequency bands for the bandwise RLS combiner
 const _MAX_PARTIAL_FFT_PARTS = 16              # public complexity cap; band solves scale cubically in this count
 const _BETA_FLOOR = 0.02                       # floor on the LLR-scale estimate from pilot residuals
-const _FRONTEND_GUARD_MIN_ABSOLUTE_GAIN = 1e-4 # reject numerically tiny CV improvements
 
 struct _Code
   k::Int
@@ -376,7 +367,6 @@ function Modulations.init(m::Modulation, fc, fs)
   m.gradient_guarded_trace = nothing
   m.profiled_gradient_trace = nothing
   m.cz_gradient_trace = nothing
-  m.adaptive_frontend_trace = nothing
   nothing
 end
 
@@ -462,8 +452,6 @@ function Base.isvalid(m::Modulation, fc, fs)
   0 < m.partial_fft_nbands <= N || return false
   profile = receiver_profile(m)
   profile in _RECEIVER_PROFILES || return false
-  isfinite(m.frontend_guard_min_relative_gain) &&
-    0 <= m.frontend_guard_min_relative_gain < 1 || return false
   profile in (_MODE_FULL, _MODE_COUPLED, _MODE_FULLY_COUPLED, _MODE_TURBO_MAP,
               _MODE_GUARDED_PHYSICAL, _MODE_GRADIENT_GUARDED,
               _MODE_PROFILED_GRADIENT) &&
@@ -495,9 +483,11 @@ function Base.isvalid(m::Modulation, fc, fs)
       m.cz_joint_pilot_tolerance >= 0.0 || return false
     isfinite(m.cz_temporal_c_smoothness) &&
       m.cz_temporal_c_smoothness >= 0.0 || return false
-    m.frame_receiver in _FRAME_RECEIVER_PROFILES || return false
-    m.frame_receiver in (_MODE_FULL, _MODE_COUPLED, _MODE_TURBO_MAP,
-                         _MODE_PROFILED_GRADIENT, _MODE_PROFILED_CZ) &&
+    frame_profile = m.frame_receiver === :standard ?
+      _MODE_OFDM_FEC : m.frame_receiver
+    frame_profile in _FRAME_RECEIVER_PROFILES || return false
+    frame_profile in (_MODE_FULL, _MODE_COUPLED, _MODE_TURBO_MAP,
+                      _MODE_PROFILED_GRADIENT, _MODE_PROFILED_CZ) &&
       _bpc(m) != 2 &&
       return false
   end
@@ -619,7 +609,7 @@ function demodulate_methods(m::Modulation, nbits, x, fc, fs)
     _prepare_demodulation(m, nbits, x, fc, fs)
   _require_block_samples(m, waveform, nblocks)
 
-  standard = Vector{Float64}(undef, Int(nbits))
+  ofdm_fec = Vector{Float64}(undef, Int(nbits))
   partial = Vector{Float64}(undef, Int(nbits))
   juna = Vector{Float64}(undef, Int(nbits))
   spos = ppos = jpos = 1
@@ -628,19 +618,17 @@ function demodulate_methods(m::Modulation, nbits, x, fc, fs)
     hi = block * _blocklen(m)
     block = @view waveform[lo:hi]
     yparts = _branch_observations(m, block)
-    standard_candidate = _standard_candidate(m, code, layout, yparts)
+    ofdm_fec_candidate = _ofdm_fec_candidate(m, code, layout, yparts)
     seed = _seed_candidate(m, code, layout, yparts)
-    juna_seed = receiver_profile(m) === _MODE_ADAPTIVE_LITE ?
-      _pilot_guarded_front_end_seed(m, code, layout, yparts) :
-      _select_front_end_seed(standard_candidate, seed)
+    juna_seed = _select_front_end_seed(ofdm_fec_candidate, seed)
     juna_candidate = _juna_candidate(m, code, layout, yparts, juna_seed)
-    spos = _write_payload_metrics!(standard, spos, m, code, standard_candidate.lpost_metric, Int(nbits))
+    spos = _write_payload_metrics!(ofdm_fec, spos, m, code, ofdm_fec_candidate.lpost_metric, Int(nbits))
     ppos = _write_payload_metrics!(partial, ppos, m, code, seed.lpost_metric, Int(nbits))
     jpos = _write_payload_metrics!(juna, jpos, m, code, juna_candidate.lpost_metric, Int(nbits))
   end
 
-  (standard=standard, partial=partial, juna=juna,
-   provenance=receiver_profile(m))
+  (ofdm_fec=ofdm_fec, partial=partial, juna=juna,
+   provenance=receiver_profile(m), standard=ofdm_fec)
 end
 
 _blocklen(m::Modulation) = Int(m.nc) + Int(m.np)
@@ -1120,29 +1108,34 @@ end
 function _demodulate_block_candidate(m::Modulation, code::_Code, layout::_Layout, waveform)
   yparts = _branch_observations(m, waveform)
   profile = receiver_profile(m)
-  # Benchmark baselines stop at their own front end: :standard never pays for
+  # Benchmark baselines stop at their own front end: OFDM+FEC never pays for
   # the partial-FFT seed, and :pfft is the pure partial column of
-  # demodulate_methods (no standard fallback, no refinement).
-  profile === _MODE_STANDARD && return _standard_candidate(m, code, layout, yparts)
+  # demodulate_methods (no OFDM+FEC fallback, no refinement).
+  profile === _MODE_OFDM_FEC && return _ofdm_fec_candidate(m, code, layout, yparts)
   profile === _MODE_PFFT && return _seed_candidate(m, code, layout, yparts)
-  seed = profile === _MODE_ADAPTIVE_LITE ?
-    _pilot_guarded_front_end_seed(m, code, layout, yparts) :
-    _front_end_seed_candidate(m, code, layout, yparts)
+  seed = _front_end_seed_candidate(m, code, layout, yparts)
   _juna_candidate(m, code, layout, yparts, seed)
 end
 
-function _demodulate_block_standard(m::Modulation, code::_Code, layout::_Layout, yparts)
-  _payload_from_metrics(m, code, _standard_candidate(m, code, layout, yparts).lpost_metric)
+function _demodulate_block_ofdm_fec(m::Modulation, code::_Code, layout::_Layout, yparts)
+  _payload_from_metrics(m, code, _ofdm_fec_candidate(m, code, layout, yparts).lpost_metric)
 end
+
+# Compatibility alias for callers using the former helper name.
+_demodulate_block_standard(args...) = _demodulate_block_ofdm_fec(args...)
 
 function _demodulate_block_partial(m::Modulation, code::_Code, layout::_Layout, yparts)
   _payload_from_metrics(m, code, _seed_candidate(m, code, layout, yparts).lpost_metric)
 end
 
-function _standard_candidate(m::Modulation, code::_Code, layout::_Layout, yparts)
+function _ofdm_fec_candidate(m::Modulation, code::_Code, layout::_Layout, yparts)
   equalized = _residual_pilot_equalize(m, layout, _sum_branches(yparts))
   _candidate_from_equalized(m, code, layout, equalized)
 end
+
+
+# Compatibility alias for callers using the former helper name.
+_standard_candidate(args...) = _ofdm_fec_candidate(args...)
 
 function _candidate_from_equalized(m::Modulation, code::_Code, layout::_Layout, equalized, metrics=nothing)
   if metrics === nothing
@@ -1193,7 +1186,7 @@ end
 
 function _juna_candidate(m::Modulation, code::_Code, layout::_Layout, yparts, seed=nothing)
   profile = receiver_profile(m)
-  profile === _MODE_STANDARD && return _standard_candidate(m, code, layout, yparts)
+  profile === _MODE_OFDM_FEC && return _ofdm_fec_candidate(m, code, layout, yparts)
   profile === _MODE_PFFT &&
     return seed === nothing ? _seed_candidate(m, code, layout, yparts) : seed
   profile === _MODE_FRAME_WIDE_LDPC &&
@@ -1213,104 +1206,15 @@ function _seed_candidate(m::Modulation, code::_Code, layout::_Layout, yparts)
   _candidate_from_equalized(m, code, layout, equalized)
 end
 
-function _select_front_end_seed(standard, partial)
+function _select_front_end_seed(ofdm_fec, partial)
   partial.valid && return partial
-  standard.valid ? standard : partial
+  ofdm_fec.valid ? ofdm_fec : partial
 end
 
 function _front_end_seed_candidate(m::Modulation, code::_Code, layout::_Layout, yparts)
   partial = _seed_candidate(m, code, layout, yparts)
   partial.valid && return partial
-  _select_front_end_seed(_standard_candidate(m, code, layout, yparts), partial)
-end
-
-function _pilot_cv_model_loss(m::Modulation, layout::_Layout, yparts,
-                              parts::Integer; folds::Integer=2)
-  P = Int(parts)
-  1 <= P <= size(yparts, 1) || throw(ArgumentError(
-    "pilot CV model parts must lie in 1:size(yparts, 1)"))
-  fold_count = Int(folds)
-  fold_count >= 2 || throw(ArgumentError(
-    "pilot CV needs at least two folds"))
-  length(layout.pilot_idx) >= fold_count || throw(ArgumentError(
-    "pilot CV needs at least one pilot per fold"))
-
-  function observation(part, carrier)
-    P == 1 && return sum(@view yparts[:, carrier])
-    yparts[part, carrier]
-  end
-
-  total = 0.0
-  held_count = 0
-  for fold in 1:fold_count, band in layout.bands
-    local_pilots = [
-      position for position in eachindex(layout.pilot_idx)
-      if layout.pilot_idx[position] in band
-    ]
-    held = [position for position in local_pilots
-            if mod1(position, fold_count) == fold]
-    isempty(held) && continue
-    train = [position for position in local_pilots
-             if mod1(position, fold_count) != fold]
-    if length(train) < P
-      train = [position for position in eachindex(layout.pilot_idx)
-               if mod1(position, fold_count) != fold]
-    end
-    length(train) >= P || continue
-
-    A = zeros(ComplexF64, P, P)
-    b = zeros(ComplexF64, P)
-    weights = zeros(ComplexF64, P)
-    for position in train
-      carrier = layout.pilot_idx[position]
-      target = layout.pilot_syms[position]
-      for p in 1:P
-        yp = observation(p, carrier)
-        b[p] += conj(yp) * target
-        for q in 1:P
-          A[p, q] += conj(yp) * observation(q, carrier)
-        end
-      end
-    end
-    for p in 1:P
-      A[p, p] += _RIDGE
-    end
-    _solve_small!(weights, A, b)
-    for position in held
-      carrier = layout.pilot_idx[position]
-      prediction = 0.0 + 0.0im
-      for p in 1:P
-        prediction += observation(p, carrier) * weights[p]
-      end
-      total += abs2(prediction - layout.pilot_syms[position])
-      held_count += 1
-    end
-  end
-  held_count > 0 || throw(ArgumentError(
-    "pilot CV produced no held-out predictions"))
-  total / held_count
-end
-
-function _pilot_guarded_front_end_choice(m::Modulation, layout::_Layout, yparts)
-  p1_loss = _pilot_cv_model_loss(m, layout, yparts, 1)
-  partial_loss = _pilot_cv_model_loss(
-    m, layout, yparts, m.partial_fft_parts)
-  relative_gain = (p1_loss - partial_loss) / max(p1_loss, eps(Float64))
-  selected_parts =
-    p1_loss - partial_loss > _FRONTEND_GUARD_MIN_ABSOLUTE_GAIN &&
-    relative_gain > m.frontend_guard_min_relative_gain ?
-    m.partial_fft_parts : 1
-  (; selected_parts, p1_loss, partial_loss, relative_gain)
-end
-
-function _pilot_guarded_front_end_seed(m::Modulation, code::_Code,
-                                       layout::_Layout, yparts)
-  choice = _pilot_guarded_front_end_choice(m, layout, yparts)
-  candidate = choice.selected_parts == 1 ?
-    _standard_candidate(m, code, layout, yparts) :
-    _seed_candidate(m, code, layout, yparts)
-  m.adaptive_frontend_trace = choice
-  candidate
+  _select_front_end_seed(_ofdm_fec_candidate(m, code, layout, yparts), partial)
 end
 
 function _decode_candidate(m::Modulation, code::_Code, layout::_Layout, equalized, metrics, pilot_mse)

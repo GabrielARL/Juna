@@ -30,7 +30,8 @@ STATIC_NOTE = ("static textual references only - a hit means the suite NAMES "
                "the code name, never that a line executed (not runtime coverage)")
 
 _KNOWN_CONTAINERS = {"Juna", "JunaCore", "Modulations", "LDPC",
-                     "JunaLite", "JunaStandard", "JunaPartialFFT"}
+                     "JunaLite", "JunaOFDMFEC", "JunaPartialFFT",
+                     "JunaStandard"}
 
 
 def scan(root):

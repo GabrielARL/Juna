@@ -63,12 +63,19 @@ TAXONOMY_NOTE = "Static edges and references never imply the code executed."
 
 
 class _Cache:
+    """Reload when the watched files change.
+
+    A callable path provider is re-evaluated on every request so files added,
+    removed, or renamed after server startup also change the cache signature.
+    """
+
     def __init__(self, loader, paths):
         self.loader, self.paths, self.stamp, self.value = loader, paths, None, None
 
     def get(self):
-        stamp = tuple(os.path.getmtime(p) if os.path.exists(p) else 0
-                      for p in self.paths)
+        paths = self.paths() if callable(self.paths) else self.paths
+        stamp = tuple((p, os.path.getmtime(p) if os.path.exists(p) else 0)
+                      for p in paths)
         if stamp != self.stamp:
             self.value = self.loader()
             self.stamp = stamp
@@ -96,18 +103,31 @@ def _load_receivers():
         return json.load(fh)["receivers"]
 
 
+def _coverage_files():
+    return (_src_files() +
+            [os.path.join(HERE, "suites.json")] +
+            [os.path.join(ROOT, "test", f)
+             for f in sorted(os.listdir(os.path.join(ROOT, "test")))
+             if f.endswith(".jl")])
+
+
 SUITES_CACHE = _Cache(_load_suites, [os.path.join(HERE, "suites.json")])
 CHAIN_CACHE = _Cache(_load_chain, [os.path.join(HERE, "chain.json")])
 RECEIVERS_CACHE = _Cache(_load_receivers,
                          [os.path.join(HERE, "receivers.json")])
+
+# Old Explorer links remain valid, but every response and replacement URL uses
+# the approved canonical receiver ID.
+RECEIVER_ALIASES = {"standard": "ofdm_fec"}
+
+
+def canonical_receiver_id(receiver_id):
+    return RECEIVER_ALIASES.get(receiver_id, receiver_id)
+
+
 ANALYZE_CACHE = _Cache(lambda: source_symbols.analyze(os.path.join(ROOT, "src")),
-                       _src_files())
-COVERAGE_CACHE = _Cache(lambda: source_coverage.scan(ROOT),
-                        _src_files() +
-                        [os.path.join(HERE, "suites.json")] +
-                        [os.path.join(ROOT, "test", f)
-                         for f in sorted(os.listdir(os.path.join(ROOT, "test")))
-                         if f.endswith(".jl")])
+                       _src_files)
+COVERAGE_CACHE = _Cache(lambda: source_coverage.scan(ROOT), _coverage_files)
 
 _GIT_STATE = {"stamp": 0.0, "value": None}
 
@@ -304,7 +324,7 @@ def symbol_detail(sym):
                 if candidate["name"] == "Modulation" and
                 candidate["kind"] == "const" and
                 candidate["module"] in
-                {"JunaStandard", "JunaPartialFFT", "JunaLite"}
+                {"JunaOFDMFEC", "JunaPartialFFT", "JunaLite"}
             ]
 
     return {
@@ -379,7 +399,7 @@ def graph_data(query):
                     for s in by_name.get(name, [])),
                    "stage", stage_id, stage["title"])
 
-    receiver_id = params.get("receiver", [None])[0]
+    receiver_id = canonical_receiver_id(params.get("receiver", [None])[0])
     receiver = None
     catalog = None
     if receiver_id:
@@ -870,10 +890,10 @@ def page_home():
 <div class="card">Standalone home of the JUNA-Lite receiver. Its history begins
 at sonique <code>research/JunaCore @ {SOURCE_SHA}</code>, but Juna is maintained
 independently. Three public facades:
-Standard OFDM, Partial-FFT, JUNA-Lite. HEAD:
+OFDM+FEC, Partial-FFT, JUNA-Lite. HEAD:
 <code>{esc(git_state()['head'])} {esc(git_state()['subject'])}</code><br>
 Explore source:
-<a href="/source/graph?receiver=standard">Standard</a> ·
+<a href="/source/graph?receiver=ofdm_fec">OFDM+FEC</a> ·
 <a href="/source/graph?receiver=partial-fft">Partial-FFT</a> ·
 <a href="/source/graph?receiver=lite">JUNA-Lite</a></div>
 {stale_banner()}
@@ -1046,8 +1066,13 @@ description, tests, and technical details.</div></div></div>
 <script>
 var MODEL = {payload};
 var STAGES = MODEL.stages;
+var RECEIVER_ALIASES = {{standard: 'ofdm_fec'}};
+function canonicalReceiverId(id) {{
+  return RECEIVER_ALIASES[id] || id;
+}}
 function receiver(id) {{
-  return MODEL.receivers.find(function(r) {{ return r.id === id; }});
+  var canonical = canonicalReceiverId(id);
+  return MODEL.receivers.find(function(r) {{ return r.id === canonical; }});
 }}
 function renderChain() {{
   var selected = receiver(document.getElementById('receiver-select').value);
@@ -1113,11 +1138,13 @@ function show(id) {{
   }}
 }}
 var params = new URLSearchParams(location.search);
-if (receiver(params.get('receiver'))) {{
-  document.getElementById('receiver-select').value = params.get('receiver');
+var requestedReceiver = canonicalReceiverId(params.get('receiver'));
+var requestedCompare = canonicalReceiverId(params.get('compare'));
+if (receiver(requestedReceiver)) {{
+  document.getElementById('receiver-select').value = requestedReceiver;
 }}
-if (receiver(params.get('compare'))) {{
-  document.getElementById('compare-select').value = params.get('compare');
+if (receiver(requestedCompare)) {{
+  document.getElementById('compare-select').value = requestedCompare;
 }}
 document.getElementById('receiver-select').addEventListener('change', renderChain);
 document.getElementById('compare-select').addEventListener('change', renderChain);
@@ -1160,9 +1187,9 @@ def page_source(mode="inspector"):
     body = f"""
 <h1>Source</h1>
 <div class="source-mode-tabs">
-<a class="source-mode{inspector_active}" href="/source">Evidence Inspector</a>
+<a class="source-mode" href="/source">Source definitions</a>
+<a class="source-mode{inspector_active}" href="/source/inspector">Evidence Inspector</a>
 <a class="source-mode{graph_active}" href="/source/graph">Advanced Graph</a>
-<a class="source-mode" href="/source-advanced">Original Analyzer</a>
 </div>
 <div class="card">One analyzer, two Explorer views. Inspector connects a
 selected source definition to chain meaning and evidence. Advanced Graph accepts
@@ -1188,7 +1215,8 @@ inspector. Static graph edges never claim runtime execution.</div>
 def page_source_legacy():
     analyzed = ANALYZE_CACHE.get()
     page = source_symbols.render_html(False, analyzed,
-                                      os.path.join(ROOT, "src"), locked=True)
+                                      os.path.join(ROOT, "src"), locked=True,
+                                      embedded=True)
     bridge_css = """
 <style>
 #explorer-source-bridge{position:fixed;left:0;right:0;bottom:0;z-index:99999;
@@ -1202,17 +1230,24 @@ body{padding-bottom:46px!important}
     bridge = """
 <div id="explorer-source-bridge" aria-label="Explorer source bridge">
 <b>Explorer source bridge</b>
-<a href="/source">Evidence Inspector</a>
+<a href="/">Home</a>
+<a href="/source">Source</a>
+<a href="/source/inspector">Evidence Inspector</a>
 <a href="/source/graph">Advanced Graph</a>
 <span class="spacer"></span>
-<a href="/chain">Chain</a><a href="/tests">Tests</a>
-<a href="/coverage">Coverage</a>
+<a href="/tests">Tests</a><a href="/map">Map</a><a href="/chain">Chain</a>
+<a href="/coverage">Coverage</a><a href="/health">Health</a>
+<a href="/progress">Progress</a><a href="/results">Results</a>
+<a href="#" id="palette-open" title="Ctrl-K">⌘K</a>
 </div>"""
     if "</head>" in page:
         page = page.replace("</head>", bridge_css + "</head>", 1)
     if "<body" in page:
         body_end = page.find(">", page.find("<body"))
         page = page[:body_end + 1] + bridge + page[body_end + 1:]
+    if "</body>" in page:
+        page = page.replace(
+            "</body>", '<script src="/static/palette.js"></script></body>', 1)
     return page
 
 
@@ -1349,25 +1384,75 @@ def _latest_experiment_results():
     return max(candidates, key=os.path.getmtime)
 
 
-def page_results():
+_EXPERIMENT_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+_RESULTS_PAGE_RE = re.compile(r"[a-z][a-z0-9-]*")
+
+
+def _results_query(query):
+    """Return the explicit experiment, requested page, and other state."""
+    pairs = urllib.parse.parse_qsl(query or "", keep_blank_values=True)
+    experiment_values = [value for key, value in pairs
+                         if key == "experiment"]
+    if len(experiment_values) > 1:
+        raise FileNotFoundError("multiple experiment IDs")
+    experiment_id = experiment_values[0] if experiment_values else None
+    if experiment_id is not None and not _EXPERIMENT_ID_RE.fullmatch(
+            experiment_id):
+        raise FileNotFoundError("unsafe experiment ID")
+
+    page_values = [value for key, value in pairs if key == "page"]
+    page = page_values[0] if len(page_values) == 1 else "summary"
+    if not _RESULTS_PAGE_RE.fullmatch(page):
+        page = "summary"
+    other = [(key, value) for key, value in pairs
+             if key not in ("experiment", "page")]
+    return experiment_id, page, other
+
+
+def _experiment_result_file(experiment_id, filename):
+    """Resolve one known result file without allowing path traversal."""
+    if not experiment_id or not _EXPERIMENT_ID_RE.fullmatch(experiment_id):
+        raise FileNotFoundError("missing or unsafe experiment ID")
+    experiments = os.path.realpath(os.path.join(ROOT, "experiments"))
+    path = os.path.realpath(os.path.join(experiments, experiment_id,
+                                         "results", filename))
+    if os.path.commonpath((experiments, path)) != experiments:
+        raise FileNotFoundError("unsafe experiment path")
+    if not os.path.isfile(path):
+        raise FileNotFoundError(path)
+    return path
+
+
+def _experiment_id_from_result(path):
+    return os.path.basename(os.path.dirname(os.path.dirname(path)))
+
+
+def page_results(query=""):
+    experiment_id, page, other = _results_query(query)
     try:
-        path = _latest_experiment_results()
+        if experiment_id is None:
+            path = _latest_experiment_results()
+            experiment_id = _experiment_id_from_result(path)
+        else:
+            path = _experiment_result_file(experiment_id,
+                                           "results_view.html")
     except FileNotFoundError:
+        if experiment_id is not None:
+            raise
         body = """
 <h1>Experiment results</h1>
 <div class="card">No experiment results page exists yet. A search writes
 <code>experiments/&lt;name&gt;/results/results_view.html</code>; this tab
 shows the newest one.</div>"""
         return shell("Results", "/results", body)
-    rel = os.path.relpath(path, ROOT)
+    stable_query = urllib.parse.urlencode(
+        [("experiment", experiment_id), ("page", page)] + other)
+    view_url = "/results/view?" + stable_query
     body = f"""
 <h1>Experiment results</h1>
-<div class="card"><strong>Unregistered experiment output.</strong> This page
-renders <code>{esc(rel)}</code> from the gitignored
-<code>experiments/</code> directory. It is not part of the test registry and
-is not package evidence. ·
-<a href="/results/view" target="_blank">open in its own tab</a></div>
-<iframe src="/results/view" style="width:100%;height:calc(100vh - 200px);
+<p style="margin:.2rem 0 .6rem;text-align:right">
+<a href="{view_url}" target="_blank">Open in its own tab</a></p>
+<iframe src="{view_url}" style="width:100%;height:calc(100vh - 150px);
 border:1px solid var(--line, #ccc);border-radius:6px;background:white">
 </iframe>"""
     return shell("Results", "/results", body, wide=True)
@@ -1529,6 +1614,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/chain":
                 return self._send(page_chain())
             if path == "/source":
+                return self._send(page_source_legacy())
+            if path == "/source/inspector":
                 return self._send(page_source())
             if path == "/source/graph":
                 return self._send(page_source("graph"))
@@ -1541,14 +1628,33 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/progress":
                 return self._send(page_progress())
             if path == "/results":
-                return self._send(page_results())
+                try:
+                    return self._send(page_results(query))
+                except FileNotFoundError:
+                    return self._send("experiment results not found", 404,
+                                      "text/plain")
             if path == "/results/view":
                 try:
-                    with open(_latest_experiment_results(), "rb") as fh:
+                    experiment_id, _page, _other = _results_query(query)
+                    result = (_latest_experiment_results()
+                              if experiment_id is None else
+                              _experiment_result_file(experiment_id,
+                                                      "results_view.html"))
+                    with open(result, "rb") as fh:
                         return self._send(fh.read(), ctype="text/html")
                 except FileNotFoundError:
                     return self._send("no experiment results yet", 404,
                                       "text/plain")
+            if path == "/results/manifest":
+                try:
+                    experiment_id, _page, _other = _results_query(query)
+                    manifest = _experiment_result_file(
+                        experiment_id, "results_manifest.json")
+                    with open(manifest, "rb") as fh:
+                        return self._send(fh.read(), ctype="application/json")
+                except FileNotFoundError:
+                    return self._send('{"error": "results manifest not found"}',
+                                      404, "application/json")
             if path == "/favicon.ico":
                 self.send_response(204)
                 self.end_headers()

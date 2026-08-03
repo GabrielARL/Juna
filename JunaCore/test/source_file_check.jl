@@ -18,10 +18,10 @@ const PROV_PINNED = [
      "031486c0d2a0fc3304a13b4d0df3c945867b2ce2994b4e503a50a615a00d3eeb"),
     ("src/LDPC.jl",
      "e7bd15a6f42f3319245c661a28b25a545071256c1f8d46263808f52b6da846d0"),
-    ("src/juna/common.jl",   # diverged: rpchan removal (CL-1/2/3)
-     "a4bc52bd4fb76357eaa4003faa182731d7d3879d02f180288b27ccbe567ff7df"),
-    ("src/juna/frame_wide_ldpc.jl",   # diverged: rpchan removal (CL-1/2/3)
-     "9db27581c0da15b6cdf95867a9d89cfbc613a02c47ee0fa3b85f45f9be58b49c"),
+    ("src/juna/common.jl",   # diverged: Rpchan/adaptive-lite removal; OFDM+FEC rename
+     "b86b82ff17e52f52de66f2a58882d8f0373043dee589dd99a426cb2110719469"),
+    ("src/juna/frame_wide_ldpc.jl",   # diverged: Rpchan/adaptive-lite removal; OFDM+FEC rename
+     "e24f27f50589cdd387366e0417e95f0173003723117ffad8eebd6316ae0e78cc"),
     ("src/juna/lite.jl",
      "9ef4c670546a3f89ac928af3cfa1c4542ec7d58500f87a8d9e3c7c0eeefe3ed8"),
     ("tools/ldpc/make-ldpc",

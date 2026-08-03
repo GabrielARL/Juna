@@ -3,8 +3,9 @@
 # Migrated source layout and facade pruning — src/ contains exactly the
 # migrated subset (JunaCore.jl, Juna.jl, Modulations.jl, LDPC.jl, and the
 # three juna/ receiver files this package retains: common.jl,
-# frame_wide_ldpc.jl, lite.jl), and only three public facades are exposed:
-# JunaStandard, JunaPartialFFT, JunaLite. The nine-receiver source
+# frame_wide_ldpc.jl, lite.jl), with three canonical public facades:
+# JunaOFDMFEC, JunaPartialFFT, and JunaLite, plus the backward-compatible
+# JunaStandard alias. The nine-receiver source
 # repository's other receiver implementation files and facades
 # (FullyCoupled, TurboMAP, ProfiledGradient, ProfiledCzFrame,
 # CrcProfiledCzFrame, CrcConditionedJointCwzFrame, FrameWideLDPC, FrameRLS)
@@ -74,10 +75,15 @@ const SOURCE_LAYOUT_SRC = joinpath(SOURCE_LAYOUT_ROOT, "src")
         end
     end
 
-    @testset "only the three migrated facades are exposed" begin
+    @testset "three canonical facades and the compatibility alias are exposed" begin
         @test isdefined(JunaCore, :JunaLite)
+        @test isdefined(JunaCore, :JunaOFDMFEC)
         @test isdefined(JunaCore, :JunaStandard)
         @test isdefined(JunaCore, :JunaPartialFFT)
+        @test JunaCore.JunaOFDMFEC.Modulation().mode === :ofdm_fec
+        @test JunaCore.JunaStandard.Modulation().mode === :standard
+        @test JunaCore.Juna.receiver_profile(
+                  JunaCore.JunaStandard.Modulation()) === :ofdm_fec
 
         for facade in (:JunaFullyCoupled, :JunaTurboMAP, :JunaProfiledGradient,
                        :JunaProfiledCzFrame, :JunaCrcProfiledCzFrame,

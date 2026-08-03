@@ -5,17 +5,15 @@ Run:  python3 tools/explorer/server_contract.py       (exit 0 = holds)
 
 Boots the server in-process on an ephemeral port and asserts:
 S1  every nav page (/, /tests, /map, /chain, /source, /coverage, /health,
-    /progress) returns 200 and carries the full nav label set.
+    /progress, /results) returns 200 and carries the full nav label set.
 S2  /coverage states the static-not-runtime distinction and both legend
     marks (direct ● vs declared-behavioral ◐).
 S3  /chain embeds every stage declared in chain.json.
 S4  /tests presents every suite in reader-facing language, keeps technical
     registry data in collapsed details, labels browser-recorded results as
     Explorer runs, and retains valid receiver-stage links.
-S5  /source-advanced is the retained analyzer page; /source is the unified
-    Source page: server-rendered symbol list, persistent inspector
-    container, the five-way evidence taxonomy labels, and a link to the
-    legacy page.
+S5  /source is the three-panel source-definition page; /source/inspector is
+    the server-rendered symbol list and persistent evidence inspector.
 S6  banned destinations 404: /benchmark, /history, /reproduce,
     /run/<unknown-suite>, /api/no-such-endpoint.
 S7  GET is side-effect free: run output reports the last recorded result (or
@@ -42,9 +40,9 @@ S13 legacy-vs-API parity: /api/symbols count and edge count equal a direct
 S14 /chain renders a selector for all catalog receivers, comparison controls,
     and explicit conditional-edge labels; /api/receivers returns the
     generated Julia catalog.
-S15 Source has seamless Inspector and Advanced Graph modes; the graph API
+S15 Source retains Inspector and Advanced Graph modes; the graph API
     accepts receiver/stage/suite/file contexts; every navigation tab emits a
-    contextual Source entry; and the retained original analyzer has the
+    contextual Source entry; and the primary three-panel page has the
     Explorer bridge bar instead of becoming an orphan application.
 S16 a real headless browser observes painted canvas pixels for both a
     receiver-context graph and a selected symbol's ego graph. API/DOM-only
@@ -66,11 +64,24 @@ S20 reader-facing analyzer wording uses the approved "source definition" and
 S21 Map uses the approved Package files heading, plain section summaries, and
     four collapsed Technical details sections while retaining the exact package
     paths and program names inside those details.
+S22 Results resolves an explicit experiment ID, preserves query-routed views,
+    serves that experiment's completeness manifest, and rejects unsafe IDs.
+S23 OFDM+FEC is the canonical Explorer receiver, while the legacy
+    receiver=standard query resolves to that canonical receiver.
+S24 Source promotes the rich three-pane analyzer to /source, retains the
+    Evidence Inspector at /source/inspector and the receiver-stage graph at
+    /source/graph, and keeps /source-advanced plus /source-legacy as aliases.
+    The rich analyzer uses the five labels approved as JCM-073 through
+    JCM-077 and omits their five predecessors.
+S25 a full source rescan discovers a newly added .jl file without restarting
+    the Explorer process.
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import urllib.request
 from http.server import ThreadingHTTPServer
@@ -82,7 +93,7 @@ import server  # noqa: E402
 from source_symbol_explorer import analyze  # noqa: E402
 
 NAV_LABELS = ["Home", "Tests", "Map", "Chain", "Source", "Coverage",
-              "Health", "Progress"]
+              "Health", "Progress", "Results"]
 API_ENDPOINTS = ["/api/repository", "/api/suites", "/api/chain",
                  "/api/symbols", "/api/coverage", "/api/runs",
                  "/api/health", "/api/palette", "/api/receivers",
@@ -120,6 +131,18 @@ def browser_dom(base, path):
 
 
 def check():
+    experiments = os.path.join(ROOT, "experiments")
+    os.makedirs(experiments, exist_ok=True)
+    fixture = tempfile.mkdtemp(prefix="server-contract-", dir=experiments)
+    fixture_id = os.path.basename(fixture)
+    fixture_results = os.path.join(fixture, "results")
+    os.makedirs(fixture_results)
+    with open(os.path.join(fixture_results, "results_view.html"), "w") as fh:
+        fh.write('<!doctype html><div data-results-view="fixture">fixture</div>')
+    with open(os.path.join(fixture_results, "results_manifest.json"), "w") as fh:
+        json.dump({"schema_version": 1, "experiment_id": fixture_id,
+                   "row_count": 2, "columns": ["channel", "lane"]}, fh)
+
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
     port = httpd.server_address[1]
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
@@ -135,7 +158,7 @@ def check():
     # S1
     pages = {}
     for path in ["/", "/tests", "/map", "/chain", "/source", "/coverage",
-                 "/health", "/progress"]:
+                 "/health", "/progress", "/results"]:
         code, text = fetch(base, path)
         pages[path] = text
         if code != 200:
@@ -262,19 +285,23 @@ def check():
             problems.append(f"S4: chip references unknown stage '{chip}'")
 
     # S5
-    legacy_code, legacy = fetch(base, "/source-advanced")
-    if legacy_code != 200 or "_juna_lite" not in legacy:
-        problems.append("S5: /source-legacy is not the analyzer page")
     src_page = pages.get("/source", "")
-    if 'id="inspector"' not in src_page or 'id="symlist"' not in src_page:
-        problems.append("S5: /source lost the inspector or symbol list")
-    if "_juna_lite_candidate" not in src_page:
-        problems.append("S5: /source symbol list is not server-rendered")
+    inspector_code, inspector_page = fetch(base, "/source/inspector")
+    if inspector_code != 200:
+        problems.append(f"S5: /source/inspector returned {inspector_code}")
+    if ('id="inspector"' not in inspector_page or
+            'id="symlist"' not in inspector_page):
+        problems.append(
+            "S5: /source/inspector lost the inspector or symbol list")
+    if "_juna_lite_candidate" not in inspector_page:
+        problems.append(
+            "S5: /source/inspector symbol list is not server-rendered")
     for label in TAXONOMY:
-        if label not in src_page:
-            problems.append(f"S5: /source lost taxonomy label '{label}'")
-    if "/source-advanced" not in src_page:
-        problems.append("S5: /source lost the original-analyzer link")
+        if label not in inspector_page:
+            problems.append(
+                f"S5: /source/inspector lost taxonomy label '{label}'")
+    if "/source" not in inspector_page:
+        problems.append("S5: Inspector lost its primary Source link")
 
     # S6
     for path in ["/benchmark", "/history", "/reproduce",
@@ -388,8 +415,10 @@ def check():
     for path, text in pages.items():
         if "/static/palette.js" not in text:
             problems.append(f"S12: {path} does not load the palette")
-    if "/static/source.js" not in src_page or "vis-network" not in src_page:
-        problems.append("S12: /source lost source.js or vis-network")
+    if ("/static/source.js" not in inspector_page or
+            "vis-network" not in inspector_page):
+        problems.append(
+            "S12: /source/inspector lost source.js or vis-network")
     if "/static/health.js" not in health_page:
         problems.append("S12: /health lost health.js")
 
@@ -430,7 +459,7 @@ def check():
     graph_code, graph_page = fetch(base, "/source/graph?receiver=lite")
     if graph_code != 200:
         problems.append(f"S15: /source/graph returned {graph_code}")
-    for text in ("Evidence Inspector", "Advanced Graph", "Original Analyzer",
+    for text in ("Source definitions", "Evidence Inspector", "Advanced Graph",
                  'data-source-mode="graph"', 'id="source-context"'):
         if text not in graph_page:
             problems.append(f"S15: graph mode lost '{text}'")
@@ -452,8 +481,8 @@ def check():
     legacy_code, legacy = fetch(base, "/source-advanced")
     if legacy_code != 200 or "Explorer source bridge" not in legacy:
         problems.append("S15: retained analyzer lacks Explorer source bridge")
-    for href in ("/source", "/source/graph", "/chain", "/tests",
-                 "/coverage"):
+    for href in ("/source", "/source/inspector", "/source/graph", "/chain",
+                 "/tests", "/coverage"):
         if f'href="{href}"' not in legacy:
             problems.append(f"S15: retained analyzer bridge lost '{href}'")
     code, text = fetch(base, "/api/symbol/Juna.Modulation")
@@ -466,18 +495,18 @@ def check():
         if not detail.get("interface_methods"):
             problems.append("S15: type inspector lacks interface implementations")
         if {f["name"] for f in detail.get("facades", [])} != {
-                "JunaStandard", "JunaPartialFFT", "JunaLite"}:
+                "JunaOFDMFEC", "JunaPartialFFT", "JunaLite"}:
             problems.append("S15: type inspector lacks the three public facades")
     source_js = open(os.path.join(HERE, "static", "source.js")).read()
     for marker in ("Static call edge", "doubleClick", "Fields (",
-                   "Open in original analyzer"):
+                   "Open in Source definitions"):
         if marker not in source_js:
             problems.append(f"S15: source interaction lost '{marker}'")
 
     # S16
     for path, label in (
             ("/source/graph?receiver=lite", "receiver graph"),
-            ("/source#sym=_juna_step", "symbol ego graph")):
+            ("/source/inspector#sym=_juna_step", "symbol ego graph")):
         dom, error = browser_dom(base, path)
         if dom is None:
             problems.append(f"S16: {label} not checked: {error}")
@@ -634,9 +663,9 @@ def check():
                 f"S20: /map has no correct count label for {file_name}: "
                 f"'{marker}'")
 
-    code, source_page = fetch(base, "/source")
+    code, source_page = fetch(base, "/source/inspector")
     code_graph, graph_page = fetch(base, "/source/graph")
-    for path, status, page in (("/source", code, source_page),
+    for path, status, page in (("/source/inspector", code, source_page),
                                ("/source/graph", code_graph, graph_page)):
         if status != 200:
             problems.append(f"S20: {path} returned {status}")
@@ -653,7 +682,8 @@ def check():
     rendered_definitions = len(_re.findall(r'class="symlink"', source_page))
     if rendered_definitions != len(analyzed["symbols"]):
         problems.append(
-            f"S20: /source renders {rendered_definitions} source definitions, "
+            "S20: /source/inspector renders "
+            f"{rendered_definitions} source definitions, "
             f"expected {len(analyzed['symbols'])}")
 
     code, chain_page = fetch(base, "/chain")
@@ -788,7 +818,218 @@ def check():
                     f"S21: /map exposes technical marker outside details "
                     f"'{marker}'")
 
+    # S22
+    stable_query = "experiment=" + fixture_id + "&page=summary"
+    code, results_index = fetch(base, "/results?experiment=" + fixture_id)
+    if code != 200 or stable_query not in results_index:
+        problems.append("S22: /results did not retain the explicit experiment ID")
+    if "Unregistered experiment output" in results_index:
+        problems.append("S22: /results retained the removed experiment banner")
+    code, results_view = fetch(base, "/results/view?" + stable_query)
+    if code != 200 or 'data-results-view="fixture"' not in results_view:
+        problems.append("S22: stable results view did not serve the requested experiment")
+    code, manifest_text = fetch(
+        base, "/results/manifest?experiment=" + fixture_id)
+    if code != 200:
+        problems.append(f"S22: results manifest returned {code}")
+    else:
+        manifest = json.loads(manifest_text)
+        if manifest.get("experiment_id") != fixture_id:
+            problems.append("S22: results manifest came from another experiment")
+    code, _ = fetch(base, "/results/view?experiment=..%2Foutside")
+    if code != 404:
+        problems.append(f"S22: unsafe experiment ID returned {code}, expected 404")
+
+    # S23
+    code, receiver_text = fetch(base, "/api/receivers")
+    receiver_data = (json.loads(receiver_text).get("data", [])
+                     if code == 200 else [])
+    ofdm_fec = next((receiver for receiver in receiver_data
+                     if receiver.get("id") == "ofdm_fec"), None)
+    expected = {"display_name": "OFDM+FEC", "facade": "JunaOFDMFEC",
+                "mode": "ofdm_fec", "profile": "ofdm_fec"}
+    if ofdm_fec is None or any(ofdm_fec.get(key) != value
+                               for key, value in expected.items()):
+        problems.append(
+            "S23: /api/receivers lacks the canonical OFDM+FEC receiver")
+    code, alias_text = fetch(base, "/api/graph?receiver=standard")
+    alias_data = (json.loads(alias_text).get("data", {})
+                  if code == 200 else {})
+    alias_context = alias_data.get("context", [])
+    if not any(context.get("kind") == "receiver" and
+               context.get("value") == "ofdm_fec" and
+               context.get("label") == "OFDM+FEC"
+               for context in alias_context):
+        problems.append(
+            "S23: receiver=standard did not resolve to canonical OFDM+FEC")
+
+    # S24
+    rich_markers = ('id="side"', 'id="net"', 'id="detail"')
+    rich_pages = {"/source": src_page}
+    for path in ("/source-advanced", "/source-legacy"):
+        code, page = fetch(base, path)
+        if code != 200:
+            problems.append(f"S24: {path} returned {code}")
+            continue
+        rich_pages[path] = page
+    approved_source_labels = (
+        "Types and interface methods",
+        "Receiver stages",
+        "Static calls",
+        "Public interface",
+        "Modulation fields",
+    )
+    removed_source_labels = (
+        "OOP view",
+        "JunaCore pipeline",
+        "call-focus sphere view",
+        "interface I/O",
+        "object fields",
+    )
+    for path, page in rich_pages.items():
+        for marker in rich_markers:
+            if marker not in page:
+                problems.append(
+                    f"S24: {path} lacks rich analyzer marker {marker}")
+        for label in approved_source_labels:
+            if label not in page:
+                problems.append(
+                    f"S24: {path} lacks approved label '{label}'")
+        for old_label in removed_source_labels:
+            if old_label in page:
+                problems.append(
+                    f"S24: {path} retains old label '{old_label}'")
+    if 'data-source-mode="inspector"' not in inspector_page:
+        problems.append(
+            "S24: /source/inspector is not the Evidence Inspector")
+    if 'data-source-mode="graph"' not in graph_page:
+        problems.append("S24: /source/graph changed away from graph mode")
+    if 'href="/source/inspector"' not in src_page:
+        problems.append(
+            "S24: primary Source bridge does not link to Evidence Inspector")
+    if ('"embedded": true' not in src_page or
+            "if(CFG.embedded){location.reload();return;}" not in src_page):
+        problems.append(
+            "S24: primary Source Reload does not request a fresh source scan")
+    if "/source/inspector#sym=" not in src_page:
+        problems.append(
+            "S24: primary Source evidence link misses the Inspector")
+
+    rich_dom, rich_error = browser_dom(base, "/source#sym=_juna_step")
+    if rich_dom is None:
+        problems.append(
+            f"S24: primary Source deep link not checked: {rich_error}")
+    elif not all(marker in rich_dom for marker in
+                 ("<b>Code name</b>", "<h2>implementation</h2>",
+                  "_juna_step")):
+        problems.append(
+            "S24: primary Source deep link did not show the implementation")
+
+    inspector_dom, inspector_error = browser_dom(
+        base, "/source/inspector#sym=Juna.Modulation")
+    expected_source_link = 'href="/source#sym=Modulation&amp;module=Juna"'
+    if inspector_dom is None:
+        problems.append(
+            f"S24: Inspector Source link not checked: {inspector_error}")
+    elif expected_source_link not in inspector_dom:
+        problems.append(
+            "S24: Inspector emitted a Source link that cannot identify "
+            "Juna.Modulation")
+
+    modulation_dom, modulation_error = browser_dom(
+        base, "/source#sym=Modulation&module=Juna")
+    if modulation_dom is None:
+        problems.append(
+            f"S24: Juna.Modulation Source link not checked: "
+            f"{modulation_error}")
+    elif '<h3>Modulation<span class="kind">struct</span></h3>' not in \
+          modulation_dom:
+        problems.append(
+            "S24: Juna.Modulation Source link did not open its definition")
+
+    source_explorer_path = os.path.join(
+        HERE, "source_symbol_explorer.py")
+    with open(source_explorer_path, encoding="utf-8") as source_handle:
+        source_explorer_text = source_handle.read()
+    pipeline_text = source_explorer_text.split(
+        "const PIPELINE=[", 1)[1].split("const MODPRI=", 1)[0]
+    pipeline_functions = {
+        name
+        for function_list in _re.findall(r"\bf:\[([^\]]*)\]",
+                                         pipeline_text)
+        for name in _re.findall(r"['\"]([^'\"]+)['\"]", function_list)
+    }
+    current_functions = {symbol["name"] for symbol in analyzed["symbols"]}
+    absent_pipeline_functions = sorted(
+        pipeline_functions - current_functions)
+    if absent_pipeline_functions:
+        problems.append(
+            "S24: Receiver stages names absent source functions: " +
+            ", ".join(absent_pipeline_functions))
+    incomplete_receiver_functions = {
+        "_frame_wz_refine",
+        "_frame_wcz_refine",
+        "_frame_turbo_map_refine",
+        "_frame_profiled_gradient_refine",
+    }
+    advertised_incomplete_receivers = sorted(
+        pipeline_functions & incomplete_receiver_functions)
+    if advertised_incomplete_receivers:
+        problems.append(
+            "S24: Receiver stages advertises incomplete receiver paths: " +
+            ", ".join(advertised_incomplete_receivers))
+    for stale_marker in ("sync_profile", "Rpchan", ":rpchan",
+                         "_rpchan_acquire"):
+        if stale_marker in source_explorer_text:
+            problems.append(
+                "S24: Receiver stages retains absent source entry " +
+                stale_marker)
+    family_text = source_explorer_text.split(
+        "function artFamilies", 1)[1].split("async function load", 1)[0]
+    drawn_facades = set(_re.findall(r"['\"](Juna[A-Za-z0-9_]+)['\"]",
+                                    family_text))
+    current_facades = {
+        symbol["module"] for symbol in analyzed["symbols"]
+        if symbol.get("file") == "JunaCore.jl" and
+        symbol.get("kind") == "const" and
+        symbol.get("name") == "Modulation" and
+        symbol.get("module") != "JunaCore"
+    }
+    absent_drawn_facades = sorted(drawn_facades - current_facades)
+    if absent_drawn_facades:
+        problems.append(
+            "S24: Receiver stages draws absent facades: " +
+            ", ".join(absent_drawn_facades))
+    missing_drawn_facades = sorted(current_facades - drawn_facades)
+    if missing_drawn_facades:
+        problems.append(
+            "S24: Receiver stages omits current facades: " +
+            ", ".join(missing_drawn_facades))
+
+    # S25
+    probe_name = "_server_contract_rescan_probe"
+    code, before_text = fetch(base, "/api/symbols")
+    before = (json.loads(before_text).get("data", [])
+              if code == 200 else [])
+    if any(symbol.get("name") == probe_name for symbol in before):
+        problems.append("S25: source-rescan probe name already exists")
+    probe_path = os.path.join(
+        ROOT, "src", "juna", "server_contract_rescan_probe.jl")
+    try:
+        with open(probe_path, "w") as fh:
+            fh.write(f"function {probe_name}()\n  nothing\nend\n")
+        code, after_text = fetch(base, "/api/symbols")
+        after = (json.loads(after_text).get("data", [])
+                 if code == 200 else [])
+        if not any(symbol.get("name") == probe_name for symbol in after):
+            problems.append(
+                "S25: full rescan did not discover a newly added .jl file")
+    finally:
+        if os.path.exists(probe_path):
+            os.unlink(probe_path)
+
     httpd.shutdown()
+    shutil.rmtree(fixture, ignore_errors=True)
     return problems
 
 
@@ -799,4 +1040,4 @@ if __name__ == "__main__":
         for p in problems:
             print("  -", p)
         sys.exit(1)
-    print("server contract: PASS (S1-S21)")
+    print("server contract: PASS (S1-S25)")

@@ -9,7 +9,7 @@
     "lite.mild_noise": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27",
     "partial-fft.clean": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27",
     "partial-fft.mild_noise": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27",
-    "standard.clean": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27",
-    "standard.mild_noise": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27"
+    "ofdm_fec.clean": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27",
+    "ofdm_fec.mild_noise": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27"
   }
 }
