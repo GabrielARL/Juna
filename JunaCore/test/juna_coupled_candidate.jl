@@ -46,13 +46,13 @@ end
             f.m, f.code, f.layout, problem, solved.state,
         )
 
-        @test length(candidate.lpost_metric) == f.code.n
-        @test all(isfinite, candidate.lpost_metric)
+        @test length(candidate.posterior_metric) == f.code.n
+        @test all(isfinite, candidate.posterior_metric)
         @test isfinite(candidate.pilot_mse)
         @test isfinite(candidate.tie_mse)
-        @test isfinite(candidate.score)
+        @test isfinite(candidate.selection_score)
         @test CoupledCandidateJuna._payload_from_metrics(
-            f.m, f.code, candidate.lpost_metric,
+            f.m, f.code, candidate.posterior_metric,
         ) == f.payload
     end
 
@@ -68,13 +68,13 @@ end
             config = config,
         )
 
-        @test all(isfinite, direct.lpost_metric)
-        @test !CoupledCandidateJuna._juna_better(
+        @test all(isfinite, direct.posterior_metric)
+        @test !CoupledCandidateJuna._candidate_is_better(
             f.initial_candidate, f.initial_candidate)
-        @test !CoupledCandidateJuna._juna_better(
+        @test !CoupledCandidateJuna._candidate_is_better(
             selected, f.initial_candidate)
         @test CoupledCandidateJuna._payload_from_metrics(
-            f.m, f.code, selected.lpost_metric,
+            f.m, f.code, selected.posterior_metric,
         ) == f.payload
     end
 
@@ -89,7 +89,7 @@ end
         @test isvalid(m, COUPLED_FC, COUPLED_FS)
         @test !isvalid(
             CoupledCandidateJuna.CoupledModulation(
-                bpc = 1, ldpc_k = 170, ldpc_n = 680,
+                bits_per_data_carrier = 1, ldpc_k = 170, ldpc_n = 680,
             ),
             COUPLED_FC,
             COUPLED_FS,
@@ -110,5 +110,5 @@ end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    println("Profiled C,z checks passed")
+    println("C,z refinement checks passed")
 end

@@ -1,0 +1,1176 @@
+{
+  "schema_version": 1,
+  "result_scope": "60-frame confirmation",
+  "receiver_ids": [
+    "ofdm_fec",
+    "lite",
+    "pfft",
+    "cz_refinement",
+    "joint_cwz"
+  ],
+  "ranking_rule": {
+    "required_confirmation_seeds": [
+      6,
+      7
+    ],
+    "required_decode_failures": 0,
+    "order": [
+      "mean_effective_rate_bps_descending",
+      "pooled_ber_ascending",
+      "mean_decode_seconds_per_frame_ascending"
+    ],
+    "lite_timing_source": "in_run_confirmation"
+  },
+  "winner_counts": {
+    "ofdm_fec": 9,
+    "lite": 1,
+    "pfft": 0,
+    "cz_refinement": 0,
+    "joint_cwz": 2
+  },
+  "paths": [
+    {
+      "channel": "red1",
+      "hydrophone": 1,
+      "winner_id": "ofdm_fec",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "receiver_id": "ofdm_fec",
+          "configuration": {
+            "nfft": 512,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 4,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 1922.8668941979522,
+          "minimum_effective_rate_bps": 1880.136518771331,
+          "mean_packet_success_rate": 0.75,
+          "pooled_ber": 0.004452875399361023,
+          "mean_decode_seconds_per_frame": 0.0912271581
+        },
+        {
+          "receiver_id": "lite",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 0,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 3,
+            "check_degree": 8,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 1833.203125,
+          "minimum_effective_rate_bps": 1786.1979166666667,
+          "mean_packet_success_rate": 0.6499999999999999,
+          "pooled_ber": 0.001793628808864266,
+          "mean_decode_seconds_per_frame": 0.26031945898333336
+        },
+        {
+          "receiver_id": "pfft",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 32,
+            "code_rate": 0.25,
+            "outer_spacing": 3,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 1143.9175257731958,
+          "minimum_effective_rate_bps": 1096.9072164948454,
+          "mean_packet_success_rate": 0.6083333333333334,
+          "pooled_ber": 0.0003769188596491228,
+          "mean_decode_seconds_per_frame": 0.11212547440833334
+        },
+        {
+          "receiver_id": "cz_refinement",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 0,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 3,
+            "check_degree": 8,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 1833.203125,
+          "minimum_effective_rate_bps": 1786.1979166666667,
+          "mean_packet_success_rate": 0.6499999999999999,
+          "pooled_ber": 0.001793628808864266,
+          "mean_decode_seconds_per_frame": 0.6154544942583333
+        },
+        {
+          "receiver_id": "joint_cwz",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 0,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 3,
+            "check_degree": 8,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 1833.203125,
+          "minimum_effective_rate_bps": 1786.1979166666667,
+          "mean_packet_success_rate": 0.6499999999999999,
+          "pooled_ber": 0.001793628808864266,
+          "mean_decode_seconds_per_frame": 0.45699019449166667
+        }
+      ]
+    },
+    {
+      "channel": "red1",
+      "hydrophone": 2,
+      "winner_id": "joint_cwz",
+      "rate_tie_ids": [
+        "joint_cwz",
+        "cz_refinement"
+      ],
+      "receiver_results": [
+        {
+          "receiver_id": "ofdm_fec",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 188.77796901893288,
+          "minimum_effective_rate_bps": 188.77796901893288,
+          "mean_packet_success_rate": 0.05,
+          "pooled_ber": 0.15938183807439826,
+          "mean_decode_seconds_per_frame": 0.09306766611666667
+        },
+        {
+          "receiver_id": "lite",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 64,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 4,
+            "check_degree": 8,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 1995.7142857142853,
+          "minimum_effective_rate_bps": 1917.9591836734692,
+          "mean_packet_success_rate": 0.6416666666666666,
+          "pooled_ber": 0.006477608267716536,
+          "mean_decode_seconds_per_frame": 0.230991463425
+        },
+        {
+          "receiver_id": "pfft",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 32,
+            "code_rate": 0.25,
+            "outer_spacing": 3,
+            "inner_spacing": 8,
+            "check_degree": 10,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 1081.4690721649486,
+          "minimum_effective_rate_bps": 1005.3092783505156,
+          "mean_packet_success_rate": 0.5916666666666667,
+          "pooled_ber": 0.0002820078962210942,
+          "mean_decode_seconds_per_frame": 0.12214336430833334
+        },
+        {
+          "receiver_id": "cz_refinement",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 64,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 4,
+            "check_degree": 8,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 2073.4693877551017,
+          "minimum_effective_rate_bps": 2021.6326530612243,
+          "mean_packet_success_rate": 0.6666666666666667,
+          "pooled_ber": 0.006471456692913386,
+          "mean_decode_seconds_per_frame": 0.5828039968083332
+        },
+        {
+          "receiver_id": "joint_cwz",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 64,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 4,
+            "check_degree": 8,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 2073.4693877551017,
+          "minimum_effective_rate_bps": 2021.6326530612243,
+          "mean_packet_success_rate": 0.6666666666666667,
+          "pooled_ber": 0.006471456692913386,
+          "mean_decode_seconds_per_frame": 0.4436874005
+        }
+      ]
+    },
+    {
+      "channel": "red1",
+      "hydrophone": 3,
+      "winner_id": "lite",
+      "rate_tie_ids": [
+        "lite",
+        "joint_cwz",
+        "cz_refinement"
+      ],
+      "receiver_results": [
+        {
+          "receiver_id": "ofdm_fec",
+          "configuration": {
+            "nfft": 512,
+            "cp": 32,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 3465.838926174497,
+          "minimum_effective_rate_bps": 3435.1677852348994,
+          "mean_packet_success_rate": 0.9416666666666667,
+          "pooled_ber": 1.823486506199854e-05,
+          "mean_decode_seconds_per_frame": 0.033761915225
+        },
+        {
+          "receiver_id": "lite",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 128,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 8,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 3625.25625,
+          "minimum_effective_rate_bps": 3588.6375,
+          "mean_packet_success_rate": 0.825,
+          "pooled_ber": 0.0037677077999658643,
+          "mean_decode_seconds_per_frame": 0.26568930691666665
+        },
+        {
+          "receiver_id": "pfft",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 128,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 5,
+            "check_degree": 10,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 2472.8500000000004,
+          "minimum_effective_rate_bps": 2407.775,
+          "mean_packet_success_rate": 0.6333333333333333,
+          "pooled_ber": 0.028143808426174928,
+          "mean_decode_seconds_per_frame": 0.07051899939166667
+        },
+        {
+          "receiver_id": "cz_refinement",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 128,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 8,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 3625.25625,
+          "minimum_effective_rate_bps": 3588.6375,
+          "mean_packet_success_rate": 0.825,
+          "pooled_ber": 0.0037677077999658643,
+          "mean_decode_seconds_per_frame": 0.505016566
+        },
+        {
+          "receiver_id": "joint_cwz",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 128,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 8,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 3625.25625,
+          "minimum_effective_rate_bps": 3588.6375,
+          "mean_packet_success_rate": 0.825,
+          "pooled_ber": 0.0037677077999658643,
+          "mean_decode_seconds_per_frame": 0.4200795928333333
+        }
+      ]
+    },
+    {
+      "channel": "red2",
+      "hydrophone": 1,
+      "winner_id": "joint_cwz",
+      "rate_tie_ids": [
+        "joint_cwz"
+      ],
+      "receiver_results": [
+        {
+          "receiver_id": "ofdm_fec",
+          "configuration": {
+            "nfft": 512,
+            "cp": 32,
+            "code_rate": 0.25,
+            "outer_spacing": 3,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 1280.1342281879195,
+          "minimum_effective_rate_bps": 1204.8322147651006,
+          "mean_packet_success_rate": 0.8500000000000001,
+          "pooled_ber": 0.00015597147950089128,
+          "mean_decode_seconds_per_frame": 0.08553119198333334
+        },
+        {
+          "receiver_id": "lite",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 64,
+            "code_rate": 0.25,
+            "outer_spacing": 3,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 1240.816326530612,
+          "minimum_effective_rate_bps": 1209.7959183673468,
+          "mean_packet_success_rate": 0.6666666666666667,
+          "pooled_ber": 0.0008257949561403508,
+          "mean_decode_seconds_per_frame": 0.30019596486666666
+        },
+        {
+          "receiver_id": "pfft",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 0,
+            "code_rate": 0.25,
+            "outer_spacing": 3,
+            "inner_spacing": 5,
+            "check_degree": 10,
+            "horizon": 2
+          },
+          "mean_effective_rate_bps": 282.65625,
+          "minimum_effective_rate_bps": 272.1875,
+          "mean_packet_success_rate": 0.225,
+          "pooled_ber": 0.020949937810945275,
+          "mean_decode_seconds_per_frame": 0.06577592175833333
+        },
+        {
+          "receiver_id": "cz_refinement",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 64,
+            "code_rate": 0.25,
+            "outer_spacing": 3,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 1271.8367346938774,
+          "minimum_effective_rate_bps": 1209.7959183673468,
+          "mean_packet_success_rate": 0.6833333333333333,
+          "pooled_ber": 0.0008189418859649123,
+          "mean_decode_seconds_per_frame": 0.6497484881
+        },
+        {
+          "receiver_id": "joint_cwz",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 64,
+            "code_rate": 0.25,
+            "outer_spacing": 3,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 1287.34693877551,
+          "minimum_effective_rate_bps": 1240.816326530612,
+          "mean_packet_success_rate": 0.6916666666666667,
+          "pooled_ber": 0.000815515350877193,
+          "mean_decode_seconds_per_frame": 0.48250699791666674
+        }
+      ]
+    },
+    {
+      "channel": "red2",
+      "hydrophone": 2,
+      "winner_id": "ofdm_fec",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "receiver_id": "ofdm_fec",
+          "configuration": {
+            "nfft": 512,
+            "cp": 32,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 5,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 2062.281879194631,
+          "minimum_effective_rate_bps": 2017.4496644295302,
+          "mean_packet_success_rate": 0.7666666666666666,
+          "pooled_ber": 0.01967003493013972,
+          "mean_decode_seconds_per_frame": 0.08036501375833334
+        },
+        {
+          "receiver_id": "lite",
+          "configuration": {
+            "nfft": 512,
+            "cp": 32,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 5,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 67.24832214765101,
+          "minimum_effective_rate_bps": 44.83221476510067,
+          "mean_packet_success_rate": 0.025,
+          "pooled_ber": 0.19624189121756486,
+          "mean_decode_seconds_per_frame": 0.17113215255
+        },
+        {
+          "receiver_id": "pfft",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 32,
+            "code_rate": 0.25,
+            "outer_spacing": 3,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 2
+          },
+          "mean_effective_rate_bps": 468.5051546391753,
+          "minimum_effective_rate_bps": 430.1030927835052,
+          "mean_packet_success_rate": 0.5083333333333333,
+          "pooled_ber": 0.006026286353467561,
+          "mean_decode_seconds_per_frame": 0.044275411641666665
+        },
+        {
+          "receiver_id": "cz_refinement",
+          "configuration": {
+            "nfft": 512,
+            "cp": 32,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 5,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 67.24832214765101,
+          "minimum_effective_rate_bps": 44.83221476510067,
+          "mean_packet_success_rate": 0.025,
+          "pooled_ber": 0.19624189121756486,
+          "mean_decode_seconds_per_frame": 0.8385634548583334
+        },
+        {
+          "receiver_id": "joint_cwz",
+          "configuration": {
+            "nfft": 512,
+            "cp": 32,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 5,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 67.24832214765101,
+          "minimum_effective_rate_bps": 44.83221476510067,
+          "mean_packet_success_rate": 0.025,
+          "pooled_ber": 0.19624189121756486,
+          "mean_decode_seconds_per_frame": 0.6229994981083333
+        }
+      ]
+    },
+    {
+      "channel": "red2",
+      "hydrophone": 3,
+      "winner_id": "ofdm_fec",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "receiver_id": "ofdm_fec",
+          "configuration": {
+            "nfft": 512,
+            "cp": 32,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 2422.5503355704695,
+          "minimum_effective_rate_bps": 2321.6107382550335,
+          "mean_packet_success_rate": 0.8,
+          "pooled_ber": 0.014924091312056737,
+          "mean_decode_seconds_per_frame": 0.08443460091666669
+        },
+        {
+          "receiver_id": "lite",
+          "configuration": {
+            "nfft": 512,
+            "cp": 32,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 75.70469798657719,
+          "minimum_effective_rate_bps": 50.46979865771812,
+          "mean_packet_success_rate": 0.025,
+          "pooled_ber": 0.17791722074468086,
+          "mean_decode_seconds_per_frame": 0.13728736069999997
+        },
+        {
+          "receiver_id": "pfft",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 0,
+            "code_rate": 0.25,
+            "outer_spacing": 5,
+            "inner_spacing": 5,
+            "check_degree": 10,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 658.88671875,
+          "minimum_effective_rate_bps": 540.625,
+          "mean_packet_success_rate": 0.325,
+          "pooled_ber": 0.0010468850353243418,
+          "mean_decode_seconds_per_frame": 0.10964380626666667
+        },
+        {
+          "receiver_id": "cz_refinement",
+          "configuration": {
+            "nfft": 512,
+            "cp": 32,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 75.70469798657719,
+          "minimum_effective_rate_bps": 50.46979865771812,
+          "mean_packet_success_rate": 0.025,
+          "pooled_ber": 0.17791722074468086,
+          "mean_decode_seconds_per_frame": 0.7455218757583333
+        },
+        {
+          "receiver_id": "joint_cwz",
+          "configuration": {
+            "nfft": 512,
+            "cp": 32,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 75.70469798657719,
+          "minimum_effective_rate_bps": 50.46979865771812,
+          "mean_packet_success_rate": 0.025,
+          "pooled_ber": 0.17791722074468086,
+          "mean_decode_seconds_per_frame": 0.5742091528833334
+        }
+      ]
+    },
+    {
+      "channel": "red3",
+      "hydrophone": 1,
+      "winner_id": "ofdm_fec",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "receiver_id": "ofdm_fec",
+          "configuration": {
+            "nfft": 512,
+            "cp": 32,
+            "code_rate": 0.5,
+            "outer_spacing": 3,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 2498.2550335570468,
+          "minimum_effective_rate_bps": 2473.020134228188,
+          "mean_packet_success_rate": 0.825,
+          "pooled_ber": 0.010123005319148936,
+          "mean_decode_seconds_per_frame": 0.08757674702499998
+        },
+        {
+          "receiver_id": "lite",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 64,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 0.0,
+          "minimum_effective_rate_bps": 0.0,
+          "mean_packet_success_rate": 0.0,
+          "pooled_ber": 0.20271471553610504,
+          "mean_decode_seconds_per_frame": 0.22205525033333331
+        },
+        {
+          "receiver_id": "pfft",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 32,
+            "code_rate": 0.125,
+            "outer_spacing": 5,
+            "inner_spacing": 8,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 297.5968992248062,
+          "minimum_effective_rate_bps": 270.5426356589147,
+          "mean_packet_success_rate": 0.3666666666666667,
+          "pooled_ber": 0.0025549188156638015,
+          "mean_decode_seconds_per_frame": 0.06174200130833335
+        },
+        {
+          "receiver_id": "cz_refinement",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 64,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 0.0,
+          "minimum_effective_rate_bps": 0.0,
+          "mean_packet_success_rate": 0.0,
+          "pooled_ber": 0.20271471553610504,
+          "mean_decode_seconds_per_frame": 1.0931161145916666
+        },
+        {
+          "receiver_id": "joint_cwz",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 64,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 0.0,
+          "minimum_effective_rate_bps": 0.0,
+          "mean_packet_success_rate": 0.0,
+          "pooled_ber": 0.20271471553610504,
+          "mean_decode_seconds_per_frame": 0.9035926895583334
+        }
+      ]
+    },
+    {
+      "channel": "red3",
+      "hydrophone": 2,
+      "winner_id": "ofdm_fec",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "receiver_id": "ofdm_fec",
+          "configuration": {
+            "nfft": 512,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 2994.6757679180887,
+          "minimum_effective_rate_bps": 2994.6757679180887,
+          "mean_packet_success_rate": 0.8,
+          "pooled_ber": 0.013145058351568198,
+          "mean_decode_seconds_per_frame": 0.09704133293333335
+        },
+        {
+          "receiver_id": "lite",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 64,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 61.34228187919463,
+          "minimum_effective_rate_bps": 61.34228187919463,
+          "mean_packet_success_rate": 0.016666666666666666,
+          "pooled_ber": 0.1605055616338439,
+          "mean_decode_seconds_per_frame": 0.21149889977500003
+        },
+        {
+          "receiver_id": "pfft",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 128,
+            "code_rate": 0.25,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 935.0,
+          "minimum_effective_rate_bps": 907.5,
+          "mean_packet_success_rate": 0.5666666666666667,
+          "pooled_ber": 0.0009240128558310376,
+          "mean_decode_seconds_per_frame": 0.066437719875
+        },
+        {
+          "receiver_id": "cz_refinement",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 64,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 92.01342281879195,
+          "minimum_effective_rate_bps": 61.34228187919463,
+          "mean_packet_success_rate": 0.025,
+          "pooled_ber": 0.1600610867979577,
+          "mean_decode_seconds_per_frame": 1.0681195213083337
+        },
+        {
+          "receiver_id": "joint_cwz",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 64,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 92.01342281879195,
+          "minimum_effective_rate_bps": 61.34228187919463,
+          "mean_packet_success_rate": 0.025,
+          "pooled_ber": 0.1600610867979577,
+          "mean_decode_seconds_per_frame": 0.8657046579000001
+        }
+      ]
+    },
+    {
+      "channel": "red3",
+      "hydrophone": 3,
+      "winner_id": "ofdm_fec",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "receiver_id": "ofdm_fec",
+          "configuration": {
+            "nfft": 512,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 8,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 3119.4539249146756,
+          "minimum_effective_rate_bps": 2994.6757679180887,
+          "mean_packet_success_rate": 0.8333333333333334,
+          "pooled_ber": 0.0053359773887673234,
+          "mean_decode_seconds_per_frame": 0.04032457166666668
+        },
+        {
+          "receiver_id": "lite",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 64,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 61.34228187919463,
+          "minimum_effective_rate_bps": 0.0,
+          "mean_packet_success_rate": 0.016666666666666666,
+          "pooled_ber": 0.17424325309992705,
+          "mean_decode_seconds_per_frame": 0.08486282059166667
+        },
+        {
+          "receiver_id": "pfft",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 16,
+            "code_rate": 0.25,
+            "outer_spacing": 5,
+            "inner_spacing": 8,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 796.6536964980545,
+          "minimum_effective_rate_bps": 714.2412451361868,
+          "mean_packet_success_rate": 0.48333333333333334,
+          "pooled_ber": 0.0011744570349386213,
+          "mean_decode_seconds_per_frame": 0.06908618551666666
+        },
+        {
+          "receiver_id": "cz_refinement",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 64,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 61.34228187919463,
+          "minimum_effective_rate_bps": 0.0,
+          "mean_packet_success_rate": 0.016666666666666666,
+          "pooled_ber": 0.17424325309992705,
+          "mean_decode_seconds_per_frame": 0.42417168837499997
+        },
+        {
+          "receiver_id": "joint_cwz",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 64,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 61.34228187919463,
+          "minimum_effective_rate_bps": 0.0,
+          "mean_packet_success_rate": 0.016666666666666666,
+          "pooled_ber": 0.17424325309992705,
+          "mean_decode_seconds_per_frame": 0.34572024852499994
+        }
+      ]
+    },
+    {
+      "channel": "red4",
+      "hydrophone": 1,
+      "winner_id": "ofdm_fec",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "receiver_id": "ofdm_fec",
+          "configuration": {
+            "nfft": 512,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 3618.566552901024,
+          "minimum_effective_rate_bps": 3556.1774744027302,
+          "mean_packet_success_rate": 0.9666666666666666,
+          "pooled_ber": 0.0013584974471188914,
+          "mean_decode_seconds_per_frame": 0.08973749580833335
+        },
+        {
+          "receiver_id": "lite",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 566.3339070567986,
+          "minimum_effective_rate_bps": 566.3339070567986,
+          "mean_packet_success_rate": 0.15,
+          "pooled_ber": 0.12168809263311452,
+          "mean_decode_seconds_per_frame": 0.1948440181666667
+        },
+        {
+          "receiver_id": "pfft",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 32,
+            "code_rate": 0.25,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 1637.416237113402,
+          "minimum_effective_rate_bps": 1505.6701030927836,
+          "mean_packet_success_rate": 0.725,
+          "pooled_ber": 0.00015120392559625698,
+          "mean_decode_seconds_per_frame": 0.1321633890416667
+        },
+        {
+          "receiver_id": "cz_refinement",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 566.3339070567986,
+          "minimum_effective_rate_bps": 566.3339070567986,
+          "mean_packet_success_rate": 0.15,
+          "pooled_ber": 0.12168809263311452,
+          "mean_decode_seconds_per_frame": 0.8944985361750001
+        },
+        {
+          "receiver_id": "joint_cwz",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 566.3339070567986,
+          "minimum_effective_rate_bps": 566.3339070567986,
+          "mean_packet_success_rate": 0.15,
+          "pooled_ber": 0.12168809263311452,
+          "mean_decode_seconds_per_frame": 0.7478263305666668
+        }
+      ]
+    },
+    {
+      "channel": "red4",
+      "hydrophone": 2,
+      "winner_id": "ofdm_fec",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "receiver_id": "ofdm_fec",
+          "configuration": {
+            "nfft": 512,
+            "cp": 0,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 3173.6111111111113,
+          "minimum_effective_rate_bps": 3046.6666666666665,
+          "mean_packet_success_rate": 0.8333333333333334,
+          "pooled_ber": 0.00837208242159008,
+          "mean_decode_seconds_per_frame": 0.0895728121
+        },
+        {
+          "receiver_id": "lite",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 629.2598967297763,
+          "minimum_effective_rate_bps": 503.407917383821,
+          "mean_packet_success_rate": 0.16666666666666669,
+          "pooled_ber": 0.11894602479941649,
+          "mean_decode_seconds_per_frame": 0.21784412125000002
+        },
+        {
+          "receiver_id": "pfft",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 16,
+            "code_rate": 0.25,
+            "outer_spacing": 5,
+            "inner_spacing": 5,
+            "check_degree": 10,
+            "horizon": 4
+          },
+          "mean_effective_rate_bps": 1378.1735751295337,
+          "minimum_effective_rate_bps": 1344.5595854922278,
+          "mean_packet_success_rate": 0.6833333333333333,
+          "pooled_ber": 0.0001798330122029544,
+          "mean_decode_seconds_per_frame": 0.13020687990000002
+        },
+        {
+          "receiver_id": "cz_refinement",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 660.722891566265,
+          "minimum_effective_rate_bps": 566.3339070567986,
+          "mean_packet_success_rate": 0.175,
+          "pooled_ber": 0.11857221006564551,
+          "mean_decode_seconds_per_frame": 0.9173756286583334
+        },
+        {
+          "receiver_id": "joint_cwz",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 660.722891566265,
+          "minimum_effective_rate_bps": 566.3339070567986,
+          "mean_packet_success_rate": 0.175,
+          "pooled_ber": 0.11857221006564551,
+          "mean_decode_seconds_per_frame": 0.773236731325
+        }
+      ]
+    },
+    {
+      "channel": "red4",
+      "hydrophone": 3,
+      "winner_id": "ofdm_fec",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "receiver_id": "ofdm_fec",
+          "configuration": {
+            "nfft": 512,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 3587.372013651877,
+          "minimum_effective_rate_bps": 3493.7883959044366,
+          "mean_packet_success_rate": 0.9583333333333333,
+          "pooled_ber": 0.0017824580598103574,
+          "mean_decode_seconds_per_frame": 0.0603631323
+        },
+        {
+          "receiver_id": "lite",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 1038.2788296041308,
+          "minimum_effective_rate_bps": 1006.815834767642,
+          "mean_packet_success_rate": 0.275,
+          "pooled_ber": 0.1068494711889132,
+          "mean_decode_seconds_per_frame": 0.08254811032500002
+        },
+        {
+          "receiver_id": "pfft",
+          "configuration": {
+            "nfft": 2048,
+            "cp": 128,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 2
+          },
+          "mean_effective_rate_bps": 1106.439393939394,
+          "minimum_effective_rate_bps": 1051.1174242424242,
+          "mean_packet_success_rate": 0.3333333333333333,
+          "pooled_ber": 0.10048499372361064,
+          "mean_decode_seconds_per_frame": 0.03445945815
+        },
+        {
+          "receiver_id": "cz_refinement",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 1038.2788296041308,
+          "minimum_effective_rate_bps": 1006.815834767642,
+          "mean_packet_success_rate": 0.275,
+          "pooled_ber": 0.1068494711889132,
+          "mean_decode_seconds_per_frame": 0.3454997109583333
+        },
+        {
+          "receiver_id": "joint_cwz",
+          "configuration": {
+            "nfft": 1024,
+            "cp": 16,
+            "code_rate": 0.5,
+            "outer_spacing": 5,
+            "inner_spacing": 10,
+            "check_degree": 10,
+            "horizon": 0
+          },
+          "mean_effective_rate_bps": 1069.7418244406197,
+          "minimum_effective_rate_bps": 1069.7418244406197,
+          "mean_packet_success_rate": 0.2833333333333333,
+          "pooled_ber": 0.10622948577680526,
+          "mean_decode_seconds_per_frame": 0.29711411416666667
+        }
+      ]
+    }
+  ]
+}

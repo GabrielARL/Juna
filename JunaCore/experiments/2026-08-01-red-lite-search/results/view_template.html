@@ -15,6 +15,7 @@
     --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #73716d;
     --grid: #dcdad4; --ring: #fcfcfb; --focus: #805500;
     --recv-ofdm-fec: #226fca; --recv-lite: #d95b28; --recv-pfft: #65645f;
+    --recv-cz-refinement: #16836f; --recv-joint-cwz: #8b55a7;
     min-height: 100vh; background: var(--surface-1); color: var(--text-primary);
   }
   @media (prefers-color-scheme: dark) {
@@ -24,6 +25,7 @@
       --text-primary: #fff; --text-secondary: #c6c5bc; --text-muted: #aaa99f;
       --grid: #41413d; --ring: #191918; --focus: #ffd166;
       --recv-ofdm-fec: #4b97ec; --recv-lite: #ef7542; --recv-pfft: #b3b2aa;
+      --recv-cz-refinement: #4cc7ad; --recv-joint-cwz: #c893e4;
     }
   }
   a { color: inherit; }
@@ -87,6 +89,7 @@
   .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
   .diasw { width: 9px; height: 9px; border: 2px solid var(--text-secondary); transform: rotate(45deg); display: inline-block; margin: 0 3px; }
   .dotsw { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--text-muted); display: inline-block; }
+  .tiesw { width: 14px; height: 14px; border-radius: 50%; border: 4px double var(--text-muted); display: inline-block; }
   .note { color: var(--text-muted); font-size: 12.5px; max-width: 88ch; margin: 8px 0 20px; }
   .chartwrap { overflow-x: auto; border-radius: 7px; }
   svg { display: block; }
@@ -181,11 +184,18 @@
 </head>
 <body>
 <div class="viz-root" data-results-view="red-configuration-search">
+  <div class="provenance" id="confirmation-provenance"></div>
   <header class="top">
     <h1>Red configuration search</h1>
     <p class="sub">Four measured red channels &times; three hydrophones at 20&nbsp;dB.
       Confirmation only: every retained configuration ran 60 frames on seeds 6 and 7.
-      LFM-sync harness &mdash; rates are not comparable with the earlier sonique table.</p>
+      The harness uses linear chirp synchronization. Rates are not comparable with the earlier sonique table.
+      Orthogonal frequency-division multiplexing with forward error correction is labeled OFDM+FEC.
+      Partial fast Fourier transform with forward error correction is labeled Partial-FFT + FEC.
+      The remaining labels are JUNA-Lite, C,z refinement, and joint C,W,z.
+      Packet success ratio (PSR) and bit error rate (BER) are reported for every configuration.
+      Cyclic prefix (CP) length and low-density parity-check (LDPC) code settings describe the confirmed geometry.
+      A cyclic redundancy check (CRC) certifies a selected refinement checkpoint.</p>
     <nav class="results-nav" aria-label="Results views">
       <a href="?page=summary" data-page-link="summary">Summary</a>
       <a href="?page=landscape" data-page-link="landscape">Search landscape</a>
@@ -208,7 +218,9 @@
         <option value="">All receivers</option>
         <option value="ofdm_fec">OFDM+FEC</option>
         <option value="lite">JUNA-Lite</option>
-        <option value="pfft">Partial FFT+FEC</option>
+        <option value="pfft">Partial-FFT + FEC</option>
+        <option value="cz_refinement">C,z refinement</option>
+        <option value="joint_cwz">joint C,W,z</option>
       </select>
     </label>
     <button id="f-reset" type="button">Reset</button>
@@ -222,23 +234,26 @@
         channel and hydrophone. Receiver does not filter this view.</p>
       <div class="tiles">
         <div class="tile"><div class="v">12 / 12</div><div class="l">channel–hydrophone results confirmed, zero decode failures</div></div>
-        <div class="tile"><div class="v">10 · 2 · 0</div><div class="l">OFDM+FEC · JUNA-Lite · Partial FFT+FEC wins</div></div>
+        <div class="tile"><div class="v" id="tile-wins">—</div><div class="l">OFDM+FEC · JUNA-Lite · Partial-FFT + FEC · C,z refinement · joint C,W,z wins</div></div>
         <div class="tile"><div class="v">3,625</div><div class="l">best rate, bit/s</div></div>
-        <div class="tile"><div class="v" id="tile-configs">—</div><div class="l">confirmed configurations, 60 frames each</div></div>
+        <div class="tile"><div class="v" id="tile-configs">—</div><div class="l">confirmation rows, 60 frames each</div></div>
       </div>
       <div class="summary-layout">
         <div>
           <div class="legend">
             <span><i class="sw" style="background:var(--recv-ofdm-fec)"></i>OFDM+FEC</span>
             <span><i class="sw" style="background:var(--recv-lite)"></i>JUNA-Lite</span>
+            <span><i class="sw" style="background:var(--recv-pfft)"></i>Partial-FFT + FEC</span>
+            <span><i class="sw" style="background:var(--recv-cz-refinement)"></i>C,z refinement</span>
+            <span><i class="sw" style="background:var(--recv-joint-cwz)"></i>joint C,W,z</span>
             <span><i class="dotsw"></i>best finalist of another receiver</span>
-            <span><i class="diasw"></i>Partial FFT+FEC best, own search</span>
+            <span><i class="tiesw"></i>exact mean-rate tie</span>
           </div>
           <div class="chartwrap"><svg id="chart" role="img"
             aria-label="Confirmed winner effective rate for each channel and hydrophone"></svg></div>
-          <p class="note">A ring near a bar end means another receiver was close. A missing
-            ring means none of that receiver's finalists completed confirmation on both seeds.
-            Partial FFT+FEC used its own search, so its diamond is a separate comparison.</p>
+          <p class="note">A ring marks the best confirmed finalist of another receiver.
+            A double ring marks an exact mean-rate tie. The complete ranking then uses lower
+            pooled bit error rate and lower mean decode time.</p>
         </div>
         <aside class="card" id="path-dossier" aria-labelledby="dossier-title">
           <h2 id="dossier-title">Selected channel and hydrophone</h2>
@@ -250,9 +265,9 @@
         <table id="winner-table">
           <caption>Winner geometry by channel and hydrophone</caption>
           <thead><tr>
-            <th>Channel and hydrophone</th><th>Receiver</th><th>N</th><th>CP</th><th>Rate</th>
-            <th>Pilots</th><th>dc</th><th>K</th><th>bit/s</th><th>min bit/s</th>
-            <th>PSR</th><th>BER</th><th>Partial FFT+FEC bit/s</th>
+            <th>Channel and hydrophone</th><th>Receiver</th><th>FFT length</th><th>Cyclic-prefix length</th><th>Code rate</th>
+            <th>Outer/inner pilot spacing</th><th>LDPC check degree</th><th>Frame-code component block count</th><th>bit/s</th><th>min bit/s</th>
+            <th>PSR</th><th>BER</th><th>Exact mean-rate tie</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -298,7 +313,9 @@
       <div class="legend">
         <span><i class="sw" style="background:var(--recv-ofdm-fec)"></i>OFDM+FEC</span>
         <span><i class="sw" style="background:var(--recv-lite)"></i>JUNA-Lite</span>
-        <span><i class="sw" style="background:var(--recv-pfft)"></i>Partial FFT+FEC</span>
+        <span><i class="sw" style="background:var(--recv-pfft)"></i>Partial-FFT + FEC</span>
+        <span><i class="sw" style="background:var(--recv-cz-refinement)"></i>C,z refinement</span>
+        <span><i class="sw" style="background:var(--recv-joint-cwz)"></i>joint C,W,z</span>
       </div>
       <div class="factors" id="factor-panels"></div>
     </section>
@@ -333,16 +350,29 @@
 
       <details class="guide" open><summary>What does BER count?</summary>
         <p><code>ber = bit_errors / attempted_bits</code> over all frames, including failed
-          frames. All 69 rows with a packet success ratio of zero still report BER between
-          0.12 and 0.31. Neither measure implies the other.</p></details>
+          frames. <span id="zero-psr-summary"></span> Neither measure implies the other.</p></details>
       <details class="guide"><summary>What is effective rate divided by?</summary>
         <p><code>effective_rate_bps = successful_frames × payload_bits_per_frame /
           (frames × frame_duration)</code>. Failed-frame time remains in the denominator.
           It is delivered throughput, not link rate, and it is what the search maximised.</p></details>
       <details class="guide"><summary>Which configurations are retained?</summary>
         <p>Only finalists rerun over 60 frames on seeds 6 and 7: four configurations per
-          receiver for each channel and hydrophone, twice, giving 288 rows. The 20-frame screening CSVs remain in
+          receiver for each channel and hydrophone, twice, giving 480 rows. The 20-frame screening CSVs remain in
           the results directory as the search record but are not loaded into this page.</p></details>
+      <details class="guide"><summary>How is the confirmed winner selected?</summary>
+        <p>The ranking uses mean effective rate, then lower pooled bit error rate, then
+          lower mean decode time. The C,z confirmation reran JUNA-Lite in the same package
+          and harness; those JUNA-Lite rows supply decode time when the first two values tie.
+          The page also reports exact mean-rate ties before the later comparisons select one
+          confirmed winner.</p></details>
+      <details class="guide"><summary>Were all five receivers searched separately?</summary>
+        <p>No. Partial-FFT + FEC used its own search. C,z refinement and joint C,W,z used
+          configurations from the shared OFDM+FEC and JUNA-Lite search. This was not a separate configuration search
+          for the two refinement receivers, so a search for
+          those receivers could select different configurations.</p></details>
+      <details class="guide"><summary>What do the refinement counters count?</summary>
+        <p id="refinement-counter-note"></p>
+        <p id="joint-step-counter-note"></p></details>
       <details class="guide"><summary>Was every combination tried?</summary>
         <p>No. The driver descends one dimension at a time and only finalists reached
           confirmation. Factor levels are therefore unbalanced, and some levels contain
@@ -364,14 +394,15 @@
         <dt><code>phase</code></dt><dd>Recorded search phase; every retained row is confirmation.</dd>
         <dt><code>start_index</code></dt><dd>Recorded starting sample index.</dd>
         <dt><code>algorithm_id</code></dt><dd><code>standard</code>, displayed as OFDM+FEC;
-          <code>lite</code>, displayed as JUNA-Lite; or <code>pfft</code>, displayed as Partial FFT+FEC.</dd>
-        <dt><code>nfft</code></dt><dd>FFT size N.</dd>
-        <dt><code>cp</code></dt><dd>Cyclic prefix length in samples.</dd>
+          <code>lite</code>, displayed as JUNA-Lite; <code>pfft</code>, displayed as Partial-FFT + FEC;
+          <code>cz_refinement</code>, displayed as C,z refinement; or <code>joint_cwz</code>, displayed as joint C,W,z.</dd>
+        <dt><code>nfft</code></dt><dd>FFT length.</dd>
+        <dt><code>cp</code></dt><dd>Cyclic-prefix length in samples.</dd>
         <dt><code>code_rate</code></dt><dd>LDPC code rate.</dd>
-        <dt><code>outer_spacing</code></dt><dd>Outer pilot ratio.</dd>
-        <dt><code>inner_spacing</code></dt><dd>Inner pilot ratio.</dd>
-        <dt><code>check_degree</code></dt><dd>LDPC check node degree.</dd>
-        <dt><code>horizon</code></dt><dd>K. Zero means fill with the largest whole-symbol block count that fits.</dd>
+        <dt><code>outer_spacing</code></dt><dd>Outer pilot spacing.</dd>
+        <dt><code>inner_spacing</code></dt><dd>Inner pilot spacing.</dd>
+        <dt><code>check_degree</code></dt><dd>LDPC check degree.</dd>
+        <dt><code>horizon</code></dt><dd>Frame-code component block count. Zero means fill with the largest whole-symbol block count that fits.</dd>
         <dt><code>seed</code></dt><dd>Confirmation seed, 6 or 7.</dd>
         <dt><code>frames</code></dt><dd>Attempted frames; every retained row has 60.</dd>
         <dt><code>frame_blocks</code></dt><dd>Blocks in each frame.</dd>
@@ -384,7 +415,11 @@
         <dt><code>decode_failures</code></dt><dd>Recorded decoder failures; zero in every retained row.</dd>
         <dt><code>decode_seconds</code></dt><dd>Recorded decoding time in seconds.</dd>
         <dt><code>effective_rate_bps</code></dt><dd>Delivered payload bits per whole elapsed second.</dd>
-        <dt><code>run</code></dt><dd>Source search: <code>3arm</code> or <code>pfft</code>.</dd>
+        <dt><code>refinement_selected_frames</code></dt><dd>Frames where a cyclic redundancy check certified the selected refinement checkpoint.</dd>
+        <dt><code>joint_cwz_accepted_steps</code></dt><dd>Joint C,W,z step calls that returned an accepted scale.</dd>
+        <dt><code>joint_cwz_rejected_steps</code></dt><dd>Joint C,W,z step calls that exhausted the available backtracking scales.</dd>
+        <dt><code>selection_reasons</code></dt><dd>Recorded frame-selection reason counts.</dd>
+        <dt><code>run</code></dt><dd>Source confirmation: OFDM+FEC search, Partial-FFT + FEC search, or C,z refinement confirmation.</dd>
       </dl>
       <h3>Completeness</h3>
       <p class="lead" id="manifest-summary"></p>
@@ -416,29 +451,35 @@ const PAGE_TITLES = {
   summary: 'Summary', landscape: 'Search landscape', factors: 'Factor analysis',
   configurations: 'Configurations', guide: 'Reading guide',
 };
-const RECEIVERS = ['ofdm_fec', 'lite', 'pfft'];
+const RECEIVERS = ['ofdm_fec', 'lite', 'pfft', 'cz_refinement', 'joint_cwz'];
 const FACTORS = [
-  { key: 'nfft', label: 'N — FFT size' },
-  { key: 'cp', label: 'CP — cyclic prefix' },
-  { key: 'code_rate', label: 'rate — LDPC code rate' },
-  { key: 'outer_spacing', label: 'outer pilot ratio' },
-  { key: 'inner_spacing', label: 'inner pilot ratio' },
-  { key: 'check_degree', label: 'dc — LDPC check degree' },
-  { key: 'horizon', label: 'K — horizon' },
+  { key: 'nfft', label: 'FFT length' },
+  { key: 'cp', label: 'cyclic-prefix length' },
+  { key: 'code_rate', label: 'code rate' },
+  { key: 'outer_spacing', label: 'outer pilot spacing' },
+  { key: 'inner_spacing', label: 'inner pilot spacing' },
+  { key: 'check_degree', label: 'LDPC check degree' },
+  { key: 'horizon', label: 'frame-code component block count' },
 ];
 const C = Object.fromEntries(CFG.cols.map((name, index) => [name, index]));
 const CSS = getComputedStyle(document.querySelector('.viz-root'));
-const color = id => id === 'ofdm_fec' ? CSS.getPropertyValue('--recv-ofdm-fec')
-  : id === 'lite' ? CSS.getPropertyValue('--recv-lite')
-  : CSS.getPropertyValue('--recv-pfft');
-const rname = id => id === 'lite' ? 'JUNA-Lite'
-  : id === 'pfft' ? 'Partial FFT+FEC' : 'OFDM+FEC';
+const RECEIVER_NAMES = {
+  ofdm_fec: 'OFDM+FEC', standard: 'OFDM+FEC', lite: 'JUNA-Lite',
+  pfft: 'Partial-FFT + FEC', cz_refinement: 'C,z refinement',
+  joint_cwz: 'joint C,W,z',
+};
+const RECEIVER_COLORS = {
+  ofdm_fec: '--recv-ofdm-fec', lite: '--recv-lite', pfft: '--recv-pfft',
+  cz_refinement: '--recv-cz-refinement', joint_cwz: '--recv-joint-cwz',
+};
+const color = id => CSS.getPropertyValue(RECEIVER_COLORS[canonicalReceiver(id)]);
+const rname = id => RECEIVER_NAMES[id] || id;
 const canonicalReceiver = id => id === 'standard' ? 'ofdm_fec' : id;
 const fmt = number => Math.round(number).toLocaleString('en-US');
 const esc = value => String(value).replace(/[&<>"']/g, char => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 })[char]);
-const pathKey = path => `${path.channel}-${path.label.slice(-1)}`;
+const pathKey = path => `${path.channel}-${path.hydrophone}`;
 const entryAt = index => ({
   row: CFG.rows[index], raw: CFG.raw_rows[index], id: CFG.row_ids[index], index,
 });
@@ -466,7 +507,7 @@ function filteredPaths() {
   const filter = filterValues();
   return DATA.paths.filter(path =>
     (!filter.channel || path.channel === filter.channel) &&
-    (!filter.lane || path.label.slice(-1) === filter.lane));
+    (!filter.lane || String(path.hydrophone) === filter.lane));
 }
 function filteredEntries() {
   const filter = filterValues();
@@ -487,7 +528,7 @@ function heldRows(except) {
 const holdsBox = document.getElementById('holds');
 for (const factor of FACTORS) {
   const label = document.createElement('label');
-  label.textContent = factor.key === 'horizon' ? 'K' : factor.key;
+  label.textContent = factor.label;
   const select = document.createElement('select');
   select.setAttribute('aria-label', `Hold ${factor.label}`);
   select.add(new Option('any', ''));
@@ -602,17 +643,20 @@ function drawWinners() {
     }
     const winner = path.winner, center = y + rowH / 2, key = pathKey(path);
     const barWidth = Math.max(4, x(winner.mean_effective_rate_bps) - x(0));
-    const aria = `${path.label.replace('lane', 'hydrophone')}, ${rname(winner.algorithm_id)} winner, ${fmt(winner.mean_effective_rate_bps)} bit per second`;
+    const tiedNames = path.rate_tie_ids.map(rname);
+    const tieText = tiedNames.length > 1 ? `, exact mean-rate tie: ${tiedNames.join(', ')}` : '';
+    const aria = `${path.label}, ${rname(winner.algorithm_id)} winner, ${fmt(winner.mean_effective_rate_bps)} bit per second${tieText}`;
     svg += `<g class="winner-row${key === selectedPath ? ' selected' : ''}" data-path="${esc(key)}" tabindex="0" role="button" aria-label="${esc(aria)}">`;
     svg += `<rect class="selection" x="2" y="${center - rowH / 2}" width="${width - 4}" height="${rowH}" rx="5"/>`;
-    svg += `<text class="row-label" x="${chartLeft - 12}" y="${center + 4}" text-anchor="end">hydrophone ${path.label.slice(-1)}</text>`;
+    svg += `<text class="row-label" x="${chartLeft - 12}" y="${center + 4}" text-anchor="end">hydrophone ${path.hydrophone}</text>`;
     svg += `<path d="M ${x(0)} ${center - 9} H ${x(0) + barWidth - 4} q 4 0 4 4 v 10 q 0 4 -4 4 H ${x(0)} Z" fill="${color(winner.algorithm_id)}"/>`;
     svg += `<line x1="${x(winner.min_effective_rate_bps)}" y1="${center - 12}" x2="${x(winner.min_effective_rate_bps)}" y2="${center + 12}" stroke="var(--text-muted)"/>`;
     svg += `<text class="val-label" x="${x(0) + barWidth + 8}" y="${center + 4}">${fmt(winner.mean_effective_rate_bps)}</text>`;
-    for (const other of path.others) svg += `<circle cx="${x(other.mean_effective_rate_bps)}" cy="${center}" r="6" fill="none" stroke="${color(other.algorithm_id)}" stroke-width="2.5"/>`;
-    if (path.pfft) {
-      const px = x(path.pfft.mean_effective_rate_bps);
-      svg += `<path d="M ${px} ${center - 7} L ${px + 7} ${center} L ${px} ${center + 7} L ${px - 7} ${center} Z" fill="none" stroke="var(--text-secondary)" stroke-width="2"/>`;
+    let tieRing = 0;
+    for (const other of path.receiver_results.filter(result => result.algorithm_id !== winner.algorithm_id)) {
+      const tied = path.rate_tie_ids.includes(other.algorithm_id);
+      const radius = tied ? 8 + tieRing++ * 4 : 6;
+      svg += `<circle cx="${x(other.mean_effective_rate_bps)}" cy="${center}" r="${radius}" fill="none" stroke="${color(other.algorithm_id)}" stroke-width="${tied ? 3 : 2}"${tied ? ' stroke-dasharray="3 2"' : ''}/>`;
     }
     svg += '</g>'; y += rowH;
   }
@@ -650,7 +694,7 @@ function dossierSensitivity(rows, receiver) {
 }
 function drawDossier() {
   const paths = filteredPaths();
-  dossierSelect.innerHTML = paths.map(path => `<option value="${esc(pathKey(path))}">${esc(path.label.replace('lane', 'hydrophone'))}</option>`).join('');
+  dossierSelect.innerHTML = paths.map(path => `<option value="${esc(pathKey(path))}">${esc(path.label)}</option>`).join('');
   if (!paths.length) {
     document.getElementById('dossier-body').textContent = 'No channel and hydrophone match the selected filters.';
     return;
@@ -659,17 +703,19 @@ function drawDossier() {
   dossierSelect.value = selectedPath;
   const path = paths.find(item => pathKey(item) === selectedPath);
   const winner = path.winner;
-  const alternatives = [...path.others];
-  if (path.pfft) alternatives.push({ ...path.pfft, algorithm_id: 'pfft' });
-  const pathRows = CFG.rows.filter(row => row[C.channel] === path.channel && String(row[C.lane]) === path.label.slice(-1));
+  const alternatives = path.receiver_results.filter(result => result.algorithm_id !== winner.algorithm_id);
+  const pathRows = CFG.rows.filter(row => row[C.channel] === path.channel && row[C.lane] === path.hydrophone);
   const sensitivity = RECEIVERS.map(receiver => ({ receiver, item: dossierSensitivity(pathRows, receiver) }));
+  const rateTie = path.rate_tie_ids.length > 1 ? path.rate_tie_ids.map(rname).join(' · ') : 'None';
   document.getElementById('dossier-body').innerHTML = `
     <dl class="dossier-grid">
       <dt>Winner</dt><dd><i class="rmark" style="background:${color(winner.algorithm_id)}"></i>${rname(winner.algorithm_id)}</dd>
       <dt>Mean rate</dt><dd>${fmt(winner.mean_effective_rate_bps)} bit/s</dd>
       <dt>Minimum rate</dt><dd>${fmt(winner.min_effective_rate_bps)} bit/s</dd>
-      <dt>Geometry</dt><dd>N=${winner.nfft}, CP=${winner.cp}, rate=${winner.code_rate}, pilots=${winner.outer_spacing}/${winner.inner_spacing}, dc=${winner.check_degree}, K=${winner.horizon === 0 ? 'fill' : winner.horizon}</dd>
+      <dt>Mean decode time</dt><dd>${winner.mean_decode_seconds.toFixed(3)} s/frame</dd>
+      <dt>Geometry</dt><dd>FFT length=${winner.nfft}, cyclic-prefix length=${winner.cp}, code rate=${winner.code_rate}, outer/inner pilot spacing=${winner.outer_spacing}/${winner.inner_spacing}, LDPC check degree=${winner.check_degree}, frame-code component block count=${winner.horizon === 0 ? 'fill' : winner.horizon}</dd>
       <dt>PSR · BER</dt><dd>${winner.mean_psr.toFixed(3)} · ${winner.ber.toExponential(2)}</dd>
+      <dt>Exact mean-rate tie</dt><dd>${rateTie}</dd>
     </dl>
     <h3>Other finalists</h3>
     <ul class="compact-list">${alternatives.map(other => `<li>${rname(other.algorithm_id)}: ${fmt(other.mean_effective_rate_bps)} bit/s, PSR ${other.mean_psr.toFixed(3)}</li>`).join('') || '<li>None completed both confirmation seeds.</li>'}</ul>
@@ -679,7 +725,7 @@ function drawDossier() {
       ${pathRows.length} retained configurations use this channel and hydrophone.</p>
     <button type="button" id="dossier-configurations">Show configurations</button>`;
   document.getElementById('dossier-configurations').addEventListener('click', () => {
-    fChannel.value = path.channel; fLane.value = path.label.slice(-1); fRecv.value = '';
+    fChannel.value = path.channel; fLane.value = path.hydrophone; fRecv.value = '';
     configurationPage = 0; activatePage('configurations', true);
   });
 }
@@ -688,14 +734,15 @@ dossierSelect.addEventListener('change', () => { selectedPath = dossierSelect.va
 function drawWinnerTable() {
   document.querySelector('#winner-table tbody').innerHTML = filteredPaths().map(path => {
     const winner = path.winner;
-    return `<tr><td>${esc(path.label.replace('lane', 'hydrophone'))}</td>
+    const rateTie = path.rate_tie_ids.length > 1 ? path.rate_tie_ids.map(rname).join(' · ') : '—';
+    return `<tr><td>${esc(path.label)}</td>
       <td><i class="rmark" style="background:${color(winner.algorithm_id)}"></i>${rname(winner.algorithm_id)}</td>
       <td>${winner.nfft}</td><td>${winner.cp}</td><td>${winner.code_rate}</td>
       <td>${winner.outer_spacing}/${winner.inner_spacing}</td><td>${winner.check_degree}</td>
       <td>${winner.horizon === 0 ? 'fill' : winner.horizon}</td>
       <td>${fmt(winner.mean_effective_rate_bps)}</td><td>${fmt(winner.min_effective_rate_bps)}</td>
       <td>${winner.mean_psr.toFixed(3)}</td><td>${winner.ber.toExponential(2)}</td>
-      <td>${path.pfft ? fmt(path.pfft.mean_effective_rate_bps) : '—'}</td></tr>`;
+      <td>${rateTie}</td></tr>`;
   }).join('');
 }
 
@@ -773,7 +820,7 @@ function showPointDetail(entry) {
   document.getElementById('point-detail').innerHTML = `<strong>${esc(row[C.channel])} hydrophone ${row[C.lane]} · ${rname(row[C.algorithm_id])}</strong>
     <dl><div><dt>Effective rate</dt><dd>${fmt(row[C.effective_rate_bps])} bit/s</dd></div>
     <div><dt>PSR · BER</dt><dd>${row[C.psr].toFixed(3)} · ${row[C.ber] ? row[C.ber].toExponential(2) : '0'}</dd></div>
-    <div><dt>Geometry</dt><dd>N=${row[C.nfft]}, CP=${row[C.cp]}, rate=${row[C.code_rate]}, pilots=${row[C.outer_spacing]}/${row[C.inner_spacing]}, dc=${row[C.check_degree]}, K=${row[C.horizon] === 0 ? 'fill' : row[C.horizon]}</dd></div>
+    <div><dt>Geometry</dt><dd>FFT length=${row[C.nfft]}, cyclic-prefix length=${row[C.cp]}, code rate=${row[C.code_rate]}, outer/inner pilot spacing=${row[C.outer_spacing]}/${row[C.inner_spacing]}, LDPC check degree=${row[C.check_degree]}, frame-code component block count=${row[C.horizon] === 0 ? 'fill' : row[C.horizon]}</dd></div>
     <div><dt>Confirmation</dt><dd>seed ${row[C.seed]}, ${row[C.successful_frames]}/${row[C.frames]} successful frames</dd></div></dl>
     <button type="button" data-open-row="${entry.index}">Open all columns</button>`;
   document.querySelector('[data-open-row]').addEventListener('click', () => openConfiguration(entry));
@@ -807,7 +854,7 @@ function drawRanks() {
   document.getElementById('ranks').innerHTML = ranked.map(group => `<section class="factor"><h3><i class="rmark" style="background:${color(group.receiver)}"></i>${rname(group.receiver)}</h3>
     <p class="n">decades between lowest and highest positive median · ○ reached zero</p>
     ${group.items.map(item => `<button type="button" class="rank-row" data-factor="${item.factor.key}">
-      <span>${item.factor.key === 'horizon' ? 'K' : item.factor.key}${item.zero ? ' ○' : ''}</span>
+      <span>${item.factor.label}${item.zero ? ' ○' : ''}</span>
       <span class="rank-track"><span class="rank-bar" style="width:${Math.max(1, item.span / maximum * 100)}%;background:${color(group.receiver)}"></span></span>
       <span>${item.thin ? '—' : item.span.toFixed(2)}</span></button>`).join('')}</section>`).join('');
   document.querySelectorAll('.rank-row').forEach(button => button.addEventListener('click', () => {
@@ -867,9 +914,9 @@ function drawFactors() {
 
 const COLUMN_LABELS = {
   channel: 'channel', lane: 'hydrophone (lane)', phase: 'phase', start_index: 'start_index',
-  algorithm_id: 'receiver', nfft: 'N (nfft)', cp: 'CP', code_rate: 'code_rate',
-  outer_spacing: 'outer pilot ratio', inner_spacing: 'inner pilot ratio', check_degree: 'check_degree',
-  horizon: 'K (horizon)', seed: 'seed', frames: 'frames', frame_blocks: 'frame_blocks',
+  algorithm_id: 'receiver', nfft: 'FFT length (nfft)', cp: 'cyclic-prefix length (cp)', code_rate: 'code rate',
+  outer_spacing: 'outer pilot spacing', inner_spacing: 'inner pilot spacing', check_degree: 'LDPC check degree',
+  horizon: 'frame-code component block count', seed: 'seed', frames: 'frames', frame_blocks: 'frame_blocks',
   payload_bits_per_frame: 'payload_bits_per_frame', successful_frames: 'successful_frames',
   psr: 'PSR', payload_bits: 'payload_bits', bit_errors: 'bit_errors', ber: 'BER',
   decode_failures: 'decode_failures', decode_seconds: 'decode_seconds',
@@ -932,7 +979,11 @@ document.getElementById('download-configurations').addEventListener('click', () 
 });
 
 function coverageNote() {
-  const names = { '3arm': 'OFDM+FEC and JUNA-Lite', pfft: 'Partial FFT+FEC' };
+  const names = {
+    ofdm_fec_search: 'OFDM+FEC',
+    partial_fft_search: 'Partial-FFT + FEC',
+    cz_refinement_confirmation: 'JUNA-Lite, C,z refinement, and joint C,W,z',
+  };
   document.getElementById('coverage-note').textContent = 'Coverage: ' + Object.entries(CFG.coverage).map(([run, paths]) => `${names[run] || run} includes ${paths.length} of 12 channel–hydrophone results`).join('; ') + '.';
 }
 function updateStatus() {
@@ -965,7 +1016,44 @@ window.addEventListener('popstate', () => { applyQuery(); activatePage(currentPa
 let resizeTimer;
 window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(refresh, 120); });
 
+const historicalRun = DATA.provenance.historical_run;
+const evidenceLimits = DATA.provenance.limitations;
+const zeroPsrRows = CFG.rows.filter(row => row[C.psr] === 0);
+const zeroPsrBer = zeroPsrRows.map(row => row[C.ber]);
+document.getElementById('zero-psr-summary').textContent =
+  `All ${zeroPsrRows.length} rows with a packet success ratio of zero report BER ` +
+  `between ${Math.min(...zeroPsrBer).toFixed(2)} and ${Math.max(...zeroPsrBer).toFixed(2)}.`;
+document.getElementById('confirmation-provenance').innerHTML =
+  `<strong>C,z refinement confirmation evidence.</strong> Historical package <code>${esc(historicalRun.package_path_recorded_by_manifest)}</code>; ` +
+  `harness <code>${esc(historicalRun.harness_path_at_run)}</code> ` +
+  `(SHA-256 <code>${esc(historicalRun.harness_sha256)}</code>). ` +
+  `${evidenceLimits.source_commit_recorded ? 'The source commit was retained.' : 'The source commit was not retained.'} ` +
+  `${evidenceLimits.per_frame_workload_digests_retained ? 'Per-frame workload digests were retained.' : 'Per-frame workload digests were not retained.'}`;
+const winOrder = ['ofdm_fec', 'lite', 'pfft', 'cz_refinement', 'joint_cwz'];
+document.getElementById('tile-wins').textContent = winOrder.map(receiver => DATA.wins[receiver]).join(' · ');
 document.getElementById('tile-configs').textContent = CFG.rows.length.toLocaleString('en-US');
+const czMechanism = DATA.mechanism.cz_refinement;
+const jointMechanism = DATA.mechanism.joint_cwz;
+const countText = value => value.toLocaleString('en-US');
+document.getElementById('refinement-counter-note').textContent =
+  `Across ${countText(czMechanism.confirmed_frames)} frames, C,z refinement selected ` +
+  `${countText(czMechanism.refinement_selected_frames)} cyclic redundancy check (CRC)-certified ` +
+  `rescue checkpoints; ${countText(czMechanism.selection_reasons.lite_crc_valid_skip)} ` +
+  `starting JUNA-Lite results passed CRC before refinement, and ` +
+  `${countText(czMechanism.selection_reasons.crc_fallback)} frames retained the starting result. ` +
+  `Across ${countText(jointMechanism.confirmed_frames)} frames, joint C,W,z selected ` +
+  `${countText(jointMechanism.refinement_selected_frames)} CRC-certified rescue checkpoints; ` +
+  `${countText(jointMechanism.selection_reasons.lite_crc_valid_skip)} starting results passed CRC ` +
+  `before refinement, and ${countText(jointMechanism.selection_reasons.crc_fallback)} frames ` +
+  `retained the starting result. These selected-refinement counts are not total frame-success counts.`;
+document.getElementById('joint-step-counter-note').textContent =
+  `For joint C,W,z, ${countText(jointMechanism.joint_cwz_accepted_steps)} step calls returned ` +
+  `an accepted scale and ${countText(jointMechanism.joint_cwz_rejected_steps)} calls exhausted ` +
+  `the available backtracking scales. These are call-level counts; they do not report whether ` +
+  `individual trial scales were rejected. Mean decode time over all confirmed configurations was ` +
+  `${czMechanism.mean_decode_seconds_per_frame.toFixed(3)} s/frame for C,z refinement, ` +
+  `${jointMechanism.mean_decode_seconds_per_frame.toFixed(3)} s/frame for joint C,W,z, and ` +
+  `${DATA.mechanism.lite.mean_decode_seconds_per_frame.toFixed(3)} s/frame for JUNA-Lite.`;
 document.getElementById('manifest-summary').textContent = `${MANIFEST.row_count} rows and ${MANIFEST.columns.length} columns. The manifest records each source file hash. ${MANIFEST.numeric_policy}.`;
 coverageNote(); applyQuery(); updateLinks(); activatePage(currentPage);
 </script>

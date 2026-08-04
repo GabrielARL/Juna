@@ -34,7 +34,11 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
+# JUNA_CORE_ROOT points the explorer at another checkout, so one Explorer can
+# read and run a second agent's package without editing it. The variable name
+# is shared with test/interface_contract.jl.
+ROOT = os.path.normpath(os.environ.get(
+    "JUNA_CORE_ROOT", os.path.join(HERE, "..", "..")))
 EXPERIMENTS_ROOT = os.path.join(ROOT, "experiments")
 sys.path.insert(0, HERE)
 
@@ -244,6 +248,39 @@ def _extract_doc(sym):
     return text or None
 
 
+def _comment_block(lines, start, step):
+    """Contiguous '#' comment lines from `start` walking by `step`, verbatim.
+    A block running back to line 1 is the file header, which describes the
+    repository rather than the definition below it, so it is not a purpose."""
+    block, j = [], start
+    while 0 <= j < len(lines) and lines[j].lstrip().startswith("#"):
+        block.append(lines[j].lstrip().lstrip("#").strip())
+        j += step
+    if step < 0:
+        if j < 0:
+            return None
+        block.reverse()
+    text = "\n".join(block).strip()
+    return text or None
+
+
+def _extract_comment(sym):
+    """The author's '#' comment for a definition, or None. Verbatim source
+    text; no editorial prose is synthesized. A comment block sits above the
+    definition, except for a module, whose comment opens its body."""
+    lines = _file_lines(sym["file"])
+    j = sym["line"] - 2
+    while j >= 0 and not lines[j].strip():
+        j -= 1
+    above = _comment_block(lines, j, -1)
+    if above or sym["kind"] != "module":
+        return above
+    k = sym["line"]
+    while k < len(lines) and not lines[k].strip():
+        k += 1
+    return _comment_block(lines, k, 1)
+
+
 def _symbol_index():
     data = ANALYZE_CACHE.get()
     by_id = {s["id"]: s for s in data["symbols"]}
@@ -293,6 +330,28 @@ def symbol_detail(sym):
                  for s in by_name.get(sym["name"], [])]
     stages = [{"id": st["id"], "title": st["title"]}
               for st in chain["stages"] if sym["name"] in st["symbols"]]
+    receiver_roles = []
+    for receiver in RECEIVERS_CACHE.get():
+        role = None
+        if sym["name"] == receiver.get("facade"):
+            role = "primary"
+        elif sym["name"] in receiver.get("variant_facades", []):
+            role = "variant"
+        if role:
+            receiver_roles.append({"id": receiver["id"],
+                                   "title": receiver["display_name"],
+                                   "role": role})
+    doc = _extract_doc(sym)
+    comment = None if doc else _extract_comment(sym)
+    # A facade module carries no code of its own; its Modulation binding is
+    # the definition that distinguishes one facade from another.
+    binding = next(({"id": candidate["id"], "sig": candidate["sig"],
+                     "file": candidate["file"], "line": candidate["line"]}
+                    for candidate in _data["symbols"]
+                    if candidate["kind"] == "const" and
+                    candidate["name"] == "Modulation" and
+                    candidate["module"] == sym["name"]), None
+                   ) if sym["kind"] == "module" else None
 
     direct = []
     for key, entry in report["suites"].items():
@@ -343,12 +402,14 @@ def symbol_detail(sym):
         "kind": sym["kind"], "module": sym["module"], "file": sym["file"],
         "line": sym["line"], "sig": sym["sig"], "src": sym.get("src"),
         "super": sym.get("super"), "recv": sym.get("recv"),
-        "doc": _extract_doc(sym),
+        "doc": doc or comment,
+        "doc_origin": "docstring" if doc else ("comment" if comment else None),
         "fields": _struct_fields(sym),
         "interface_methods": type_methods,
         "facades": facades,
         "overloads": overloads, "calls": calls, "callers": callers,
-        "chain_stages": stages,
+        "chain_stages": stages, "chain_receivers": receiver_roles,
+        "module_binding": binding,
         "evidence": {
             "static_call_edges": {"calls": len(calls), "callers": len(callers)},
             "interface_implementation": iface,
@@ -448,7 +509,8 @@ def graph_data(query):
             narrow(ids, "symbol", token,
                    f"Source definition: {sym['name']}")
 
-    # A receiver is a conceptual stage DAG before it is a source call graph.
+    # A receiver is a conceptual stage directed acyclic graph before it is a
+    # source call graph.
     # Keep that architecture visible by default and disclose implementation
     # symbols only after a stage is selected.
     stage_view = (
@@ -602,6 +664,85 @@ class Run:
 RUNS = {}
 RUNS_LOCK = threading.Lock()
 
+
+class SuiteBattery:
+    """Run every registered test sequentially through the single-test runner.
+
+    Each suite keeps its own streamed output and history record. Sequential
+    execution prevents concurrent Julia processes from distorting timings or
+    exhausting memory.
+    """
+
+    def __init__(self, suites):
+        self.queue = [(suite["key"], suite["file"]) for suite in suites]
+        self.done = []
+        self.current = None
+        self.status = "running"
+        threading.Thread(target=self._work, daemon=True).start()
+
+    def _work(self):
+        for key, file in self.queue:
+            if self.status == "cancelled":
+                break
+            self.current = key
+            with RUNS_LOCK:
+                running = RUNS.get(key)
+                if running is not None and running.status == "running":
+                    running.cancel()
+                RUNS[key] = Run(key, file)
+                run = RUNS[key]
+            while run.status == "running":
+                time.sleep(0.4)
+            self.done.append(key)
+        self.current = None
+        if self.status != "cancelled":
+            self.status = "finished"
+
+    def cancel(self):
+        self.status = "cancelled"
+        key = self.current
+        if key is None:
+            return
+        with RUNS_LOCK:
+            run = RUNS.get(key)
+        if run is not None:
+            run.cancel()
+
+
+BATTERY = {"run": None}
+BATTERY_LOCK = threading.Lock()
+
+
+def suite_run_status():
+    """Return live and recorded state for every row on the Tests page."""
+    last = last_run_by_key()
+    with RUNS_LOCK:
+        live = {key: run.status for key, run in RUNS.items()}
+    rows = {}
+    for suite in SUITES_CACHE.get():
+        key = suite["key"]
+        if live.get(key) == "running":
+            rows[key] = {"status": "running", "seconds": None}
+            continue
+        record = last.get(key)
+        seconds = None
+        if record and record.get("ended") and record.get("started"):
+            seconds = round(record["ended"] - record["started"], 1)
+        rows[key] = {
+            "status": record.get("status") if record else "not run",
+            "seconds": seconds,
+        }
+    with BATTERY_LOCK:
+        battery = BATTERY["run"]
+        battery_status = {
+            "status": battery.status if battery else "idle",
+            "current": battery.current if battery else None,
+            "done": len(battery.done) if battery else 0,
+            "total": len(battery.queue) if battery else 0,
+        }
+    return {"suites": rows, "battery": battery_status}
+
+
 # --------------------------------------------------------------- health layer
 
 HEALTH_CHECKS = [
@@ -750,12 +891,17 @@ table { border-collapse:collapse; width:100%; }
 th, td { text-align:left; padding:.4rem .6rem;
          border-bottom:1px solid var(--line); vertical-align:top; }
 th { color:var(--muted); font-weight:600; }
+th.kind-count, td.kind-count { text-align:right; width:5rem;
+         font-variant-numeric:tabular-nums; }
 code, pre { font:13px/1.5 ui-monospace, monospace; }
 pre { background:var(--card); border:1px solid var(--line); border-radius:8px;
       padding:.8rem 1rem; overflow-x:auto; }
 a { color:var(--accent); }
 .badge { display:inline-block; padding:.05rem .5rem; border-radius:99px;
          font-size:.78rem; border:1px solid var(--line); color:var(--muted); }
+.runall-bar { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap;
+              margin:0 0 .75rem; }
+.runall-bar #runall-note { color:var(--muted); font-size:.9rem; }
 .badge.ok { color:var(--ok); border-color:var(--ok); }
 .badge.bad { color:var(--bad); border-color:var(--bad); }
 .badge.warn { color:var(--warn); border-color:var(--warn); }
@@ -971,40 +1117,135 @@ on this page come only from tests started in the Explorer. Open
 <b>Technical details</b> for the method, origin, internal key, test file,
 source view, and associated receiver steps.</div>
 {stale_banner()}
+<div class="runall-bar">
+  <button id="runall">Run all tests</button>
+  <span id="runall-note">Tests run one at a time. Each result turns green when
+  it passes, red when it fails, and orange while it is running. Closing this
+  page does not stop them.</span>
+</div>
 <div class="wrap"><table class="tests-table">
 <tr><th>Test</th><th>What it checks</th>
 <th class="run-status">Most recent Explorer run</th>
 <th class="run-action">Action</th></tr>
-{rows}</table></div>"""
+{rows}</table></div>
+<script>
+const RUNALL = document.getElementById('runall');
+const NOTE = document.getElementById('runall-note');
+const IDLE_NOTE = NOTE.textContent;
+const BADGE = {{passed: 'ok', failed: 'bad', cancelled: 'warn',
+                running: 'warn'}};
+let polling = null;
+
+function paint(data) {{
+  for (const [key, row] of Object.entries(data.suites)) {{
+    const tr = document.getElementById(key);
+    if (!tr) continue;
+    const cell = tr.querySelector('.run-status');
+    if (!cell) continue;
+    const cls = BADGE[row.status] || '';
+    const secs = row.seconds ? ' ' + row.seconds + 's' : '';
+    cell.innerHTML = '<span class="badge ' + cls + '">' + row.status +
+      secs + '</span>';
+  }}
+  const battery = data.battery;
+  if (battery.status === 'running') {{
+    RUNALL.textContent = 'Stop';
+    NOTE.textContent = battery.done + ' of ' + battery.total + ' finished' +
+      (battery.current ? ', now running ' + battery.current : '');
+  }} else {{
+    RUNALL.textContent = 'Run all tests';
+    NOTE.textContent = battery.status === 'finished' ?
+      'All ' + battery.total + ' tests finished. Every result above is from this run.'
+      : battery.status === 'cancelled' ?
+      'Stopped. Results above are from the tests that had already run.'
+      : IDLE_NOTE;
+  }}
+  return battery.status === 'running';
+}}
+
+function poll() {{
+  fetch('/api/tests/status').then(response => response.json()).then(envelope => {{
+    const busy = paint(envelope.data || envelope);
+    if (!busy && polling) {{ clearInterval(polling); polling = null; }}
+  }});
+}}
+
+RUNALL.addEventListener('click', () => {{
+  const stopping = RUNALL.textContent === 'Stop';
+  fetch(stopping ? '/api/tests/stop-all' : '/api/tests/run-all', {{
+    method: 'POST',
+    headers: {{'Content-Type': 'application/json'}},
+    body: '{{}}'
+  }}).then(() => {{
+    poll();
+    if (!polling) polling = setInterval(poll, 1500);
+  }});
+}});
+
+poll();
+</script>"""
     return shell("Tests", "/tests", body)
+
+
+# One entry per definition kind the analyzer reports, in the order the Source
+# files table lists them. A missing gloss means the live names are shown when
+# the list remains short enough to read.
+DEFINITION_KINDS = [
+    ("function", "Function or method definition",
+     "Function or method definitions",
+     "Written as <code>function f(…)</code> or <code>f(…) = …</code>."),
+    ("const", "Constant", "Constants",
+     "Written as <code>const NAME = …</code>."),
+    ("module", "Module declaration", "Module declarations", None),
+    ("struct", "Structure declaration", "Structure declarations", None),
+    ("type", "Abstract type declaration", "Abstract type declarations", None),
+]
+NAME_LIST_LIMIT = 12
+
+
+def definition_kind_rows(symbols):
+    """Render live counts and, for small kinds, their source names."""
+    by_kind = {}
+    for definition in symbols:
+        by_kind.setdefault(definition["kind"], []).append(definition["name"])
+    rows = []
+    for kind, singular, plural, gloss in DEFINITION_KINDS:
+        names = by_kind.get(kind, [])
+        description = gloss
+        if description is None:
+            unique = list(dict.fromkeys(names))
+            description = (
+                ", ".join(f"<code>{esc(name)}</code>" for name in unique)
+                if 0 < len(unique) <= NAME_LIST_LIMIT
+                else "Listed per file under <b>Technical details</b>.")
+        rows.append(
+            f'<tr><td>{esc(singular if len(names) == 1 else plural)}</td>'
+            f'<td class="kind-count">{len(names)}</td>'
+            f'<td>{description}</td></tr>')
+    return "".join(rows)
 
 
 def page_map():
     analyzed = ANALYZE_CACHE.get()
     suites = SUITES_CACHE.get()
     per_file = {}
-    per_kind = {}
     for s in analyzed["symbols"]:
         per_file[s["file"]] = per_file.get(s["file"], 0) + 1
-        per_kind[s["kind"]] = per_kind.get(s["kind"], 0) + 1
     src_rows = "".join(
         f'<tr><td><a href="/source/graph?file='
         f'{urllib.parse.quote(f)}"><code>src/{esc(f)}</code></a></td>'
         f'<td>{n} source definition{"" if n == 1 else "s"}</td></tr>'
         for f, n in sorted(per_file.items()))
-    definition_summary = (
-        f'{len(analyzed["symbols"])} source definitions: '
-        f'{per_kind.get("function", 0)} function or method definitions, '
-        f'{per_kind.get("const", 0)} constants, '
-        f'{per_kind.get("module", 0)} module declarations, '
-        f'{per_kind.get("struct", 0)} structure declarations, and '
-        f'{per_kind.get("type", 0)} abstract type declaration.')
     body = f"""
 <h1>Package files</h1>
 <div class="card">This page shows the source files, tests, tools, and Explorer
 run records included with this package.</div>
 <h2>Source files</h2>
-<div class="card">{definition_summary}<br>
+<div class="card"><b>{len(analyzed["symbols"])} source definitions</b>, counted
+afresh on every page load.
+<div class="wrap"><table class="kinds-table">
+<tr><th>Kind</th><th class="kind-count">Count</th><th>What it is</th></tr>
+{definition_kind_rows(analyzed["symbols"])}</table></div>
 A repeated name is counted separately for each definition.<br>
 These definitions were found in the source code. This count does not show
 that the code ran.</div>
@@ -1070,10 +1311,12 @@ def page_chain():
     body = f"""
 <h1>Receiver chains</h1>
 <div class="card">The receiver entries are views over one shared,
-contract-verified stage DAG. A baseline is a complete comparison receiver.
+contract-verified stage directed acyclic graph. A baseline is a complete
+comparison receiver.
 JUNA-Lite extends its Partial-FFT/FEC initial candidate only when that
 candidate is invalid;
-Profiled C,z processes the complete frame.</div>
+C,z refinement processes the complete frame. The joint C,W,z form uses an
+analytical gradient for its simultaneous update.</div>
 <div class="card"><label>Receiver:
 <select id="receiver-select">{options}</select></label>
 &nbsp; <label>Compare with:
@@ -1596,6 +1839,8 @@ class Handler(BaseHTTPRequestHandler):
             return envelope(COVERAGE_CACHE.get())
         if path == "/api/runs":
             return envelope(run_history())
+        if path == "/api/tests/status":
+            return envelope(suite_run_status())
         if path == "/api/health":
             return envelope(health_data())
         if path == "/api/palette":
@@ -1748,6 +1993,22 @@ class Handler(BaseHTTPRequestHandler):
         if content_type.strip().casefold() != "application/json":
             return self._send('{"error": "application/json required"}', 415,
                               "application/json")
+        if self.path in ("/api/tests/run-all", "/api/tests/stop-all"):
+            with BATTERY_LOCK:
+                battery = BATTERY["run"]
+                busy = battery is not None and battery.status == "running"
+                if self.path.endswith("stop-all"):
+                    if busy:
+                        battery.cancel()
+                    response = '{"stopped": true}'
+                elif busy:
+                    return self._send(
+                        '{"error": "tests are already running"}', 409,
+                        "application/json")
+                else:
+                    BATTERY["run"] = SuiteBattery(SUITES_CACHE.get())
+                    response = '{"started": true}'
+            return self._send(response, 200, "application/json")
         if self.path == "/api/health/run":
             length = int(self.headers.get("Content-Length") or 0)
             body = self.rfile.read(length).decode() if length else "{}"

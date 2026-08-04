@@ -78,7 +78,7 @@ end
 function direct_payload_metrics(m, code, candidate, nbits::Integer)
     metrics = Vector{Float64}(undef, Int(nbits))
     next = PublicInterfaceJuna._write_payload_metrics!(
-        metrics, 1, m, code, candidate.lpost_metric, Int(nbits))
+        metrics, 1, m, code, candidate.posterior_metric, Int(nbits))
     @test next == Int(nbits) + 1
     metrics
 end
@@ -91,14 +91,14 @@ function direct_frame_paths(m, waveform, nbits::Integer)
         m, code, layout, observations, :ofdm_fec).best
     partial = PublicInterfaceJuna._frame_static_trace(
         m, code, layout, observations, :pfft).best
-    juna = PublicInterfaceJuna._frame_receiver_trace(
+    selected_receiver = PublicInterfaceJuna._frame_receiver_trace(
         m, code, layout, observations; payload_nbits=nbits).best
     payload(candidate) = PublicInterfaceJuna._frame_payload_metrics(
-        m, code, candidate.lpost_metric, blocks, nbits)
+        m, code, candidate.posterior_metric, blocks, nbits)
     (
         ofdm_fec=payload(ofdm_fec),
         partial=payload(partial),
-        juna=payload(juna),
+        selected_receiver=payload(selected_receiver),
         standard=payload(ofdm_fec),
     )
 end
@@ -134,7 +134,8 @@ end
         waveform = PublicInterfaceModulations.modulate(
             tx, payload, PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
         @test waveform isa Vector{ComplexF64}
-        @test length(waveform) == 2 * (Int(tx.nc) + Int(tx.np))
+        @test length(waveform) ==
+              2 * (Int(tx.fft_length) + Int(tx.cyclic_prefix_length))
 
         for descriptor in public_receiver_descriptors()
             rx = public_receiver(descriptor)
@@ -166,8 +167,9 @@ end
                 @testset "$(descriptor.name) at fc=$(Int(fc)) Hz, fs=$(Int(fs)) Hz" begin
                     swept = public_receiver(descriptor)
                     @test PublicInterfaceModulations.init(swept, fc, fs) === nothing
-                    @test swept.bw == fs / 24_000.0
-                    @test swept.dc0 == round(Int16, (fc - 24_000.0) / 1_000.0)
+                    @test swept.occupied_bandwidth_fraction == fs / 24_000.0
+                    @test swept.rf_center_offset_khz ==
+                          round(Int16, (fc - 24_000.0) / 1_000.0)
                     @test isvalid(swept, fc, fs)
 
                     waveform = PublicInterfaceModulations.modulate(
@@ -191,7 +193,8 @@ end
     end
 
     @testset "demodulate_methods uses synchronization and initial resampling" begin
-        receiver = PublicInterfaceJuna.LiteModulation(sync=true)
+        receiver = PublicInterfaceJuna.LiteModulation(
+            synchronization_enabled=true)
         payload = Vector{Bool}(mseq(7) .> 0)
         waveform = PublicInterfaceModulations.modulate(
             receiver, payload, PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
@@ -208,8 +211,8 @@ end
                 methods = PublicInterfaceJuna.demodulate_methods(
                     receiver, length(payload), received,
                     PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
-                @test methods.juna == public_metrics
-                @test (methods.juna .> 0) == payload
+                @test methods.selected_receiver == public_metrics
+                @test (methods.selected_receiver .> 0) == payload
                 @test methods.standard === methods.ofdm_fec
             end
         end
@@ -217,10 +220,11 @@ end
 
     @testset "synchronization roundtrip for all four reader-selectable receivers" begin
         compact = (
-            nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+            fft_length=64, cyclic_prefix_length=16,
+            ldpc_k=20, ldpc_n=40, ldpc_checks_per_column=2,
             partial_fft_parts=2, partial_fft_nbands=2,
             pilot_ratio=1 / 3, inner_pilot_ratio=0.0,
-            sync=true, refinement_steps=0,
+            synchronization_enabled=true, refinement_steps=0,
         )
         payload = Bool[true, false, true]
         for descriptor in public_receiver_descriptors()
@@ -264,7 +268,8 @@ end
                 receiver, 170, short_waveform,
                 PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
 
-            invalid = public_receiver(descriptor; nc = 1001)  # asymmetric FFT grid
+            invalid = public_receiver(
+                descriptor; fft_length=1001) # asymmetric FFT grid
             @test !isvalid(invalid, PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
             @test_throws ArgumentError PublicInterfaceModulations.modulate(
                 invalid, falses(170), PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
@@ -284,8 +289,8 @@ end
         distorted = copy(waveform)
         gains = ComplexF64[1.45 - 0.35im, 0.62 + 0.75im,
                            -0.35 + 1.2im, 1.05 + 0.18im]
-        N = Int(tx.nc)
-        L = Int(tx.np)
+        N = Int(tx.fft_length)
+        L = Int(tx.cyclic_prefix_length)
         for p in 1:Int(tx.partial_fft_parts)
             lo, hi = PublicInterfaceJuna._part_bounds(N, Int(tx.partial_fft_parts), p)
             @views distorted[L+lo:L+hi] .*= gains[p]
@@ -302,22 +307,25 @@ end
                 paths = PublicInterfaceJuna.demodulate_methods(
                     compared, length(payload), tested_waveform,
                     PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
-                @test keys(paths) == (:ofdm_fec, :partial, :juna, :provenance, :standard)
-                @test paths.provenance === descriptor.profile
+                @test keys(paths) ==
+                      (:ofdm_fec, :partial, :selected_receiver,
+                       :receiver_profile, :standard)
+                @test paths.receiver_profile === descriptor.profile
                 @test paths.standard === paths.ofdm_fec
-                for metrics in (paths.ofdm_fec, paths.partial, paths.juna)
+                for metrics in
+                    (paths.ofdm_fec, paths.partial, paths.selected_receiver)
                     @test metrics isa Vector{Float64}
                     @test length(metrics) == length(payload)
                     @test all(isfinite, metrics)
                     @test (metrics .> 0) == payload
                 end
                 @test paths.ofdm_fec !== paths.partial
-                @test paths.partial !== paths.juna
+                @test paths.partial !== paths.selected_receiver
 
                 public_metrics, _ = PublicInterfaceModulations.demodulate(
                     compared, length(payload), tested_waveform,
                     PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
-                @test paths.juna == public_metrics
+                @test paths.selected_receiver == public_metrics
 
                 tested_distorted = if descriptor.profile === :frame_wide_ldpc
                     copy(tested_waveform)
@@ -325,19 +333,21 @@ end
                     distorted
                 end
                 if descriptor.profile === :frame_wide_ldpc
-                    payload_start = if !compared.sync
+                    payload_start = if !compared.synchronization_enabled
                         1
                     else
                         PublicInterfaceJuna._synclen(compared) + 1
                     end
                     for p in 1:Int(compared.partial_fft_parts)
                         lo, hi = PublicInterfaceJuna._part_bounds(
-                            Int(compared.nc),
+                            Int(compared.fft_length),
                             Int(compared.partial_fft_parts),
                             p,
                         )
-                        first_sample = payload_start - 1 + Int(compared.np) + lo
-                        last_sample = payload_start - 1 + Int(compared.np) + hi
+                        first_sample = payload_start - 1 +
+                                       Int(compared.cyclic_prefix_length) + lo
+                        last_sample = payload_start - 1 +
+                                      Int(compared.cyclic_prefix_length) + hi
                         @views tested_distorted[first_sample:last_sample] .*= gains[p]
                     end
                 end
@@ -357,15 +367,17 @@ end
                         compared, code, layout, yparts)
                     partial_candidate = PublicInterfaceJuna._initial_candidate(
                         compared, code, layout, yparts)
-                    juna_candidate = PublicInterfaceJuna._juna_candidate(
+                    selected_receiver_candidate =
+                        PublicInterfaceJuna._juna_candidate(
                         compared, code, layout, yparts, partial_candidate)
                     (
                         ofdm_fec=direct_payload_metrics(
                             compared, code, ofdm_fec_candidate, length(payload)),
                         partial=direct_payload_metrics(
                             compared, code, partial_candidate, length(payload)),
-                        juna=direct_payload_metrics(
-                            compared, code, juna_candidate, length(payload)),
+                        selected_receiver=direct_payload_metrics(
+                            compared, code, selected_receiver_candidate,
+                            length(payload)),
                         standard=direct_payload_metrics(
                             compared, code, ofdm_fec_candidate, length(payload)),
                     )
@@ -374,16 +386,18 @@ end
                 @test distorted_paths.ofdm_fec == direct_paths.ofdm_fec
                 @test distorted_paths.standard == distorted_paths.ofdm_fec
                 @test distorted_paths.partial == direct_paths.partial
-                @test distorted_paths.juna == direct_paths.juna
+                @test distorted_paths.selected_receiver ==
+                      direct_paths.selected_receiver
                 @test count((distorted_paths.ofdm_fec .> 0) .!= payload) > 0
                 @test (distorted_paths.partial .> 0) == payload
                 if descriptor.profile === :ofdm_fec
                     # The OFDM+FEC baseline's own result uses one FFT and must
                     # retain that result's failure here,
                     # not be rescued by another receiver's refinement.
-                    @test distorted_paths.juna == distorted_paths.ofdm_fec
+                    @test distorted_paths.selected_receiver ==
+                          distorted_paths.ofdm_fec
                 else
-                    @test (distorted_paths.juna .> 0) == payload
+                    @test (distorted_paths.selected_receiver .> 0) == payload
                 end
                 @test distorted_paths.ofdm_fec != distorted_paths.partial
             end
@@ -392,12 +406,15 @@ end
 
     @testset "configuration controls are explicit across every receiver mode" begin
         configurations = (
-            (name = "short CP", kwargs = (np = 64,), requires_bpsk = false,
+            (name = "short CP", kwargs = (cyclic_prefix_length=64,),
+             requires_bpsk = false,
              requires_shifted_band = false),
-            (name = "large FFT", kwargs = (nc = 2048, np = 64),
+            (name = "large FFT",
+             kwargs = (fft_length=2048, cyclic_prefix_length=64),
              requires_bpsk = false, requires_shifted_band = false),
             (name = "compact BPSK code",
-             kwargs = (bpc = 1, ldpc_k = 170, ldpc_n = 680),
+             kwargs = (bits_per_data_carrier=1,
+                       ldpc_k=170, ldpc_n=680),
              requires_bpsk = true, requires_shifted_band = false),
             (name = "rate-one-half code", kwargs = (ldpc_k = 340, ldpc_n = 680),
              requires_bpsk = false, requires_shifted_band = false),
@@ -408,10 +425,12 @@ end
             (name = "maximum supported Partial-FFT views", kwargs = (partial_fft_parts = 16,),
              requires_bpsk = false, requires_shifted_band = false),
             (name = "half-band large FFT",
-             kwargs = (nc = 2048, np = 128, bw = 0.5),
+             kwargs = (fft_length=2048, cyclic_prefix_length=128,
+                       occupied_bandwidth_fraction=0.5),
              requires_bpsk = false, requires_shifted_band = true),
             (name = "three-quarter-reference-band large FFT",
-             kwargs = (nc = 2048, np = 128, bw = 0.75),
+             kwargs = (fft_length=2048, cyclic_prefix_length=128,
+                       occupied_bandwidth_fraction=0.75),
              requires_bpsk = false, requires_shifted_band = true),
         )
         source_payload = Vector{Bool}(mseq(9) .> 0)
@@ -459,8 +478,8 @@ end
 
     @testset "non-default rate and pilot geometry compare OFDM+FEC and Partial-FFT results" begin
         kwargs = (
-            nc = 1024,
-            bpc = 2,
+            fft_length = 1024,
+            bits_per_data_carrier = 2,
             pilot_ratio = 0.76,
             inner_pilot_ratio = 0.17,
             ldpc_k = 261,
@@ -484,7 +503,7 @@ end
                     PUBLIC_INTERFACE_FC, PUBLIC_INTERFACE_FS)
 
                 @test (paths.ofdm_fec .> 0) == payload
-                @test (paths.juna .> 0) == payload
+                @test (paths.selected_receiver .> 0) == payload
                 if descriptor.profile === :pfft
                     # This pilot geometry exposes a weak Partial-FFT result.
                     # Its public failure is why each refined receiver selects

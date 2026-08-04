@@ -42,7 +42,7 @@ function lite_refinement_fixture()
     bits = lite_payload_pattern(LiteRefineModulations.bitspersymbol(m))
     message = LiteRefineJuna._build_message(m, code, bits)
     codeword = LiteRefineJuna._encode(code, message)
-    equalized = zeros(ComplexF64, Int(m.nc))
+    equalized = zeros(ComplexF64, Int(m.fft_length))
     equalized[layout.pilot_idx] .= layout.pilot_syms
     ncarriers = LiteRefineJuna._ndata_tones(m, code.n)
     for t in 1:ncarriers
@@ -51,17 +51,17 @@ function lite_refinement_fixture()
     for t in ncarriers+1:length(layout.data_idx)
         equalized[layout.data_idx[t]] = one(ComplexF64)
     end
-    yparts = zeros(ComplexF64, 1, Int(m.nc))
+    yparts = zeros(ComplexF64, 1, Int(m.fft_length))
     yparts[1, :] .= equalized
     metrics = Float64[bit ? 6.0 : -6.0 for bit in codeword]
     initial_candidate = (
-        lpost_metric = metrics,
-        valid = false,
-        syndrome = 88,
-        mean_abs_lpost = mean(abs, metrics),
+        posterior_metric = metrics,
+        ldpc_valid = false,
+        syndrome_weight = 88,
+        mean_absolute_posterior_metric = mean(abs, metrics),
         pilot_mse = 0.4,
         tie_mse = 0.8,
-        score = 0.9,
+        selection_score = 0.9,
     )
     (m = m, layout = layout, code = code, bits = bits, codeword = codeword,
      yparts = yparts, metrics = metrics,
@@ -69,17 +69,20 @@ function lite_refinement_fixture()
 end
 
 function assert_lite_candidate_contract(m, code, bits, codeword, candidate)
-    @test keys(candidate) == (:lpost_metric, :valid, :syndrome, :mean_abs_lpost,
-                              :pilot_mse, :tie_mse, :score)
-    @test candidate.lpost_metric isa Vector{Float64}
-    @test length(candidate.lpost_metric) == code.n
-    @test all(isfinite, candidate.lpost_metric)
-    @test all(isfinite, (candidate.mean_abs_lpost, candidate.pilot_mse,
-                         candidate.tie_mse, candidate.score))
-    @test candidate.valid
-    @test candidate.syndrome == 0
-    @test (candidate.lpost_metric .> 0) == codeword
-    @test LiteRefineJuna._payload_from_metrics(m, code, candidate.lpost_metric) == bits
+    @test keys(candidate) == (:posterior_metric, :ldpc_valid, :syndrome_weight,
+                              :mean_absolute_posterior_metric, :pilot_mse,
+                              :tie_mse, :selection_score)
+    @test candidate.posterior_metric isa Vector{Float64}
+    @test length(candidate.posterior_metric) == code.n
+    @test all(isfinite, candidate.posterior_metric)
+    @test all(isfinite, (candidate.mean_absolute_posterior_metric,
+                         candidate.pilot_mse, candidate.tie_mse,
+                         candidate.selection_score))
+    @test candidate.ldpc_valid
+    @test candidate.syndrome_weight == 0
+    @test (candidate.posterior_metric .> 0) == codeword
+    @test LiteRefineJuna._payload_from_metrics(
+        m, code, candidate.posterior_metric) == bits
 end
 
 @testset verbose = true "JUNA-lite refinement" begin
@@ -102,7 +105,8 @@ end
             abs(tanh(1.0)),
         ] atol=1e-15
 
-        bpsk = LiteRefineJuna.LiteModulation(bpc = 1, ldpc_k = 170, ldpc_n = 680)
+        bpsk = LiteRefineJuna.LiteModulation(
+            bits_per_data_carrier = 1, ldpc_k = 170, ldpc_n = 680)
         bmetrics = [-4.0, 0.0, 2.0]
         @test LiteRefineJuna._posterior_symbols(bpsk, bmetrics) ≈
               ComplexF64[tanh(2.0), 0.0, -tanh(1.0)] atol=1e-15
@@ -116,7 +120,7 @@ end
         metrics = [4.0, 4.0, 0.0, 0.0, 3.0, 1.0, 6.0, 5.0]
         anchors = LiteRefineJuna._posterior_symbols(m, metrics)
         confidence = LiteRefineJuna._posterior_confidence(m, metrics)
-        selected = LiteRefineJuna._juna_anchor_targets(
+        selected = LiteRefineJuna._lite_anchor_targets(
             m, layout, metrics; confidence_min = 0.5, max_data_anchors = 1,
         )
 
@@ -126,60 +130,67 @@ end
         @test selected.targets == vcat(layout.pilot_syms, [anchors[4]])
         @test selected.confidence == confidence && selected.target_weights == vcat(ones(length(layout.pilot_idx)), [confidence[4]])
 
-        pilots_only = LiteRefineJuna._juna_anchor_targets(
+        pilots_only = LiteRefineJuna._lite_anchor_targets(
             m, layout, metrics; confidence_min = 0.0, max_data_anchors = 0,
         )
         @test isempty(pilots_only.selected)
         @test pilots_only.target_idx == layout.pilot_idx
         @test pilots_only.targets == layout.pilot_syms && pilots_only.target_weights == ones(length(layout.pilot_idx))
-        @test_throws ArgumentError LiteRefineJuna._juna_anchor_targets(
+        @test_throws ArgumentError LiteRefineJuna._lite_anchor_targets(
             m, layout, metrics; confidence_min = -0.1,
         )
-        @test_throws ArgumentError LiteRefineJuna._juna_anchor_targets(
+        @test_throws ArgumentError LiteRefineJuna._lite_anchor_targets(
             m, layout, metrics; max_data_anchors = -1,
         )
     end
 
-    @testset "_juna_better orders validity, syndrome, score, then confidence" begin
-        base = (valid = false, syndrome = 7, score = 10.0, mean_abs_lpost = 1.0)
+    @testset "_candidate_is_better orders LDPC validity, syndrome weight, selection score, then confidence" begin
+        base = (ldpc_valid=false, syndrome_weight=7, selection_score=10.0,
+                mean_absolute_posterior_metric=1.0)
 
-        @test LiteRefineJuna._juna_better(base, (valid = true, syndrome = 100,
-                                                score = 99.0, mean_abs_lpost = 0.0))
-        @test !LiteRefineJuna._juna_better((valid = true, syndrome = 0,
-                                            score = 1.0, mean_abs_lpost = 10.0),
-                                           base)
-        @test LiteRefineJuna._juna_better(base, (valid = false, syndrome = 6,
-                                                score = 99.0, mean_abs_lpost = 0.0))
-        @test LiteRefineJuna._juna_better(base, (valid = false, syndrome = 7,
-                                                score = 9.94, mean_abs_lpost = 1.0))
-        @test !LiteRefineJuna._juna_better(base, (valid = false, syndrome = 7,
-                                                 score = 9.96, mean_abs_lpost = 1.0))
-        @test LiteRefineJuna._juna_better(base, (valid = false, syndrome = 7,
-                                                score = 10.0, mean_abs_lpost = 1.02))
+        @test LiteRefineJuna._candidate_is_better(
+            base, (ldpc_valid=true, syndrome_weight=100, selection_score=99.0,
+                   mean_absolute_posterior_metric=0.0))
+        @test !LiteRefineJuna._candidate_is_better(
+            (ldpc_valid=true, syndrome_weight=0, selection_score=1.0,
+             mean_absolute_posterior_metric=10.0), base)
+        @test LiteRefineJuna._candidate_is_better(
+            base, (ldpc_valid=false, syndrome_weight=6, selection_score=99.0,
+                   mean_absolute_posterior_metric=0.0))
+        @test LiteRefineJuna._candidate_is_better(
+            base, (ldpc_valid=false, syndrome_weight=7, selection_score=9.94,
+                   mean_absolute_posterior_metric=1.0))
+        @test !LiteRefineJuna._candidate_is_better(
+            base, (ldpc_valid=false, syndrome_weight=7, selection_score=9.96,
+                   mean_absolute_posterior_metric=1.0))
+        @test LiteRefineJuna._candidate_is_better(
+            base, (ldpc_valid=false, syndrome_weight=7, selection_score=10.0,
+                   mean_absolute_posterior_metric=1.02))
     end
 
-    @testset "_juna_step turns posterior anchors into a finite valid candidate" begin
+    @testset "_lite_refinement_step turns posterior anchors into a finite valid candidate" begin
         f = lite_refinement_fixture()
-        candidate = LiteRefineJuna._juna_step(
+        candidate = LiteRefineJuna._lite_refinement_step(
             f.m, f.code, f.layout, f.yparts, f.initial_candidate)
 
         assert_lite_candidate_contract(f.m, f.code, f.bits, f.codeword, candidate)
-        @test LiteRefineJuna._juna_better(f.initial_candidate, candidate)
-        @test candidate.score < f.initial_candidate.score
-        @test candidate.mean_abs_lpost > f.initial_candidate.mean_abs_lpost
+        @test LiteRefineJuna._candidate_is_better(f.initial_candidate, candidate)
+        @test candidate.selection_score < f.initial_candidate.selection_score
+        @test candidate.mean_absolute_posterior_metric >
+              f.initial_candidate.mean_absolute_posterior_metric
         @test candidate.pilot_mse == 0.0
         @test candidate.tie_mse < 1e-8
     end
 
     @testset "_juna_lite_candidate refines an invalid initial candidate and preserves a valid one" begin
         f = lite_refinement_fixture()
-        step = LiteRefineJuna._juna_step(
+        step = LiteRefineJuna._lite_refinement_step(
             f.m, f.code, f.layout, f.yparts, f.initial_candidate)
         refined = LiteRefineJuna._juna_lite_candidate(
             f.m, f.code, f.layout, f.yparts, f.initial_candidate)
         payload = LiteRefineJuna._juna_lite(
             f.m, f.code, f.layout, f.yparts, f.initial_candidate)
-        bad_yparts = zeros(ComplexF64, 0, Int(f.m.nc))
+        bad_yparts = zeros(ComplexF64, 0, Int(f.m.fft_length))
         early = LiteRefineJuna._juna_lite_candidate(f.m, f.code, f.layout, bad_yparts, step)
 
         @test refined == step

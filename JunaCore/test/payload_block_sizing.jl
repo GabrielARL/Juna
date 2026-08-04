@@ -36,8 +36,8 @@ const PAYLOAD_SIZING_FS = 24_000.0
     @test PayloadSizingModulations.init(m, PAYLOAD_SIZING_FC, PAYLOAD_SIZING_FS) === nothing
 
     @testset "defaults are the paper benchmark geometry" begin
-        @test Int(m.nc) == 1024        # N
-        @test Int(m.np) == 256         # CP length
+        @test Int(m.fft_length) == 1024        # N
+        @test Int(m.cyclic_prefix_length) == 256 # CP length
         @test Int(m.ldpc_k) == 340
         @test Int(m.ldpc_n) == 1360
         @test m.ldpc_k / m.ldpc_n == 0.25  # r0p25
@@ -81,7 +81,8 @@ const PAYLOAD_SIZING_FS = 24_000.0
     # package constant (_SYNC_LEN), not a
     # paper number — this pins the pre+postamble overhead at 2*2048 = 4096 samples.
     @testset "sync adds exactly 4096 samples regardless of block count" begin
-        sync_enabled = PayloadSizingJuna.LiteModulation(sync = true)
+        sync_enabled = PayloadSizingJuna.LiteModulation(
+            synchronization_enabled = true)
         @test PayloadSizingModulations.signallength(
             sync_enabled, 170, PAYLOAD_SIZING_FC, PAYLOAD_SIZING_FS) == 1280 + 4096
         @test PayloadSizingModulations.signallength(

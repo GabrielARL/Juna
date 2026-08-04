@@ -96,7 +96,7 @@ end
         )
         @test result.loss_history == [result.initial_loss]
         @test result.best_loss == result.initial_loss
-        @test result.selected_iter == 0
+        @test result.selected_iteration == 0
         @test result.state.W == f.initial.W && result.state.W !== f.initial.W
         @test result.state.C == f.initial.C && result.state.C !== f.initial.C
         @test result.state.z == f.initial.z && result.state.z !== f.initial.z
@@ -119,7 +119,7 @@ end
         @test all(diff(result1.loss_history) .<= 2e-12)
         @test result1.best_loss == last(result1.loss_history)
         @test result1.best_loss < result1.initial_loss
-        @test result1.selected_iter in 1:config.cycles
+        @test result1.selected_iteration in 1:config.cycles
         @test result1.state.z[f.problem.inner_pilot_mask] ==
               f.initial.z[f.problem.inner_pilot_mask]
         @test all(z -> isfinite(real(z)) && isfinite(imag(z)), result1.state.W)
@@ -153,5 +153,5 @@ end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    println("Profiled C,z checks passed")
+    println("C,z refinement checks passed")
 end

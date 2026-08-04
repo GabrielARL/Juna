@@ -10,14 +10,14 @@ module LDPC
 # participates in. It may also be a degree-distribution string understood by
 # make-ldpc, e.g. "0.4x2/0.6x3". `build` keeps that fully general.
 
-export create, build, generator, read_H
+export create, build, read_generator, read_H
 
 const _MAX_TOOL_SEED = Int((typemax(Int32) - 1) ÷ 10)
 
-method_args(method, dc; no4cycle=true) =
+_make_ldpc_method_args(method, dc; no4cycle=true) =
   no4cycle ? [string(method), string(dc), "no4cycle"] : [string(method), string(dc)]
 
-_ok(p) = isfile(p) && filesize(p) > 0
+_is_nonempty_file(p) = isfile(p) && filesize(p) > 0
 
 function _code_dimensions(k, n)
   k isa Integer && n isa Integer && !(k isa Bool) && !(n isa Bool) ||
@@ -44,24 +44,24 @@ function build(k, n; method="evenboth", dc=3, no4cycle=true, seed=1,
   0 <= seed <= _MAX_TOOL_SEED || throw(ArgumentError(
     "LDPC helper seed must be between 0 and $(_MAX_TOOL_SEED), got $(seed)"))
   mkpath(dir)
-  margs = method_args(method, dc; no4cycle=no4cycle)
+  margs = _make_ldpc_method_args(method, dc; no4cycle=no4cycle)
   tag = replace(join([k, n, seed, margs...], "_"), r"[^A-Za-z0-9_]" => "")
   base = joinpath(dir, "ldpc-$(tag)")
   pchk, gen, htxt = base * ".pchk", base * ".gen", base * ".H"
 
-  if !_ok(pchk)
+  if !_is_nonempty_file(pchk)
     _run(_tool_command("make-ldpc", pchk, string(n - k), string(n), string(seed), margs...))
   end
-  if !_ok(gen)
+  if !_is_nonempty_file(gen)
     _run(_tool_command("make-gen", pchk, gen, "dense"))
   end
-  if !_ok(htxt)
+  if !_is_nonempty_file(htxt)
     open(htxt, "w") do io
       _run(_tool_command("print-pchk", pchk); stdout=io)
     end
   end
 
-  icols, G = generator(gen)
+  icols, G = read_generator(gen)
   (; icols, gen=G, H=read_H(htxt, n - k, n), pchk)
 end
 
@@ -105,7 +105,7 @@ function read_H(filename, m, n)
   H
 end
 
-function generator(filename)
+function read_generator(filename)
   open(filename) do io
     read(io, UInt32) == 0x00004780 || throw(ErrorException("Bad generator: magic number mismatch - $(filename)"))
     read(io, UInt8) == 0x64 || throw(ErrorException("Bad generator: must be dense - $(filename)"))
@@ -171,8 +171,5 @@ function _tool(name)
   end
   error("could not find LDPC tool $(name)")
 end
-
-_tool_args(opts::AbstractString) = split(opts)
-_tool_args(opts) = string.(collect(opts))
 
 end # module

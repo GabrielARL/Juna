@@ -6,7 +6,7 @@
 #   sec:method                       OFDM+FEC, Partial-FFT+FEC, and JUNA share one
 #                                    transmitted frame and one public boundary; only
 #                                    receiver processing differs. Here: the OFDM+FEC,
-#                                    Partial-FFT, Lite, and Profiled C,z modulations
+#                                    Partial-FFT, Lite, and C,z refinement modulations
 #                                    satisfy the same public contract.
 #   tab:hyperparams                  Acceptance is payload-exact recovery. The
 #                                    noiseless loopback below applies exactly that
@@ -14,7 +14,7 @@
 #   eq:goodput                       payload_rate(128 bits) == 128*24000/1280 == 2400 bit/s.
 #   sec:solver; ssec:junalite        :lite runs JUNA-lite. The
 #                                    internal :full and :coupled implementations supply
-#                                    the Profiled C,z closure and remain without separate
+#                                    the C,z refinement closure and remain without separate
 #                                    public facades.
 #
 # The noiseless loopback runs UNCONDITIONALLY (it is deterministic and cheap).
@@ -82,7 +82,8 @@ end
 
 function assert_ofdm_fec_compatibility()
     compact = (
-        nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+        fft_length=64, cyclic_prefix_length=16,
+        ldpc_k=20, ldpc_n=40, ldpc_checks_per_column=2,
         partial_fft_parts=2, partial_fft_nbands=2,
         pilot_ratio=1 / 3, inner_pilot_ratio=0.0,
         refinement_steps=0,
@@ -101,8 +102,8 @@ function assert_ofdm_fec_compatibility()
         canonical, length(payload), waveform, FC, FS)
     legacy_methods = Juna.demodulate_methods(
         legacy, length(payload), waveform, FC, FS)
-    @test canonical_methods.provenance === :ofdm_fec
-    @test legacy_methods.provenance === :standard
+    @test canonical_methods.receiver_profile === :ofdm_fec
+    @test legacy_methods.receiver_profile === :standard
     @test legacy_methods.ofdm_fec == canonical_methods.ofdm_fec
     @test legacy_methods.standard === legacy_methods.ofdm_fec
 
@@ -128,11 +129,11 @@ function assert_ofdm_fec_compatibility()
     @test Juna._frame_receiver_profile(frame_legacy) === :ofdm_fec
     frame_methods = Juna.demodulate_methods(
         frame_legacy, length(frame_payload), frame_waveform, FC, FS)
-    @test frame_methods.provenance === :frame_wide_ldpc
+    @test frame_methods.receiver_profile === :frame_wide_ldpc
     @test frame_methods.standard === frame_methods.ofdm_fec
 end
 
-# The Profiled C,z family is public. Its internal :full and :coupled
+# The C,z refinement family is public. Its internal :full and :coupled
 # dependencies remain implementation profiles rather than separate facades.
 function assert_receiver_profiles()
     ofdm_fec = Juna.OFDMFECModulation()
@@ -141,11 +142,11 @@ function assert_receiver_profiles()
     lite = Juna.LiteModulation()
     full = Juna.FullModulation()
     coupled = Juna.CoupledModulation()
-    profiled_cz = Juna.ProfiledCzFrameModulation()
-    crc_profiled_cz = Juna.CrcProfiledCzFrameModulation()
-    turbo_cwz = Juna.CrcTurboCwzFrameModulation()
-    conditioned_cwz = Juna.CrcConditionedCwzFrameModulation()
-    conditioned_joint = Juna.CrcConditionedJointCwzFrameModulation()
+    cz_refinement = Juna.CzRefinementModulation()
+    crc_cz_refinement = Juna.CrcCzRefinementModulation()
+    turbo_cwz = Juna.CrcTurboCwzModulation()
+    joint_cwz_comparison = Juna.CrcJointCwzComparisonModulation()
+    joint_cwz = Juna.CrcJointCwzModulation()
     legacy_full = Juna.Modulation(mode = :robust)
 
     @test ofdm_fec.mode === :ofdm_fec
@@ -154,21 +155,21 @@ function assert_receiver_profiles()
     @test lite.mode === :lite
     @test full.mode === :full
     @test coupled.mode === :coupled
-    @test profiled_cz.frame_receiver === :profiled_cz
-    @test crc_profiled_cz.mode === :crc_profiled_cz_frame
-    @test turbo_cwz.cz_independent_w
-    @test conditioned_cwz.cz_vp_gradient
-    @test conditioned_joint.cz_conditioned_joint
+    @test cz_refinement.frame_receiver === :cz_refinement
+    @test crc_cz_refinement.mode === :crc_cz_refinement
+    @test turbo_cwz.cz_refit_w_from_decoder_posteriors
+    @test joint_cwz_comparison.cz_variable_projection_gradient
+    @test joint_cwz.joint_cwz_enabled
     @test legacy_full.mode === :robust
     @test JunaCore.JunaOFDMFEC.Modulation().mode === :ofdm_fec
     @test JunaCore.JunaStandard.Modulation().mode === :standard
     @test JunaCore.JunaPartialFFT.Modulation().mode === :pfft
     @test JunaCore.JunaLite.Modulation().mode === :lite
-    @test JunaCore.JunaProfiledCzFrame.Modulation().frame_receiver ===
-          :profiled_cz
-    @test JunaCore.JunaCrcProfiledCzFrame.Modulation().frame_crc_bits == 16
-    @test JunaCore.JunaCrcConditionedJointCwzFrame.Modulation().
-          cz_conditioned_joint
+    @test JunaCore.JunaCzRefinement.Modulation().frame_receiver ===
+          :cz_refinement
+    @test JunaCore.JunaCrcCzRefinement.Modulation().frame_crc_bits == 16
+    @test JunaCore.JunaCrcJointCwz.Modulation().
+          joint_cwz_enabled
     @test Juna.receiver_profile(ofdm_fec) === :ofdm_fec
     @test Juna.receiver_profile(:standard) === :ofdm_fec
     @test Juna.receiver_profile(legacy_standard) === :ofdm_fec
@@ -176,13 +177,16 @@ function assert_receiver_profiles()
     @test Juna.receiver_profile(lite) === :lite
     @test Juna.receiver_profile(full) === :full
     @test Juna.receiver_profile(coupled) === :coupled
-    @test Juna.receiver_profile(profiled_cz) === :frame_wide_ldpc
-    @test Juna.receiver_profile(crc_profiled_cz) === :frame_wide_ldpc
+    @test Juna.receiver_profile(cz_refinement) === :frame_wide_ldpc
+    @test Juna.receiver_profile(crc_cz_refinement) === :frame_wide_ldpc
     @test Juna.receiver_profile(legacy_full) === :full
     # the baselines never refine, so BPSK stays legal for them (like Lite)
-    @test isvalid(Juna.OFDMFECModulation(bpc = 1, ldpc_k = 170, ldpc_n = 680), FC, FS)
-    @test isvalid(Juna.StandardModulation(bpc = 1, ldpc_k = 170, ldpc_n = 680), FC, FS)
-    @test isvalid(Juna.PartialFFTModulation(bpc = 1, ldpc_k = 170, ldpc_n = 680), FC, FS)
+    @test isvalid(Juna.OFDMFECModulation(
+        bits_per_data_carrier=1, ldpc_k=170, ldpc_n=680), FC, FS)
+    @test isvalid(Juna.StandardModulation(
+        bits_per_data_carrier=1, ldpc_k=170, ldpc_n=680), FC, FS)
+    @test isvalid(Juna.PartialFFTModulation(
+        bits_per_data_carrier=1, ldpc_k=170, ldpc_n=680), FC, FS)
     @test !isvalid(Juna.Modulation(mode = :unknown), FC, FS)
 end
 
@@ -226,9 +230,9 @@ function assert_pilot_band_ls_objective_contract(m)
     @test maximum(abs, residual) < 1e-8 * max(maximum(abs, rhs), 1.0)
 
     initial_candidate = Juna._initial_candidate(m, code, layout, yparts)
-    @test initial_candidate.valid
+    @test initial_candidate.ldpc_valid
     @test Juna._payload_from_metrics(
-        m, code, initial_candidate.lpost_metric) == bits
+        m, code, initial_candidate.posterior_metric) == bits
 end
 
 # The declared-refinement dispatch table covers every reader-selectable
@@ -240,12 +244,12 @@ function assert_declared_refinement_contract(m)
         :pilot_band_ls => assert_pilot_band_ls_objective_contract,
         :posterior_anchor_ls => receiver -> begin
             @test Juna.receiver_profile(receiver) === :lite
-            @test isdefined(Juna, :_juna_step)
+            @test isdefined(Juna, :_lite_refinement_step)
         end,
-        :profiled_cz_frame => receiver -> begin
+        :cz_refinement => receiver -> begin
             @test Juna.receiver_profile(receiver) === :frame_wide_ldpc
-            @test receiver.frame_receiver === :profiled_cz
-            @test isdefined(Juna, :_frame_profiled_cz_refine)
+            @test receiver.frame_receiver === :cz_refinement
+            @test isdefined(Juna, :_frame_cz_refine)
             @test isdefined(Juna, :_CoupledProblem)
         end,
     )
@@ -339,14 +343,14 @@ end
             ("JunaPartialFFT module", JunaCore.JunaPartialFFT.Modulation()),
             ("default JUNA-lite", Juna.Modulation()),
             ("JunaLite module", JunaCore.JunaLite.Modulation()),
-            ("Profiled C,z", JunaCore.JunaProfiledCzFrame.Modulation()),
-            ("Profiled C,z", JunaCore.JunaCrcProfiledCzFrame.Modulation()),
-            ("Profiled C,z", JunaCore.JunaCrcConditionedJointCwzFrame.Modulation()),
+            ("C,z refinement", JunaCore.JunaCzRefinement.Modulation()),
+            ("C,z refinement", JunaCore.JunaCrcCzRefinement.Modulation()),
+            ("C,z refinement", JunaCore.JunaCrcJointCwz.Modulation()),
         )
         expected = (:none, :none, :none, :pilot_band_ls, :pilot_band_ls,
                     :posterior_anchor_ls, :posterior_anchor_ls,
-                    :profiled_cz_frame, :profiled_cz_frame,
-                    :profiled_cz_frame)
+                    :cz_refinement, :cz_refinement,
+                    :cz_refinement)
 
         for ((name, provider), objective) in zip(providers, expected)
             @testset "$name declares $objective" begin

@@ -1,14 +1,15 @@
 # Frame-wide constrained variable-projection receiver.
 #
 # C is the physical partial-FFT response and z is the relaxed global LDPC
-# codeword. C is solved exactly conditional on z. The combiner is never an
-# independent optimization block: its MRC/MMSE form is derived from the
-# desired (zero-offset) column of C after every C solve.
+# codeword. C is updated conditional on z. The combiner is never an independent
+# optimization block: its regularized MRC form is derived from the desired
+# (zero-offset) column of C after every C update.
 
 const _CZ_COMBINER_RIDGE = 1e-3
 
-function _cz_mmse_weights!(W::AbstractMatrix, C::AbstractArray{<:Number,4};
-                           ridge::Real=_CZ_COMBINER_RIDGE)
+function _cz_regularized_mrc_weights!(
+    W::AbstractMatrix, C::AbstractArray{<:Number,4};
+    ridge::Real=_CZ_COMBINER_RIDGE)
   size(C, 1) == size(W, 1) || throw(DimensionMismatch(
     "C and W must have the same number of partial-FFT views"))
   size(C, 3) == size(W, 2) || throw(DimensionMismatch(
@@ -29,39 +30,39 @@ function _cz_mmse_weights!(W::AbstractMatrix, C::AbstractArray{<:Number,4};
   W
 end
 
-function _cz_derive_weights!(state::_CoupledState)
-  _cz_mmse_weights!(state.W, state.C)
+function _cz_derive_W_from_C!(state::_CoupledState)
+  _cz_regularized_mrc_weights!(state.W, state.C)
   state
 end
 
-function _cz_profile_C!(m::Modulation,
-                        problem::_CoupledProblem,
-                        state::_CoupledState,
-                        scratch::_CoupledScratch,
-                        anchor,
-                        weights::_CoupledWeights;
-                        damping::Real=m.cz_em_damping)
-  if m.cz_em_enabled
-    _coupled_em_C!(
+function _cz_update_C_given_z!(m::Modulation,
+                               problem::_CoupledProblem,
+                               state::_CoupledState,
+                               scratch::_CoupledScratch,
+                               anchor,
+                               weights::_CoupledWeights;
+                               damping::Real=m.cz_response_update_fraction)
+  if m.cz_posterior_moment_update_enabled
+    _cwz_update_C_from_posterior_moments!(
       problem, state;
       weights, scratch, anchor,
-      trust=m.cz_em_trust, damping=damping)
+      trust=m.cz_response_anchor_weight, damping=damping)
   else
     _coupled_exact_C!(problem, state; weights, scratch)
   end
 end
 
-function _cz_pilot_anchor_C(problem::_CoupledProblem,
-                            state::_CoupledState,
-                            scratch::_CoupledScratch,
-                            weights::_CoupledWeights)
+function _cz_bootstrap_C_anchor(problem::_CoupledProblem,
+                                state::_CoupledState,
+                                scratch::_CoupledScratch,
+                                weights::_CoupledWeights)
   bootstrap = _copy_coupled_state(state)
   # Unknown coded bits carry no sign information at bootstrap. Outer pilots
   # remain fixed symbols, inner-pilot bits remain hard clamps, and the
   # posterior-moment Gram retains unit-energy uncertainty for everything else.
   fill!(bootstrap.z, 0.0)
   fill!(bootstrap.C, 0.0 + 0.0im)
-  _coupled_em_C!(
+  _cwz_update_C_from_posterior_moments!(
     problem, bootstrap;
     weights, scratch, anchor=nothing, trust=0.0, damping=1.0)
   copy(bootstrap.C)
@@ -72,19 +73,21 @@ function _cz_update_W!(m::Modulation,
                        state::_CoupledState,
                        scratch::_CoupledScratch,
                        weights::_CoupledWeights)
-  m.cz_independent_w ?
+  m.cz_refit_w_from_decoder_posteriors ?
     _coupled_posterior_W!(problem, state; weights, scratch) :
-    _cz_derive_weights!(state)
+    _cz_derive_W_from_C!(state)
 end
 
-function _cz_bp_feedback!(z, posterior_metrics, inner_mask, inner_bits,
-                          feedback::Real, clip::Real)
+function _cz_apply_decoder_posterior_feedback!(
+    z, posterior_metrics, inner_mask, inner_bits,
+    feedback::Real, clip::Real)
   length(posterior_metrics) == length(z) ||
-    throw(DimensionMismatch("BP posterior must cover every frame logit"))
+    throw(DimensionMismatch(
+      "decoder posterior must cover every frame logit"))
   length(inner_mask) == length(z) && length(inner_bits) == length(z) ||
     throw(DimensionMismatch("inner-pilot masks must cover every frame logit"))
   isfinite(feedback) && 0 <= feedback <= 1 ||
-    throw(ArgumentError("BP feedback must lie in [0,1]"))
+    throw(ArgumentError("decoder-posterior weight must lie in [0,1]"))
   @inbounds for bit in eachindex(z)
     if inner_mask[bit]
       z[bit] = inner_bits[bit] ? -Float64(clip) : Float64(clip)
@@ -97,28 +100,30 @@ function _cz_bp_feedback!(z, posterior_metrics, inner_mask, inner_bits,
   z
 end
 
-function _cz_genie_logits(m::Modulation, nblocks::Integer,
-                          block_n::Integer, clip::Real)
-  truth = m.genie_symbols
+function _cz_transmitted_symbol_logits(
+    m::Modulation, nblocks::Integer,
+    coded_bits_per_block::Integer, clip::Real)
+  truth = m.transmitted_symbols
   truth === nothing && throw(ArgumentError(
-    "cz_feedback_source=:genie requires transmitted symbols"))
+    "cz_feedback_source=:transmitted_symbols requires transmitted symbols"))
   blocks = Int(nblocks)
-  bits_per_block = Int(block_n)
+  bits_per_block = Int(coded_bits_per_block)
   blocks > 0 && bits_per_block > 0 ||
-    throw(ArgumentError("C,z genie feedback needs positive frame dimensions"))
+    throw(ArgumentError(
+      "C,z transmitted-symbol feedback needs positive frame dimensions"))
   ntones = cld(bits_per_block, 2)
   logits = Vector{Float64}(undef, blocks * bits_per_block)
   @inbounds for block in 1:blocks
-    symbols = _genie_block(truth, block)
+    symbols = _transmitted_symbol_block(truth, block)
     length(symbols) >= ntones || throw(DimensionMismatch(
-      "genie symbols cover $(length(symbols)) carriers in OFDM symbol $block; " *
+      "transmitted symbols cover $(length(symbols)) carriers in OFDM symbol $block; " *
       "$ntones coded carriers are required"))
     for local_bit in 1:bits_per_block
       tone = cld(local_bit, 2)
       component = isodd(local_bit) ?
         real(symbols[tone]) : imag(symbols[tone])
       abs(component) > eps(Float64) || throw(ArgumentError(
-        "genie symbol component for block $block bit $local_bit is zero"))
+        "transmitted symbol component for block $block bit $local_bit is zero"))
       logits[(block - 1) * bits_per_block + local_bit] =
         copysign(Float64(clip), component)
     end
@@ -135,27 +140,30 @@ the trajectory's initial logits, current BP posteriors, or transmitted symbols.
 """
 function _cz_feedback_plan(m::Modulation, initial_z, posterior_metrics,
                            inner_mask, inner_bits, nblocks::Integer,
-                           block_n::Integer, clip::Real)
+                           coded_bits_per_block::Integer, clip::Real)
   length(initial_z) == length(posterior_metrics) ==
     length(inner_mask) == length(inner_bits) ||
     throw(DimensionMismatch(
       "C,z feedback vectors must cover the same global codeword"))
-  length(initial_z) == Int(nblocks) * Int(block_n) ||
+  length(initial_z) == Int(nblocks) * Int(coded_bits_per_block) ||
     throw(DimensionMismatch(
       "C,z feedback dimensions must match blocks times block length"))
   source = m.cz_feedback_source
-  source in (:frozen, :real, :genie) || throw(ArgumentError(
-    "C,z source-only feedback requires :frozen, :real, or :genie"))
+  source in (:initial_logits, :decoder_posterior, :transmitted_symbols) ||
+    throw(ArgumentError(
+      "C,z source-only feedback requires :initial_logits, " *
+      ":decoder_posterior, or :transmitted_symbols"))
   support = findall(!, inner_mask)
-  weights = fill(Float64(m.cz_bp_feedback), length(support))
-  values = if source === :frozen
+  weights = fill(Float64(m.cz_decoder_posterior_weight), length(support))
+  values = if source === :initial_logits
     clamp.(Float64.(initial_z[support]), -Float64(clip), Float64(clip))
-  elseif source === :real
+  elseif source === :decoder_posterior
     clamp.(
       -Float64.(posterior_metrics[support]),
       -Float64(clip), Float64(clip))
   else
-    truth_logits = _cz_genie_logits(m, nblocks, block_n, clip)
+    truth_logits = _cz_transmitted_symbol_logits(
+      m, nblocks, coded_bits_per_block, clip)
     truth_logits[support]
   end
   (; source, support, weights, values)
@@ -183,13 +191,13 @@ function _cz_apply_feedback!(z, plan, inner_mask, inner_bits, clip::Real)
   z
 end
 
-function _cz_conditioned_direction(x::AbstractArray{<:Complex},
-                                   gradient::AbstractArray{<:Complex},
-                                   radius::Real)
+function _joint_cwz_direction(x::AbstractArray{<:Complex},
+                              gradient::AbstractArray{<:Complex},
+                              radius::Real)
   axes(x) == axes(gradient) ||
     throw(DimensionMismatch("state and gradient shapes must match"))
   isfinite(radius) && radius > 0 ||
-    throw(ArgumentError("conditioned trust radius must be positive"))
+    throw(ArgumentError("joint C,W,z trust radius must be positive"))
   isempty(x) && return similar(x)
   rms = sqrt(sum(abs2, gradient) / length(gradient))
   (!isfinite(rms) || rms <= eps(Float64)) && return zero.(x)
@@ -200,13 +208,13 @@ function _cz_conditioned_direction(x::AbstractArray{<:Complex},
   direction
 end
 
-function _cz_conditioned_direction(x::AbstractArray{<:Real},
-                                   gradient::AbstractArray{<:Real},
-                                   radius::Real)
+function _joint_cwz_direction(x::AbstractArray{<:Real},
+                              gradient::AbstractArray{<:Real},
+                              radius::Real)
   axes(x) == axes(gradient) ||
     throw(DimensionMismatch("state and gradient shapes must match"))
   isfinite(radius) && radius > 0 ||
-    throw(ArgumentError("conditioned trust radius must be positive"))
+    throw(ArgumentError("joint C,W,z trust radius must be positive"))
   isempty(x) && return similar(x, Float64)
   rms = sqrt(sum(abs2, gradient) / length(gradient))
   (!isfinite(rms) || rms <= eps(Float64)) &&
@@ -217,9 +225,9 @@ function _cz_conditioned_direction(x::AbstractArray{<:Real},
   direction
 end
 
-function _cz_conditioned_accept(old_loss::Real, new_loss::Real,
-                                old_pilot::Real, new_pilot::Real,
-                                pilot_tolerance::Real)
+function _joint_cwz_step_is_accepted(old_loss::Real, new_loss::Real,
+                                     old_pilot::Real, new_pilot::Real,
+                                     pilot_tolerance::Real)
   all(isfinite, (old_loss, new_loss, old_pilot, new_pilot, pilot_tolerance)) ||
     return false
   pilot_tolerance >= 0 || return false
@@ -228,8 +236,8 @@ function _cz_conditioned_accept(old_loss::Real, new_loss::Real,
                  64eps(max(abs(Float64(old_pilot)), 1.0))
 end
 
-function _cz_conditioned_penalty!(gradients, states, c_anchors, w_anchors,
-                                  c_weight::Real, w_weight::Real)
+function _joint_cw_anchor_penalty!(gradients, states, c_anchors, w_anchors,
+                                   c_weight::Real, w_weight::Real)
   nblocks = length(states)
   inverse_blocks = inv(Float64(nblocks))
   penalty = 0.0
@@ -273,25 +281,25 @@ function _cz_temporal_c_penalty!(gradients, states, weight::Real)
   penalty
 end
 
-function _cz_conditioned_loss_and_grad!(
+function _joint_cwz_loss_and_gradient!(
     m::Modulation, code::_Code, problems, states, gradients, scratches,
     gz, z, inner_mask, inner_bits, parity_relaxed, parity_grad,
     parity_prefix, parity_clamped, c_anchors, w_anchors,
     weights::_CoupledWeights)
-  loss = _frame_coupled_loss_and_grad!(
+  loss = _frame_coupled_loss_and_gradient!(
     m, code, problems, states, gradients, scratches,
     gz, z, inner_mask, inner_bits, parity_relaxed, parity_grad,
     parity_prefix, parity_clamped;
     weights, expected_variance=true)
-  loss += _cz_conditioned_penalty!(
+  loss += _joint_cw_anchor_penalty!(
     gradients, states, c_anchors, w_anchors,
-    m.cz_em_trust, weights.combiner_regularization)
+    m.cz_response_anchor_weight, weights.combiner_regularization)
   loss + _cz_temporal_c_penalty!(
-    gradients, states, m.cz_temporal_c_smoothness)
+    gradients, states, m.cz_temporal_c_penalty_weight)
 end
 
-function _cz_conditioned_pilot_loss(problems, states, scratches,
-                                    weights::_CoupledWeights)
+function _joint_cwz_pilot_loss(problems, states, scratches,
+                               weights::_CoupledWeights)
   inverse_blocks = inv(Float64(length(problems)))
   sum(eachindex(problems); init=0.0) do block
     inverse_blocks * _coupled_objective(
@@ -300,36 +308,36 @@ function _cz_conditioned_pilot_loss(problems, states, scratches,
   end
 end
 
-function _cz_conditioned_joint_step!(
+function _joint_cwz_step!(
     m::Modulation, code::_Code, problems, states, gradients, scratches,
     gz, z, inner_mask, inner_bits, parity_relaxed, parity_grad,
     parity_prefix, parity_clamped, c_anchors, w_anchors,
     weights::_CoupledWeights, iteration::Integer, logit_clip::Real)
-  _cz_sync_logits!(states, z, Int(m.ldpc_n))
-  old_loss = _cz_conditioned_loss_and_grad!(
+  _cz_copy_logits_to_blocks!(states, z, Int(m.ldpc_n))
+  old_loss = _joint_cwz_loss_and_gradient!(
     m, code, problems, states, gradients, scratches,
     gz, z, inner_mask, inner_bits, parity_relaxed, parity_grad,
     parity_prefix, parity_clamped, c_anchors, w_anchors, weights)
-  old_pilot = _cz_conditioned_pilot_loss(
+  old_pilot = _joint_cwz_pilot_loss(
     problems, states, scratches, weights)
   isfinite(old_loss) && isfinite(old_pilot) ||
     return (accepted=false, loss=old_loss, pilot=old_pilot, step_scale=0.0)
 
   c_directions = [
-    _cz_conditioned_direction(
-      states[block].C, gradients[block].C, m.cz_joint_c_radius)
+    _joint_cwz_direction(
+      states[block].C, gradients[block].C, m.joint_cwz_c_radius)
     for block in eachindex(states)
   ]
-  w_directions = if iteration >= m.cz_joint_w_start
+  w_directions = if iteration >= m.joint_cwz_first_w_iteration
     [
-      _cz_conditioned_direction(
-        states[block].W, gradients[block].W, m.cz_joint_w_radius)
+      _joint_cwz_direction(
+        states[block].W, gradients[block].W, m.joint_cwz_w_radius)
       for block in eachindex(states)
     ]
   else
     [zero.(state.W) for state in states]
   end
-  z_direction = _cz_conditioned_direction(z, gz, m.cz_joint_z_radius)
+  z_direction = _joint_cwz_direction(z, gz, m.joint_cwz_z_radius)
 
   candidate_states = [_copy_coupled_state(state) for state in states]
   candidate_z = similar(z)
@@ -349,17 +357,17 @@ function _cz_conditioned_joint_step!(
       candidate_z[bit] =
         inner_bits[bit] ? -Float64(logit_clip) : Float64(logit_clip)
     end
-    _cz_sync_logits!(candidate_states, candidate_z, Int(m.ldpc_n))
-    new_loss = _cz_conditioned_loss_and_grad!(
+    _cz_copy_logits_to_blocks!(candidate_states, candidate_z, Int(m.ldpc_n))
+    new_loss = _joint_cwz_loss_and_gradient!(
       m, code, problems, candidate_states, gradients, scratches,
       trial_gz, candidate_z, inner_mask, inner_bits,
       parity_relaxed, parity_grad, parity_prefix, parity_clamped,
       c_anchors, w_anchors, weights)
-    new_pilot = _cz_conditioned_pilot_loss(
+    new_pilot = _joint_cwz_pilot_loss(
       problems, candidate_states, scratches, weights)
-    _cz_conditioned_accept(
+    _joint_cwz_step_is_accepted(
       old_loss, new_loss, old_pilot, new_pilot,
-      m.cz_joint_pilot_tolerance) || continue
+      m.joint_cwz_pilot_tolerance) || continue
     @inbounds for block in eachindex(states)
       states[block].C .= candidate_states[block].C
       states[block].W .= candidate_states[block].W
@@ -368,7 +376,7 @@ function _cz_conditioned_joint_step!(
     z .= candidate_z
     return (accepted=true, loss=new_loss, pilot=new_pilot, step_scale=scale)
   end
-  _cz_sync_logits!(states, z, Int(m.ldpc_n))
+  _cz_copy_logits_to_blocks!(states, z, Int(m.ldpc_n))
   (accepted=false, loss=old_loss, pilot=old_pilot, step_scale=0.0)
 end
 
@@ -385,26 +393,29 @@ function _cz_runtime_weights(m::Modulation)
   )
 end
 
-function _cz_sync_logits!(states, z, block_n::Int)
+function _cz_copy_logits_to_blocks!(states, z, coded_bits_per_block::Int)
   @inbounds for block in eachindex(states)
-    lo = 1 + (block - 1) * block_n
-    copyto!(states[block].z, @view z[lo:lo + block_n - 1])
+    lo = 1 + (block - 1) * coded_bits_per_block
+    copyto!(
+      states[block].z,
+      @view z[lo:lo + coded_bits_per_block - 1])
   end
   states
 end
 
-_cz_crc_choose_gradient(lite_crc_valid::Bool,
-                        gradient_crc_valid::Bool) =
-  gradient_crc_valid && !lite_crc_valid
+_cz_crc_choose_refinement(lite_crc_valid::Bool,
+                          refinement_crc_valid::Bool) =
+  refinement_crc_valid && !lite_crc_valid
 
 function _cz_candidate_crc_valid(m::Modulation, code::_Code, candidate,
                                  nblocks::Integer, payload_nbits)
-  m.frame_crc_bits == 0 && return candidate.valid
+  m.frame_crc_bits > 0 || throw(ArgumentError(
+    "CRC validity requires a positive CRC length"))
   payload_nbits === nothing && throw(ArgumentError(
     "CRC-gated C,z selection requires the user payload length"))
   total = Int(payload_nbits) + m.frame_crc_bits
   metrics = _frame_payload_metrics(
-    m, code, candidate.lpost_metric, nblocks, total)
+    m, code, candidate.posterior_metric, nblocks, total)
   _frame_crc_valid(metrics .> 0, m.frame_crc_bits)
 end
 
@@ -413,7 +424,7 @@ function _cz_candidate_payload(m::Modulation, code::_Code, candidate,
   payload_nbits === nothing && throw(ArgumentError(
     "C,z candidate recording requires the user payload length"))
   metrics = _frame_payload_metrics(
-    m, code, candidate.lpost_metric, nblocks, Int(payload_nbits))
+    m, code, candidate.posterior_metric, nblocks, Int(payload_nbits))
   BitVector(metrics .> 0)
 end
 
@@ -448,70 +459,84 @@ function _cz_restart_logits(base, restart::Integer, seed::Integer,
   z
 end
 
-function _frame_profiled_cz_refine(m::Modulation, code::_Code,
-                                   layout::_Layout, observations;
-                                   payload_nbits=nothing)
+function _frame_cz_refine(m::Modulation, code::_Code,
+                          layout::_Layout, observations;
+                          payload_nbits=nothing)
   _bpc(m) == 2 || throw(ArgumentError(
-    "Profiled C,z implements QPSK only"))
+    "C,z refinement implements QPSK only"))
   nblocks = size(observations, 3)
-  m.cz_feedback_source === :genie &&
-    _cz_genie_logits(m, nblocks, Int(m.ldpc_n), _GRAD_CLIP_Z)
+  m.cz_feedback_source === :transmitted_symbols &&
+    _cz_transmitted_symbol_logits(
+      m, nblocks, Int(m.ldpc_n), _GRAD_CLIP_Z)
   ofdm_fec = _frame_static_trace(
     m, code, layout, observations, _MODE_OFDM_FEC)
   lite = _frame_lite_refine(m, code, layout, observations)
   config = _wcz_optimizer_config(m)
-  crc_enabled = m.frame_crc_bits > 0 && m.cz_crc_gate
-  lite_crc_valid = _cz_candidate_crc_valid(
-    m, code, lite.best, nblocks, payload_nbits)
-  legacy_early_skip = crc_enabled ?
-    lite_crc_valid : (ofdm_fec.best.valid || lite.best.valid)
+  configured_update_variables =
+    (m.cz_refit_w_from_decoder_posteriors || m.joint_cwz_enabled) ?
+      (:C, :W, :z) : (:C, :z)
+  crc_replacement_gate_enabled =
+    m.frame_crc_bits > 0 && m.cz_require_crc_for_replacement
+  lite_ldpc_valid = lite.best.ldpc_valid
+  lite_crc_valid = m.frame_crc_bits > 0 ?
+    _cz_candidate_crc_valid(
+      m, code, lite.best, nblocks, payload_nbits) : nothing
+  baseline_allows_early_skip = crc_replacement_gate_enabled ?
+    lite_crc_valid : (ofdm_fec.best.ldpc_valid || lite_ldpc_valid)
   early_skip = config.steps == 0 ||
-    (!m.cz_gate_selection_only && legacy_early_skip)
+    (!m.cz_crc_gate_at_selection_only && baseline_allows_early_skip)
   if early_skip
     baseline = config.steps == 0 ? lite :
-      (crc_enabled || m.cz_gate_selection_only) ? lite :
-      (ofdm_fec.best.valid ? ofdm_fec : lite)
+      (crc_replacement_gate_enabled || m.cz_crc_gate_at_selection_only) ? lite :
+      (ofdm_fec.best.ldpc_valid ? ofdm_fec : lite)
     reason = config.steps == 0 ? :zero_steps :
-      m.cz_gate_selection_only ? :lite_fallback :
-      crc_enabled ? :lite_crc_valid_skip :
-      (ofdm_fec.best.valid ? :ofdm_fec_valid_skip : :lite_valid_skip)
-    m.cz_gradient_trace = (
+      m.cz_crc_gate_at_selection_only ? :lite_fallback :
+      crc_replacement_gate_enabled ? :lite_crc_valid_skip :
+      (ofdm_fec.best.ldpc_valid ?
+        :ofdm_fec_ldpc_valid_skip : :lite_ldpc_valid_skip)
+    m.cz_refinement_trace = (
       scope=:frame,
-      optimized_variables=(m.cz_independent_w || m.cz_conditioned_joint) ?
-        (:C, :W, :z) : (:C, :z),
+      configured_update_variables,
+      executed_update_variables=(),
+      refinement_executed=false,
       independent_w_parameters=0, bp_checkpoints=1,
-      selection_reason=reason, selected_gradient=false,
+      selection_reason=reason, selected_refinement=false,
       selected_iteration=0,
       selected_restart=0,
       restart_count=0,
       requested_restarts=m.cz_restarts,
       candidates=NamedTuple[],
       crc_bits=m.frame_crc_bits,
-      selection_gate=crc_enabled ? :crc : :score,
+      selection_gate=crc_replacement_gate_enabled ? :crc : :candidate_order,
       feedback_source=m.cz_feedback_source,
       feedback_support=Int[],
       feedback_weights=Float64[],
       feedback_value_history=NamedTuple[],
-      c_estimator=m.cz_em_enabled ? :posterior_moment_em : :mean_only_ridge,
-      c_anchor=m.cz_em_enabled ? :pilots_and_unknown_energy : :legacy_initial,
-      c_em_trust=m.cz_em_trust,
-      c_em_damping=m.cz_em_damping,
-      bp_feedback=m.cz_bp_feedback,
-      conditioned_joint=m.cz_conditioned_joint,
-      conditioned_accepted_steps=0,
-      conditioned_rejected_steps=0,
-      conditioned_step_scales=Float64[],
+      c_estimator=m.cz_posterior_moment_update_enabled ?
+        :posterior_moment_update : :mean_only_ridge,
+      c_anchor=m.cz_posterior_moment_update_enabled ?
+        :pilots_and_unknown_energy : :initial_response,
+      c_response_anchor_weight=m.cz_response_anchor_weight,
+      c_response_update_fraction=m.cz_response_update_fraction,
+      decoder_posterior_weight=m.cz_decoder_posterior_weight,
+      joint_cwz_enabled=m.joint_cwz_enabled,
+      joint_cwz_accepted_steps=0,
+      joint_cwz_rejected_steps=0,
+      joint_cwz_step_scales=Float64[],
+      lite_ldpc_valid,
+      refinement_ldpc_valid=nothing,
       lite_crc_valid,
-      gradient_crc_valid=lite_crc_valid,
-      lite=(valid=lite.best.valid, syndrome=lite.best.syndrome,
-            score=lite.best.score),
-      gradient=(valid=baseline.best.valid, syndrome=baseline.best.syndrome,
-                score=baseline.best.score),
+      refinement_crc_valid=nothing,
+      baseline=(
+        ldpc_valid=baseline.best.ldpc_valid,
+        syndrome_weight=baseline.best.syndrome_weight,
+        selection_score=baseline.best.selection_score),
+      refinement=nothing,
     )
-    return merge(baseline, (profile=_MODE_PROFILED_CZ,))
+    return merge(baseline, (profile=_MODE_CZ_REFINEMENT,))
   end
 
-  block_n = Int(m.ldpc_n)
+  coded_bits_per_block = Int(m.ldpc_n)
   inner_pairs = _frame_global_inner_pairs(m, code)
   inner_mask = falses(code.n)
   inner_bits = falses(code.n)
@@ -524,7 +549,7 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
     for block in 1:nblocks]
   scratches = [_CoupledScratch(problem) for problem in problems]
 
-  base_z = clamp.(-Float64.(lite.best.lpost_metric),
+  base_z = clamp.(-Float64.(lite.best.posterior_metric),
                   -_GRAD_CLIP_Z, _GRAD_CLIP_Z)
   parity_relaxed = zeros(Float64, code.n)
   parity_grad = zeros(Float64, code.n)
@@ -532,42 +557,42 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
   parity_prefix = zeros(Float64, max_degree)
   parity_clamped = zeros(Float64, max_degree)
 
-  best_gradient = lite.best
-  best_gradient_equalized = lite.best_equalized
-  best_crc_gradient = nothing
-  best_crc_gradient_equalized = nothing
-  best_crc_iteration = 0
-  best_crc_restart = 0
+  best_refinement = lite.best
+  best_refinement_equalized = lite.best_equalized
+  best_crc_refinement = nothing
+  best_crc_refinement_equalized = nothing
+  best_crc_refinement_iteration = 0
+  best_crc_refinement_restart = 0
   selected_iteration = 0
   selected_restart = 0
   bp_checkpoints = 1
   recorded_candidates = NamedTuple[]
   feedback_support = findall(!, inner_mask)
-  feedback_weights = fill(Float64(m.cz_bp_feedback), length(feedback_support))
+  feedback_weights = fill(Float64(m.cz_decoder_posterior_weight), length(feedback_support))
   feedback_value_history = NamedTuple[]
-  conditioned_accepted_steps = 0
-  conditioned_rejected_steps = 0
-  conditioned_step_scales = Float64[]
+  joint_cwz_accepted_steps = 0
+  joint_cwz_rejected_steps = 0
+  joint_cwz_step_scales = Float64[]
   runtime_weights = _cz_runtime_weights(m)
   for restart in 1:m.cz_restarts
     states = [_frame_initial_coupled_state(
       m, layout, problems[block],
-      @view(lite.best.lpost_metric[
-        1 + (block - 1) * block_n:block * block_n]))
+      @view(lite.best.posterior_metric[
+        (1 + (block - 1) * coded_bits_per_block):(block * coded_bits_per_block)]))
       for block in 1:nblocks]
-    c_anchors = if m.cz_em_enabled
+    c_anchors = if m.cz_posterior_moment_update_enabled
       [
-        _cz_pilot_anchor_C(
+        _cz_bootstrap_C_anchor(
           problems[block], states[block], scratches[block], runtime_weights)
         for block in 1:nblocks
       ]
     else
       [copy(state.C) for state in states]
     end
-    if m.cz_em_enabled
+    if m.cz_posterior_moment_update_enabled
       @inbounds for block in 1:nblocks
         states[block].C .= c_anchors[block]
-        m.cz_conditioned_joint && _cz_derive_weights!(states[block])
+        m.joint_cwz_enabled && _cz_derive_W_from_C!(states[block])
       end
     end
     w_anchors = [copy(state.W) for state in states]
@@ -581,38 +606,38 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
     vz = zeros(Float64, length(z))
 
     for iteration in 1:config.steps
-      loss = if m.cz_conditioned_joint
-        proposal = _cz_conditioned_joint_step!(
+      loss = if m.joint_cwz_enabled
+        proposal = _joint_cwz_step!(
           m, code, problems, states, gradients, scratches,
           gz, z, inner_mask, inner_bits, parity_relaxed, parity_grad,
           parity_prefix, parity_clamped, c_anchors, w_anchors,
           runtime_weights, iteration, config.logit_clip)
         if proposal.accepted
-          conditioned_accepted_steps += 1
-          push!(conditioned_step_scales, proposal.step_scale)
+          joint_cwz_accepted_steps += 1
+          push!(joint_cwz_step_scales, proposal.step_scale)
         else
-          conditioned_rejected_steps += 1
+          joint_cwz_rejected_steps += 1
         end
         proposal.loss
       else
-        _cz_sync_logits!(states, z, block_n)
+        _cz_copy_logits_to_blocks!(states, z, coded_bits_per_block)
         @inbounds for block in 1:nblocks
           # Variable-projection gradient wants C/W at the exact (undamped)
           # block minimizer so the profiled z-gradient is the total derivative.
-          _cz_profile_C!(
+          _cz_update_C_given_z!(
             m, problems[block], states[block], scratches[block],
             c_anchors[block], runtime_weights;
-            damping=m.cz_vp_gradient ? 1.0 : m.cz_em_damping)
+            damping=m.cz_variable_projection_gradient ? 1.0 : m.cz_response_update_fraction)
           _cz_update_W!(
             m, problems[block], states[block], scratches[block],
             runtime_weights)
         end
-        _frame_coupled_loss_and_grad!(
+        _frame_coupled_loss_and_gradient!(
           m, code, problems, states, gradients, scratches,
           gz, z, inner_mask, inner_bits, parity_relaxed, parity_grad,
           parity_prefix, parity_clamped;
           weights=runtime_weights,
-          expected_variance=m.cz_vp_gradient)
+          expected_variance=m.cz_variable_projection_gradient)
         _adam_step_real!(
           z, mz, vz, gz, iteration,
           config.alpha_z, config.beta1, config.beta2, config.epsilon,
@@ -623,16 +648,16 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
         end
 
         # Re-profile C and derive W at the updated z before the BP checkpoint.
-        _cz_sync_logits!(states, z, block_n)
+        _cz_copy_logits_to_blocks!(states, z, coded_bits_per_block)
         @inbounds for block in 1:nblocks
-          _cz_profile_C!(
+          _cz_update_C_given_z!(
             m, problems[block], states[block], scratches[block],
             c_anchors[block], runtime_weights)
           _cz_update_W!(
             m, problems[block], states[block], scratches[block],
             runtime_weights)
         end
-        _frame_coupled_loss_and_grad!(
+        _frame_coupled_loss_and_gradient!(
           m, code, problems, states, gradients, scratches,
           gz, z, inner_mask, inner_bits, parity_relaxed, parity_grad,
           parity_prefix, parity_clamped;
@@ -642,52 +667,54 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
       candidate = _frame_wcz_candidate(
         m, code, layout, problems, states, z)
       bp_checkpoints += 1
-      candidate_crc_valid = _cz_candidate_crc_valid(
-        m, code, candidate, nblocks, payload_nbits)
-      if crc_enabled || m.cz_gate_selection_only
+      candidate_crc_valid = m.frame_crc_bits > 0 ?
+        _cz_candidate_crc_valid(
+          m, code, candidate, nblocks, payload_nbits) : nothing
+      if crc_replacement_gate_enabled || m.cz_crc_gate_at_selection_only
         push!(recorded_candidates, (
           restart,
           iteration,
           payload=_cz_candidate_payload(
             m, code, candidate, nblocks, payload_nbits),
           crc_valid=candidate_crc_valid,
-          ldpc_valid=candidate.valid,
-          syndrome=candidate.syndrome,
+          ldpc_valid=candidate.ldpc_valid,
+          syndrome_weight=candidate.syndrome_weight,
         ))
       end
-      if crc_enabled && candidate_crc_valid &&
-          (best_crc_gradient === nothing ||
-           _juna_better(best_crc_gradient, candidate))
-        best_crc_gradient = candidate
-        best_crc_gradient_equalized = _frame_coupled_equalized(
+      if crc_replacement_gate_enabled && candidate_crc_valid &&
+          (best_crc_refinement === nothing ||
+           _candidate_is_better(best_crc_refinement, candidate))
+        best_crc_refinement = candidate
+        best_crc_refinement_equalized = _frame_coupled_equalized(
           m, layout, problems, states)
-        best_crc_iteration = iteration
-        best_crc_restart = restart
+        best_crc_refinement_iteration = iteration
+        best_crc_refinement_restart = restart
       end
-      if _juna_better(best_gradient, candidate)
-        best_gradient = candidate
-        best_gradient_equalized = _frame_coupled_equalized(
+      if _candidate_is_better(best_refinement, candidate)
+        best_refinement = candidate
+        best_refinement_equalized = _frame_coupled_equalized(
           m, layout, problems, states)
         selected_iteration = iteration
         selected_restart = restart
       end
-      if m.cz_bp_feedback > 0
-        if m.cz_feedback_source === :legacy
+      if m.cz_decoder_posterior_weight > 0
+        if m.cz_feedback_source === :decoder_posterior
           feedback_values = clamp.(
-            -Float64.(candidate.lpost_metric[feedback_support]),
+            -Float64.(candidate.posterior_metric[feedback_support]),
             -Float64(config.logit_clip), Float64(config.logit_clip))
           push!(feedback_value_history, (
             restart,
             iteration,
             values=feedback_values,
           ))
-          _cz_bp_feedback!(
-            z, candidate.lpost_metric, inner_mask, inner_bits,
-            m.cz_bp_feedback, config.logit_clip)
+          _cz_apply_decoder_posterior_feedback!(
+            z, candidate.posterior_metric, inner_mask, inner_bits,
+            m.cz_decoder_posterior_weight, config.logit_clip)
         else
           feedback_plan = _cz_feedback_plan(
-            m, feedback_initial, candidate.lpost_metric,
-            inner_mask, inner_bits, nblocks, block_n, config.logit_clip)
+            m, feedback_initial, candidate.posterior_metric,
+            inner_mask, inner_bits, nblocks, coded_bits_per_block,
+            config.logit_clip)
           push!(feedback_value_history, (
             restart,
             iteration,
@@ -697,84 +724,95 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
             z, feedback_plan, inner_mask, inner_bits, config.logit_clip)
         end
       end
-      if m.cz_conditioned_joint
+      if m.joint_cwz_enabled
         # The next joint step sees a frozen, physically meaningful W reference.
         # Refreshing only between BP checkpoints avoids an unaccounted dWref/dC
         # term inside the simultaneous analytical gradient.
         @inbounds for block in eachindex(states)
           reference = _copy_coupled_state(states[block])
-          _cz_derive_weights!(reference)
+          _cz_derive_W_from_C!(reference)
           w_anchors[block] .= reference.W
         end
       end
     end
   end
 
-  gradient_crc_valid = crc_enabled ?
-    best_crc_gradient !== nothing :
-    _cz_candidate_crc_valid(
-      m, code, best_gradient, nblocks, payload_nbits)
-  choose_gradient = crc_enabled ?
-    _cz_crc_choose_gradient(lite_crc_valid, gradient_crc_valid) :
-    _juna_selection_reason(lite.best, best_gradient) !== :lite_fallback
-  if crc_enabled && choose_gradient
-    best_gradient = best_crc_gradient
-    best_gradient_equalized = best_crc_gradient_equalized
-    selected_iteration = best_crc_iteration
-    selected_restart = best_crc_restart
+  crc_valid_refinement_available = best_crc_refinement !== nothing
+  choose_refinement = crc_replacement_gate_enabled ?
+    _cz_crc_choose_refinement(
+      lite_crc_valid, crc_valid_refinement_available) :
+    _juna_selection_reason(lite.best, best_refinement) !== :lite_fallback
+  if crc_replacement_gate_enabled && choose_refinement
+    best_refinement = best_crc_refinement
+    best_refinement_equalized = best_crc_refinement_equalized
+    selected_iteration = best_crc_refinement_iteration
+    selected_restart = best_crc_refinement_restart
   end
-  reason = crc_enabled ?
-    (choose_gradient ? :crc_rescue :
+  refinement_ldpc_valid = best_refinement.ldpc_valid
+  refinement_crc_valid = m.frame_crc_bits > 0 ?
+    _cz_candidate_crc_valid(
+      m, code, best_refinement, nblocks, payload_nbits) : nothing
+  reason = crc_replacement_gate_enabled ?
+    (choose_refinement ? :crc_rescue :
      lite_crc_valid ? :lite_crc_valid : :crc_fallback) :
-    _juna_selection_reason(lite.best, best_gradient)
-  m.cz_gradient_trace = (
+    _juna_selection_reason(lite.best, best_refinement)
+  m.cz_refinement_trace = (
     scope=:frame,
-    optimized_variables=(m.cz_independent_w || m.cz_conditioned_joint) ?
-      (:C, :W, :z) : (:C, :z),
-    independent_w_parameters=(m.cz_independent_w || m.cz_conditioned_joint) ?
+    configured_update_variables,
+    executed_update_variables=configured_update_variables,
+    refinement_executed=true,
+    independent_w_parameters=(m.cz_refit_w_from_decoder_posteriors || m.joint_cwz_enabled) ?
       nblocks * Int(m.partial_fft_parts) * Int(m.partial_fft_nbands) : 0,
     bp_checkpoints,
-    selection_reason=reason, selected_gradient=choose_gradient,
-    selected_iteration=choose_gradient ? selected_iteration : 0,
-    selected_restart=choose_gradient ? selected_restart : 0,
+    selection_reason=reason, selected_refinement=choose_refinement,
+    selected_iteration=choose_refinement ? selected_iteration : 0,
+    selected_restart=choose_refinement ? selected_restart : 0,
     restart_count=m.cz_restarts,
     requested_restarts=m.cz_restarts,
     candidates=recorded_candidates,
     crc_bits=m.frame_crc_bits,
-    selection_gate=crc_enabled ? :crc : :score,
+    selection_gate=crc_replacement_gate_enabled ? :crc : :candidate_order,
     feedback_source=m.cz_feedback_source,
     feedback_support,
     feedback_weights,
     feedback_value_history,
-    c_estimator=m.cz_em_enabled ? :posterior_moment_em : :mean_only_ridge,
-    c_anchor=m.cz_em_enabled ? :pilots_and_unknown_energy : :legacy_initial,
-    c_em_trust=m.cz_em_trust,
-    c_em_damping=m.cz_em_damping,
-    bp_feedback=m.cz_bp_feedback,
-    conditioned_joint=m.cz_conditioned_joint,
-    conditioned_accepted_steps,
-    conditioned_rejected_steps,
-    conditioned_step_scales,
+    c_estimator=m.cz_posterior_moment_update_enabled ?
+      :posterior_moment_update : :mean_only_ridge,
+    c_anchor=m.cz_posterior_moment_update_enabled ?
+      :pilots_and_unknown_energy : :initial_response,
+    c_response_anchor_weight=m.cz_response_anchor_weight,
+    c_response_update_fraction=m.cz_response_update_fraction,
+    decoder_posterior_weight=m.cz_decoder_posterior_weight,
+    joint_cwz_enabled=m.joint_cwz_enabled,
+    joint_cwz_accepted_steps,
+    joint_cwz_rejected_steps,
+    joint_cwz_step_scales,
+    lite_ldpc_valid,
+    refinement_ldpc_valid,
     lite_crc_valid,
-    gradient_crc_valid,
-    lite=(valid=lite.best.valid, syndrome=lite.best.syndrome,
-          score=lite.best.score),
-    gradient=(valid=best_gradient.valid, syndrome=best_gradient.syndrome,
-              score=best_gradient.score),
+    refinement_crc_valid,
+    baseline=(
+      ldpc_valid=lite.best.ldpc_valid,
+      syndrome_weight=lite.best.syndrome_weight,
+      selection_score=lite.best.selection_score),
+    refinement=(
+      ldpc_valid=best_refinement.ldpc_valid,
+      syndrome_weight=best_refinement.syndrome_weight,
+      selection_score=best_refinement.selection_score),
   )
   (
-    profile=_MODE_PROFILED_CZ,
+    profile=_MODE_CZ_REFINEMENT,
     initial_candidate=lite.best,
-    best=choose_gradient ? best_gradient : lite.best,
+    best=choose_refinement ? best_refinement : lite.best,
     initial_equalized=lite.best_equalized,
-    best_equalized=choose_gradient ? best_gradient_equalized : lite.best_equalized,
-    selected_iteration=choose_gradient ? selected_iteration : 0,
+    best_equalized=choose_refinement ? best_refinement_equalized : lite.best_equalized,
+    selected_iteration=choose_refinement ? selected_iteration : 0,
     data_anchor_counts=Int[],
   )
 end
 
-function _cz_gradient_last_trace(m::Modulation)
-  m.cz_gradient_trace === nothing && throw(ArgumentError(
-    "no C,z frame gradient trace is available; run demodulation first"))
-  m.cz_gradient_trace
+function _cz_refinement_last_trace(m::Modulation)
+  m.cz_refinement_trace === nothing && throw(ArgumentError(
+    "no C,z refinement trace is available; run demodulation first"))
+  m.cz_refinement_trace
 end

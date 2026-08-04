@@ -1,7 +1,7 @@
 # Fixed Juna receiver decisions, keyed by receiver and scenario.
 #
 # The committed results were first recorded during migration from the Sonique
-# source commit named in parity_golden.json. This script now checks Juna against
+# source commit named in parity_reference.json. This script now checks Juna against
 # results stored in this repository. A reviewed Juna behavior change may update
 # those results without a corresponding Sonique change.
 
@@ -14,20 +14,21 @@ const PC_Modulations = JunaCore.Modulations
 const PC_FC = 24_000.0
 const PC_FS = 24_000.0
 const PC_SCENARIOS = (("clean", 0.0), ("mild_noise", 0.05))
-const PC_PROFILED_CZ_KEY = "profiled_cz.compact"
-const PC_PROFILED_CZ_READER_NAME = "Profiled C,z"
+const PC_CZ_REFINEMENT_KEY = "cz_refinement.compact"
+const PC_CZ_REFINEMENT_READER_NAME = "C,z refinement"
 const PC_RECEIVERS = (
     ("ofdm_fec", JunaCore.Juna.OFDMFECModulation),
     ("partial-fft", JunaCore.Juna.PartialFFTModulation),
     ("lite", JunaCore.Juna.LiteModulation),
 )
 
-function profiled_cz_parity_digest()
-    modem = JunaCore.JunaProfiledCzFrame.Modulation(
-        nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+function cz_refinement_parity_digest()
+    modem = JunaCore.JunaCzRefinement.Modulation(
+        fft_length=64, cyclic_prefix_length=16,
+        ldpc_k=20, ldpc_n=40, ldpc_checks_per_column=2,
         partial_fft_parts=2, partial_fft_nbands=2,
         pilot_ratio=1/3, inner_pilot_ratio=0.0,
-        refinement_steps=1, cz_gate_selection_only=true,
+        refinement_steps=1, cz_crc_gate_at_selection_only=true,
     )
     nbits = 2 * PC_Modulations.bitspersymbol(modem) - 3
     rng = MersenneTwister(20260730)
@@ -37,12 +38,12 @@ function profiled_cz_parity_digest()
         randn(rng, length(waveform)) .+ 1im .* randn(rng, length(waveform)))
     metrics, _ = PC_Modulations.demodulate(
         modem, nbits, waveform .+ noise, PC_FC, PC_FS)
-    trace = JunaCore.Juna._cz_gradient_last_trace(modem)
+    trace = JunaCore.Juna._cz_refinement_last_trace(modem)
     trace.bp_checkpoints >= 2 || error(
-        "$PC_PROFILED_CZ_READER_NAME parity case did not run refinement")
+        "$PC_CZ_REFINEMENT_READER_NAME parity case did not run refinement")
 
     decisions = vcat(UInt8.(metrics .> 0), UInt8.(bits))
-    println(stderr, "  $PC_PROFILED_CZ_READER_NAME compact case: ",
+    println(stderr, "  $PC_CZ_REFINEMENT_READER_NAME compact case: ",
             sum((metrics .> 0) .== bits), "/", nbits,
             " bits correct; ", trace.bp_checkpoints, " BP checkpoints")
     bytes2hex(PC_SHA.sha256(decisions))
@@ -73,11 +74,11 @@ function parity_digests()
                 bytes2hex(PC_SHA.sha256(decisions))
         end
     end
-    results[PC_PROFILED_CZ_KEY] = profiled_cz_parity_digest()
+    results[PC_CZ_REFINEMENT_KEY] = cz_refinement_parity_digest()
     results
 end
 
-function load_golden(path)
+function load_reference(path)
     text = read(path, String)
     Dict(m.captures[1] => m.captures[2]
          for m in eachmatch(r"\"([a-z_-]+\.[a-z_]+)\"\s*:\s*\"([0-9a-f]{64})\"",
@@ -107,18 +108,18 @@ if get(ENV, "JUNA_PARITY_RECORD", "") == "1"
     exit()
 end
 
-golden_path = joinpath(@__DIR__, "parity_golden.json")
-expected = load_golden(golden_path)
+reference_path = joinpath(@__DIR__, "parity_reference.json")
+expected = load_reference(reference_path)
 missing = setdiff(keys(actual), keys(expected))
 extra = setdiff(keys(expected), keys(actual))
-isempty(missing) || error("golden parity keys missing: $(sort(collect(missing)))")
-isempty(extra) || error("golden parity has obsolete keys: $(sort(collect(extra)))")
+isempty(missing) || error("reference parity keys missing: $(sort(collect(missing)))")
+isempty(extra) || error("reference parity has obsolete keys: $(sort(collect(extra)))")
 for key in sort(collect(keys(actual)))
     actual[key] == expected[key] ||
         error("parity mismatch for $key: expected $(expected[key]), " *
               "got $(actual[key])")
-    label = key == PC_PROFILED_CZ_KEY ?
-        "$PC_PROFILED_CZ_READER_NAME compact case" : key
+    label = key == PC_CZ_REFINEMENT_KEY ?
+        "$PC_CZ_REFINEMENT_READER_NAME compact case" : key
     println("parity $label: ", actual[key], " PASS")
 end
 summary_bytes = Vector{UInt8}(codeunits(join(

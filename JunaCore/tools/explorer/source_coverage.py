@@ -31,9 +31,8 @@ STATIC_NOTE = ("static textual references only - a hit means the suite NAMES "
 
 _KNOWN_CONTAINERS = {"Juna", "JunaCore", "Modulations", "LDPC",
                      "JunaLite", "JunaOFDMFEC", "JunaPartialFFT",
-                     "JunaStandard", "JunaProfiledCzFrame",
-                     "JunaCrcProfiledCzFrame",
-                     "JunaCrcConditionedJointCwzFrame"}
+                     "JunaStandard", "JunaCzRefinement",
+                     "JunaCrcCzRefinement", "JunaCrcJointCwz"}
 
 
 def _blank_non_code(match):

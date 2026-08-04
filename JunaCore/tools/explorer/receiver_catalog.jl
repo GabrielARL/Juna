@@ -46,16 +46,16 @@ const RECEIVERS = [
      role = "proposed",
      specific_suite_exemption = "",
      purpose = "Begins with the Partial-FFT/FEC initial candidate, then applies decoder-guided combiner refinement."),
-    (id = "profiled_cz",
-     display_name = "Profiled C,z",
-     facade = "JunaProfiledCzFrame",
+    (id = "cz_refinement",
+     display_name = "C,z refinement",
+     facade = "JunaCzRefinement",
      mode = "frame_wide_ldpc",
      profile = "frame_wide_ldpc",
-     frame_receiver = "profiled_cz",
-     objective = "profiled_cz_frame",
-     variant_facades = ["JunaCrcProfiledCzFrame",
-                        "JunaCrcConditionedJointCwzFrame"],
-     chain_path = ["acquisition", "frame", "profiled_cz"],
+     frame_receiver = "cz_refinement",
+     objective = "cz_refinement",
+     variant_facades = ["JunaCrcCzRefinement",
+                        "JunaCrcJointCwz"],
+     chain_path = ["acquisition", "frame", "cz_refinement"],
      role = "proposed",
      specific_suite_exemption = "",
      purpose = "Processes the complete frame and keeps the starting result unless the decoder—and CRC when present—accepts an update."),
@@ -69,8 +69,8 @@ function assert_receiver_catalog()
     @assert length(unique(all_facades)) == length(all_facades)
     @assert Set(all_facades) == Set([
         "JunaOFDMFEC", "JunaPartialFFT", "JunaLite",
-        "JunaProfiledCzFrame", "JunaCrcProfiledCzFrame",
-        "JunaCrcConditionedJointCwzFrame",
+        "JunaCzRefinement", "JunaCrcCzRefinement",
+        "JunaCrcJointCwz",
     ])
     for receiver in RECEIVERS
         facade = getfield(JunaCore, Symbol(receiver.facade))

@@ -126,7 +126,7 @@ end
             config = CoupledSolveJuna._CoupledOptimizerConfig(steps = 0),
         )
 
-        @test result.selected_iter == 0
+        @test result.selected_iteration == 0
         @test result.loss_history == [result.initial_loss]
         @test result.best_loss == result.initial_loss
         @test result.state.W == f.initial.W
@@ -152,7 +152,7 @@ end
         @test result1.initial_loss == result1.loss_history[1]
         @test result1.best_loss == minimum(result1.loss_history)
         @test result1.best_loss < 0.5 * result1.initial_loss
-        @test 1 <= result1.selected_iter <= config.steps
+        @test 1 <= result1.selected_iteration <= config.steps
         @test result1.state.W != f.initial.W
         @test result1.state.C != f.initial.C
         @test result1.state.z != f.initial.z
@@ -179,7 +179,7 @@ end
 
         @test result.best_loss == minimum(result.loss_history)
         @test result.best_loss <= result.initial_loss
-        @test result.selected_iter in 0:config.steps
+        @test result.selected_iteration in 0:config.steps
         @test all(x -> isfinite(real(x)) && isfinite(imag(x)), result.state.W)
         @test all(x -> isfinite(real(x)) && isfinite(imag(x)), result.state.C)
         @test all(isfinite, result.state.z)
@@ -207,5 +207,5 @@ end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    println("Profiled C,z checks passed")
+    println("C,z refinement checks passed")
 end

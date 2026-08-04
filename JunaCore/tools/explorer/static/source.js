@@ -200,10 +200,15 @@ function buildPreSection(title, text) {
 function buildPurposeSection(data) {
   const content = document.createElement("div");
   if (data.doc) {
-    content.textContent = data.doc;
+    content.appendChild(textDiv(data.doc));
+    if (data.doc_origin === "comment") {
+      const origin = textDiv("From a source comment, not a docstring");
+      origin.className = "jx-src-muted jx-src-italic";
+      content.appendChild(origin);
+    }
   } else {
     content.className = "jx-src-muted jx-src-italic";
-    content.textContent = "No source docstring";
+    content.textContent = "No source docstring or comment";
   }
   return section("Purpose", content);
 }
@@ -269,13 +274,41 @@ function buildFieldsSection(data) {
 }
 
 function buildChainSection(data) {
-  return buildLinkListSection(
-    "Chain role",
-    data.chain_stages,
-    "jx-src-chip",
-    (s) => ({ href: "/chain#" + s.id, text: s.title || String(s.id) }),
-    "Not part of a declared chain stage"
-  );
+  const receivers = Array.isArray(data.chain_receivers) ? data.chain_receivers : [];
+  const stages = Array.isArray(data.chain_stages) ? data.chain_stages : [];
+  if (receivers.length === 0) {
+    return buildLinkListSection(
+      "Chain role",
+      stages,
+      "jx-src-chip",
+      (s) => ({ href: "/chain#" + s.id, text: s.title || String(s.id) }),
+      "Not part of a declared chain stage"
+    );
+  }
+  const content = document.createElement("div");
+  receivers.concat(stages).forEach((item) => {
+    const a = document.createElement("a");
+    a.className = "jx-src-chip";
+    a.href = "/chain#" + item.id;
+    a.textContent = item.title
+      ? item.title
+      : "Receiver: " + String(item.id);
+    content.appendChild(a);
+  });
+  return section("Chain role", content);
+}
+
+function buildBindingSection(data) {
+  const bind = data.module_binding;
+  if (!bind) return null;
+  const content = document.createElement("div");
+  const line = document.createElement("a");
+  line.className = "jx-src-clickable-line";
+  line.href = "#sym=" + encodeURIComponent("Modulation");
+  line.textContent = bind.sig;
+  if (bind.file) line.title = bind.file + (bind.line ? ":" + bind.line : "");
+  content.appendChild(line);
+  return section("Modulation binding", content);
 }
 
 function buildDispatchSection(data) {
@@ -308,9 +341,9 @@ function buildFacadesSection(data) {
             JunaStandard: "ofdm_fec",
             JunaPartialFFT: "partial-fft",
             JunaLite: "lite",
-            JunaProfiledCzFrame: "profiled_cz",
-            JunaCrcProfiledCzFrame: "profiled_cz",
-            JunaCrcConditionedJointCwzFrame: "profiled_cz",
+            JunaCzRefinement: "cz_refinement",
+            JunaCrcCzRefinement: "cz_refinement",
+            JunaCrcJointCwz: "cz_refinement",
           }[facade.name] || ""
         ) + "#sym=" + encodeURIComponent(facade.id),
       text: facade.name,
@@ -379,7 +412,9 @@ function buildActionsSection(data) {
   focusBtn.addEventListener("click", () => focusGraph(data));
 
   const stages = Array.isArray(data.chain_stages) ? data.chain_stages : [];
-  const chainHref = stages.length > 0 ? "/chain#" + stages[0].id : "/chain";
+  const receivers = Array.isArray(data.chain_receivers) ? data.chain_receivers : [];
+  const anchor = receivers[0] || stages[0];
+  const chainHref = anchor ? "/chain#" + anchor.id : "/chain";
 
   wrap.appendChild(actionLink(
     "Open in Source definitions",
@@ -388,6 +423,10 @@ function buildActionsSection(data) {
       (data.file ? "&file=" + encodeURIComponent(data.file) : "") +
       (data.line ? "&line=" + encodeURIComponent(data.line) : "")
   ));
+  if (data.kind === "module") {
+    wrap.appendChild(actionLink("Show chain", chainHref));
+    return wrap;
+  }
   wrap.appendChild(focusBtn);
   const evidence = data.evidence || {};
   const direct = evidence.direct_test_references || [];
@@ -412,7 +451,17 @@ function renderInspector(data) {
   if (!inspector) return;
   inspector.innerHTML = "";
 
-  [
+  // A module declares no arguments, no methods and no calls, so the rows that
+  // answer those questions would render as denials. It gets its own set.
+  const isModule = data.kind === "module";
+  const sections = isModule ? [
+    buildHeaderSection(data),
+    buildPurposeSection(data),
+    buildDefinedAtSection(data),
+    buildChainSection(data),
+    buildBindingSection(data),
+    buildActionsSection(data),
+  ] : [
     buildHeaderSection(data),
     buildPreSection("Signature", data.sig),
     buildPurposeSection(data),
@@ -426,11 +475,21 @@ function renderInspector(data) {
     buildRefsSection("Called by (static)", data.callers),
     buildEvidenceSection(data.evidence),
     buildActionsSection(data),
-  ].forEach((node) => {
+  ];
+  sections.forEach((node) => {
     if (node) inspector.appendChild(node);
   });
 
-  if (PAGE_MODE !== "graph") focusGraph(data);
+  if (PAGE_MODE === "graph") return;
+  if (isModule) {
+    clearEgograph();
+    const note = textDiv("A module makes no calls, so it has no call graph.");
+    note.className = "jx-src-muted";
+    const container = document.getElementById("egograph");
+    if (container) container.appendChild(note);
+    return;
+  }
+  focusGraph(data);
 }
 
 function setInspectorMessage(text) {

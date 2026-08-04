@@ -1,7 +1,7 @@
 # Shared descriptors for cross-cutting public-boundary tests.
 #
 # The catalog has one entry for each reader-selectable receiver family. The
-# Profiled C,z entry uses the base facade; its CRC and conditioned public
+# C,z refinement entry uses the base facade; its CRC and joint C,W,z public
 # facades are covered by the receiver-specific family tests.
 
 const PUBLIC_RECEIVER_DESCRIPTORS = (
@@ -14,9 +14,9 @@ const PUBLIC_RECEIVER_DESCRIPTORS = (
     (name = "JUNA-Lite", mode = :lite,
      profile = :lite, factory = JunaCore.Juna.LiteModulation,
      supports_bpsk = true, supports_shifted_band = true),
-    (name = "Profiled C,z", mode = :frame_wide_ldpc,
+    (name = "C,z refinement", mode = :frame_wide_ldpc,
      profile = :frame_wide_ldpc,
-     factory = JunaCore.JunaProfiledCzFrame.Modulation,
+     factory = JunaCore.JunaCzRefinement.Modulation,
      supports_bpsk = false, supports_shifted_band = true),
 )
 
@@ -35,7 +35,8 @@ function assert_public_receiver_catalog()
         receiver = public_receiver(descriptor)
         @test receiver.mode === descriptor.mode
         @test JunaCore.Juna.receiver_profile(receiver) === descriptor.profile
-        @test (Int(receiver.bpc) == 1 && descriptor.supports_bpsk) ||
-              Int(receiver.bpc) == 2
+        @test (Int(receiver.bits_per_data_carrier) == 1 &&
+               descriptor.supports_bpsk) ||
+              Int(receiver.bits_per_data_carrier) == 2
     end
 end

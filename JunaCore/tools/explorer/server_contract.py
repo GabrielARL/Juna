@@ -11,7 +11,8 @@ S2  /coverage states the static-not-runtime distinction and both legend
 S3  /chain embeds every stage declared in chain.json.
 S4  /tests presents every suite in reader-facing language, keeps technical
     registry data in collapsed details, labels browser-recorded results as
-    Explorer runs, and retains valid receiver-stage links.
+    Explorer runs, retains valid receiver-stage links, and exposes the
+    sequential Run-all control with live status.
 S5  /source is the three-panel source-definition page; /source/inspector is
     the server-rendered symbol list and persistent evidence inspector.
 S6  banned destinations 404: /benchmark, /history, /reproduce,
@@ -19,7 +20,8 @@ S6  banned destinations 404: /benchmark, /history, /reproduce,
 S7  GET is side-effect free: run output reports the last recorded result (or
     idle when none exists), and run/health output endpoints start nothing.
 S8  every JSON API (/api/repository, /api/suites, /api/chain,
-    /api/symbols, /api/coverage, /api/runs, /api/health, /api/palette)
+    /api/symbols, /api/coverage, /api/runs, /api/tests/status, /api/health,
+    /api/palette)
     returns the provenance envelope {commit, working_tree_dirty,
     generated_at, schema_version==1, data}, with commit matching git and
     working_tree_dirty consistent with the scoped porcelain status.
@@ -44,7 +46,9 @@ S14 /chain renders a selector for all catalog receivers, comparison controls,
 S15 Source retains Inspector and Advanced Graph modes; the graph API
     accepts receiver/stage/suite/file contexts; every navigation tab emits a
     contextual Source entry; and the primary three-panel page has the
-    Explorer bridge bar instead of becoming an orphan application.
+    Explorer bridge bar instead of becoming an orphan application. Symbol
+    details expose source-comment purpose fallback, receiver roles, and module
+    bindings.
 S16 a real headless browser observes painted canvas pixels for both a
     receiver-context graph and a selected symbol's ego graph. API/DOM-only
     success cannot satisfy this visual contract.
@@ -90,7 +94,8 @@ import urllib.request
 from http.server import ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
+ROOT = os.path.normpath(os.environ.get(
+    "JUNA_CORE_ROOT", os.path.join(HERE, "..", "..")))
 sys.path.insert(0, HERE)
 import server  # noqa: E402
 from source_symbol_explorer import analyze  # noqa: E402
@@ -99,8 +104,8 @@ NAV_LABELS = ["Home", "Tests", "Map", "Chain", "Source", "Coverage",
               "Health", "Progress", "Results"]
 API_ENDPOINTS = ["/api/repository", "/api/suites", "/api/chain",
                  "/api/symbols", "/api/coverage", "/api/runs",
-                 "/api/health", "/api/palette", "/api/receivers",
-                 "/api/graph"]
+                 "/api/tests/status", "/api/health", "/api/palette",
+                 "/api/receivers", "/api/graph"]
 TAXONOMY = ["Static call edge", "Interface implementation",
             "Direct test reference", "Suite-wide association",
             "Runtime result"]
@@ -255,6 +260,11 @@ def _check_running_server(base, fixture_id, source_root):
             "<h1>Tests</h1>",
             "Most recent Explorer run",
             "Results on this page come only from tests started in the Explorer.",
+            'id="runall"',
+            "Run all tests",
+            "/api/tests/status",
+            "/api/tests/run-all",
+            "/api/tests/stop-all",
             "<th>Test</th>",
             "<th>What it checks</th>"):
         if marker not in normalized_tests_page:
@@ -388,6 +398,116 @@ def _check_running_server(base, fixture_id, source_root):
                                                              "failed"):
         problems.append("S7: GET health output must not start a run")
 
+    # Exercise the Run-all controller without launching Julia. The fake run
+    # records concurrency and completes asynchronously, so this checks the
+    # server endpoint, sequential scheduling, duplicate-start rejection, live
+    # status, and cancellation as one behavior.
+    battery_names = ("SuiteBattery", "BATTERY", "BATTERY_LOCK",
+                     "suite_run_status")
+    if not all(hasattr(server, name) for name in battery_names):
+        problems.append("S7: sequential Run-all controller is missing")
+    else:
+        class _ContractRun:
+            started = []
+            active = 0
+            maximum_active = 0
+            lock = threading.Lock()
+
+            def __init__(self, key, file):
+                self.key, self.file = key, file
+                self.status = "running"
+                with self.lock:
+                    self.started.append(key)
+                    type(self).active += 1
+                    type(self).maximum_active = max(
+                        type(self).maximum_active, type(self).active)
+                threading.Thread(target=self._finish, daemon=True).start()
+
+            def _finish(self):
+                import time
+                time.sleep(0.08)
+                with self.lock:
+                    if self.status == "running":
+                        self.status = "passed"
+                        type(self).active -= 1
+
+            def cancel(self):
+                with self.lock:
+                    if self.status == "running":
+                        self.status = "cancelled"
+                        type(self).active -= 1
+
+        class _ContractSuites:
+            @staticmethod
+            def get():
+                return [{"key": "contract-first", "file": "first.jl"},
+                        {"key": "contract-second", "file": "second.jl"}]
+
+        original_run = server.Run
+        original_suites_cache = server.SUITES_CACHE
+        original_battery = server.BATTERY["run"]
+        with server.RUNS_LOCK:
+            original_runs = server.RUNS
+            server.RUNS = {}
+        try:
+            server.Run = _ContractRun
+            server.SUITES_CACHE = _ContractSuites()
+            server.BATTERY["run"] = None
+            code, _ = fetch(base, "/api/tests/run-all", method="POST", body="{}")
+            if code != 200:
+                problems.append(
+                    f"S7: Run-all start returned {code}, expected 200")
+            duplicate_code, _ = fetch(
+                base, "/api/tests/run-all", method="POST", body="{}")
+            if duplicate_code != 409:
+                problems.append(
+                    "S7: duplicate Run-all start was not rejected with 409")
+            status_code, status_text = fetch(base, "/api/tests/status")
+            status_data = (json.loads(status_text).get("data", {})
+                           if status_code == 200 else {})
+            if status_data.get("battery", {}).get("status") != "running":
+                problems.append("S7: Run-all live status is not running")
+
+            import time
+            deadline = time.time() + 4
+            while (server.BATTERY["run"] is not None and
+                   server.BATTERY["run"].status == "running" and
+                   time.time() < deadline):
+                time.sleep(0.05)
+            battery = server.BATTERY["run"]
+            if battery is None or battery.status != "finished":
+                problems.append("S7: Run-all battery did not finish")
+            if (_ContractRun.started != ["contract-first", "contract-second"] or
+                    _ContractRun.maximum_active != 1):
+                problems.append(
+                    "S7: Run-all did not execute every suite sequentially")
+            finished = server.suite_run_status().get("battery", {})
+            if finished.get("done") != 2 or finished.get("total") != 2:
+                problems.append("S7: Run-all final progress totals are wrong")
+
+            code, _ = fetch(base, "/api/tests/run-all", method="POST", body="{}")
+            stop_code, _ = fetch(
+                base, "/api/tests/stop-all", method="POST", body="{}")
+            if code != 200 or stop_code != 200:
+                problems.append("S7: Run-all cancellation endpoints failed")
+            deadline = time.time() + 2
+            while (server.BATTERY["run"] is not None and
+                   server.BATTERY["run"].status == "running" and
+                   time.time() < deadline):
+                time.sleep(0.02)
+            if (server.BATTERY["run"] is None or
+                    server.BATTERY["run"].status != "cancelled"):
+                problems.append("S7: Stop-all did not cancel the battery")
+        finally:
+            battery = server.BATTERY["run"]
+            if battery is not None and battery.status == "running":
+                battery.cancel()
+            server.Run = original_run
+            server.SUITES_CACHE = original_suites_cache
+            server.BATTERY["run"] = original_battery
+            with server.RUNS_LOCK:
+                server.RUNS = original_runs
+
     # S8
     head = subprocess.run(["git", "rev-parse", "--short", "HEAD"],
                           capture_output=True, text=True, cwd=ROOT
@@ -396,6 +516,10 @@ def _check_running_server(base, fixture_id, source_root):
                                capture_output=True, text=True, cwd=ROOT
                                ).stdout.strip()
     actually_dirty = bool(porcelain)
+    if server.ROOT != ROOT:
+        problems.append(
+            f"S8: server root {server.ROOT!r} differs from contract root "
+            f"{ROOT!r}; JUNA_CORE_ROOT is not shared")
     for path in API_ENDPOINTS:
         code, text = fetch(base, path)
         if code != 200:
@@ -602,23 +726,50 @@ def _check_running_server(base, fixture_id, source_root):
             problems.append("S15: type inspector lacks interface implementations")
         expected_facades = {
             "JunaOFDMFEC", "JunaPartialFFT", "JunaLite",
-            "JunaProfiledCzFrame", "JunaCrcProfiledCzFrame",
-            "JunaCrcConditionedJointCwzFrame",
+            "JunaCzRefinement", "JunaCrcCzRefinement", "JunaCrcJointCwz",
         }
         if {f["name"] for f in detail.get("facades", [])} != expected_facades:
             problems.append(
                 "S15: type inspector public facades differ from the catalog")
+    for module_name, receiver_id, role in (
+            ("JunaOFDMFEC", "ofdm_fec", "primary"),
+            ("JunaCrcJointCwz", "cz_refinement", "variant")):
+        code, module_text = fetch(base, "/api/symbol/" + module_name)
+        module_detail = (json.loads(module_text).get("data", {})
+                         if code == 200 else {})
+        if code != 200:
+            problems.append(
+                f"S15: facade module {module_name} does not resolve")
+            continue
+        receiver_roles = {
+            (entry.get("id"), entry.get("role"))
+            for entry in module_detail.get("chain_receivers", [])
+        }
+        if (receiver_id, role) not in receiver_roles:
+            problems.append(
+                f"S15: {module_name} lacks its {role} receiver role")
+        binding = module_detail.get("module_binding") or {}
+        if not binding.get("sig") or binding.get("file") != "JunaCore.jl":
+            problems.append(
+                f"S15: {module_name} lacks its Modulation binding")
+    code, purpose_text = fetch(base, "/api/symbol/JunaOFDMFEC")
+    purpose = (json.loads(purpose_text).get("data", {})
+               if code == 200 else {})
+    if (purpose.get("doc_origin") != "comment" or
+            "Paper baseline" not in (purpose.get("doc") or "")):
+        problems.append(
+            "S15: source-comment Purpose fallback is not exposed")
     source_js = open(os.path.join(HERE, "static", "source.js")).read()
     for marker in ("Static call edge", "doubleClick", "Fields (",
                    "Open in Source definitions"):
         if marker not in source_js:
             problems.append(f"S15: source interaction lost '{marker}'")
-    for facade in ("JunaProfiledCzFrame", "JunaCrcProfiledCzFrame",
-                   "JunaCrcConditionedJointCwzFrame"):
-        marker = f'{facade}: "profiled_cz"'
+    for facade in ("JunaCzRefinement", "JunaCrcCzRefinement",
+                   "JunaCrcJointCwz"):
+        marker = f'{facade}: "cz_refinement"'
         if marker not in source_js:
             problems.append(
-                f"S15: Source facade link lost Profiled C,z mapping {facade}")
+                f"S15: Source facade link lost C,z refinement mapping {facade}")
     if modulation_ids:
         code, identity_graph_text = fetch(
             base, "/api/graph?symbol_id=" + modulation_ids[0])
@@ -633,7 +784,7 @@ def _check_running_server(base, fixture_id, source_root):
     # S16
     for path, label in (
             ("/source/graph?receiver=lite", "receiver graph"),
-            ("/source/inspector#sym=_juna_step", "symbol ego graph")):
+            ("/source/inspector#sym=_lite_refinement_step", "symbol ego graph")):
         dom, error = browser_dom(base, path)
         if dom is None:
             problems.append(f"S16: {label} not checked: {error}")
@@ -667,20 +818,20 @@ def _check_running_server(base, fixture_id, source_root):
     if any(node.get("kind") != "stage" for node in stage_graph.get("nodes", [])):
         problems.append("S18: default receiver graph contains raw symbol nodes")
 
-    code, text = fetch(base, "/api/graph?receiver=profiled_cz")
-    profiled_graph = json.loads(text).get("data", {}) if code == 200 else {}
-    expected_profiled_stage_ids = {
+    code, text = fetch(base, "/api/graph?receiver=cz_refinement")
+    cz_refinement_graph = json.loads(text).get("data", {}) if code == 200 else {}
+    expected_cz_refinement_stage_ids = {
         "stage:" + stage_id
-        for receiver in chain["receivers"] if receiver["id"] == "profiled_cz"
+        for receiver in chain["receivers"] if receiver["id"] == "cz_refinement"
         for stage_id in receiver["path"] + receiver.get("optional_stages", [])
     }
-    if profiled_graph.get("view") != "stages":
+    if cz_refinement_graph.get("view") != "stages":
         problems.append(
-            "S18: Profiled C,z graph does not default to stage view")
-    if {node.get("id") for node in profiled_graph.get("nodes", [])} != \
-            expected_profiled_stage_ids:
+            "S18: C,z refinement graph does not default to stage view")
+    if {node.get("id") for node in cz_refinement_graph.get("nodes", [])} != \
+            expected_cz_refinement_stage_ids:
         problems.append(
-            "S18: Profiled C,z graph differs from its declared stage DAG")
+            "S18: C,z refinement graph differs from its declared stage DAG")
 
     code, text = fetch(
         base, "/api/graph?receiver=lite&stage=initial-candidate&view=symbols")
@@ -776,13 +927,13 @@ def _check_running_server(base, fixture_id, source_root):
                     f"S19: /run/{suite['key']} lost runner behavior '{marker}'")
 
     end_to_end = next((suite for suite in suites
-                       if suite["key"] == "profiled-cz-end-to-end"), None)
+                       if suite["key"] == "cz-refinement-end-to-end"), None)
     expected_impairment_summary = (
         "The fixed impairment produces more errors at lower SNR.")
     if end_to_end is None or expected_impairment_summary not in \
             end_to_end.get("reader_summary", ""):
         problems.append(
-            "S19: profiled-cz-end-to-end reader summary differs from CX-015")
+            "S19: cz-refinement-end-to-end reader summary differs from CX-015")
 
     # S20 contract-pinned reader vocabulary
     code, map_page = fetch(base, "/map")
@@ -796,15 +947,9 @@ def _check_running_server(base, fixture_id, source_root):
         kind_counts[kind] = kind_counts.get(kind, 0) + 1
         file_name = definition["file"]
         per_file_counts[file_name] = per_file_counts.get(file_name, 0) + 1
-    definition_summary = (
-        f'{len(analyzed["symbols"])} source definitions: '
-        f'{kind_counts.get("function", 0)} function or method definitions, '
-        f'{kind_counts.get("const", 0)} constants, '
-        f'{kind_counts.get("module", 0)} module declarations, '
-        f'{kind_counts.get("struct", 0)} structure declarations, and '
-        f'{kind_counts.get("type", 0)} abstract type declaration.')
     map_markers = (
-        definition_summary,
+        f'<b>{len(analyzed["symbols"])} source definitions</b>, counted '
+        "afresh on every page load.",
         "A repeated name is counted separately for each definition.",
         "These definitions were found in the source code. This count does "
         "not show that the code ran.",
@@ -812,6 +957,29 @@ def _check_running_server(base, fixture_id, source_root):
     for marker in map_markers:
         if marker not in normalized_map_page:
             problems.append(f"S20: /map lost approved wording '{marker}'")
+    kind_labels = [("function", "Function or method definition"),
+                   ("const", "Constant"),
+                   ("module", "Module declaration"),
+                   ("struct", "Structure declaration"),
+                   ("type", "Abstract type declaration")]
+    for kind, singular in kind_labels:
+        count = kind_counts.get(kind, 0)
+        label = singular if count == 1 else singular + "s"
+        marker = (f'<tr><td>{label}</td>'
+                  f'<td class="kind-count">{count}</td>')
+        if marker not in normalized_map_page:
+            problems.append(
+                f"S20: /map kind table has no correct row for {kind}: "
+                f"'{marker}'")
+    for kind in ("module", "struct", "type"):
+        named = list(dict.fromkeys(d["name"] for d in analyzed["symbols"]
+                                   if d["kind"] == kind))
+        if len(named) > 12:
+            continue
+        for name in named:
+            if f"<code>{name}</code>" not in normalized_map_page:
+                problems.append(
+                    f"S20: /map kind table omits the {kind} '{name}'")
     for file_name, count in per_file_counts.items():
         noun = "source definition" if count == 1 else "source definitions"
         marker = f">{count} {noun}</td>"
@@ -1059,6 +1227,22 @@ def _check_running_server(base, fixture_id, source_root):
         problems.append(
             f"S22: suite mutation with foreign Origin returned {code}, "
             "expected 403")
+    for path in ("/api/tests/run-all", "/api/tests/stop-all"):
+        code, _ = fetch(
+            base, path, method="POST", body="{}",
+            headers={"Content-Type": "application/json",
+                     "Origin": "https://attacker.invalid"})
+        if code != 403:
+            problems.append(
+                f"S22: {path} with foreign Origin returned {code}, "
+                "expected 403")
+        code, _ = fetch(
+            base, path, method="POST", body="{}",
+            headers={"Content-Type": "text/plain", "Origin": base})
+        if code != 415:
+            problems.append(
+                f"S22: {path} with non-JSON content returned {code}, "
+                "expected 415")
 
     # S23
     code, receiver_text = fetch(base, "/api/receivers")
@@ -1098,23 +1282,23 @@ def _check_running_server(base, fixture_id, source_root):
           chain_alias_dom):
         problems.append(
             "S23: /chain#standard did not open the OFDM+FEC stage")
-    profiled_cz = next((receiver for receiver in receiver_data
-                        if receiver.get("id") == "profiled_cz"), None)
-    expected_profiled_cz = {
-        "display_name": "Profiled C,z",
-        "facade": "JunaProfiledCzFrame",
-        "variant_facades": ["JunaCrcProfiledCzFrame",
-                            "JunaCrcConditionedJointCwzFrame"],
+    cz_refinement = next((receiver for receiver in receiver_data
+                          if receiver.get("id") == "cz_refinement"), None)
+    expected_cz_refinement = {
+        "display_name": "C,z refinement",
+        "facade": "JunaCzRefinement",
+        "variant_facades": ["JunaCrcCzRefinement",
+                            "JunaCrcJointCwz"],
         "mode": "frame_wide_ldpc",
         "profile": "frame_wide_ldpc",
-        "frame_receiver": "profiled_cz",
-        "objective": "profiled_cz_frame",
+        "frame_receiver": "cz_refinement",
+        "objective": "cz_refinement",
     }
-    if profiled_cz is None or any(
-            profiled_cz.get(key) != value
-            for key, value in expected_profiled_cz.items()):
+    if cz_refinement is None or any(
+            cz_refinement.get(key) != value
+            for key, value in expected_cz_refinement.items()):
         problems.append(
-            "S23: /api/receivers lacks the approved Profiled C,z family")
+            "S23: /api/receivers lacks the approved C,z refinement family")
 
     # S24
     rich_markers = ('id="side"', 'id="net"', 'id="detail"')
@@ -1186,13 +1370,14 @@ def _check_running_server(base, fixture_id, source_root):
         problems.append(
             "S24: palette source-definition links do not use stable IDs")
 
-    rich_dom, rich_error = browser_dom(base, "/source#sym=_juna_step")
+    rich_dom, rich_error = browser_dom(
+        base, "/source#sym=_lite_refinement_step")
     if rich_dom is None:
         problems.append(
             f"S24: primary Source deep link not checked: {rich_error}")
     elif not all(marker in rich_dom for marker in
                  ("<b>Code name</b>", "<h2>implementation</h2>",
-                  "_juna_step")):
+                  "_lite_refinement_step")):
         problems.append(
             "S24: primary Source deep link did not show the implementation")
 
@@ -1260,29 +1445,33 @@ def _check_running_server(base, fixture_id, source_root):
         problems.append(
             "S24: Receiver stages names absent source functions: " +
             ", ".join(absent_pipeline_functions))
-    required_profiled_functions = {
-        "ProfiledCzFrameModulation",
-        "CrcProfiledCzFrameModulation",
-        "CrcTurboCwzFrameModulation",
-        "CrcConditionedCwzFrameModulation",
-        "CrcConditionedJointCwzFrameModulation",
-        "_frame_profiled_cz_refine",
-        "_cz_profile_C!",
+    required_cz_refinement_functions = {
+        "CzRefinementModulation",
+        "CrcCzRefinementModulation",
+        "CrcTurboCwzModulation",
+        "CrcJointCwzComparisonModulation",
+        "CrcJointCwzModulation",
+        "_frame_cz_refine",
+        "_cz_update_C_given_z!",
+        "_cz_derive_W_from_C!",
         "_cz_update_W!",
         "_cz_candidate_crc_valid",
-        "_cz_bp_feedback!",
-        "_cz_conditioned_joint_step!",
+        "_cz_apply_decoder_posterior_feedback!",
+        "_joint_cwz_step!",
         "_cz_restart_logits",
     }
-    missing_profiled_functions = sorted(
-        required_profiled_functions - pipeline_functions)
-    if missing_profiled_functions:
+    missing_cz_refinement_functions = sorted(
+        required_cz_refinement_functions - pipeline_functions)
+    if missing_cz_refinement_functions:
         problems.append(
-            "S24: Receiver stages omits Profiled C,z functions: " +
-            ", ".join(missing_profiled_functions))
-    if "Profiled C,z" not in source_explorer_text:
+            "S24: Receiver stages omits C,z refinement functions: " +
+            ", ".join(missing_cz_refinement_functions))
+    if "C,z refinement" not in source_explorer_text:
         problems.append(
-            "S24: Receiver stages omits the approved Profiled C,z label")
+            "S24: Receiver stages omits the approved C,z refinement label")
+    if _re.search(r"\b(?:BP|DAG)\b", source_explorer_text):
+        problems.append(
+            "S24: Receiver stages retains unexplained BP or DAG reader text")
     for stale_marker in ("sync_profile", "Rpchan", ":rpchan",
                          "_rpchan_acquire"):
         if stale_marker in source_explorer_text:
