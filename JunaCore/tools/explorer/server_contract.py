@@ -602,8 +602,7 @@ def _check_running_server(base, fixture_id, source_root):
             problems.append("S15: type inspector lacks interface implementations")
         expected_facades = {
             "JunaOFDMFEC", "JunaPartialFFT", "JunaLite",
-            "JunaProfiledCzFrame", "JunaCrcProfiledCzFrame",
-            "JunaCrcConditionedJointCwzFrame",
+            "JunaCzRefinement", "JunaCrcCzRefinement", "JunaCrcJointCwz",
         }
         if {f["name"] for f in detail.get("facades", [])} != expected_facades:
             problems.append(
@@ -613,12 +612,12 @@ def _check_running_server(base, fixture_id, source_root):
                    "Open in Source definitions"):
         if marker not in source_js:
             problems.append(f"S15: source interaction lost '{marker}'")
-    for facade in ("JunaProfiledCzFrame", "JunaCrcProfiledCzFrame",
-                   "JunaCrcConditionedJointCwzFrame"):
-        marker = f'{facade}: "profiled_cz"'
+    for facade in ("JunaCzRefinement", "JunaCrcCzRefinement",
+                   "JunaCrcJointCwz"):
+        marker = f'{facade}: "cz_refinement"'
         if marker not in source_js:
             problems.append(
-                f"S15: Source facade link lost Profiled C,z mapping {facade}")
+                f"S15: Source facade link lost C,z refinement mapping {facade}")
     if modulation_ids:
         code, identity_graph_text = fetch(
             base, "/api/graph?symbol_id=" + modulation_ids[0])
@@ -633,7 +632,7 @@ def _check_running_server(base, fixture_id, source_root):
     # S16
     for path, label in (
             ("/source/graph?receiver=lite", "receiver graph"),
-            ("/source/inspector#sym=_juna_step", "symbol ego graph")):
+            ("/source/inspector#sym=_lite_refinement_step", "symbol ego graph")):
         dom, error = browser_dom(base, path)
         if dom is None:
             problems.append(f"S16: {label} not checked: {error}")
@@ -667,20 +666,20 @@ def _check_running_server(base, fixture_id, source_root):
     if any(node.get("kind") != "stage" for node in stage_graph.get("nodes", [])):
         problems.append("S18: default receiver graph contains raw symbol nodes")
 
-    code, text = fetch(base, "/api/graph?receiver=profiled_cz")
-    profiled_graph = json.loads(text).get("data", {}) if code == 200 else {}
-    expected_profiled_stage_ids = {
+    code, text = fetch(base, "/api/graph?receiver=cz_refinement")
+    cz_refinement_graph = json.loads(text).get("data", {}) if code == 200 else {}
+    expected_cz_refinement_stage_ids = {
         "stage:" + stage_id
-        for receiver in chain["receivers"] if receiver["id"] == "profiled_cz"
+        for receiver in chain["receivers"] if receiver["id"] == "cz_refinement"
         for stage_id in receiver["path"] + receiver.get("optional_stages", [])
     }
-    if profiled_graph.get("view") != "stages":
+    if cz_refinement_graph.get("view") != "stages":
         problems.append(
-            "S18: Profiled C,z graph does not default to stage view")
-    if {node.get("id") for node in profiled_graph.get("nodes", [])} != \
-            expected_profiled_stage_ids:
+            "S18: C,z refinement graph does not default to stage view")
+    if {node.get("id") for node in cz_refinement_graph.get("nodes", [])} != \
+            expected_cz_refinement_stage_ids:
         problems.append(
-            "S18: Profiled C,z graph differs from its declared stage DAG")
+            "S18: C,z refinement graph differs from its declared stage DAG")
 
     code, text = fetch(
         base, "/api/graph?receiver=lite&stage=initial-candidate&view=symbols")
@@ -776,13 +775,13 @@ def _check_running_server(base, fixture_id, source_root):
                     f"S19: /run/{suite['key']} lost runner behavior '{marker}'")
 
     end_to_end = next((suite for suite in suites
-                       if suite["key"] == "profiled-cz-end-to-end"), None)
+                       if suite["key"] == "cz-refinement-end-to-end"), None)
     expected_impairment_summary = (
         "The fixed impairment produces more errors at lower SNR.")
     if end_to_end is None or expected_impairment_summary not in \
             end_to_end.get("reader_summary", ""):
         problems.append(
-            "S19: profiled-cz-end-to-end reader summary differs from CX-015")
+            "S19: cz-refinement-end-to-end reader summary differs from CX-015")
 
     # S20 contract-pinned reader vocabulary
     code, map_page = fetch(base, "/map")
@@ -1098,23 +1097,23 @@ def _check_running_server(base, fixture_id, source_root):
           chain_alias_dom):
         problems.append(
             "S23: /chain#standard did not open the OFDM+FEC stage")
-    profiled_cz = next((receiver for receiver in receiver_data
-                        if receiver.get("id") == "profiled_cz"), None)
-    expected_profiled_cz = {
-        "display_name": "Profiled C,z",
-        "facade": "JunaProfiledCzFrame",
-        "variant_facades": ["JunaCrcProfiledCzFrame",
-                            "JunaCrcConditionedJointCwzFrame"],
+    cz_refinement = next((receiver for receiver in receiver_data
+                          if receiver.get("id") == "cz_refinement"), None)
+    expected_cz_refinement = {
+        "display_name": "C,z refinement",
+        "facade": "JunaCzRefinement",
+        "variant_facades": ["JunaCrcCzRefinement",
+                            "JunaCrcJointCwz"],
         "mode": "frame_wide_ldpc",
         "profile": "frame_wide_ldpc",
-        "frame_receiver": "profiled_cz",
-        "objective": "profiled_cz_frame",
+        "frame_receiver": "cz_refinement",
+        "objective": "cz_refinement",
     }
-    if profiled_cz is None or any(
-            profiled_cz.get(key) != value
-            for key, value in expected_profiled_cz.items()):
+    if cz_refinement is None or any(
+            cz_refinement.get(key) != value
+            for key, value in expected_cz_refinement.items()):
         problems.append(
-            "S23: /api/receivers lacks the approved Profiled C,z family")
+            "S23: /api/receivers lacks the approved C,z refinement family")
 
     # S24
     rich_markers = ('id="side"', 'id="net"', 'id="detail"')
@@ -1186,13 +1185,14 @@ def _check_running_server(base, fixture_id, source_root):
         problems.append(
             "S24: palette source-definition links do not use stable IDs")
 
-    rich_dom, rich_error = browser_dom(base, "/source#sym=_juna_step")
+    rich_dom, rich_error = browser_dom(
+        base, "/source#sym=_lite_refinement_step")
     if rich_dom is None:
         problems.append(
             f"S24: primary Source deep link not checked: {rich_error}")
     elif not all(marker in rich_dom for marker in
                  ("<b>Code name</b>", "<h2>implementation</h2>",
-                  "_juna_step")):
+                  "_lite_refinement_step")):
         problems.append(
             "S24: primary Source deep link did not show the implementation")
 
@@ -1260,29 +1260,33 @@ def _check_running_server(base, fixture_id, source_root):
         problems.append(
             "S24: Receiver stages names absent source functions: " +
             ", ".join(absent_pipeline_functions))
-    required_profiled_functions = {
-        "ProfiledCzFrameModulation",
-        "CrcProfiledCzFrameModulation",
-        "CrcTurboCwzFrameModulation",
-        "CrcConditionedCwzFrameModulation",
-        "CrcConditionedJointCwzFrameModulation",
-        "_frame_profiled_cz_refine",
-        "_cz_profile_C!",
+    required_cz_refinement_functions = {
+        "CzRefinementModulation",
+        "CrcCzRefinementModulation",
+        "CrcTurboCwzModulation",
+        "CrcJointCwzComparisonModulation",
+        "CrcJointCwzModulation",
+        "_frame_cz_refine",
+        "_cz_update_C_given_z!",
+        "_cz_derive_W_from_C!",
         "_cz_update_W!",
         "_cz_candidate_crc_valid",
-        "_cz_bp_feedback!",
-        "_cz_conditioned_joint_step!",
+        "_cz_apply_decoder_posterior_feedback!",
+        "_joint_cwz_step!",
         "_cz_restart_logits",
     }
-    missing_profiled_functions = sorted(
-        required_profiled_functions - pipeline_functions)
-    if missing_profiled_functions:
+    missing_cz_refinement_functions = sorted(
+        required_cz_refinement_functions - pipeline_functions)
+    if missing_cz_refinement_functions:
         problems.append(
-            "S24: Receiver stages omits Profiled C,z functions: " +
-            ", ".join(missing_profiled_functions))
-    if "Profiled C,z" not in source_explorer_text:
+            "S24: Receiver stages omits C,z refinement functions: " +
+            ", ".join(missing_cz_refinement_functions))
+    if "C,z refinement" not in source_explorer_text:
         problems.append(
-            "S24: Receiver stages omits the approved Profiled C,z label")
+            "S24: Receiver stages omits the approved C,z refinement label")
+    if _re.search(r"\b(?:BP|DAG)\b", source_explorer_text):
+        problems.append(
+            "S24: Receiver stages retains unexplained BP or DAG reader text")
     for stale_marker in ("sync_profile", "Rpchan", ":rpchan",
                          "_rpchan_acquire"):
         if stale_marker in source_explorer_text:

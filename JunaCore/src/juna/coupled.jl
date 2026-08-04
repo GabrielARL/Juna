@@ -12,7 +12,6 @@ Base.@kwdef struct _CoupledSolverSpec
   dc_policy::Symbol = :excluded
   inactive_neighbor_policy::Symbol = :zero
   normalization::Symbol = :per_term_count
-  bp_projection::Bool = false
 end
 
 function _validate_coupled_solver_spec(spec::_CoupledSolverSpec)
@@ -36,8 +35,6 @@ function _validate_coupled_solver_spec(spec::_CoupledSolverSpec)
     throw(ArgumentError("inactive and out-of-band neighbors must contribute zero"))
   spec.normalization === :per_term_count ||
     throw(ArgumentError("coupled loss families must use per-term count normalization"))
-  spec.bp_projection === false ||
-    throw(ArgumentError("BP projection is disabled for the deterministic first solver"))
   spec
 end
 
@@ -273,7 +270,7 @@ struct _CoupledSolveResult
   initial_loss::Float64
   best_loss::Float64
   loss_history::Vector{Float64}
-  selected_iter::Int
+  selected_iteration::Int
 end
 
 function _coupled_indices(name::AbstractString, values, nc::Int)
@@ -304,14 +301,14 @@ function _CoupledProblem(observations::AbstractMatrix{<:Number};
   nc > 0 || throw(ArgumentError("coupled observations need at least one carrier"))
   1 <= dc_index <= nc || throw(ArgumentError("dc_index must lie inside 1:$nc"))
 
-  active2 = _coupled_indices("active", active, nc)
-  isempty(active2) && throw(ArgumentError("the coupled active set must not be empty"))
-  Int(dc_index) in active2 && throw(ArgumentError("the DC carrier must be excluded"))
+  active_indices = _coupled_indices("active", active, nc)
+  isempty(active_indices) && throw(ArgumentError("the coupled active set must not be empty"))
+  Int(dc_index) in active_indices && throw(ArgumentError("the DC carrier must be excluded"))
   pilots = _coupled_indices("pilot_idx", pilot_idx, nc)
   data = _coupled_indices("data_idx", data_idx, nc)
   isempty(intersect(pilots, data)) ||
     throw(ArgumentError("pilot and data carriers must be disjoint"))
-  sort(vcat(pilots, data)) == sort(active2) ||
+  sort(vcat(pilots, data)) == sort(active_indices) ||
     throw(ArgumentError("pilot and data carriers must partition the active set"))
 
   pilot_symbols = ComplexF64[symbol for symbol in pilot_syms]
@@ -325,14 +322,14 @@ function _CoupledProblem(observations::AbstractMatrix{<:Number};
     push!(band_list, indices)
   end
   isempty(band_list) && throw(ArgumentError("the coupled model needs at least one band"))
-  vcat(band_list...) == active2 ||
+  vcat(band_list...) == active_indices ||
     throw(ArgumentError("bands must partition the ordered active set"))
 
-  nbits2 = Int(nbits)
-  nbits2 > 0 || throw(ArgumentError("the coupled latent vector must not be empty"))
-  ntones = cld(nbits2, spec.bits_per_symbol)
+  coded_bit_count = Int(nbits)
+  coded_bit_count > 0 || throw(ArgumentError("the coupled latent vector must not be empty"))
+  ntones = cld(coded_bit_count, spec.bits_per_symbol)
   ntones <= length(data) ||
-    throw(DimensionMismatch("data carriers cannot hold $nbits2 QPSK bits"))
+    throw(DimensionMismatch("data carriers cannot hold $coded_bit_count QPSK bits"))
   fillers = data[ntones + 1:end]
 
   band_ids = zeros(Int, nc)
@@ -341,14 +338,14 @@ function _CoupledProblem(observations::AbstractMatrix{<:Number};
   end
 
   active_mask = falses(nc)
-  active_mask[active2] .= true
+  active_mask[active_indices] .= true
   active_slots = zeros(Int, nc)
-  for (slot, carrier) in enumerate(active2)
+  for (slot, carrier) in enumerate(active_indices)
     active_slots[carrier] = slot
   end
   offsets = collect(_coupled_ici_offsets(spec))
   neighbor_idx = zeros(Int, length(offsets), nc)
-  for k in active2, (offset_pos, offset) in enumerate(offsets)
+  for k in active_indices, (offset_pos, offset) in enumerate(offsets)
     q = k + offset
     if 1 <= q <= nc && q != dc_index && active_mask[q]
       neighbor_idx[offset_pos, k] = q
@@ -363,18 +360,20 @@ function _CoupledProblem(observations::AbstractMatrix{<:Number};
   fixed_symbols[pilots] .= pilot_symbols
   fixed_symbols[fillers] .= ComplexF64(filler_symbol)
 
-  inner_indices = _coupled_indices("inner_pilot_idx", inner_pilot_idx, nbits2)
+  inner_indices = _coupled_indices(
+    "inner_pilot_idx", inner_pilot_idx, coded_bit_count)
   known_bits = Bool[bit for bit in inner_pilot_bits]
   length(known_bits) == length(inner_indices) ||
     throw(DimensionMismatch("inner_pilot_bits must match inner_pilot_idx"))
-  inner_mask = falses(nbits2)
-  inner_bits = falses(nbits2)
+  inner_mask = falses(coded_bit_count)
+  inner_bits = falses(coded_bit_count)
   inner_mask[inner_indices] .= true
   inner_bits[inner_indices] .= known_bits
 
   checks = Vector{Vector{Int}}()
   for (check_id, variables) in enumerate(parity_sets)
-    check = _coupled_indices("parity_sets[$check_id]", variables, nbits2)
+    check = _coupled_indices(
+      "parity_sets[$check_id]", variables, coded_bit_count)
     isempty(check) && throw(ArgumentError("parity sets must not be empty"))
     push!(checks, check)
   end
@@ -382,7 +381,7 @@ function _CoupledProblem(observations::AbstractMatrix{<:Number};
   _CoupledProblem(
     spec,
     Matrix{ComplexF64}(observations),
-    active2,
+    active_indices,
     active_slots,
     Int(dc_index),
     pilots,
@@ -397,7 +396,7 @@ function _CoupledProblem(observations::AbstractMatrix{<:Number};
     inner_mask,
     inner_bits,
     checks,
-    nbits2,
+    coded_bit_count,
   )
 end
 
@@ -453,7 +452,7 @@ function _coupled_problem_from_receiver(m::Modulation,
                                         layout::_Layout,
                                         yparts::AbstractMatrix{<:Number})
   _bpc(m) == 2 || throw(ArgumentError("JUNA-WCz initialization is QPSK-only"))
-  expected = (Int(m.partial_fft_parts), Int(m.nc))
+  expected = (Int(m.partial_fft_parts), Int(m.fft_length))
   size(yparts) == expected ||
     throw(DimensionMismatch(
       "coupled partial-FFT views must have shape $expected"))
@@ -489,7 +488,7 @@ function _coupled_problem_from_receiver(m::Modulation,
   )
 end
 
-function _profile_initial_coupled_C!(C,
+function _cwz_initial_C_ridge_solve!(C,
                                      problem::_CoupledProblem,
                                      symbols::AbstractVector{<:Complex};
                                      ridge::Float64 = _RIDGE)
@@ -534,10 +533,10 @@ function _initial_coupled_state(m::Modulation,
                                 layout::_Layout,
                                 problem::_CoupledProblem,
                                 initial_candidate)
-  hasproperty(initial_candidate, :lpost_metric) ||
+  hasproperty(initial_candidate, :posterior_metric) ||
     throw(ArgumentError(
       "coupled initialization requires initial posterior metrics"))
-  metrics = initial_candidate.lpost_metric
+  metrics = initial_candidate.posterior_metric
   length(metrics) == problem.nbits ||
     throw(DimensionMismatch(
       "initial metrics must have length $(problem.nbits)"))
@@ -550,7 +549,7 @@ function _initial_coupled_state(m::Modulation,
   problem.active == layout.active ||
     throw(ArgumentError("coupled problem active carriers do not match the layout"))
 
-  band_W = _initial_gradient_W(m, problem.observations, layout)
+  band_W = _initial_pilot_W(m, problem.observations, layout)
   W = if problem.spec.combiner_parameterization === :per_carrier
     expanded = zeros(ComplexF64, size(band_W, 1), length(problem.active))
     @inbounds for (slot, k) in enumerate(problem.active)
@@ -571,7 +570,7 @@ function _initial_coupled_state(m::Modulation,
   state = _CoupledState(problem; W = W, z = z)
   scratch = _CoupledScratch(problem)
   _coupled_symbols!(problem, state, scratch)
-  _profile_initial_coupled_C!(state.C, problem, scratch.symbols)
+  _cwz_initial_C_ridge_solve!(state.C, problem, scratch.symbols)
 
   all(x -> isfinite(real(x)) && isfinite(imag(x)), state.W) ||
     throw(ArgumentError("coupled W initialization produced a non-finite value"))
@@ -675,7 +674,7 @@ function _coupled_symbols!(problem::_CoupledProblem,
                            scratch::_CoupledScratch)
   @inbounds for bit_idx in eachindex(scratch.relaxed_bits)
     scratch.relaxed_bits[bit_idx] = if problem.inner_pilot_mask[bit_idx]
-      _pm(problem.inner_pilot_bits[bit_idx])
+      _bit_to_bipolar(problem.inner_pilot_bits[bit_idx])
     else
       tanh(0.5 * state.z[bit_idx])
     end
@@ -821,7 +820,8 @@ function _coupled_objective(problem::_CoupledProblem,
 end
 
 # Analytic gradient of the constrained scalar objective. Complex entries use
-# the same Wirtinger convention as _wz_loss_and_grad!: for g = dL/dconj(x),
+# the same Wirtinger convention as _wz_loss_and_gradient!: for
+# g = dL/dconj(x),
 # centered finite differences satisfy dL/dRe(x)=2real(g) and
 # dL/dIm(x)=2imag(g). The z gradient is an ordinary real derivative.
 function _coupled_objective_and_gradient!(gradient::_CoupledGradient,
@@ -1078,7 +1078,7 @@ function _coupled_exact_C!(problem::_CoupledProblem,
     anchor=nothing, trust=0.0, damping=1.0)
 end
 
-function _coupled_em_C!(problem::_CoupledProblem,
+function _cwz_update_C_from_posterior_moments!(problem::_CoupledProblem,
                         state::_CoupledState;
                         weights::_CoupledWeights = _COUPLED_RUNTIME_WEIGHTS,
                         scratch::_CoupledScratch = _CoupledScratch(problem),
@@ -1279,7 +1279,7 @@ function _coupled_bcd_block_step(problem::_CoupledProblem,
 end
 
 # Diagnostic alternating safeguarded descent on the same frozen WCz objective.
-# Each block gets a fresh hand-derived gradient and a
+# Each block gets a fresh analytical gradient and a
 # backtracking line search; rejected trials leave the current state untouched.
 function _coupled_bcd_solve(problem::_CoupledProblem,
                             initial::_CoupledState;
@@ -1295,7 +1295,7 @@ function _coupled_bcd_solve(problem::_CoupledProblem,
 
   loss = initial_loss
   best_state = _copy_coupled_state(current)
-  selected_iter = 0
+  selected_iteration = 0
   loss_history = Float64[initial_loss]
   block_steps = ((:W, config.step_W), (:C, config.step_C), (:z, config.step_z))
 
@@ -1313,11 +1313,12 @@ function _coupled_bcd_solve(problem::_CoupledProblem,
     push!(loss_history, loss)
     if loss < loss_history[1]
       best_state = _copy_coupled_state(current)
-      selected_iter = cycle
+      selected_iteration = cycle
     end
   end
 
-  _CoupledSolveResult(best_state, initial_loss, loss, loss_history, selected_iter)
+  _CoupledSolveResult(
+    best_state, initial_loss, loss, loss_history, selected_iteration)
 end
 
 # Exact conditional C/W ridge minimization followed by bounded Adam on z only.
@@ -1341,7 +1342,7 @@ function _coupled_wcz_solve(problem::_CoupledProblem,
   initial_loss = initial_terms.total
   best_loss = initial_loss
   best_state = _copy_coupled_state(current)
-  selected_iter = 0
+  selected_iteration = 0
   loss_history = Float64[initial_loss]
   clamped_z = copy(current.z)
 
@@ -1368,12 +1369,13 @@ function _coupled_wcz_solve(problem::_CoupledProblem,
     if isfinite(loss) && loss < best_loss
       best_loss = loss
       best_state = _copy_coupled_state(current)
-      selected_iter = iteration
+      selected_iteration = iteration
     end
     isfinite(loss) || break
   end
 
-  _CoupledSolveResult(best_state, initial_loss, best_loss, loss_history, selected_iter)
+  _CoupledSolveResult(
+    best_state, initial_loss, best_loss, loss_history, selected_iteration)
 end
 
 # Map the optimized combiner and latent logits back to the established decoder
@@ -1390,7 +1392,7 @@ function _coupled_state_candidate(m::Modulation,
   problem.active == layout.active ||
     throw(ArgumentError("coupled problem active carriers do not match the layout"))
 
-  equalized = zeros(ComplexF64, Int(m.nc))
+  equalized = zeros(ComplexF64, Int(m.fft_length))
   @inbounds for k in problem.active
     combiner_group = _coupled_combiner_group(problem, k)
     for branch in axes(problem.observations, 1)
@@ -1418,8 +1420,8 @@ end
 
 # Decoder-facing non-regression gate: the coupled optimizer may lower its
 # scalar objective without producing a better LDPC candidate, so retain the
-# initial candidate unless the shared validity/syndrome/score ordering accepts
-# the result.
+# initial candidate unless the shared LDPC-validity, syndrome-weight, and
+# selection-score ordering accepts the result.
 function _juna_wcz_candidate(m::Modulation,
                              code::_Code,
                              layout::_Layout,
@@ -1434,5 +1436,5 @@ function _juna_wcz_candidate(m::Modulation,
     m, code, layout, yparts, initial_candidate;
     weights = weights, config = resolved_config,
   )
-  _juna_better(initial_candidate, candidate) ? candidate : initial_candidate
+  _candidate_is_better(initial_candidate, candidate) ? candidate : initial_candidate
 end

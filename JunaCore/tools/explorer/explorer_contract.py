@@ -26,8 +26,8 @@ C7  vendored analyzer health: analyze() sees exactly the migrated source
     link route present. This contract checks the analyzer maintained by Juna.
 C8  receivers.json freshness and integrity: it is exported from the Julia
     receiver catalog; receiver ids/facades are unique and exactly match the
-    receivers declared by chain.json. Profiled C,z is one reader-facing family
-    whose CRC and conditioned public facades remain source-visible variants.
+    receivers declared by chain.json. C,z refinement is one reader-facing family
+    whose CRC and joint C,W,z public facades remain source-visible variants.
 C9  multi-receiver DAG integrity: schema version 2, every receiver path and
     edge references real stages, paths start at acquisition, the catalog
     facades are represented, and conditional edges carry labels.
@@ -36,14 +36,15 @@ C10 suite applicability is explicit and computable: each registry entry is
     suites are declared on that stage; each receiver has universal coverage
     and either a receiver-specific suite or a justified exemption.
 C11 reader-visible stage names retain the nine labels approved on 2026-08-01
-    and add the approved Profiled C,z family label; the combiner-refit
+    and add the approved C,z refinement family label; the combiner-refit
     description follows the current code by stating that data-anchor confidence
     values weight the refit.
 C12 the interface test uses the four reader-visible result labels approved on
     2026-08-01 and does not retain their ambiguous predecessors.
-C13 the eleven Profiled C,z suites use the approved operation-specific title
+C13 the eleven C,z refinement suites use the approved operation-specific title
     in both the technical and reader-facing layers, so the Tests rows remain
-    distinguishable without opening their details.
+    distinguishable without opening their details. The starting-values claim
+    identifies C as the result of a conditional solve.
 """
 import json
 import os
@@ -70,21 +71,26 @@ APPROVED_STAGE_TITLES = {
     "redecode": "Re-decode",
     "keep-best": "Candidate selection",
     "frame": "Frame-wide FEC receiver",
-    "profiled_cz": "Profiled C,z",
+    "cz_refinement": "C,z refinement",
 }
-APPROVED_PROFILED_CZ_SUITE_TITLES = {
-    "profiled-cz": "Profiled C,z combiner weights and zero-update result",
-    "profiled-cz-crc": "Profiled C,z CRC, turbo, and conditioned forms",
-    "profiled-cz-check-degree": "Profiled C,z under three code settings",
-    "wcz-solves": "Profiled C,z response and combining updates",
-    "profiled-cz-full-dependency": "Profiled C,z W,z calculations",
-    "profiled-cz-objective": "Profiled C,z objective and gradient checks",
-    "profiled-cz-initialization": "Profiled C,z starting values",
-    "profiled-cz-optimizer": "Profiled C,z conditional updates and rollback",
-    "profiled-cz-block-coordinate": "Profiled C,z update cycles",
-    "profiled-cz-candidate": "Profiled C,z candidate selection",
-    "profiled-cz-end-to-end": "Profiled C,z clean and impaired receiver checks",
+APPROVED_CZ_REFINEMENT_SUITE_TITLES = {
+    "cz-refinement": "C,z refinement combiner weights and zero-update result",
+    "cz-refinement-crc": "C,z refinement CRC, turbo, and joint forms",
+    "cz-refinement-check-degree": "C,z refinement under three code settings",
+    "wcz-solves": "C,z refinement response and combining updates",
+    "cz-refinement-full-dependency": "C,z refinement W,z calculations",
+    "cz-refinement-objective": "C,z refinement objective and gradient checks",
+    "cz-refinement-initialization": "C,z refinement starting values",
+    "cz-refinement-optimizer": "C,z refinement conditional updates and rollback",
+    "cz-refinement-block-coordinate": "C,z refinement update cycles",
+    "cz-refinement-candidate": "C,z refinement candidate selection",
+    "cz-refinement-end-to-end": "C,z refinement clean and impaired receiver checks",
 }
+APPROVED_CZ_REFINEMENT_INITIALIZATION_CLAIM = (
+    "one OFDM symbol and its FEC codeword map into the constrained problem, "
+    "initialize finite pilot-trained W, obtain C from a conditional C solve, "
+    "and initialize z from decoder results"
+)
 
 
 def check():
@@ -123,19 +129,28 @@ def check():
             problems.append(f"C2: suite '{s['key']}' file test/{s['file']} "
                             "does not exist")
 
-    # C13 approved operation-specific Profiled C,z titles
-    profiled_titles = {
+    # C13 approved operation-specific C,z refinement titles
+    cz_refinement_titles = {
         suite["key"]: (suite.get("title"), suite.get("reader_title"))
         for suite in suites
-        if suite.get("receivers") == "receiver:profiled_cz"
+        if suite.get("receivers") == "receiver:cz_refinement"
+        and suite.get("key") != "cz-refinement-names"
     }
-    if set(profiled_titles) != set(APPROVED_PROFILED_CZ_SUITE_TITLES):
+    if set(cz_refinement_titles) != set(APPROVED_CZ_REFINEMENT_SUITE_TITLES):
         problems.append(
-            "C13: Profiled C,z suite keys differ from the approved inventory")
-    for key, expected in APPROVED_PROFILED_CZ_SUITE_TITLES.items():
-        if profiled_titles.get(key) != (expected, expected):
+            "C13: C,z refinement suite keys differ from the approved inventory")
+    for key, expected in APPROVED_CZ_REFINEMENT_SUITE_TITLES.items():
+        if cz_refinement_titles.get(key) != (expected, expected):
             problems.append(
                 f"C13: suite '{key}' titles differ from '{expected}'")
+    initialization_suite = next(
+        (suite for suite in suites
+         if suite.get("key") == "cz-refinement-initialization"), {})
+    if initialization_suite.get("claim") != \
+            APPROVED_CZ_REFINEMENT_INITIALIZATION_CLAIM:
+        problems.append(
+            "C13: C,z refinement starting-values claim does not identify "
+            "the conditional C solve")
 
     # C3 completeness
     registered = {s["file"] for s in suites}
@@ -200,7 +215,7 @@ def check():
         problems.append("C8: duplicate receiver ids")
     if len(set(facades)) != len(facades):
         problems.append("C8: duplicate receiver facades")
-    expected_receiver_ids = {"ofdm_fec", "partial-fft", "lite", "profiled_cz"}
+    expected_receiver_ids = {"ofdm_fec", "partial-fft", "lite", "cz_refinement"}
     if set(receiver_ids) != expected_receiver_ids:
         problems.append(
             "C8: canonical receiver IDs differ from " +
@@ -217,31 +232,31 @@ def check():
            for key, value in expected_ofdm_fec.items()):
         problems.append("C8: canonical OFDM+FEC catalog fields differ from "
                         f"{expected_ofdm_fec}")
-    profiled_cz = next((r for r in receivers
-                        if r["id"] == "profiled_cz"), {})
-    expected_profiled_cz = {
-        "display_name": "Profiled C,z",
-        "facade": "JunaProfiledCzFrame",
-        "variant_facades": ["JunaCrcProfiledCzFrame",
-                            "JunaCrcConditionedJointCwzFrame"],
+    cz_refinement = next((r for r in receivers
+                          if r["id"] == "cz_refinement"), {})
+    expected_cz_refinement = {
+        "display_name": "C,z refinement",
+        "facade": "JunaCzRefinement",
+        "variant_facades": ["JunaCrcCzRefinement",
+                            "JunaCrcJointCwz"],
         "mode": "frame_wide_ldpc",
         "profile": "frame_wide_ldpc",
-        "frame_receiver": "profiled_cz",
-        "objective": "profiled_cz_frame",
-        "chain_path": ["acquisition", "frame", "profiled_cz"],
+        "frame_receiver": "cz_refinement",
+        "objective": "cz_refinement",
+        "chain_path": ["acquisition", "frame", "cz_refinement"],
     }
-    if any(profiled_cz.get(key) != value
-           for key, value in expected_profiled_cz.items()):
+    if any(cz_refinement.get(key) != value
+           for key, value in expected_cz_refinement.items()):
         problems.append(
-            "C8: Profiled C,z catalog fields differ from " +
-            repr(expected_profiled_cz))
+            "C8: C,z refinement catalog fields differ from " +
+            repr(expected_cz_refinement))
 
     expected_paths = {
         "ofdm_fec": ["acquisition", "ofdm_fec"],
         "partial-fft": ["acquisition", "initial-candidate"],
         "lite": ["acquisition", "initial-candidate", "posterior", "anchors",
                  "refit", "redecode", "keep-best"],
-        "profiled_cz": ["acquisition", "frame", "profiled_cz"],
+        "cz_refinement": ["acquisition", "frame", "cz_refinement"],
     }
     actual_paths = {receiver["id"]: receiver.get("chain_path")
                     for receiver in receivers}
@@ -261,8 +276,7 @@ def check():
         catalog_facades.update(receiver.get("variant_facades", []))
     expected_facades = {
         "JunaOFDMFEC", "JunaPartialFFT", "JunaLite",
-        "JunaProfiledCzFrame", "JunaCrcProfiledCzFrame",
-        "JunaCrcConditionedJointCwzFrame",
+        "JunaCzRefinement", "JunaCrcCzRefinement", "JunaCrcJointCwz",
     }
     if catalog_facades != expected_facades:
         problems.append(
@@ -362,33 +376,44 @@ def check():
         "LFM synchronization, initial resampling, and partial-FFT views.",
         "per-carrier confidences",
         "returns payload-bit estimates",
-        "validity, syndrome, candidate score with its margin, then posterior magnitude",
-        "Profiled C,z first computes the OFDM+FEC and frame-wide Lite candidates.",
+        "LDPC validity, syndrome weight, selection score with its margin, then posterior magnitude",
+        "C,z refinement first computes the OFDM+FEC and frame-wide Lite candidates.",
         "With zero update steps it returns frame-wide Lite.",
+        "The joint C,W,z form uses an analytical gradient for bounded simultaneous updates.",
         "These arms replace posterior decisions with transmitted symbols. A null result "
         "shows only that this receiver’s refit did not improve with those anchors.",
     )
     for wording in required_chain_wording:
         if wording not in chain_text:
             problems.append(f"C11: chain lacks approved wording '{wording}'")
+    for abbreviation in (" BP ", "BP ", "/BP", " DAG"):
+        if abbreviation in chain_text:
+            problems.append(
+                "C11: chain reader text retains unexplained abbreviation " +
+                repr(abbreviation.strip()))
+    for expansion in ("belief propagation", "belief-propagation",
+                      "directed acyclic graph"):
+        if expansion not in chain_text:
+            problems.append(
+                f"C11: chain lacks approved reader expansion '{expansion}'")
     if any("front end" in str(value).lower() or
            "front-end" in str(value).lower()
            for stage in stages
            for key, value in stage.items() if key != "symbols"):
         problems.append("C11: reader-facing chain wording retains generic front end")
 
-    reader_profiled = (
+    reader_cz_refinement = (
         "Processes the complete frame and keeps the starting result unless the "
         "decoder—and CRC when present—accepts an update.")
-    technical_profiled = (
-        "C is solved conditional on z; W is derived from C or updated by the "
+    technical_cz_refinement = (
+        "C is updated given z; W is derived from C or updated by the "
         "selected form.")
-    if profiled_cz.get("purpose") != reader_profiled:
-        problems.append("C11: Profiled C,z reader purpose differs from CX-018")
-    profiled_stage = next((stage for stage in stages
-                           if stage["id"] == "profiled_cz"), {})
-    if technical_profiled not in profiled_stage.get("detail", ""):
-        problems.append("C11: Profiled C,z technical purpose differs from CX-018")
+    if cz_refinement.get("purpose") != reader_cz_refinement:
+        problems.append("C11: C,z refinement reader purpose differs from CX-018")
+    cz_refinement_stage = next((stage for stage in stages
+                                if stage["id"] == "cz_refinement"), {})
+    if technical_cz_refinement not in cz_refinement_stage.get("detail", ""):
+        problems.append("C11: C,z refinement technical purpose differs from CX-018")
 
     # C12 contract-pinned interface result labels
     with open(os.path.join(ROOT, "test", "interface_contract.jl")) as fh:
@@ -439,18 +464,18 @@ def check():
     if "not runtime coverage" not in report.get("note", ""):
         problems.append("C6: source_coverage report note lost the "
                         "static-not-runtime distinction")
-    profiled_facades = {
-        "JunaCore.JunaProfiledCzFrame",
-        "JunaCore.JunaCrcProfiledCzFrame",
-        "JunaCore.JunaCrcConditionedJointCwzFrame",
+    cz_refinement_facades = {
+        "JunaCore.JunaCzRefinement",
+        "JunaCore.JunaCrcCzRefinement",
+        "JunaCore.JunaCrcJointCwz",
     }
-    unresolved_profiled_facades = sorted(
+    unresolved_cz_refinement_facades = sorted(
         item.get("name") for item in report.get("unresolved", [])
-        if item.get("name") in profiled_facades)
-    if unresolved_profiled_facades:
+        if item.get("name") in cz_refinement_facades)
+    if unresolved_cz_refinement_facades:
         problems.append(
-            "C6: source coverage does not recognize Profiled C,z facades: " +
-            ", ".join(unresolved_profiled_facades))
+            "C6: source coverage does not recognize C,z refinement facades: " +
+            ", ".join(unresolved_cz_refinement_facades))
 
     qualified_fixture = [
         'path = "src/JunaCore.jl"',
@@ -458,7 +483,7 @@ def check():
         'Modulations.no_such_method(x)',
         'LDPC.no_such_helper(x)',
         'JunaLite.no_such_facade_method(x)',
-        'JunaCore.JunaProfiledCzFrame',
+        'JunaCore.JunaCzRefinement',
     ]
     qualified_probe = getattr(source_coverage, "unresolved_qualified_references",
                               None)
@@ -466,7 +491,7 @@ def check():
         problems.append("C6: coverage scanner has no testable qualified-reference helper")
     else:
         unresolved_fixture = qualified_probe(qualified_fixture,
-                                              {"JunaProfiledCzFrame"})
+                                              {"JunaCzRefinement"})
         actual = {(item["line"], item["name"])
                   for item in unresolved_fixture}
         expected = {
@@ -535,7 +560,7 @@ def check():
                       os.path.join("juna", "lite.jl"),
                       os.path.join("juna", "full.jl"),
                       os.path.join("juna", "coupled.jl"),
-                      os.path.join("juna", "profiled_cz_frame.jl")}
+                      os.path.join("juna", "cz_refinement.jl")}
     if files != expected_files:
         problems.append(f"C7: analyzer file set drifted: {sorted(files)}")
     if len(analyzed["symbols"]) < 250:

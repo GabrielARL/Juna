@@ -1,7 +1,7 @@
 {
   "schema_version": 2,
   "note": [
-    "Declared receiver DAG: receiver path -> shared stage -> implementing symbols -> protecting suites.",
+    "Declared receiver directed acyclic graph: receiver path -> shared stage -> implementing symbols -> protecting suites.",
     "A static call graph cannot recover these conceptual stages, so this file is the",
     "authoritative mapping. tools/explorer/explorer_contract.py verifies every symbol",
     "against the analyzer's symbol table and every suite key against suites.json",
@@ -33,9 +33,9 @@
       "optional_stages": ["frame"]
     },
     {
-      "id": "profiled_cz",
-      "facade": "JunaProfiledCzFrame",
-      "path": ["acquisition", "frame", "profiled_cz"]
+      "id": "cz_refinement",
+      "facade": "JunaCzRefinement",
+      "path": ["acquisition", "frame", "cz_refinement"]
     }
   ],
   "edges": [
@@ -50,8 +50,8 @@
     {"receiver": "lite", "from": "redecode", "to": "keep-best"},
     {"receiver": "lite", "from": "keep-best", "to": "posterior", "condition": "improved invalid candidate and iterations remain"},
     {"receiver": "lite", "from": "frame", "to": "acquisition", "condition": "frame-wide deployment wrapper selected"},
-    {"receiver": "profiled_cz", "from": "acquisition", "to": "frame"},
-    {"receiver": "profiled_cz", "from": "frame", "to": "profiled_cz"}
+    {"receiver": "cz_refinement", "from": "acquisition", "to": "frame"},
+    {"receiver": "cz_refinement", "from": "frame", "to": "cz_refinement"}
   ],
   "stages": [
     {
@@ -107,7 +107,7 @@
     {
       "id": "posterior",
       "title": "Posterior means and confidences",
-      "detail": "BP posterior log-metrics become symbol decisions and per-carrier confidences.",
+      "detail": "Belief-propagation posterior log-metrics become symbol decisions and per-carrier confidences.",
       "symbols": [
         "_posterior_symbols",
         "_posterior_confidence"
@@ -124,8 +124,8 @@
       "title": "Anchor selection",
       "detail": "Pilots always anchor; confident data decisions join up to the anchor cap. These arms replace posterior decisions with transmitted symbols. A null result shows only that this receiver’s refit did not improve with those anchors.",
       "symbols": [
-        "_juna_anchor_targets",
-        "_genie_block",
+        "_lite_anchor_targets",
+        "_transmitted_symbol_block",
         "corrupt_feedback_symbols"
       ],
       "suites": [
@@ -152,7 +152,7 @@
     {
       "id": "redecode",
       "title": "Re-decode",
-      "detail": "The refit combiner re-equalizes the partial-FFT views, BP re-decodes a fresh candidate, and payload extraction returns payload-bit estimates.",
+      "detail": "The refit combiner re-equalizes the partial-FFT views, belief propagation re-decodes a fresh candidate, and payload extraction returns payload-bit estimates.",
       "symbols": [
         "_candidate_from_equalized",
         "_payload_from_metrics"
@@ -167,10 +167,10 @@
     {
       "id": "keep-best",
       "title": "Candidate selection",
-      "detail": "Keep the best candidate by validity, syndrome, candidate score with its margin, then posterior magnitude. Stop on success, non-improvement, or the iteration limit.",
+      "detail": "Keep the best candidate by LDPC validity, syndrome weight, selection score with its margin, then posterior magnitude. Stop on success, non-improvement, or the iteration limit.",
       "symbols": [
-        "_juna_better",
-        "_juna_step",
+        "_candidate_is_better",
+        "_lite_refinement_step",
         "_juna_lite_candidate",
         "_juna_lite"
       ],
@@ -185,7 +185,7 @@
     {
       "id": "frame",
       "title": "Frame-wide FEC receiver",
-      "detail": "One LDPC/BP graph spans the requested frame. The selected frame receiver processes all block observations before payload metrics are returned.",
+      "detail": "One LDPC belief-propagation graph spans the requested frame. The selected frame receiver processes all block observations before payload metrics are returned.",
       "symbols": [
         "FrameWideLDPCModulation",
         "_modulate_frame_wide_ldpc",
@@ -198,35 +198,36 @@
       "evidence": "direct"
     },
     {
-      "id": "profiled_cz",
-      "title": "Profiled C,z",
-      "detail": "Profiled C,z first computes the OFDM+FEC and frame-wide Lite candidates. With zero update steps it returns frame-wide Lite. C is solved conditional on z; W is derived from C or updated by the selected form. BP checks the candidates, and CRC when present can gate replacement of the frame-wide Lite result.",
+      "id": "cz_refinement",
+      "title": "C,z refinement",
+      "detail": "C,z refinement first computes the OFDM+FEC and frame-wide Lite candidates. With zero update steps it returns frame-wide Lite. C is updated given z; W is derived from C or updated by the selected form. The joint C,W,z form uses an analytical gradient for bounded simultaneous updates. Belief propagation checks the candidates, and CRC when present can gate replacement of the frame-wide Lite result.",
       "symbols": [
-        "ProfiledCzFrameModulation",
-        "CrcProfiledCzFrameModulation",
-        "CrcTurboCwzFrameModulation",
-        "CrcConditionedCwzFrameModulation",
-        "CrcConditionedJointCwzFrameModulation",
-        "_frame_profiled_cz_refine",
-        "_cz_profile_C!",
+        "CzRefinementModulation",
+        "CrcCzRefinementModulation",
+        "CrcTurboCwzModulation",
+        "CrcJointCwzComparisonModulation",
+        "CrcJointCwzModulation",
+        "_frame_cz_refine",
+        "_cz_update_C_given_z!",
+        "_cz_derive_W_from_C!",
         "_cz_update_W!",
         "_cz_candidate_crc_valid",
-        "_cz_bp_feedback!",
-        "_cz_conditioned_joint_step!",
+        "_cz_apply_decoder_posterior_feedback!",
+        "_joint_cwz_step!",
         "_cz_restart_logits"
       ],
       "suites": [
-        "profiled-cz",
-        "profiled-cz-crc",
-        "profiled-cz-check-degree",
+        "cz-refinement",
+        "cz-refinement-crc",
+        "cz-refinement-check-degree",
         "wcz-solves",
-        "profiled-cz-full-dependency",
-        "profiled-cz-objective",
-        "profiled-cz-initialization",
-        "profiled-cz-optimizer",
-        "profiled-cz-block-coordinate",
-        "profiled-cz-candidate",
-        "profiled-cz-end-to-end",
+        "cz-refinement-full-dependency",
+        "cz-refinement-objective",
+        "cz-refinement-initialization",
+        "cz-refinement-optimizer",
+        "cz-refinement-block-coordinate",
+        "cz-refinement-candidate",
+        "cz-refinement-end-to-end",
         "contract"
       ],
       "kind": "iterative",

@@ -1636,7 +1636,7 @@ function drawFocusArts(){drawArtsIn($('focusinfo'));}
 function miniKind(s){const n=s.name.toLowerCase();
   if(/valid/.test(n))return 'check';
   if(/scratch|initial|^_?init$|_init\b|alloc|zeros/.test(n))return 'alloc';
-  if(/adam|loss_and_grad|gradient_solve|_grad!|\bgrad\b|descent|loss/.test(n))return 'grad';
+  if(/adam|loss_and_gradient|gradient_solve|_gradient!|\bgradient\b|descent|loss/.test(n))return 'grad';
   if(/candidate|better|select/.test(n))return 'select';
   if(/posterior|confidence|tie_mse|\bseed/.test(n))return 'conf';
   if(/build_message|_message\b|inner_bit|inner/.test(n))return 'msg';
@@ -1814,18 +1814,35 @@ const IMPLS=[
   ]},
 ];
 const PARAM_DOC={
- nc:'FFT size / number of OFDM subcarriers (even and greater than two)',
- np:'cyclic-prefix length in samples (zero is allowed; must be shorter than nc)',
- bw:'occupied-bandwidth fraction — fraction of the nc−1 non-DC carriers that are active (1.0 = full band)',
- dc0:'RF-centre offset from the 24 kHz reference, in kHz; it does not shift the baseband carrier layout',
- sync:'enable the LFM sync/acquisition wrapping',
+ fft_length:'FFT length / number of OFDM subcarriers (even and greater than two)',
+ cyclic_prefix_length:'cyclic-prefix length in samples (zero is allowed; must be shorter than fft_length)',
+ occupied_bandwidth_fraction:'fraction of the fft_length−1 non-DC carriers that are active (1.0 = full band)',
+ rf_center_offset_khz:'RF-centre offset from the 24 kHz reference, in kHz; it does not shift the baseband carrier layout',
+ bits_per_data_carrier:'coded bits carried by each data carrier',
+ synchronization_enabled:'enable the LFM synchronization and acquisition wrapping',
  ldpc_k:'LDPC message length — information bits per codeword (includes inner pilots)',
  ldpc_n:'LDPC codeword length — coded bits per block (rate = ldpc_k / ldpc_n)',
+ ldpc_checks_per_column:'number of LDPC parity checks connected to each code bit',
+ ldpc_eliminate_length_4_cycles:'ask the LDPC code builder to eliminate length-4 cycles',
  partial_fft_parts:'number of partial-FFT views',
  pilot_ratio:'outer comb-pilot density — fraction of active carriers that are pilots; snapped to the nearest 1/k spacing',
  inner_pilot_ratio:'inner-pilot density among message bits (0 = off); snapped to the nearest 1/k spacing',
+ frame_code_component_block_count:'number of blocks in each disconnected frame-code component',
+ joint_cwz_first_w_iteration:'first refinement iteration in which W may be updated',
+ cz_temporal_c_penalty_weight:'weight of the temporal C penalty',
+ cz_require_crc_for_replacement:'require a valid CRC before replacing the starting result',
+ cz_crc_gate_at_selection_only:'apply the CRC gate only when selecting the returned result',
+ cz_posterior_moment_update_enabled:'enable the C update from posterior moments',
+ cz_response_anchor_weight:'weight retaining the previous response during the C update',
+ cz_response_update_fraction:'fraction of the proposed C update that is applied',
+ cz_refit_w_from_decoder_posteriors:'refit W from decoder posterior values instead of deriving W from C',
+ cz_decoder_posterior_weight:'weight of decoder posterior values in the C,z update',
+ cz_variable_projection_gradient:'include the variable-projection term in the analytical gradient',
+ anchor_feedback_source:'source used for refinement anchors: decoder posterior, pilots only, transmitted symbols, or corrupted transmitted symbols',
+ cz_feedback_source:'source used for C,z feedback: initial logits, decoder posterior, or transmitted symbols',
+ transmitted_symbols:'optional transmitted symbols used by the transmitted-symbol feedback settings',
  code:'internal cache — the built LDPC code (rebuilt when the LDPC params change)',
- layout:'internal cache — the carrier layout (rebuilt when geometry / dc0 / fs change)',
+ layout:'internal cache — the carrier layout (rebuilt when geometry / rf_center_offset_khz / fs change)',
  bp_scratch:'internal cache — preallocated belief-propagation buffers',
 };
 // Source-order display is deliberate: the struct itself is the authority.
@@ -1953,7 +1970,7 @@ function objPageHtml(active){
   const groupsHtml=allG.map(g=>{const fs=g.f.filter(n=>map[n]);if(!fs.length)return '';
     return `<div class="ogrp"><div class="ogrp-h">${esc(g.t||'fields')} <span class="objcount">(${fs.length})</span></div><div class="ofields">${fs.map(card).join('')}</div></div>`;}).join('');
   const constsHtml='';
-  const cacheNote=nhidden?`<div class="cachenote">+ ${nhidden} internal memoization cache${nhidden>1?'s':''} — <code>code</code> (built LDPC code), <code>layout</code> (carrier layout), <code>bp_scratch</code> (BP buffers): mutable scratch built on first use &amp; reused across calls, not configuration — hidden here.</div>`:'';
+  const cacheNote=nhidden?`<div class="cachenote">+ ${nhidden} internal memoization cache${nhidden>1?'s':''} — <code>code</code> (built LDPC code), <code>layout</code> (carrier layout), <code>bp_scratch</code> (belief-propagation buffers): mutable scratch built on first use &amp; reused across calls, not configuration — hidden here.</div>`:'';
   const nf=order.length;
   const badges=`<div class="objbadges"><span class="objbadge">📦 <b>${nf}</b> fields</span>`+
     `<span class="objbadge">${meta.mutable?'✎ mutable':'🔒 immutable'}</span>`+
@@ -1997,13 +2014,13 @@ const PIPELINE=[
   d:'At demodulate entry, frame-wide LDPC returns through the receiver that processes the requested frame before the ordinary per-block loop. Other profiles continue below.',
   f:['_demodulate_frame_wide_ldpc']},
  {t:'Receive validation and acquisition',
-  d:'Prepare the waveform and enforce block lengths; when sync is enabled, use the coarse-Doppler path. When sync is disabled, use the prepared waveform directly.',
+  d:'Prepare the waveform and enforce block lengths; when synchronization_enabled is true, use the coarse-Doppler path. When synchronization_enabled is false, use the prepared waveform directly.',
   f:['_prepare_demodulation','_prepare_frame_observations','_require_block_samples','_coarse_doppler']},
  {t:'Partial-FFT observations and initial candidate',art:'pfft',
   d:'Form per-carrier partial-FFT views from contiguous time windows, build the OFDM+FEC and Partial-FFT/FEC initial candidates, fit weights for combining, and remove residual pilot response.',
   f:['_branch_observations','_ofdm_fec_candidate','_initial_candidate','_equalize_from_targets','_fit_branch_weights!','_residual_pilot_equalize']},
  {t:'Soft metrics and LDPC belief propagation',art:'tanner',
-  d:'Convert equalized carriers to channel metrics, clamp known inner bits, run the selected BP check update, and measure the parity syndrome.',
+  d:'Convert equalized carriers to channel metrics, clamp known inner bits, run the selected belief-propagation check update, and measure the syndrome weight.',
   f:['_candidate_from_equalized','_channel_metrics_from_equalized','_decode_candidate','_apply_inner_clamps!','_bp_decode_impl','_syndrome_weight']},
  {t:'Per-block receiver dispatch',
   d:'Choose the OFDM+FEC/Partial-FFT initial candidate and dispatch the selected packet-local refinement.',
@@ -2011,20 +2028,20 @@ const PIPELINE=[
   variants:[
    {name:'Lite posterior-anchor refinement',
     d:'Construct source-backed anchors and take the current Lite update.',
-    f:['_juna_lite_candidate','_juna_anchor_targets','_juna_step']}]},
+    f:['_juna_lite_candidate','_lite_anchor_targets','_lite_refinement_step']}]},
  {t:'Frame-wide global-code dispatch',
   d:'Build one frame code and route its observations through the exact frame receiver function selected by the current modulation fields.',
   f:['_frame_code','_frame_candidate','_frame_bp_decode','_frame_receiver_trace'],
   variants:[
    {name:'Frame receiver functions',
     d:'OFDM+FEC/Partial-FFT, Lite, and stateful band-RLS receiver functions.',
-    f:['_frame_static_trace','_frame_lite_refine','_frame_juna_refine','_frame_stateful_band_rls']},
-   {name:'Profiled C,z',
-    d:'Start from frame-wide Lite, solve C conditional on z, derive or update W according to the selected form, check BP candidates, and apply CRC gating when configured.',
-    f:['ProfiledCzFrameModulation','CrcProfiledCzFrameModulation','CrcTurboCwzFrameModulation','CrcConditionedCwzFrameModulation','CrcConditionedJointCwzFrameModulation','_frame_profiled_cz_refine','_cz_profile_C!','_cz_update_W!','_cz_candidate_crc_valid','_cz_bp_feedback!','_cz_conditioned_joint_step!','_cz_restart_logits']}]},
+    f:['_frame_static_trace','_frame_lite_refine','_frame_stateful_band_rls_refine','_frame_stateful_band_rls']},
+   {name:'C,z refinement',
+    d:'Start from frame-wide Lite, update C given z, derive W from C or update W according to the selected form, use an analytical gradient for the joint C,W,z update, check belief-propagation candidates, and apply CRC gating when configured.',
+    f:['CzRefinementModulation','CrcCzRefinementModulation','CrcTurboCwzModulation','CrcJointCwzComparisonModulation','CrcJointCwzModulation','_frame_cz_refine','_cz_update_C_given_z!','_cz_derive_W_from_C!','_cz_update_W!','_cz_candidate_crc_valid','_cz_apply_decoder_posterior_feedback!','_joint_cwz_step!','_cz_restart_logits']}]},
  {t:'Candidate selection and payload output',
   d:'Compare source-backed candidates, record the selection reason, remove inner/frame overhead, and return public metrics.',
-  f:['_juna_better','_juna_selection_reason','_payload_from_metrics','_frame_payload_metrics','_write_payload_metrics!','demodulate_methods']},
+  f:['_candidate_is_better','_juna_selection_reason','_payload_from_metrics','_frame_payload_metrics','_write_payload_metrics!','demodulate_methods']},
 ];
 const MODPRI=['Juna','FixedPathChannel','LDPC','Modulations'];
 function pipelineFunctionNames(){
@@ -2058,7 +2075,7 @@ function renderAlgo(){
   html+='<div class="arrow">↓</div>';
   // concept 2 — WHERE JUNA sits in this source tree
   html+=concept('≡','Where JUNA sits: current receiver-family dispatch',
-    'The source contains OFDM+FEC and Partial-FFT baselines, packet-local JUNA-Lite, and the frame-wide Profiled C,z family. The stages below follow their shared transmit, acquisition, OFDM+FEC and Partial-FFT processing, decoding, dispatch, and selection entry points.',
+    'The source contains OFDM+FEC and Partial-FFT baselines, packet-local JUNA-Lite, and complete-frame C,z refinement. Its joint C,W,z form uses an analytical gradient. The stages below follow their shared transmit, acquisition, OFDM+FEC and Partial-FFT processing, decoding, dispatch, and selection entry points.',
     'families');
   html+='<div class="arrow">↓</div>';
   PIPELINE.forEach((st,i)=>{
@@ -2097,14 +2114,14 @@ function artPacket(cv){const[x,w,h]=hd(cv);const L=14,top=20,bh=30,fw=w-28;
   const box=(bx,bw,fill,lab,sub)=>{x.fillStyle=fill;x.fillRect(bx,top,bw,bh);x.strokeStyle=AC.line;x.strokeRect(bx,top,bw,bh);
     x.fillStyle=AC.ink;x.font='11px system-ui';x.fillText(lab,bx+bw/2,top+15);
     if(sub){x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText(sub,bx+bw/2,top+26);}};
-  box(L,cpW,'rgba(245,158,11,.22)','cyclic prefix','np samples');
-  box(L+cpW,payW,'rgba(56,189,248,.16)','OFDM symbol','nc samples from IFFT');
+  box(L,cpW,'rgba(245,158,11,.22)','cyclic prefix','cyclic_prefix_length samples');
+  box(L+cpW,payW,'rgba(56,189,248,.16)','OFDM symbol','fft_length samples from IFFT');
   const ty=top+bh+22,tx0=L+cpW,n=36,cw=payW/n;
   x.fillStyle=AC.mut;x.font='9px system-ui';x.textAlign='left';x.fillText('carriers',L,ty-4);
   for(let i=0;i<n;i++){x.fillStyle=i%3===0?AC.gold:AC.acc;x.fillRect(tx0+i*cw+1,ty,Math.max(1,cw-2),13);}
   x.fillStyle=AC.gold;x.fillRect(L,ty+24,10,10);x.fillStyle=AC.mut;x.fillText('outer pilots (configurable spacing)',L+15,ty+33);
   x.fillStyle=AC.acc;x.fillRect(L+190,ty+24,10,10);x.fillStyle=AC.mut;x.fillText('coded BPSK / QPSK',L+205,ty+33);
-  x.textAlign='center';x.fillText('when sync=true, framing adds LFM synchronization before and after the OFDM symbols',w/2,ty+55);}
+  x.textAlign='center';x.fillText('when synchronization_enabled=true, framing adds LFM synchronization before and after the OFDM symbols',w/2,ty+55);}
 function artPfft(cv){const[x,w,h]=hd(cv);const L=16,top=16,bw=w-32,bh=24,parts=4;
   x.fillStyle='rgba(56,189,248,.14)';x.fillRect(L,top,bw,bh);x.strokeStyle=AC.line;x.strokeRect(L,top,bw,bh);
   x.fillStyle=AC.ink;x.font='10px system-ui';x.fillText('OFDM symbol after CP removal — P=4 schematic; partial_fft_parts is configurable',L+bw/2,top+15);
@@ -2191,20 +2208,20 @@ function artLayout(cv){const[x,w,h]=hd(cv);
   x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText('DC',L+dc*cw,top+bh+12);
   const ly=top+bh+24;x.textAlign='left';
   x.fillStyle='rgba(245,158,11,.85)';x.fillRect(L,ly,11,11);x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText('comb pilots — ±1 BPSK channel/phase reference (every k carriers, k from pilot_ratio)',L+15,ly+9);
-  x.fillStyle='rgba(56,189,248,.5)';x.fillRect(L,ly+16,11,11);x.fillStyle=AC.mut;x.fillText('data carriers — carry LDPC-coded BPSK / QPSK symbols according to bpc',L+15,ly+25);
+  x.fillStyle='rgba(56,189,248,.5)';x.fillRect(L,ly+16,11,11);x.fillStyle=AC.mut;x.fillText('data carriers — carry LDPC-coded BPSK / QPSK symbols according to bits_per_data_carrier',L+15,ly+25);
   x.textAlign='center';}
 function artFrame(cv){const[x,w,h]=hd(cv);
   const L=126,R=w-14,top=28,bh=25,gap=8;
-  x.textAlign='center';x.fillStyle=AC.ink;x.font='600 11px system-ui';x.fillText('frame layout selected by sync',w/2,15);
+  x.textAlign='center';x.fillStyle=AC.ink;x.font='600 11px system-ui';x.fillText('frame layout selected by synchronization_enabled',w/2,15);
   const row=(label,y,segments)=>{
     x.textAlign='right';x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText(label,L-8,y+16);
     const total=segments.reduce((n,s)=>n+s[1],0);let bx=L;
     segments.forEach(s=>{const bw=(R-L)*s[1]/total;
       x.fillStyle=s[2];x.fillRect(bx,y,bw,bh);x.strokeStyle=s[3];x.strokeRect(bx,y,bw,bh);
       x.textAlign='center';x.fillStyle=AC.ink;x.font='9px system-ui';x.fillText(s[0],bx+bw/2,y+16);bx+=bw;});};
-  const block=['OFDM symbol(s): np CP + nc samples',5,'rgba(56,189,248,.16)',AC.acc];
-  row('sync = false',top,[block]);
-  row('sync = true',top+bh+gap,[['LFM sync',1,'rgba(52,211,153,.2)',AC.teal],block,['LFM sync',1,'rgba(52,211,153,.2)',AC.teal]]);
+  const block=['OFDM symbol(s): cyclic_prefix_length CP + fft_length samples',5,'rgba(56,189,248,.16)',AC.acc];
+  row('synchronization_enabled = false',top,[block]);
+  row('synchronization_enabled = true',top+bh+gap,[['LFM sync',1,'rgba(52,211,153,.2)',AC.teal],block,['LFM sync',1,'rgba(52,211,153,.2)',AC.teal]]);
   x.textAlign='center';x.fillStyle=AC.mut;x.font='9px system-ui';x.fillText('These are the two transmit cases in Modulations.modulate.',w/2,top+2*(bh+gap)+8);}
 function artFramePacket(cv){artFrame(cv);}
 function artMessage(cv){const[x,w,h]=hd(cv);
@@ -2221,7 +2238,7 @@ function artFamilies(cv){const[x,w,h]=hd(cv);
   const groups=[
     {n:'baselines',facades:['JunaOFDMFEC','JunaStandard','JunaPartialFFT']},
     {n:'packet-local',facades:['JunaLite']},
-    {n:'frame-wide',facades:['JunaProfiledCzFrame','JunaCrcProfiledCzFrame','JunaCrcConditionedJointCwzFrame']},
+    {n:'frame-wide',facades:['JunaCzRefinement','JunaCrcCzRefinement','JunaCrcJointCwz']},
   ];
   const L=86,rowH=(h-26)/groups.length;
   x.textAlign='center';x.fillStyle=AC.ink;x.font='600 10px system-ui';x.fillText('public receiver facades declared in JunaCore.jl',w/2,12);

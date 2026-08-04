@@ -46,7 +46,7 @@ function coupled_e2e_impaired_waveform(m, bits, snr_db::Real)
     )
     sample = collect(0:length(waveform)-1)
     rotated = waveform .* exp.(
-        2im * pi * COUPLED_E2E_CFO_BINS .* sample ./ Int(m.nc),
+        2im * pi * COUPLED_E2E_CFO_BINS .* sample ./ Int(m.fft_length),
     )
     sigma = sqrt(10.0^(-Float64(snr_db) / 10) / 2)
     noise = coupled_e2e_stable_normal(2 * length(rotated), COUPLED_E2E_SEED)
@@ -78,7 +78,8 @@ function coupled_e2e_candidates(m, bits, snr_db::Real)
 end
 
 function coupled_e2e_candidate_errors(m, code, candidate, bits)
-    decoded = CoupledE2EJuna._payload_from_metrics(m, code, candidate.lpost_metric)
+    decoded = CoupledE2EJuna._payload_from_metrics(
+        m, code, candidate.posterior_metric)
     count(decoded .!= bits)
 end
 
@@ -148,10 +149,13 @@ end
         public_errors = count((public_metrics .> 0) .!= bits)
         lite_errors = count((lite_metrics .> 0) .!= bits)
 
-        @test CoupledE2EJuna._juna_better(f.initial_candidate, f.direct)
-        @test f.dispatched.lpost_metric == f.direct.lpost_metric
-        @test f.dispatched.syndrome < f.initial_candidate.syndrome
-        @test (f.initial_candidate.syndrome, f.direct.syndrome,
+        @test CoupledE2EJuna._candidate_is_better(
+            f.initial_candidate, f.direct)
+        @test f.dispatched.posterior_metric == f.direct.posterior_metric
+        @test f.dispatched.syndrome_weight <
+              f.initial_candidate.syndrome_weight
+        @test (f.initial_candidate.syndrome_weight,
+               f.direct.syndrome_weight,
                initial_errors, direct_errors) == (130, 99, 22, 17)
         @test direct_errors < initial_errors
         @test dispatched_errors == direct_errors
@@ -171,15 +175,18 @@ end
             m, f.code, f.dispatched, bits,
         )
 
-        @test CoupledE2EJuna._juna_better(f.initial_candidate, f.direct)
-        @test f.dispatched.syndrome < f.initial_candidate.syndrome
-        @test (f.initial_candidate.syndrome, f.dispatched.syndrome,
+        @test CoupledE2EJuna._candidate_is_better(
+            f.initial_candidate, f.direct)
+        @test f.dispatched.syndrome_weight <
+              f.initial_candidate.syndrome_weight
+        @test (f.initial_candidate.syndrome_weight,
+               f.dispatched.syndrome_weight,
                initial_errors, selected_errors) == (16, 0, 1, 0)
         @test selected_errors <= initial_errors + 4
         @test selected_errors < length(bits) ÷ 2
-        initial_syndrome = f.initial_candidate.syndrome
-        selected_syndrome = f.dispatched.syndrome
-        @info "Profiled C,z proxy/truth tradeoff" initial_syndrome selected_syndrome initial_errors selected_errors
+        initial_syndrome_weight = f.initial_candidate.syndrome_weight
+        selected_syndrome_weight = f.dispatched.syndrome_weight
+        @info "C,z refinement proxy/truth tradeoff" initial_syndrome_weight selected_syndrome_weight initial_errors selected_errors
     end
 
     @testset "valid 3 dB initial candidate is retained" begin
@@ -187,11 +194,12 @@ end
         bits = coupled_e2e_payload(CoupledE2EModulations.bitspersymbol(m))
         f = coupled_e2e_candidates(m, bits, 3.0)
 
-        @test f.initial_candidate.valid
-        @test f.initial_candidate.syndrome == 0
+        @test f.initial_candidate.ldpc_valid
+        @test f.initial_candidate.syndrome_weight == 0
         @test coupled_e2e_candidate_errors(
             m, f.code, f.initial_candidate, bits) == 0
-        @test f.dispatched.lpost_metric == f.initial_candidate.lpost_metric
+        @test f.dispatched.posterior_metric ==
+              f.initial_candidate.posterior_metric
     end
 
     @testset "warmed one-block decode remains correct" begin
@@ -208,10 +216,10 @@ end
         )
 
         @test (metrics .> 0) == bits
-        @info "Profiled C,z warmed one-block decode" seconds = elapsed
+        @info "C,z refinement warmed one-block decode" seconds = elapsed
     end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    println("Profiled C,z checks passed")
+    println("C,z refinement checks passed")
 end

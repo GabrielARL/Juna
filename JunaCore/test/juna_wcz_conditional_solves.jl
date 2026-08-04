@@ -76,39 +76,39 @@ end
     @test any(>(0.99), variances[problem.data_idx])
 
     mean_only = ConditionalWCz._copy_coupled_state(uncertain)
-    em = ConditionalWCz._copy_coupled_state(uncertain)
+    posterior_moment_state = ConditionalWCz._copy_coupled_state(uncertain)
     ConditionalWCz._coupled_exact_C!(
         problem, mean_only; weights=weights)
-    anchor = copy(em.C)
-    ConditionalWCz._coupled_em_C!(
-        problem, em;
+    anchor = copy(posterior_moment_state.C)
+    ConditionalWCz._cwz_update_C_from_posterior_moments!(
+        problem, posterior_moment_state;
         weights=weights, anchor=anchor, trust=0.05, damping=0.5)
-    @test all(isfinite, real.(em.C))
-    @test all(isfinite, imag.(em.C))
-    @test em.C != mean_only.C
+    @test all(isfinite, real.(posterior_moment_state.C))
+    @test all(isfinite, imag.(posterior_moment_state.C))
+    @test posterior_moment_state.C != mean_only.C
 
     confident = ConditionalWCz._copy_coupled_state(fixture.state)
     confident.z .= 50.0
     exact = ConditionalWCz._copy_coupled_state(confident)
     moment = ConditionalWCz._copy_coupled_state(confident)
     ConditionalWCz._coupled_exact_C!(problem, exact; weights=weights)
-    ConditionalWCz._coupled_em_C!(
+    ConditionalWCz._cwz_update_C_from_posterior_moments!(
         problem, moment;
         weights=weights, anchor=nothing, trust=0.0, damping=1.0)
     @test moment.C ≈ exact.C atol=1e-12 rtol=1e-12
 
-    @test_throws ArgumentError ConditionalWCz._coupled_em_C!(
+    @test_throws ArgumentError ConditionalWCz._cwz_update_C_from_posterior_moments!(
         problem, moment; weights=weights, trust=-eps())
-    @test_throws ArgumentError ConditionalWCz._coupled_em_C!(
+    @test_throws ArgumentError ConditionalWCz._cwz_update_C_from_posterior_moments!(
         problem, moment; weights=weights, damping=0.0)
 
     seed_a = ConditionalWCz._copy_coupled_state(fixture.state)
     seed_b = ConditionalWCz._copy_coupled_state(fixture.state)
     seed_a.z .= range(-4.0, 4.0; length=length(seed_a.z))
     seed_b.z .= reverse(seed_a.z)
-    anchor_a = ConditionalWCz._cz_pilot_anchor_C(
+    anchor_a = ConditionalWCz._cz_bootstrap_C_anchor(
         problem, seed_a, ConditionalWCz._CoupledScratch(problem), weights)
-    anchor_b = ConditionalWCz._cz_pilot_anchor_C(
+    anchor_b = ConditionalWCz._cz_bootstrap_C_anchor(
         problem, seed_b, ConditionalWCz._CoupledScratch(problem), weights)
     @test anchor_a == anchor_b
     @test all(isfinite, real.(anchor_a))
@@ -123,5 +123,5 @@ end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    println("Profiled C,z checks passed")
+    println("C,z refinement checks passed")
 end

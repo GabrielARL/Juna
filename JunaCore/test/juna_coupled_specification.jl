@@ -12,7 +12,7 @@
 #   - hard-clamped inner pilots and fixed filler symbols
 #   - DC excluded; inactive/out-of-band neighbors contribute zero
 #   - every loss family normalized by its own contributing count
-#   - deterministic first implementation with BP projection disabled
+#   - deterministic first implementation
 #
 # If this fails, the mathematical problem changed before its objective and
 # discrimination tests were updated to justify that change.
@@ -34,8 +34,7 @@ function coupled_spec(; bits_per_symbol::Int = 2,
                       filler_policy::Symbol = :fixed_known_symbol,
                       dc_policy::Symbol = :excluded,
                       inactive_neighbor_policy::Symbol = :zero,
-                      normalization::Symbol = :per_term_count,
-                      bp_projection::Bool = false)
+                      normalization::Symbol = :per_term_count)
     CoupledSpecJuna._CoupledSolverSpec(
         bits_per_symbol = bits_per_symbol,
         ofdm_symbols_per_solve = ofdm_symbols_per_solve,
@@ -47,7 +46,6 @@ function coupled_spec(; bits_per_symbol::Int = 2,
         dc_policy = dc_policy,
         inactive_neighbor_policy = inactive_neighbor_policy,
         normalization = normalization,
-        bp_projection = bp_projection,
     )
 end
 
@@ -188,7 +186,7 @@ end
         @test spec isa CoupledSpecJuna._CoupledSolverSpec
         @test !ismutabletype(typeof(spec))
         @test fieldtypes(typeof(spec)) == (
-            Int, Int, Int, Symbol, Symbol, Symbol, Symbol, Symbol, Symbol, Symbol, Bool,
+            Int, Int, Int, Symbol, Symbol, Symbol, Symbol, Symbol, Symbol, Symbol,
         )
         @test spec.bits_per_symbol == 2
         @test spec.ofdm_symbols_per_solve == 1
@@ -200,7 +198,6 @@ end
         @test spec.dc_policy === :excluded
         @test spec.inactive_neighbor_policy === :zero
         @test spec.normalization === :per_term_count
-        @test spec.bp_projection === false
         @test collect(CoupledSpecJuna._coupled_ici_offsets(spec)) == [-1, 0, 1]
         @test CoupledSpecJuna._validate_coupled_solver_spec(spec) === spec
     end
@@ -218,7 +215,6 @@ end
             coupled_spec(dc_policy = :modeled),
             coupled_spec(inactive_neighbor_policy = :wrap),
             coupled_spec(normalization = :global),
-            coupled_spec(bp_projection = true),
         )
 
         for candidate in invalid
@@ -738,7 +734,7 @@ end
         @test isfinite(wrong_runtime.total)
     end
 
-    @testset "independently profiled C satisfies analytic stationarity" begin
+    @testset "conditional C solve satisfies analytical stationarity" begin
         problem = informative_coupled_problem()
         z = [
             0.80, -0.55, -0.70, 0.45, 0.60, 0.75, -0.50, -0.80,
@@ -1118,7 +1114,7 @@ end
 
         @test checked == 38
         @test max_relative_error < 3e-5
-        @info "Profiled C,z exhaustive finite differences" checked max_relative_error
+        @info "C,z refinement exhaustive finite differences" checked max_relative_error
     end
 
     @testset "joint C W z Taylor remainder converges quadratically" begin
@@ -1181,10 +1177,10 @@ end
         @test 0.20 < remainders[2] / remainders[1] < 0.30
         @test 0.20 < remainders[3] / remainders[2] < 0.30
         @test maximum(normalized) / minimum(normalized) < 1.1
-        @info "Profiled C,z Taylor remainder" epsilons normalized
+        @info "C,z refinement Taylor remainder" epsilons normalized
     end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    println("Profiled C,z checks passed")
+    println("C,z refinement checks passed")
 end

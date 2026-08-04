@@ -11,7 +11,8 @@ This is Juna's register. It is governed by `SOP_HUMAN_AI_COWORK.md`.
 - A rejected item keeps its identifier.
 - Silence is not approval.
 
-Next free Juna identifier: **JCM-115**.
+Next free Juna identifier: **JCM-152**. JCM-126 through JCM-133 remain
+reserved and unapproved.
 
 Next free Claude identifier: **CL-21**. The former spoken labels CL-22
 through CL-27 are provenance only; their decisions are recorded without
@@ -150,6 +151,94 @@ session but were never recorded. They remain reserved and must not be reused.
 | JCM-112 | approved | Use `Profiled C,z update cycles` for `profiled-cz-block-coordinate` in both title layers. This records 28-9. User: "you do all the changes". |
 | JCM-113 | approved | Use `Profiled C,z candidate selection` for `profiled-cz-candidate` in both title layers. This records 28-10. User: "you do all the changes". |
 | JCM-114 | approved | Use `Profiled C,z clean and impaired receiver checks` for `profiled-cz-end-to-end` in both title layers; do not imply error-free recovery for every noisy case. This records 28-11. User: "you do all the changes". |
+| JCM-115 | approved | Use `JunaCrcJointCwz` as the canonical public facade name for the CRC-bearing joint C,W,z form. Omit `Frame` because it no longer distinguishes this receiver family. Compatibility treatment of `JunaCrcConditionedJointCwzFrame` remains a separate decision. User: "all approve". |
+| JCM-116 | approved | Use `C,z refinement` as the reader-facing family name in place of `Profiled C,z`. This supersedes the reader-facing wording in JCM-080 without renaming its source identifiers; dependent exact title changes remain separate decisions. User: "all approve". |
+| JCM-117 | approved | Use `analytical gradient`, not `manual gradient`, in reader explanations of this implementation. User: "yes, analytical gradient", followed by "all approve". |
+| JCM-118 | approved | Rename the base public facade and constructor to `JunaCzRefinement` and `CzRefinementModulation`; remove the old `JunaProfiledCzFrame` and `ProfiledCzFrameModulation` spellings. User: "update all modules, the code, the variable names, the function names, etc". |
+| JCM-119 | approved | Rename the CRC public facade and constructor to `JunaCrcCzRefinement` and `CrcCzRefinementModulation`; remove the old `JunaCrcProfiledCzFrame` and `CrcProfiledCzFrameModulation` spellings. User: "update all modules, the code, the variable names, the function names, etc". |
+| JCM-120 | approved | Use `CrcTurboCwzModulation`, `CrcJointCwzComparisonModulation`, and `CrcJointCwzModulation` for the remaining public family constructors. These names remove redundant `Frame` and replace the experiment label `Conditioned` with the implemented joint C,W,z distinction. User: "update all modules, the code, the variable names, the function names, etc". |
+| JCM-121 | approved | Use the `cz_refinement` stem for the family mode, receiver identity, objective, source and test filenames, suite selectors, Explorer routes, parity key, and family-specific helper names. Remove the corresponding `profiled_cz` and `profiled-cz` spellings rather than keeping compatibility aliases. User: "update all modules, the code, the variable names, the function names, etc". |
+| JCM-122 | approved | Use the `joint_cwz` stem for the joint-update Boolean, radii, start and tolerance settings, helper functions, local variables, and trace fields. Remove the corresponding family-specific `conditioned` spellings. User: "update all modules, the code, the variable names, the function names, etc". |
+| JCM-123 | approved | Rename family-specific conditional-solve helpers to state their operations: `_cz_solve_C_given_z!`, `_cz_derive_W_from_C!`, and `_cz_refit_W!`. User: "update all modules, the code, the variable names, the function names, etc". |
+| JCM-124 | approved | Rename the family result trace and candidate fields from `gradient` to `refinement` where they identify a selected receiver result; retain `gradient` where it denotes the analytical derivative itself. User: "update all modules, the code, the variable names, the function names, etc". |
+| JCM-125 | approved | Apply `C,z refinement` and `analytical gradient` to all current reader-facing suite, Explorer, and source explanations for this family; retain generic complete-frame terms and the separate Profiled Gradient receiver because they name different mechanisms. User: "update all modules, the code, the variable names, the function names, etc". |
+| JCM-134a | approved | Rename `method_args` to `_make_ldpc_method_args`. User: "JCM134 - 150 all approve". |
+| JCM-134b | approved | Rename `_ok` to `_is_nonempty_file`. User: "JCM134 - 150 all approve". |
+| JCM-134c | approved | Rename the exported LDPC parser `generator` to `read_generator`. User: "JCM134 - 150 all approve". |
+| JCM-134d | approved | Rename `_pm` to `_bit_to_bipolar`. User: "JCM134 - 150 all approve". |
+| JCM-134e | approved | Rename `_solve_small!` to `_solve_small_linear_system!`. User: "JCM134 - 150 all approve". |
+| JCM-134f | approved | Rename `_juna_better` to `_candidate_is_better`. User: "JCM134 - 150 all approve". |
+| JCM-135a | approved | Rename `_GradientScratch` to `_WzGradientScratch`. User: "JCM134 - 150 all approve". |
+| JCM-135b | approved | Rename the scratch field `S` to `symbols`. User: "JCM134 - 150 all approve". |
+| JCM-135c | approved | Rename the scratch field `xbit` to `relaxed_bits`. User: "JCM134 - 150 all approve". |
+| JCM-135d | approved | Rename the scratch field `gS` to `symbol_gradient`. User: "JCM134 - 150 all approve". |
+| JCM-135e | approved | Rename the scratch field `gradx` to `bit_gradient`. User: "JCM134 - 150 all approve". |
+| JCM-135f | approved | Rename `_juna_wz_gradient_solve` to `_juna_wz_adam_refine`. User: "JCM134 - 150 all approve". |
+| JCM-135g | approved | Rename `_initial_gradient_W` to `_initial_pilot_W`. User: "JCM134 - 150 all approve". |
+| JCM-135h | approved | Rename `_gradient_candidate` to `_wz_state_candidate`. User: "JCM134 - 150 all approve". |
+| JCM-135i | approved | Rename `_gradient_symbol_grid!` to `_wz_symbol_grid!`. User: "JCM134 - 150 all approve". |
+| JCM-135j | approved | Rename `_parity_penalty_and_gradx!` to `_parity_penalty_and_bit_gradient!`. User: "JCM134 - 150 all approve". |
+| JCM-136a | approved | Rename `_juna_anchor_targets` to `_lite_anchor_targets`. User: "JCM134 - 150 all approve". |
+| JCM-136b | approved | Rename `_juna_step` to `_lite_refinement_step`. User: "JCM134 - 150 all approve". |
+| JCM-136c | approved | Rename `_frame_juna_refine` to `_frame_stateful_band_rls_refine`. User: "JCM134 - 150 all approve". |
+| JCM-137a | approved | Rename `_cz_mmse_weights!` to `_cz_regularized_mrc_weights!`. User: "JCM134 - 150 all approve". |
+| JCM-137b | approved | Rename `_cz_solve_C_given_z!` to `_cz_update_C_given_z!`. User: "JCM134 - 150 all approve". |
+| JCM-137c | approved | Rename `_cz_pilot_anchor_C` to `_cz_bootstrap_C_anchor`. User: "JCM134 - 150 all approve". |
+| JCM-137d | approved | Rename `_cz_refit_W!` to `_cz_update_W!`. User: "JCM134 - 150 all approve". |
+| JCM-137e | approved | Rename `_cz_sync_logits!` to `_cz_copy_logits_to_blocks!`. User: "JCM134 - 150 all approve". |
+| JCM-138a | approved | Rename `_joint_cwz_accept` to `_joint_cwz_step_is_accepted`. User: "JCM134 - 150 all approve". |
+| JCM-138b | approved | Rename `_joint_cwz_penalty!` to `_joint_cw_anchor_penalty!`. User: "JCM134 - 150 all approve". |
+| JCM-138c | approved | Spell out `gradient` in `_wz_loss_and_gradient!`, `_frame_wz_loss_and_gradient!`, `_frame_coupled_loss_and_gradient!`, and `_joint_cwz_loss_and_gradient!`. User: "JCM134 - 150 all approve". |
+| JCM-139a | approved | Rename `_profile_initial_coupled_C!` to `_cwz_initial_C_ridge_solve!`. User: "JCM134 - 150 all approve". |
+| JCM-139b | approved | Rename `_coupled_em_C!` to `_cwz_update_C_from_posterior_moments!`. User: "JCM134 - 150 all approve". |
+| JCM-140a | approved | Rename the public modulation field `nc` to `fft_length`. User: "JCM134 - 150 all approve". |
+| JCM-140b | approved | Rename the public modulation field `np` to `cyclic_prefix_length`. User: "JCM134 - 150 all approve". |
+| JCM-140c | approved | Rename the public modulation field `bw` to `occupied_bandwidth_fraction`. User: "JCM134 - 150 all approve". |
+| JCM-140d | approved | Rename the public modulation field `dc0` to `rf_center_offset_khz`. User: "JCM134 - 150 all approve". |
+| JCM-140e | approved | Rename the public modulation field `bpc` to `bits_per_data_carrier`. User: "JCM134 - 150 all approve". |
+| JCM-140f | approved | Rename the public modulation field `ldpc_npc` to `ldpc_checks_per_column`. User: "JCM134 - 150 all approve". |
+| JCM-141a | approved | Rename the public modulation field `sync` to `synchronization_enabled`. User: "JCM134 - 150 all approve". |
+| JCM-141b | approved | Rename the public modulation field `ldpc_no4cycle` to `ldpc_eliminate_length_4_cycles`. User: "JCM134 - 150 all approve". |
+| JCM-141c | approved | Rename the public modulation field `frame_code_horizon` to `frame_code_component_block_count`. User: "JCM134 - 150 all approve". |
+| JCM-141d | approved | Rename the public modulation field `joint_cwz_w_start` to `joint_cwz_first_w_iteration`. User: "JCM134 - 150 all approve". |
+| JCM-141e | approved | Rename the public modulation field `cz_temporal_c_smoothness` to `cz_temporal_c_penalty_weight`. User: "JCM134 - 150 all approve". |
+| JCM-142a | approved | Rename `cz_crc_gate` to `cz_require_crc_for_replacement`. User: "JCM134 - 150 all approve". |
+| JCM-142b | approved | Rename `cz_gate_selection_only` to `cz_crc_gate_at_selection_only`. User: "JCM134 - 150 all approve". |
+| JCM-142c | approved | Rename `cz_em_enabled` to `cz_posterior_moment_update_enabled`. User: "JCM134 - 150 all approve". |
+| JCM-142d | approved | Rename `cz_em_trust` to `cz_response_anchor_weight`. User: "JCM134 - 150 all approve". |
+| JCM-142e | approved | Rename `cz_em_damping` to `cz_response_update_fraction`. User: "JCM134 - 150 all approve". |
+| JCM-142f | approved | Rename `cz_independent_w` to `cz_refit_w_from_decoder_posteriors`. User: "JCM134 - 150 all approve". |
+| JCM-142g | approved | Rename `cz_bp_feedback` to `cz_decoder_posterior_weight`. User: "JCM134 - 150 all approve". |
+| JCM-142h | approved | Rename `cz_vp_gradient` to `cz_variable_projection_gradient`. User: "JCM134 - 150 all approve". |
+| JCM-143a | approved | Rename `feedback_mode` to `anchor_feedback_source`. User: "JCM134 - 150 all approve". |
+| JCM-143b | approved | Use `:decoder_posterior`, `:pilots_only`, `:transmitted_symbols`, and `:corrupted_transmitted_symbols` as the anchor-feedback source values. User: "JCM134 - 150 all approve". |
+| JCM-143c | approved | Rename `genie_symbols` to `transmitted_symbols`. User: "JCM134 - 150 all approve". |
+| JCM-143d | approved | Use `:initial_logits`, `:decoder_posterior`, and `:transmitted_symbols` as the C,z feedback-source values. User: "JCM134 - 150 all approve". |
+| JCM-144a | approved | Use the exact candidate keys `posterior_metric`, `ldpc_valid`, `syndrome_weight`, `mean_absolute_posterior_metric`, `pilot_mse`, `tie_mse`, and `selection_score`. User: "JCM134 - 150 all approve". |
+| JCM-144b | approved | Rename `selected_iter` to `selected_iteration`. User: "JCM134 - 150 all approve". |
+| JCM-144c | approved | Rename the `demodulate_methods` result key `provenance` to `receiver_profile`. User: "JCM134 - 150 all approve". |
+| JCM-144d | approved | Rename the `demodulate_methods` result key `juna` to `selected_receiver`. User: "JCM134 - 150 all approve". |
+| JCM-145a | approved | Replace `optimized_variables` with `configured_update_variables`, add `executed_update_variables`, and add `refinement_executed`. User: "JCM134 - 150 all approve". |
+| JCM-145b | approved | Always expose `baseline`; use `refinement=nothing` when no refinement executes and expose the refinement result when it does. User: "JCM134 - 150 all approve". |
+| JCM-145c | approved | Expose separate `lite_ldpc_valid` and `refinement_ldpc_valid` values, and use `nothing` for CRC validity when CRC is disabled. User: "JCM134 - 150 all approve". |
+| JCM-145d | approved | Use `selection_gate=:candidate_order` for ordinary candidate ordering and retain `selection_gate=:crc` for CRC gating. User: "JCM134 - 150 all approve". |
+| JCM-145e | approved | Use `crc_replacement_gate_enabled`, `baseline_allows_early_skip`, and `:initial_response` in the C,z refinement implementation. User: "JCM134 - 150 all approve". |
+| JCM-146a | approved | Rename complete-frame `block_n` variables to `coded_bits_per_block`. User: "JCM134 - 150 all approve". |
+| JCM-146b | approved | Rename the coupled-problem `active2` variable to `active_indices`. User: "JCM134 - 150 all approve". |
+| JCM-146c | approved | Rename the coupled-problem coded-bit count `nbits2` to `coded_bit_count`; payload-bit uses of `nbits2` are not part of this decision. User: "JCM134 - 150 all approve". |
+| JCM-147a | approved | Delete the unused `_tool_args`. User: "JCM134 - 150 all approve". |
+| JCM-147b | approved | Delete the unused `_write_metrics!`; retain `_write_payload_metrics!`. User: "JCM134 - 150 all approve". |
+| JCM-147c | approved | Delete `_CoupledSolverSpec.bp_projection` and its validation and test handling. User: "JCM134 - 150 all approve". |
+| JCM-148a | approved | Rename `results/viewdata.json` to `results/results_view_data.json`. User: "JCM134 - 150 all approve". |
+| JCM-148b | approved | Rename `tools/parity_golden.json` to `tools/parity_reference.json`. User: "JCM134 - 150 all approve". |
+| JCM-148c | approved | Rename the experiment directory `results_pfft` to `results_partial_fft`. User: "JCM134 - 150 all approve". |
+| JCM-149 | approved | Use `conditional C solve` in place of the reader claim `profiled C`, update the authoritative suite registry, and regenerate Explorer suite data. User: "JCM134 - 150 all approve". |
+| JCM-150 | approved | Expand BP to `belief propagation` and DAG to `directed acyclic graph` in Explorer reader text while retaining internal code identifiers where appropriate. User: "JCM134 - 150 all approve". |
+| JCM-151a | approved | Add `cz_refinement` and `joint_cwz` as the two machine identifiers in the five-arm confirmation evidence. Use `C,z refinement` and `joint C,W,z` in reader-facing Results text. User approved the complete audit fix list: "I approve all the fixes". |
+| JCM-151b | approved | Rank the five confirmed receiver results by mean effective rate, then lower bit error rate, then lower decode time. Use the in-run JUNA-Lite control when decode time breaks an outcome tie. User approved the complete audit fix list: "I approve all the fixes". |
+| JCM-151c | approved | Preserve the confirmation evidence under the `cz_refinement_confirmation` stem with current receiver and trace names, explicit historical package and harness provenance, and no obsolete compatibility identifiers. User approved the complete audit fix list: "I approve all the fixes". |
+| JCM-151d | approved | Correct the Results explanation to distinguish selected CRC rescues from exact frame success, state the two fallback counts separately, qualify the inherited configuration search, and explain the joint-step counters as call-level counts. User approved the complete audit fix list: "I approve all the fixes". |
+| JCM-151e | approved | Extend validation for five-arm Results ranking, retained joint-step scales, backtracking, and radius bounds without changing the receiver mathematics or documented stage sequence. User approved the complete audit fix list: "I approve all the fixes". |
 
 ## Concurrent Claude decisions reconciled
 
@@ -272,6 +361,12 @@ user approved every row below with: "I approve all changes you propose".
 | JCM-079b | Keep the restored receiver internal. | This avoids adding a public facade and Explorer entry while retaining a callable implementation path. |
 | JCM-080a | Reader-facing name `Profiled C,z`. | The historical test suite calls it the frame C,z profiled-gradient receiver, and the code identifier is `profiled_cz`. |
 | JCM-080b | Reader-facing name `C,z receiver`. | This is shorter but omits the profiling distinction from the historical source wording. |
+| JCM-115a | Public facade `JunaCrcJointCwz`. Selected under JCM-115. | Keeps the source-supported `CRC`, `joint`, and `C,W,z` distinctions while removing the redundant `Frame` and the unexplained experiment label `Conditioned`. |
+| JCM-115b | Public facade `JunaCrcConditionedJointCwz`. Not selected. | Retains `Conditioned`, whose concrete meaning requires the pilot, trust-region, and acceptance checks to be explained separately. |
+| JCM-115c | Public facade `JunaCrcWcz`. Not selected. | Shorter, but risks confusion with the diagnostic `JUNA-WCz` solver used in the paper. |
+| JCM-116a | Reader-facing family name `C,z refinement`. Selected under JCM-116. | `test/runtests.jl` already uses `C,z refinement functions`; the wording remains true across the base, CRC, turbo, control, and joint forms. |
+| JCM-116b | Reader-facing family name `C,z receiver`. Not selected. | Existing source wording and the earlier JCM-080 alternative; it does not name the additional processing. |
+| JCM-116c | Reader-facing family name `Response and codeword refinement`. Not selected. | Expands physical response C and relaxed codeword z in plain words, but is longer than the selected name. |
 
 ## Displaced concurrent proposals
 

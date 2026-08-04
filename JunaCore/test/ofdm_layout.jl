@@ -18,9 +18,11 @@
 #   * The package fixes 16 ridge-LS bands (_PARTIAL_FFT_NBANDS); the separately
 #     labeled paper benchmark uses 4. This suite pins the package default and
 #     checks the four-band benchmark configuration separately.
-#   * bw is a fraction of the fixed 24 kHz reference width; fs determines the
+#   * occupied_bandwidth_fraction is a fraction of the fixed 24 kHz reference
+#     width; fs determines the
 #     fraction of the complex-baseband FFT needed to realize that width.
-#   * dc0 tunes the RF centre in kHz and does not shift baseband carrier bins.
+#   * rf_center_offset_khz tunes the RF centre in kHz and does not shift
+#     baseband carrier bins.
 # If one of these asserts changes intentionally, update the literal, package
 # default table, paper benchmark, and walkthrough contract together.
 #
@@ -125,10 +127,13 @@ const OFDM_LAYOUT_FS = 24_000.0
         @test sort(union(changed.pilot_idx, changed.data_idx)) == changed.active
     end
 
-    @testset "fixed 24 kHz bw reference and RF-only dc0 tuning" begin
-        half_band = OfdmLayoutJuna.LiteModulation(bw = 0.5)
+    @testset "fixed 24 kHz bandwidth reference and RF-only centre tuning" begin
+        half_band = OfdmLayoutJuna.LiteModulation(
+            occupied_bandwidth_fraction = 0.5)
         base = OfdmLayoutJuna._layout(half_band, OFDM_LAYOUT_FS)
-        shifted = OfdmLayoutJuna.LiteModulation(bw = 0.5, dc0 = Int16(1))
+        shifted = OfdmLayoutJuna.LiteModulation(
+            occupied_bandwidth_fraction=0.5,
+            rf_center_offset_khz=Int16(1))
         shifted_layout = OfdmLayoutJuna._layout(shifted, OFDM_LAYOUT_FS)
 
         @test shifted_layout.active == base.active
@@ -152,7 +157,9 @@ const OFDM_LAYOUT_FS = 24_000.0
         @test isapprox(shifted_edges[1], 19_000.0; atol=bin_width)
         @test isapprox(shifted_edges[2], 31_000.0; atol=bin_width)
 
-        red = OfdmLayoutJuna.LiteModulation(bw=0.4, dc0=Int16(1))
+        red = OfdmLayoutJuna.LiteModulation(
+            occupied_bandwidth_fraction=0.4,
+            rf_center_offset_khz=Int16(1))
         red_layout = OfdmLayoutJuna._layout(red, 9_600.0)
         @test length(red_layout.active) == 1023
         @test OfdmLayoutJuna._occupied_bandwidth_hz(red) == 9_600.0

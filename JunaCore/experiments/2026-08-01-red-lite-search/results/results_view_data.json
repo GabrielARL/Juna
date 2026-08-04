@@ -1,0 +1,1572 @@
+{
+  "mechanism": {
+    "cz_refinement": {
+      "confirmed_frames": 5760,
+      "joint_cwz_accepted_steps": 0,
+      "joint_cwz_rejected_steps": 0,
+      "mean_decode_seconds_per_frame": 0.8548108825508683,
+      "refinement_selected_frames": 14,
+      "selection_reasons": {
+        "crc_fallback": 4855,
+        "crc_rescue": 14,
+        "lite_crc_valid_skip": 891
+      }
+    },
+    "joint_cwz": {
+      "confirmed_frames": 5760,
+      "joint_cwz_accepted_steps": 38952,
+      "joint_cwz_rejected_steps": 0,
+      "mean_decode_seconds_per_frame": 0.6631027712734378,
+      "refinement_selected_frames": 17,
+      "selection_reasons": {
+        "crc_fallback": 4852,
+        "crc_rescue": 17,
+        "lite_crc_valid_skip": 891
+      }
+    },
+    "lite": {
+      "confirmed_frames": 5760,
+      "joint_cwz_accepted_steps": 0,
+      "joint_cwz_rejected_steps": 0,
+      "mean_decode_seconds_per_frame": 0.19862954458298598,
+      "refinement_selected_frames": 0,
+      "selection_reasons": {}
+    }
+  },
+  "paths": [
+    {
+      "channel": "red1",
+      "hydrophone": 1,
+      "label": "red1 hydrophone 1",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "algorithm_id": "ofdm_fec",
+          "ber": 0.004452875399361023,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 4,
+          "mean_decode_seconds": 0.0912271581,
+          "mean_effective_rate_bps": 1922.8668941979522,
+          "mean_psr": 0.75,
+          "min_effective_rate_bps": 1880.136518771331,
+          "nfft": 512,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "lite",
+          "ber": 0.001793628808864266,
+          "check_degree": 8,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 0,
+          "horizon": 4,
+          "inner_spacing": 3,
+          "mean_decode_seconds": 0.26031945898333336,
+          "mean_effective_rate_bps": 1833.203125,
+          "mean_psr": 0.6499999999999999,
+          "min_effective_rate_bps": 1786.1979166666667,
+          "nfft": 2048,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "pfft",
+          "ber": 0.0003769188596491228,
+          "check_degree": 10,
+          "code_rate": 0.25,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 4,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.11212547440833334,
+          "mean_effective_rate_bps": 1143.9175257731958,
+          "mean_psr": 0.6083333333333334,
+          "min_effective_rate_bps": 1096.9072164948454,
+          "nfft": 2048,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "cz_refinement",
+          "ber": 0.001793628808864266,
+          "check_degree": 8,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 0,
+          "horizon": 4,
+          "inner_spacing": 3,
+          "mean_decode_seconds": 0.6154544942583333,
+          "mean_effective_rate_bps": 1833.203125,
+          "mean_psr": 0.6499999999999999,
+          "min_effective_rate_bps": 1786.1979166666667,
+          "nfft": 2048,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "joint_cwz",
+          "ber": 0.001793628808864266,
+          "check_degree": 8,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 0,
+          "horizon": 4,
+          "inner_spacing": 3,
+          "mean_decode_seconds": 0.45699019449166667,
+          "mean_effective_rate_bps": 1833.203125,
+          "mean_psr": 0.6499999999999999,
+          "min_effective_rate_bps": 1786.1979166666667,
+          "nfft": 2048,
+          "outer_spacing": 3
+        }
+      ],
+      "winner": {
+        "algorithm_id": "ofdm_fec",
+        "ber": 0.004452875399361023,
+        "check_degree": 10,
+        "code_rate": 0.5,
+        "confirmation_seeds": [
+          6,
+          7
+        ],
+        "cp": 16,
+        "horizon": 0,
+        "inner_spacing": 4,
+        "mean_decode_seconds": 0.0912271581,
+        "mean_effective_rate_bps": 1922.8668941979522,
+        "mean_psr": 0.75,
+        "min_effective_rate_bps": 1880.136518771331,
+        "nfft": 512,
+        "outer_spacing": 3
+      }
+    },
+    {
+      "channel": "red1",
+      "hydrophone": 2,
+      "label": "red1 hydrophone 2",
+      "rate_tie_ids": [
+        "joint_cwz",
+        "cz_refinement"
+      ],
+      "receiver_results": [
+        {
+          "algorithm_id": "ofdm_fec",
+          "ber": 0.15938183807439826,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.09306766611666667,
+          "mean_effective_rate_bps": 188.77796901893288,
+          "mean_psr": 0.05,
+          "min_effective_rate_bps": 188.77796901893288,
+          "nfft": 1024,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "lite",
+          "ber": 0.006477608267716536,
+          "check_degree": 8,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 4,
+          "inner_spacing": 4,
+          "mean_decode_seconds": 0.230991463425,
+          "mean_effective_rate_bps": 1995.7142857142853,
+          "mean_psr": 0.6416666666666666,
+          "min_effective_rate_bps": 1917.9591836734692,
+          "nfft": 2048,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "pfft",
+          "ber": 0.0002820078962210942,
+          "check_degree": 10,
+          "code_rate": 0.25,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 4,
+          "inner_spacing": 8,
+          "mean_decode_seconds": 0.12214336430833334,
+          "mean_effective_rate_bps": 1081.4690721649486,
+          "mean_psr": 0.5916666666666667,
+          "min_effective_rate_bps": 1005.3092783505156,
+          "nfft": 2048,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "cz_refinement",
+          "ber": 0.006471456692913386,
+          "check_degree": 8,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 4,
+          "inner_spacing": 4,
+          "mean_decode_seconds": 0.5828039968083332,
+          "mean_effective_rate_bps": 2073.4693877551017,
+          "mean_psr": 0.6666666666666667,
+          "min_effective_rate_bps": 2021.6326530612243,
+          "nfft": 2048,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "joint_cwz",
+          "ber": 0.006471456692913386,
+          "check_degree": 8,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 4,
+          "inner_spacing": 4,
+          "mean_decode_seconds": 0.4436874005,
+          "mean_effective_rate_bps": 2073.4693877551017,
+          "mean_psr": 0.6666666666666667,
+          "min_effective_rate_bps": 2021.6326530612243,
+          "nfft": 2048,
+          "outer_spacing": 3
+        }
+      ],
+      "winner": {
+        "algorithm_id": "joint_cwz",
+        "ber": 0.006471456692913386,
+        "check_degree": 8,
+        "code_rate": 0.5,
+        "confirmation_seeds": [
+          6,
+          7
+        ],
+        "cp": 64,
+        "horizon": 4,
+        "inner_spacing": 4,
+        "mean_decode_seconds": 0.4436874005,
+        "mean_effective_rate_bps": 2073.4693877551017,
+        "mean_psr": 0.6666666666666667,
+        "min_effective_rate_bps": 2021.6326530612243,
+        "nfft": 2048,
+        "outer_spacing": 3
+      }
+    },
+    {
+      "channel": "red1",
+      "hydrophone": 3,
+      "label": "red1 hydrophone 3",
+      "rate_tie_ids": [
+        "lite",
+        "joint_cwz",
+        "cz_refinement"
+      ],
+      "receiver_results": [
+        {
+          "algorithm_id": "ofdm_fec",
+          "ber": 1.823486506199854e-05,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.033761915225,
+          "mean_effective_rate_bps": 3465.838926174497,
+          "mean_psr": 0.9416666666666667,
+          "min_effective_rate_bps": 3435.1677852348994,
+          "nfft": 512,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "lite",
+          "ber": 0.0037677077999658643,
+          "check_degree": 8,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 128,
+          "horizon": 4,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.26568930691666665,
+          "mean_effective_rate_bps": 3625.25625,
+          "mean_psr": 0.825,
+          "min_effective_rate_bps": 3588.6375,
+          "nfft": 2048,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "pfft",
+          "ber": 0.028143808426174928,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 128,
+          "horizon": 4,
+          "inner_spacing": 5,
+          "mean_decode_seconds": 0.07051899939166667,
+          "mean_effective_rate_bps": 2472.8500000000004,
+          "mean_psr": 0.6333333333333333,
+          "min_effective_rate_bps": 2407.775,
+          "nfft": 2048,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "cz_refinement",
+          "ber": 0.0037677077999658643,
+          "check_degree": 8,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 128,
+          "horizon": 4,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.505016566,
+          "mean_effective_rate_bps": 3625.25625,
+          "mean_psr": 0.825,
+          "min_effective_rate_bps": 3588.6375,
+          "nfft": 2048,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "joint_cwz",
+          "ber": 0.0037677077999658643,
+          "check_degree": 8,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 128,
+          "horizon": 4,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.4200795928333333,
+          "mean_effective_rate_bps": 3625.25625,
+          "mean_psr": 0.825,
+          "min_effective_rate_bps": 3588.6375,
+          "nfft": 2048,
+          "outer_spacing": 5
+        }
+      ],
+      "winner": {
+        "algorithm_id": "lite",
+        "ber": 0.0037677077999658643,
+        "check_degree": 8,
+        "code_rate": 0.5,
+        "confirmation_seeds": [
+          6,
+          7
+        ],
+        "cp": 128,
+        "horizon": 4,
+        "inner_spacing": 10,
+        "mean_decode_seconds": 0.26568930691666665,
+        "mean_effective_rate_bps": 3625.25625,
+        "mean_psr": 0.825,
+        "min_effective_rate_bps": 3588.6375,
+        "nfft": 2048,
+        "outer_spacing": 5
+      }
+    },
+    {
+      "channel": "red2",
+      "hydrophone": 1,
+      "label": "red2 hydrophone 1",
+      "rate_tie_ids": [
+        "joint_cwz"
+      ],
+      "receiver_results": [
+        {
+          "algorithm_id": "ofdm_fec",
+          "ber": 0.00015597147950089128,
+          "check_degree": 10,
+          "code_rate": 0.25,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.08553119198333334,
+          "mean_effective_rate_bps": 1280.1342281879195,
+          "mean_psr": 0.8500000000000001,
+          "min_effective_rate_bps": 1204.8322147651006,
+          "nfft": 512,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "lite",
+          "ber": 0.0008257949561403508,
+          "check_degree": 10,
+          "code_rate": 0.25,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 4,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.30019596486666666,
+          "mean_effective_rate_bps": 1240.816326530612,
+          "mean_psr": 0.6666666666666667,
+          "min_effective_rate_bps": 1209.7959183673468,
+          "nfft": 2048,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "pfft",
+          "ber": 0.020949937810945275,
+          "check_degree": 10,
+          "code_rate": 0.25,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 0,
+          "horizon": 2,
+          "inner_spacing": 5,
+          "mean_decode_seconds": 0.06577592175833333,
+          "mean_effective_rate_bps": 282.65625,
+          "mean_psr": 0.225,
+          "min_effective_rate_bps": 272.1875,
+          "nfft": 2048,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "cz_refinement",
+          "ber": 0.0008189418859649123,
+          "check_degree": 10,
+          "code_rate": 0.25,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 4,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.6497484881,
+          "mean_effective_rate_bps": 1271.8367346938774,
+          "mean_psr": 0.6833333333333333,
+          "min_effective_rate_bps": 1209.7959183673468,
+          "nfft": 2048,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "joint_cwz",
+          "ber": 0.000815515350877193,
+          "check_degree": 10,
+          "code_rate": 0.25,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 4,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.48250699791666674,
+          "mean_effective_rate_bps": 1287.34693877551,
+          "mean_psr": 0.6916666666666667,
+          "min_effective_rate_bps": 1240.816326530612,
+          "nfft": 2048,
+          "outer_spacing": 3
+        }
+      ],
+      "winner": {
+        "algorithm_id": "joint_cwz",
+        "ber": 0.000815515350877193,
+        "check_degree": 10,
+        "code_rate": 0.25,
+        "confirmation_seeds": [
+          6,
+          7
+        ],
+        "cp": 64,
+        "horizon": 4,
+        "inner_spacing": 10,
+        "mean_decode_seconds": 0.48250699791666674,
+        "mean_effective_rate_bps": 1287.34693877551,
+        "mean_psr": 0.6916666666666667,
+        "min_effective_rate_bps": 1240.816326530612,
+        "nfft": 2048,
+        "outer_spacing": 3
+      }
+    },
+    {
+      "channel": "red2",
+      "hydrophone": 2,
+      "label": "red2 hydrophone 2",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "algorithm_id": "ofdm_fec",
+          "ber": 0.01967003493013972,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 0,
+          "inner_spacing": 5,
+          "mean_decode_seconds": 0.08036501375833334,
+          "mean_effective_rate_bps": 2062.281879194631,
+          "mean_psr": 0.7666666666666666,
+          "min_effective_rate_bps": 2017.4496644295302,
+          "nfft": 512,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "lite",
+          "ber": 0.19624189121756486,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 0,
+          "inner_spacing": 5,
+          "mean_decode_seconds": 0.17113215255,
+          "mean_effective_rate_bps": 67.24832214765101,
+          "mean_psr": 0.025,
+          "min_effective_rate_bps": 44.83221476510067,
+          "nfft": 512,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "pfft",
+          "ber": 0.006026286353467561,
+          "check_degree": 10,
+          "code_rate": 0.25,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 2,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.044275411641666665,
+          "mean_effective_rate_bps": 468.5051546391753,
+          "mean_psr": 0.5083333333333333,
+          "min_effective_rate_bps": 430.1030927835052,
+          "nfft": 1024,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "cz_refinement",
+          "ber": 0.19624189121756486,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 0,
+          "inner_spacing": 5,
+          "mean_decode_seconds": 0.8385634548583334,
+          "mean_effective_rate_bps": 67.24832214765101,
+          "mean_psr": 0.025,
+          "min_effective_rate_bps": 44.83221476510067,
+          "nfft": 512,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "joint_cwz",
+          "ber": 0.19624189121756486,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 0,
+          "inner_spacing": 5,
+          "mean_decode_seconds": 0.6229994981083333,
+          "mean_effective_rate_bps": 67.24832214765101,
+          "mean_psr": 0.025,
+          "min_effective_rate_bps": 44.83221476510067,
+          "nfft": 512,
+          "outer_spacing": 3
+        }
+      ],
+      "winner": {
+        "algorithm_id": "ofdm_fec",
+        "ber": 0.01967003493013972,
+        "check_degree": 10,
+        "code_rate": 0.5,
+        "confirmation_seeds": [
+          6,
+          7
+        ],
+        "cp": 32,
+        "horizon": 0,
+        "inner_spacing": 5,
+        "mean_decode_seconds": 0.08036501375833334,
+        "mean_effective_rate_bps": 2062.281879194631,
+        "mean_psr": 0.7666666666666666,
+        "min_effective_rate_bps": 2017.4496644295302,
+        "nfft": 512,
+        "outer_spacing": 3
+      }
+    },
+    {
+      "channel": "red2",
+      "hydrophone": 3,
+      "label": "red2 hydrophone 3",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "algorithm_id": "ofdm_fec",
+          "ber": 0.014924091312056737,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.08443460091666669,
+          "mean_effective_rate_bps": 2422.5503355704695,
+          "mean_psr": 0.8,
+          "min_effective_rate_bps": 2321.6107382550335,
+          "nfft": 512,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "lite",
+          "ber": 0.17791722074468086,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.13728736069999997,
+          "mean_effective_rate_bps": 75.70469798657719,
+          "mean_psr": 0.025,
+          "min_effective_rate_bps": 50.46979865771812,
+          "nfft": 512,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "pfft",
+          "ber": 0.0010468850353243418,
+          "check_degree": 10,
+          "code_rate": 0.25,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 0,
+          "horizon": 4,
+          "inner_spacing": 5,
+          "mean_decode_seconds": 0.10964380626666667,
+          "mean_effective_rate_bps": 658.88671875,
+          "mean_psr": 0.325,
+          "min_effective_rate_bps": 540.625,
+          "nfft": 2048,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "cz_refinement",
+          "ber": 0.17791722074468086,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.7455218757583333,
+          "mean_effective_rate_bps": 75.70469798657719,
+          "mean_psr": 0.025,
+          "min_effective_rate_bps": 50.46979865771812,
+          "nfft": 512,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "joint_cwz",
+          "ber": 0.17791722074468086,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.5742091528833334,
+          "mean_effective_rate_bps": 75.70469798657719,
+          "mean_psr": 0.025,
+          "min_effective_rate_bps": 50.46979865771812,
+          "nfft": 512,
+          "outer_spacing": 3
+        }
+      ],
+      "winner": {
+        "algorithm_id": "ofdm_fec",
+        "ber": 0.014924091312056737,
+        "check_degree": 10,
+        "code_rate": 0.5,
+        "confirmation_seeds": [
+          6,
+          7
+        ],
+        "cp": 32,
+        "horizon": 0,
+        "inner_spacing": 10,
+        "mean_decode_seconds": 0.08443460091666669,
+        "mean_effective_rate_bps": 2422.5503355704695,
+        "mean_psr": 0.8,
+        "min_effective_rate_bps": 2321.6107382550335,
+        "nfft": 512,
+        "outer_spacing": 3
+      }
+    },
+    {
+      "channel": "red3",
+      "hydrophone": 1,
+      "label": "red3 hydrophone 1",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "algorithm_id": "ofdm_fec",
+          "ber": 0.010123005319148936,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.08757674702499998,
+          "mean_effective_rate_bps": 2498.2550335570468,
+          "mean_psr": 0.825,
+          "min_effective_rate_bps": 2473.020134228188,
+          "nfft": 512,
+          "outer_spacing": 3
+        },
+        {
+          "algorithm_id": "lite",
+          "ber": 0.20271471553610504,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.22205525033333331,
+          "mean_effective_rate_bps": 0.0,
+          "mean_psr": 0.0,
+          "min_effective_rate_bps": 0.0,
+          "nfft": 1024,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "pfft",
+          "ber": 0.0025549188156638015,
+          "check_degree": 10,
+          "code_rate": 0.125,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 0,
+          "inner_spacing": 8,
+          "mean_decode_seconds": 0.06174200130833335,
+          "mean_effective_rate_bps": 297.5968992248062,
+          "mean_psr": 0.3666666666666667,
+          "min_effective_rate_bps": 270.5426356589147,
+          "nfft": 2048,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "cz_refinement",
+          "ber": 0.20271471553610504,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 1.0931161145916666,
+          "mean_effective_rate_bps": 0.0,
+          "mean_psr": 0.0,
+          "min_effective_rate_bps": 0.0,
+          "nfft": 1024,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "joint_cwz",
+          "ber": 0.20271471553610504,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.9035926895583334,
+          "mean_effective_rate_bps": 0.0,
+          "mean_psr": 0.0,
+          "min_effective_rate_bps": 0.0,
+          "nfft": 1024,
+          "outer_spacing": 5
+        }
+      ],
+      "winner": {
+        "algorithm_id": "ofdm_fec",
+        "ber": 0.010123005319148936,
+        "check_degree": 10,
+        "code_rate": 0.5,
+        "confirmation_seeds": [
+          6,
+          7
+        ],
+        "cp": 32,
+        "horizon": 0,
+        "inner_spacing": 10,
+        "mean_decode_seconds": 0.08757674702499998,
+        "mean_effective_rate_bps": 2498.2550335570468,
+        "mean_psr": 0.825,
+        "min_effective_rate_bps": 2473.020134228188,
+        "nfft": 512,
+        "outer_spacing": 3
+      }
+    },
+    {
+      "channel": "red3",
+      "hydrophone": 2,
+      "label": "red3 hydrophone 2",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "algorithm_id": "ofdm_fec",
+          "ber": 0.013145058351568198,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.09704133293333335,
+          "mean_effective_rate_bps": 2994.6757679180887,
+          "mean_psr": 0.8,
+          "min_effective_rate_bps": 2994.6757679180887,
+          "nfft": 512,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "lite",
+          "ber": 0.1605055616338439,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.21149889977500003,
+          "mean_effective_rate_bps": 61.34228187919463,
+          "mean_psr": 0.016666666666666666,
+          "min_effective_rate_bps": 61.34228187919463,
+          "nfft": 1024,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "pfft",
+          "ber": 0.0009240128558310376,
+          "check_degree": 10,
+          "code_rate": 0.25,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 128,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.066437719875,
+          "mean_effective_rate_bps": 935.0,
+          "mean_psr": 0.5666666666666667,
+          "min_effective_rate_bps": 907.5,
+          "nfft": 2048,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "cz_refinement",
+          "ber": 0.1600610867979577,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 1.0681195213083337,
+          "mean_effective_rate_bps": 92.01342281879195,
+          "mean_psr": 0.025,
+          "min_effective_rate_bps": 61.34228187919463,
+          "nfft": 1024,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "joint_cwz",
+          "ber": 0.1600610867979577,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.8657046579000001,
+          "mean_effective_rate_bps": 92.01342281879195,
+          "mean_psr": 0.025,
+          "min_effective_rate_bps": 61.34228187919463,
+          "nfft": 1024,
+          "outer_spacing": 5
+        }
+      ],
+      "winner": {
+        "algorithm_id": "ofdm_fec",
+        "ber": 0.013145058351568198,
+        "check_degree": 10,
+        "code_rate": 0.5,
+        "confirmation_seeds": [
+          6,
+          7
+        ],
+        "cp": 16,
+        "horizon": 0,
+        "inner_spacing": 10,
+        "mean_decode_seconds": 0.09704133293333335,
+        "mean_effective_rate_bps": 2994.6757679180887,
+        "mean_psr": 0.8,
+        "min_effective_rate_bps": 2994.6757679180887,
+        "nfft": 512,
+        "outer_spacing": 5
+      }
+    },
+    {
+      "channel": "red3",
+      "hydrophone": 3,
+      "label": "red3 hydrophone 3",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "algorithm_id": "ofdm_fec",
+          "ber": 0.0053359773887673234,
+          "check_degree": 8,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.04032457166666668,
+          "mean_effective_rate_bps": 3119.4539249146756,
+          "mean_psr": 0.8333333333333334,
+          "min_effective_rate_bps": 2994.6757679180887,
+          "nfft": 512,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "lite",
+          "ber": 0.17424325309992705,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.08486282059166667,
+          "mean_effective_rate_bps": 61.34228187919463,
+          "mean_psr": 0.016666666666666666,
+          "min_effective_rate_bps": 0.0,
+          "nfft": 1024,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "pfft",
+          "ber": 0.0011744570349386213,
+          "check_degree": 10,
+          "code_rate": 0.25,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 8,
+          "mean_decode_seconds": 0.06908618551666666,
+          "mean_effective_rate_bps": 796.6536964980545,
+          "mean_psr": 0.48333333333333334,
+          "min_effective_rate_bps": 714.2412451361868,
+          "nfft": 2048,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "cz_refinement",
+          "ber": 0.17424325309992705,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.42417168837499997,
+          "mean_effective_rate_bps": 61.34228187919463,
+          "mean_psr": 0.016666666666666666,
+          "min_effective_rate_bps": 0.0,
+          "nfft": 1024,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "joint_cwz",
+          "ber": 0.17424325309992705,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 64,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.34572024852499994,
+          "mean_effective_rate_bps": 61.34228187919463,
+          "mean_psr": 0.016666666666666666,
+          "min_effective_rate_bps": 0.0,
+          "nfft": 1024,
+          "outer_spacing": 5
+        }
+      ],
+      "winner": {
+        "algorithm_id": "ofdm_fec",
+        "ber": 0.0053359773887673234,
+        "check_degree": 8,
+        "code_rate": 0.5,
+        "confirmation_seeds": [
+          6,
+          7
+        ],
+        "cp": 16,
+        "horizon": 0,
+        "inner_spacing": 10,
+        "mean_decode_seconds": 0.04032457166666668,
+        "mean_effective_rate_bps": 3119.4539249146756,
+        "mean_psr": 0.8333333333333334,
+        "min_effective_rate_bps": 2994.6757679180887,
+        "nfft": 512,
+        "outer_spacing": 5
+      }
+    },
+    {
+      "channel": "red4",
+      "hydrophone": 1,
+      "label": "red4 hydrophone 1",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "algorithm_id": "ofdm_fec",
+          "ber": 0.0013584974471188914,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.08973749580833335,
+          "mean_effective_rate_bps": 3618.566552901024,
+          "mean_psr": 0.9666666666666666,
+          "min_effective_rate_bps": 3556.1774744027302,
+          "nfft": 512,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "lite",
+          "ber": 0.12168809263311452,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.1948440181666667,
+          "mean_effective_rate_bps": 566.3339070567986,
+          "mean_psr": 0.15,
+          "min_effective_rate_bps": 566.3339070567986,
+          "nfft": 1024,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "pfft",
+          "ber": 0.00015120392559625698,
+          "check_degree": 10,
+          "code_rate": 0.25,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 32,
+          "horizon": 4,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.1321633890416667,
+          "mean_effective_rate_bps": 1637.416237113402,
+          "mean_psr": 0.725,
+          "min_effective_rate_bps": 1505.6701030927836,
+          "nfft": 2048,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "cz_refinement",
+          "ber": 0.12168809263311452,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.8944985361750001,
+          "mean_effective_rate_bps": 566.3339070567986,
+          "mean_psr": 0.15,
+          "min_effective_rate_bps": 566.3339070567986,
+          "nfft": 1024,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "joint_cwz",
+          "ber": 0.12168809263311452,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.7478263305666668,
+          "mean_effective_rate_bps": 566.3339070567986,
+          "mean_psr": 0.15,
+          "min_effective_rate_bps": 566.3339070567986,
+          "nfft": 1024,
+          "outer_spacing": 5
+        }
+      ],
+      "winner": {
+        "algorithm_id": "ofdm_fec",
+        "ber": 0.0013584974471188914,
+        "check_degree": 10,
+        "code_rate": 0.5,
+        "confirmation_seeds": [
+          6,
+          7
+        ],
+        "cp": 16,
+        "horizon": 0,
+        "inner_spacing": 10,
+        "mean_decode_seconds": 0.08973749580833335,
+        "mean_effective_rate_bps": 3618.566552901024,
+        "mean_psr": 0.9666666666666666,
+        "min_effective_rate_bps": 3556.1774744027302,
+        "nfft": 512,
+        "outer_spacing": 5
+      }
+    },
+    {
+      "channel": "red4",
+      "hydrophone": 2,
+      "label": "red4 hydrophone 2",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "algorithm_id": "ofdm_fec",
+          "ber": 0.00837208242159008,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 0,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.0895728121,
+          "mean_effective_rate_bps": 3173.6111111111113,
+          "mean_psr": 0.8333333333333334,
+          "min_effective_rate_bps": 3046.6666666666665,
+          "nfft": 512,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "lite",
+          "ber": 0.11894602479941649,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.21784412125000002,
+          "mean_effective_rate_bps": 629.2598967297763,
+          "mean_psr": 0.16666666666666669,
+          "min_effective_rate_bps": 503.407917383821,
+          "nfft": 1024,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "pfft",
+          "ber": 0.0001798330122029544,
+          "check_degree": 10,
+          "code_rate": 0.25,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 4,
+          "inner_spacing": 5,
+          "mean_decode_seconds": 0.13020687990000002,
+          "mean_effective_rate_bps": 1378.1735751295337,
+          "mean_psr": 0.6833333333333333,
+          "min_effective_rate_bps": 1344.5595854922278,
+          "nfft": 2048,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "cz_refinement",
+          "ber": 0.11857221006564551,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.9173756286583334,
+          "mean_effective_rate_bps": 660.722891566265,
+          "mean_psr": 0.175,
+          "min_effective_rate_bps": 566.3339070567986,
+          "nfft": 1024,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "joint_cwz",
+          "ber": 0.11857221006564551,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.773236731325,
+          "mean_effective_rate_bps": 660.722891566265,
+          "mean_psr": 0.175,
+          "min_effective_rate_bps": 566.3339070567986,
+          "nfft": 1024,
+          "outer_spacing": 5
+        }
+      ],
+      "winner": {
+        "algorithm_id": "ofdm_fec",
+        "ber": 0.00837208242159008,
+        "check_degree": 10,
+        "code_rate": 0.5,
+        "confirmation_seeds": [
+          6,
+          7
+        ],
+        "cp": 0,
+        "horizon": 0,
+        "inner_spacing": 10,
+        "mean_decode_seconds": 0.0895728121,
+        "mean_effective_rate_bps": 3173.6111111111113,
+        "mean_psr": 0.8333333333333334,
+        "min_effective_rate_bps": 3046.6666666666665,
+        "nfft": 512,
+        "outer_spacing": 5
+      }
+    },
+    {
+      "channel": "red4",
+      "hydrophone": 3,
+      "label": "red4 hydrophone 3",
+      "rate_tie_ids": [
+        "ofdm_fec"
+      ],
+      "receiver_results": [
+        {
+          "algorithm_id": "ofdm_fec",
+          "ber": 0.0017824580598103574,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.0603631323,
+          "mean_effective_rate_bps": 3587.372013651877,
+          "mean_psr": 0.9583333333333333,
+          "min_effective_rate_bps": 3493.7883959044366,
+          "nfft": 512,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "lite",
+          "ber": 0.1068494711889132,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.08254811032500002,
+          "mean_effective_rate_bps": 1038.2788296041308,
+          "mean_psr": 0.275,
+          "min_effective_rate_bps": 1006.815834767642,
+          "nfft": 1024,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "pfft",
+          "ber": 0.10048499372361064,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 128,
+          "horizon": 2,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.03445945815,
+          "mean_effective_rate_bps": 1106.439393939394,
+          "mean_psr": 0.3333333333333333,
+          "min_effective_rate_bps": 1051.1174242424242,
+          "nfft": 2048,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "cz_refinement",
+          "ber": 0.1068494711889132,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.3454997109583333,
+          "mean_effective_rate_bps": 1038.2788296041308,
+          "mean_psr": 0.275,
+          "min_effective_rate_bps": 1006.815834767642,
+          "nfft": 1024,
+          "outer_spacing": 5
+        },
+        {
+          "algorithm_id": "joint_cwz",
+          "ber": 0.10622948577680526,
+          "check_degree": 10,
+          "code_rate": 0.5,
+          "confirmation_seeds": [
+            6,
+            7
+          ],
+          "cp": 16,
+          "horizon": 0,
+          "inner_spacing": 10,
+          "mean_decode_seconds": 0.29711411416666667,
+          "mean_effective_rate_bps": 1069.7418244406197,
+          "mean_psr": 0.2833333333333333,
+          "min_effective_rate_bps": 1069.7418244406197,
+          "nfft": 1024,
+          "outer_spacing": 5
+        }
+      ],
+      "winner": {
+        "algorithm_id": "ofdm_fec",
+        "ber": 0.0017824580598103574,
+        "check_degree": 10,
+        "code_rate": 0.5,
+        "confirmation_seeds": [
+          6,
+          7
+        ],
+        "cp": 16,
+        "horizon": 0,
+        "inner_spacing": 10,
+        "mean_decode_seconds": 0.0603631323,
+        "mean_effective_rate_bps": 3587.372013651877,
+        "mean_psr": 0.9583333333333333,
+        "min_effective_rate_bps": 3493.7883959044366,
+        "nfft": 512,
+        "outer_spacing": 5
+      }
+    }
+  ],
+  "provenance": {
+    "historical_run": {
+      "audit_observed_source_states": {
+        "historical_package_worktree_commit": "58c9f6174239e96ba564e5fb0d829a1e71621324",
+        "primary_harness_checkout_commit": "8a24c76d7bfe04e73c545383e4ebde38943eabf1",
+        "qualification": "observed_during_this_audit_not_recorded_by_historical_run"
+      },
+      "harness_path_at_run": "/home/gabiel/Documents/GitHub/Juna/JunaCore/experiments/2026-08-01-red-lite-search/benchmark_port.jl",
+      "harness_sha256": "38f9823ca6bb82f9767055f285f7fb9e2e88ba9728ac5d9b7dca94c78bd0a99a",
+      "package_path_recorded_by_manifest": "/home/gabiel/Documents/GitHub/Juna-worktrees/profiled-cz-restore/JunaCore",
+      "recovered_comparison_sha256": "611ca2e2a3da8edcfe8f00cdec15df5abf34b28d338759faa349db75de9fbdbe",
+      "recovered_csv_sha256": "a4667812072ece9e96f9c61c8e46bbaa1619ecbc87b5a183d777eb52b6526298",
+      "recovered_directory": "/tmp/claude-1000/-home-gabiel-Documents-GitHub-Juna/67752847-7409-4388-a475-bff4d7d7269c/scratchpad/cz-run",
+      "recovered_log_sha256": "432bed7ff13944f34b4931e3988971db3e635227c1f52120c794ba507c3b0588",
+      "recovered_manifest_sha256": "c4db1c3eb887f79d29a08c6a3ed1050117864c38b466c7d273115facdd54e943",
+      "recovered_runner_sha256": "bfca090dc53b67d91b7f35929b01727fc70e6866102e406e89d8478669f3fbdb",
+      "replay_harness_path_at_run": "/home/gabiel/Documents/GitHub/Juna/JunaCore/experiments/2026-08-01-red-lite-search/replay_lane.jl",
+      "replay_harness_sha256": "e4e00b84e96abc863c42d76a8494c3cefc9d81cf3dbb2354be08ceba3cfae6f3"
+    },
+    "limitations": {
+      "joint_cwz_step_counter_scope": "step_call",
+      "joint_cwz_step_scales_retained": false,
+      "joint_cwz_trial_rejections_retained": false,
+      "maximum_trials_per_step_call": 7,
+      "per_frame_workload_digests_retained": false,
+      "source_commit_recorded": false
+    },
+    "manifest_path": "cz_refinement_confirmation/confirmation_manifest.json",
+    "manifest_sha256": "55e52f5a3a7fb68722e37ec514ecf293a550e75081f92d7b381d618d2953d309"
+  },
+  "ranking_tuple": [
+    "mean_effective_rate_bps",
+    "lower_pooled_ber",
+    "lower_mean_decode_seconds"
+  ],
+  "schema_version": 2,
+  "wins": {
+    "cz_refinement": 0,
+    "joint_cwz": 2,
+    "lite": 1,
+    "ofdm_fec": 9,
+    "pfft": 0
+  }
+}

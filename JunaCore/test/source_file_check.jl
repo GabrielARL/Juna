@@ -17,23 +17,23 @@ const PROV_PINNED = [
     ("src/Modulations.jl",
      "6561e6bb79886fdc2f4397c592a3e3a96291e4cfca72ffb4b3af3f40e6a2d6ee"),
     ("src/LDPC.jl",
-     "32d4c087c6b4fb93b40acbeb5e17eee2b47f88e709dfc8bb65cbb5039614f6b9"),
-    ("src/JunaCore.jl",   # diverged: Profiled C,z public facades
-     "8ec319b99474a8626bcfd7834190e4c92c99045279ac0b8ccdc6e53abf3735b3"),
-    ("src/Juna.jl",   # diverged: Profiled C,z implementation closure
-     "45634f3933f9fff511dde63f4990c52372430a4c51d244325fed72f5472434b0"),
+     "908f581f44ce0c96cc72e5816387850ad4ce9c54fb64c4f13d27bfe6245e6933"),
+    ("src/JunaCore.jl",   # diverged: C,z refinement public facades
+     "912a1e01aa26191d345df6d45ea9a9044c304c7f1ea1c7d8d5a3966d829d91a1"),
+    ("src/Juna.jl",   # diverged: C,z refinement implementation closure
+     "8fc3008c91c1c5e04388f50d0c790f6e9ed227567fb0dfd85fe4568e34176c7f"),
     ("src/juna/common.jl",   # approved receiver catalog, feedback, compatibility, and terminology
-     "b43a5e3810e41212bb2daf8234935692b821c3e73200350fda643b3f9f4ff285"),
+     "de895ec895011252bcbc51aae5f8e3d8002b4f7e03dc296e315f85fc596d522e"),
     ("src/juna/frame_wide_ldpc.jl",   # approved receiver catalog and feedback validation
-     "057b68b49d7a34fb912cc0c1fff9a148997fcc88bebca4c2ec552d25633b41e2"),
+     "e6884e65d4e2e372591c4fb9593e70f751f64f154866da7be183552b1ee9ab4e"),
     ("src/juna/lite.jl",
-     "bd16396b93a571ea08360f0972feec937d50bd43867821b488eba498a09f8b2c"),
-    ("src/juna/full.jl",   # restored Profiled C,z dependency
-     "b00886626f375c9fdd339072e13b62ac21bb17572a553ff9ad51b893ddcbc732"),
-    ("src/juna/coupled.jl",   # restored Profiled C,z dependency
-     "1ffc47c3772872d10a2f8147104bd070996204dc19285f029ae640e4ab4e0b81"),
-    ("src/juna/profiled_cz_frame.jl",   # approved Profiled C,z family
-     "aa893f68f2f53fa2b9626a9cfe7b2ce32f8d1271e63c8232c4afdb08fc4c94ff"),
+     "964913dbb263281814ad45ed8bebfbe1ef724a4eef95f7eaf9233157b2f68fc7"),
+    ("src/juna/full.jl",   # restored C,z refinement dependency
+     "57f6e7082c7da1552be16014219ea93386d26d3b69d4c583cee945fa8bc3360b"),
+    ("src/juna/coupled.jl",   # restored C,z refinement dependency
+     "8f1cb9d73154ba64f3da4a5b0be6a8aff3c69e3b60f750e61986c484d23733e8"),
+    ("src/juna/cz_refinement.jl",   # approved C,z refinement family
+     "55d4ca07c9d72df659d75c3606e47e9ed242cd9adaa465034d49592911f6da30"),
     ("tools/ldpc/make-ldpc",
      "fa8b613a7297977858bdeaf44cc9c3fa9f49d90ed7c294b23330b36041716a23"),
     ("tools/ldpc/make-gen",

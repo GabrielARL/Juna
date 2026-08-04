@@ -14,12 +14,13 @@
 #                                  receiver, not a drifted configuration. Known
 #                                  divergence: the paper string carries dc4 (sparsity
 #                                  setting d_cfg=4); the package pins
-#                                  ldpc_npc=3, the make-ldpc per-column check count —
+#                                  ldpc_checks_per_column=3, the make-ldpc
+#                                  per-column check count —
 #                                  a related but differently parameterized setting.
 #   tab:hyperparams                4 Partial-FFT temporal views (partial_fft_parts = 4).
 #
 # :coupled and :full remain internal implementation profiles used by the
-# Profiled C,z receiver and numerical audits. :robust is a legacy alias for
+# C,z refinement receiver and numerical audits. :robust is a legacy alias for
 # :full. Their optimizer configuration is part of the restored closure.
 #
 # If this fails: experiments could silently run the wrong receiver or a non-paper
@@ -42,10 +43,10 @@ const RECEIVER_CONFIG_FS = 24_000.0
     lite = ReceiverConfigJuna.LiteModulation(mode = :full)
     full = ReceiverConfigJuna.FullModulation(mode = :lite)
     coupled = ReceiverConfigJuna.CoupledModulation(mode = :lite)
-    profiled_cz = ReceiverConfigJuna.ProfiledCzFrameModulation()
-    crc_profiled_cz = ReceiverConfigJuna.CrcProfiledCzFrameModulation()
-    conditioned_cwz =
-        ReceiverConfigJuna.CrcConditionedJointCwzFrameModulation()
+    cz_refinement = ReceiverConfigJuna.CzRefinementModulation()
+    crc_cz_refinement = ReceiverConfigJuna.CrcCzRefinementModulation()
+    joint_cwz =
+        ReceiverConfigJuna.CrcJointCwzModulation()
     legacy = ReceiverConfigJuna.Modulation(mode = :robust)
 
     @testset "constructors force their public or internal implementation profile" begin
@@ -58,15 +59,15 @@ const RECEIVER_CONFIG_FS = 24_000.0
         @test JunaCore.JunaLite.Modulation(mode = :full).mode === :lite
         @test JunaCore.Juna.FullModulation(mode = :lite).mode === :full
         @test JunaCore.Juna.CoupledModulation(mode = :lite).mode === :coupled
-        @test profiled_cz.frame_receiver === :profiled_cz
-        @test crc_profiled_cz.mode === :crc_profiled_cz_frame
-        @test crc_profiled_cz.frame_crc_bits == 16
-        @test conditioned_cwz.cz_conditioned_joint
-        @test JunaCore.JunaProfiledCzFrame.Modulation().frame_receiver ===
-              :profiled_cz
-        @test JunaCore.JunaCrcProfiledCzFrame.Modulation().frame_crc_bits == 16
-        @test JunaCore.JunaCrcConditionedJointCwzFrame.Modulation().
-              cz_conditioned_joint
+        @test cz_refinement.frame_receiver === :cz_refinement
+        @test crc_cz_refinement.mode === :crc_cz_refinement
+        @test crc_cz_refinement.frame_crc_bits == 16
+        @test joint_cwz.joint_cwz_enabled
+        @test JunaCore.JunaCzRefinement.Modulation().frame_receiver ===
+              :cz_refinement
+        @test JunaCore.JunaCrcCzRefinement.Modulation().frame_crc_bits == 16
+        @test JunaCore.JunaCrcJointCwz.Modulation().
+              joint_cwz_enabled
     end
 
     @testset "receiver_profile distinguishes public and internal solver profiles" begin
@@ -79,9 +80,9 @@ const RECEIVER_CONFIG_FS = 24_000.0
         @test ReceiverConfigJuna.receiver_profile(full) === :full
         @test ReceiverConfigJuna.receiver_profile(legacy) === :full
         @test ReceiverConfigJuna.receiver_profile(coupled) === :coupled
-        @test ReceiverConfigJuna.receiver_profile(profiled_cz) ===
+        @test ReceiverConfigJuna.receiver_profile(cz_refinement) ===
               :frame_wide_ldpc
-        @test ReceiverConfigJuna.receiver_profile(crc_profiled_cz) ===
+        @test ReceiverConfigJuna.receiver_profile(crc_cz_refinement) ===
               :frame_wide_ldpc
     end
 
@@ -91,19 +92,21 @@ const RECEIVER_CONFIG_FS = 24_000.0
         @test isvalid(full, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
         @test isvalid(coupled, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
         @test isvalid(legacy, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
-        @test isvalid(profiled_cz, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
-        @test isvalid(crc_profiled_cz, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
-        @test isvalid(conditioned_cwz, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
+        @test isvalid(cz_refinement, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
+        @test isvalid(crc_cz_refinement, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
+        @test isvalid(joint_cwz, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
         @test !isvalid(ReceiverConfigJuna.Modulation(mode = :unknown),
                        RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
         @test !isvalid(ReceiverConfigJuna.CoupledModulation(
-                           bpc = 1, ldpc_k = 170, ldpc_n = 680,
+                           bits_per_data_carrier = 1,
+                           ldpc_k = 170, ldpc_n = 680,
                        ), RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
     end
 
     @testset "every accepted receiver setting executes and unavailable settings are rejected" begin
         compact = (
-            nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+            fft_length=64, cyclic_prefix_length=16,
+            ldpc_k=20, ldpc_n=40, ldpc_checks_per_column=2,
             partial_fft_parts=2, partial_fft_nbands=2,
             pilot_ratio=1 / 3, inner_pilot_ratio=0.0,
             refinement_steps=0,
@@ -177,21 +180,21 @@ const RECEIVER_CONFIG_FS = 24_000.0
 
     # Poison every geometry field and all caches, then check init() restores the
     # paper benchmark geometry exactly, clears the caches, and preserves only the
-    # operator's choices: mode and sync.
+    # operator's choices: mode and synchronization.
     @testset "init() resets to the paper geometry and keeps mode and synchronization" begin
         configured = ReceiverConfigJuna.Modulation(
             mode = :full,
-            sync = true,
-            nc = UInt16(64),
-            np = UInt16(16),
-            bpc = 1,
-            bw = 0.5,
-            dc0 = Int16(1),
+            synchronization_enabled = true,
+            fft_length = UInt16(64),
+            cyclic_prefix_length = UInt16(16),
+            bits_per_data_carrier = 1,
+            occupied_bandwidth_fraction = 0.5,
+            rf_center_offset_khz = Int16(1),
             pilot_ratio = 0.9,
             inner_pilot_ratio = 0.9,
             ldpc_k = 10,
             ldpc_n = 20,
-            ldpc_npc = 7,
+            ldpc_checks_per_column = 7,
             partial_fft_parts = 9,
             partial_fft_nbands = 9,
         )
@@ -202,18 +205,18 @@ const RECEIVER_CONFIG_FS = 24_000.0
         @test ReceiverConfigModulations.init(configured, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS) === nothing
 
         @test configured.mode === :full              # operator choice preserved
-        @test configured.sync === true               # operator choice preserved
+        @test configured.synchronization_enabled === true # operator choice preserved
 
-        @test configured.nc == UInt16(1024)          # N = 1024
-        @test configured.np == UInt16(256)           # CP length = 256
-        @test configured.bpc == 2                    # QPSK
-        @test configured.bw == 1.0
-        @test configured.dc0 == Int16(0)
+        @test configured.fft_length == UInt16(1024)  # N = 1024
+        @test configured.cyclic_prefix_length == UInt16(256) # CP length = 256
+        @test configured.bits_per_data_carrier == 2  # QPSK
+        @test configured.occupied_bandwidth_fraction == 1.0
+        @test configured.rf_center_offset_khz == Int16(0)
         @test configured.pilot_ratio == 1 / 3        # outer pilot every 3rd active carrier (p3)
         @test configured.inner_pilot_ratio == 1 / 2  # inner pilot every 2nd message bit (ip2)
         @test configured.ldpc_k == 340               # rate 340/1360 = 0.25   (r0p25)
         @test configured.ldpc_n == 1360
-        @test configured.ldpc_npc == 3               # package setting; paper string says dc4 (see header)
+        @test configured.ldpc_checks_per_column == 3 # package setting; paper string says dc4 (see header)
         @test configured.partial_fft_parts == 4      # 4 Partial-FFT views
         @test configured.partial_fft_nbands == 16    # package-default ridge bands
 
@@ -226,8 +229,8 @@ const RECEIVER_CONFIG_FS = 24_000.0
     @testset "init derives channel centre offset and fixed-reference bandwidth" begin
         red = ReceiverConfigJuna.LiteModulation()
         @test ReceiverConfigModulations.init(red, 25_000.0, 9_600.0) === nothing
-        @test red.dc0 == Int16(1)
-        @test red.bw == 0.4
+        @test red.rf_center_offset_khz == Int16(1)
+        @test red.occupied_bandwidth_fraction == 0.4
         @test ReceiverConfigJuna._rf_center_hz(red) == 25_000.0
         @test ReceiverConfigJuna._occupied_bandwidth_hz(red) == 9_600.0
         @test ReceiverConfigJuna._rf_band_edges(red) == (20_200.0, 29_800.0)

@@ -2,65 +2,65 @@
 # n1024_cp256_sym1_p3_r0p25_dc4_sig1_ip2: QPSK, pilot every 3 active carriers,
 # LDPC rate 0.25, inner pilots every 2 message positions.
 Base.@kwdef mutable struct Modulation <: Modulations.Modulation
-  nc::UInt16 = 1024
-  np::UInt16 = 256
-  bw::Float64 = 1.0                    # occupied bandwidth as a fraction of the 24 kHz reference width
-  dc0::Int16 = 0                       # RF-centre offset from the 24 kHz reference, in kHz
-  bpc::Int = 2                       # bits per data carrier: 1=BPSK, 2=QPSK
+  fft_length::UInt16 = 1024
+  cyclic_prefix_length::UInt16 = 256
+  occupied_bandwidth_fraction::Float64 = 1.0 # fraction of the 24 kHz reference width
+  rf_center_offset_khz::Int16 = 0       # RF-centre offset from the 24 kHz reference, in kHz
+  bits_per_data_carrier::Int = 2        # 1=BPSK, 2=QPSK
   pilot_ratio::Float64 = 1/3         # outer comb-pilot density (fraction of active carriers); snapped to the nearest 1/k spacing
   inner_pilot_ratio::Float64 = 1/2   # inner-pilot density among message bits (0 = off); snapped to the nearest 1/k spacing
-  sync::Bool = false                 # enable the LFM sync/acquisition wrapping
+  synchronization_enabled::Bool = false # enable the LFM synchronization/acquisition wrapping
   frame_duration_s::Float64 = 1.0     # maximum complete frame duration, including synchronization
   ldpc_k::Int = 340
   ldpc_n::Int = 1360
-  ldpc_npc::Int = 3                  # dc: per-column check count passed to make-ldpc
+  ldpc_checks_per_column::Int = 3     # per-column check count passed to make-ldpc
   ldpc_method::Symbol = :auto        # :auto preserves profile default; or :evencol/:evenboth
   ldpc_seed::Int = 51_001            # code seed for explicit ldpc_method builds and the frame code
-  ldpc_no4cycle::Bool = true         # request make-ldpc's length-4-cycle elimination
+  ldpc_eliminate_length_4_cycles::Bool = true # request make-ldpc's length-4-cycle elimination
   partial_fft_parts::Int = 4
   partial_fft_nbands::Int = 16
   mode::Symbol = :lite               # receiver: canonical modes plus the legacy :standard and :robust aliases
   frame_receiver::Symbol = :stateful_lite # frame-wide FEC receiver; preserves the original stateful receiver by default
   frame_crc_bits::Int = 0            # 0=legacy framing; 16=one external CRC-16/CCITT over the complete frame payload
-  frame_code_horizon::Int = 0        # 0=one graph over all blocks; h>0=disconnected h-block graph components
-  cz_crc_gate::Bool = true           # when CRC is present, require a certified rescue before replacing Lite
-  cz_gate_selection_only::Bool = false # opt-in experiment contract: gate selects after an otherwise identical trajectory
+  frame_code_component_block_count::Int = 0 # 0=one graph over all blocks; positive values form disconnected components
+  cz_require_crc_for_replacement::Bool = true # require a certified rescue before replacing Lite when CRC is present
+  cz_crc_gate_at_selection_only::Bool = false # apply the CRC gate after an otherwise identical trajectory
   cz_restarts::Int = 1               # constrained C,z trajectories; 1 preserves deployed behavior
   cz_restart_seed::Int = 17_071      # deterministic perturbation seed for diagnostic restart lists
   cz_parity_weight::Float64 = 0.08   # soft parity-product coefficient for C,z ablations
-  cz_em_enabled::Bool = false         # use posterior second moments in the profiled C update
-  cz_em_trust::Float64 = 0.05         # trust-region weight toward the pilot/unknown-energy C bootstrap
-  cz_em_damping::Float64 = 0.5        # accepted fraction of each posterior-moment C solve
-  cz_independent_w::Bool = false       # refit W from reliable BP pseudo-pilots instead of deriving it from C
-  cz_bp_feedback::Float64 = 0.0        # BP-posterior blend into z between turbo iterations
-  cz_feedback_source::Symbol = :legacy # :legacy preserves deployed path; the feedback comparison uses :frozen/:real/:genie
-  cz_vp_gradient::Bool = false         # variable-projection z-gradient: expected-variance objective + undamped C/W at the gradient point
-  cz_conditioned_joint::Bool = false   # simultaneous hand-gradient C,W,z proposals with pilot/trust gating
-  cz_joint_c_radius::Float64 = 0.05    # maximum relative C displacement per accepted joint step
-  cz_joint_w_radius::Float64 = 0.01    # maximum relative W displacement per accepted joint step
-  cz_joint_z_radius::Float64 = 0.5     # maximum absolute logit displacement per accepted joint step
-  cz_joint_w_start::Int = 2            # first turbo iteration allowed to move W away from its pilot anchor
-  cz_joint_pilot_tolerance::Float64 = 0.01 # allowed relative known-pilot loss increase
-  cz_temporal_c_smoothness::Float64 = 0.0 # adjacent-symbol C smoothness; zero preserves the deployed receiver
+  cz_posterior_moment_update_enabled::Bool = false # use posterior second moments in the C update
+  cz_response_anchor_weight::Float64 = 0.05 # weight toward the pilot/unknown-energy C bootstrap
+  cz_response_update_fraction::Float64 = 0.5 # accepted fraction of each posterior-moment C update
+  cz_refit_w_from_decoder_posteriors::Bool = false # refit W from reliable decoder posteriors instead of deriving it from C
+  cz_decoder_posterior_weight::Float64 = 0.0 # decoder-posterior blend into z between iterations
+  cz_feedback_source::Symbol = :decoder_posterior
+  cz_variable_projection_gradient::Bool = false # expected-variance objective with C/W updated at the gradient point
+  joint_cwz_enabled::Bool = false       # simultaneous analytical gradient C,W,z proposals with pilot/trust gating
+  joint_cwz_c_radius::Float64 = 0.05    # maximum relative C displacement per accepted joint step
+  joint_cwz_w_radius::Float64 = 0.01    # maximum relative W displacement per accepted joint step
+  joint_cwz_z_radius::Float64 = 0.5     # maximum absolute logit displacement per accepted joint step
+  joint_cwz_first_w_iteration::Int = 2   # first iteration allowed to move W away from its pilot anchor
+  joint_cwz_pilot_tolerance::Float64 = 0.01 # allowed relative known-pilot loss increase
+  cz_temporal_c_penalty_weight::Float64 = 0.0 # adjacent-symbol C penalty; zero preserves the deployed receiver
   refinement_steps::Int = -1         # -1 uses the receiver default; nonnegative values are explicit solver ablations
-  # Mechanism-experiment arms for decoder feedback into channel estimation.
-  # :real   deployed behaviour -- posterior soft symbols anchor the re-fit
-  # :frozen full coupled machinery, but data decisions never anchor the re-fit
-  # :genie  transmitted symbols anchor the re-fit
-  # :graded uses transmitted symbols corrupted by the experiment harness
-  # Only :real is a deployable receiver; the others exist to separate the
+  # Information sources for decoder feedback into channel estimation.
+  # :decoder_posterior uses posterior soft symbols to anchor the refit.
+  # :pilots_only runs the complete calculation without data anchors.
+  # :transmitted_symbols uses transmitted symbols as anchors.
+  # :corrupted_transmitted_symbols uses symbols corrupted by the experiment harness.
+  # Only :decoder_posterior is a deployable receiver; the others separate the
   # information recovered from feedback from the cost of feeding back errors.
-  feedback_mode::Symbol = :real
+  anchor_feedback_source::Symbol = :decoder_posterior
   code::Any = nothing
   layout::Any = nothing
   bp_scratch::Any = nothing
   profiled_gradient_trace::Any = nothing
-  cz_gradient_trace::Any = nothing
-  # Ground truth for the Lite :genie/:graded arms and the C,z :genie arm,
+  cz_refinement_trace::Any = nothing
+  # Transmitted symbols for the corresponding experiment settings,
   # attached per frame by the experiment harness. Deployed receivers leave this
   # nothing and never read it; a missing oracle grid is a hard error rather than
-  # a silent fallback to :real, so a mis-wired arm cannot masquerade as a result.
-  genie_symbols::Any = nothing
+  # a silent fallback to decoder posteriors, so a mis-wired setting cannot masquerade as a result.
+  transmitted_symbols::Any = nothing
 end
 
 const _MODE_OFDM_FEC = :ofdm_fec
@@ -71,16 +71,16 @@ const _MODE_LITE = :lite
 const _MODE_FULL = :full
 const _MODE_COUPLED = :coupled
 const _MODE_PROFILED_GRADIENT = :profiled_gradient
-const _MODE_PROFILED_CZ = :profiled_cz
+const _MODE_CZ_REFINEMENT = :cz_refinement
 const _MODE_FRAME_WIDE_LDPC = :frame_wide_ldpc
-const _MODE_CRC_PROFILED_CZ_FRAME = :crc_profiled_cz_frame
+const _MODE_CRC_CZ_REFINEMENT = :crc_cz_refinement
 const _MODE_ROBUST = :robust
 const _REFERENCE_CENTER_HZ = 24_000.0
 const _REFERENCE_BANDWIDTH_HZ = 24_000.0
 const _FRAME_RECEIVER_PROFILES =
   (_MODE_OFDM_FEC, _MODE_PFFT, _MODE_LITE,
    _MODE_FULL, _MODE_COUPLED,
-   _MODE_PROFILED_GRADIENT, _MODE_PROFILED_CZ,
+   _MODE_PROFILED_GRADIENT, _MODE_CZ_REFINEMENT,
    :stateful_lite)
 const _RECEIVER_PROFILES =
   (_MODE_OFDM_FEC, _MODE_PFFT, _MODE_LITE,
@@ -92,7 +92,7 @@ const _PUBLIC_RECEIVER_MODES =
 receiver_profile(mode::Symbol) =
   mode === :standard ? _MODE_OFDM_FEC :
   mode === _MODE_ROBUST ? _MODE_FULL :
-  mode === _MODE_CRC_PROFILED_CZ_FRAME ?
+  mode === _MODE_CRC_CZ_REFINEMENT ?
     _MODE_FRAME_WIDE_LDPC : mode
 receiver_profile(m::Modulation) = receiver_profile(m.mode)
 
@@ -107,8 +107,8 @@ function Modulations.refinement_objective(m::Modulation)
   profile === _MODE_FULL && return :reduced_wz
   profile === _MODE_COUPLED && return :coupled_cwz
   profile === _MODE_FRAME_WIDE_LDPC &&
-    m.frame_receiver === _MODE_PROFILED_CZ &&
-    return :profiled_cz_frame
+    m.frame_receiver === _MODE_CZ_REFINEMENT &&
+    return :cz_refinement
   profile === _MODE_FRAME_WIDE_LDPC && return :frame_wide_ldpc
   :none
 end
@@ -128,96 +128,98 @@ CoupledModulation(; kwargs...) =
   Modulation(; (; kwargs..., mode = _MODE_COUPLED)...)
 FrameWideLDPCModulation(; kwargs...) =
   Modulation(; (; kwargs..., mode = _MODE_FRAME_WIDE_LDPC)...)
-ProfiledCzFrameModulation(; kwargs...) =
+CzRefinementModulation(; kwargs...) =
   Modulation(; (; kwargs..., mode = _MODE_FRAME_WIDE_LDPC,
-                 frame_receiver = _MODE_PROFILED_CZ)...)
+                 frame_receiver = _MODE_CZ_REFINEMENT)...)
 
-function CrcProfiledCzFrameModulation(; kwargs...)
+function CrcCzRefinementModulation(; kwargs...)
   supplied = (; kwargs...)
   for (field, expected) in pairs((
-      mode=_MODE_CRC_PROFILED_CZ_FRAME,
-      frame_receiver=_MODE_PROFILED_CZ,
+      mode=_MODE_CRC_CZ_REFINEMENT,
+      frame_receiver=_MODE_CZ_REFINEMENT,
       frame_crc_bits=16,
   ))
     haskey(supplied, field) || continue
     supplied[field] == expected || throw(ArgumentError(
-      "CrcProfiledCzFrameModulation fixes $field=$expected"))
+      "CrcCzRefinementModulation fixes $field=$expected"))
   end
-  em_enabled = haskey(supplied, :cz_em_enabled) ?
-    supplied.cz_em_enabled : true
-  Modulation(; (; kwargs..., mode=_MODE_CRC_PROFILED_CZ_FRAME,
-                 frame_receiver=_MODE_PROFILED_CZ,
+  posterior_moment_update_enabled =
+    haskey(supplied, :cz_posterior_moment_update_enabled) ?
+      supplied.cz_posterior_moment_update_enabled : true
+  Modulation(; (; kwargs..., mode=_MODE_CRC_CZ_REFINEMENT,
+                 frame_receiver=_MODE_CZ_REFINEMENT,
                  frame_crc_bits=16,
-                 cz_em_enabled=em_enabled)...)
+                 cz_posterior_moment_update_enabled=
+                   posterior_moment_update_enabled)...)
 end
 
-function CrcTurboCwzFrameModulation(; kwargs...)
+function CrcTurboCwzModulation(; kwargs...)
   supplied = (; kwargs...)
   for (field, expected) in pairs((
-      mode=_MODE_CRC_PROFILED_CZ_FRAME,
-      frame_receiver=_MODE_PROFILED_CZ,
+      mode=_MODE_CRC_CZ_REFINEMENT,
+      frame_receiver=_MODE_CZ_REFINEMENT,
       frame_crc_bits=16,
   ))
     haskey(supplied, field) || continue
     supplied[field] == expected || throw(ArgumentError(
-      "CrcTurboCwzFrameModulation fixes $field=$expected"))
+      "CrcTurboCwzModulation fixes $field=$expected"))
   end
   Modulation(; (; kwargs...,
-                 mode=_MODE_CRC_PROFILED_CZ_FRAME,
-                 frame_receiver=_MODE_PROFILED_CZ,
+                 mode=_MODE_CRC_CZ_REFINEMENT,
+                 frame_receiver=_MODE_CZ_REFINEMENT,
                  frame_crc_bits=16,
-                 cz_em_enabled=true,
-                 cz_independent_w=true,
-                 cz_bp_feedback=0.5)...)
+                 cz_posterior_moment_update_enabled=true,
+                 cz_refit_w_from_decoder_posteriors=true,
+                 cz_decoder_posterior_weight=0.5)...)
 end
 
 """
-Construct the conditioned-C/W/z comparison control or treatment.
+Construct the joint C/W/z comparison control or treatment.
 
-Both arms share every receiver setting. `cz_conditioned_joint=false` disables
-only the simultaneous conditioned proposal; setting it to `true` enables that
-proposal. The legacy `CrcConditionedJointCwzFrameModulation` constructor below
-remains the treatment-only public spelling.
+Both arms share every receiver setting. `joint_cwz_enabled=false` disables only
+the simultaneous joint proposal; setting it to `true` enables that proposal.
+The `CrcJointCwzModulation` constructor below remains the treatment-only public
+spelling.
 """
-function CrcConditionedCwzFrameModulation(; kwargs...)
+function CrcJointCwzComparisonModulation(; kwargs...)
   supplied = (; kwargs...)
   for (field, expected) in pairs((
-      mode=_MODE_CRC_PROFILED_CZ_FRAME,
-      frame_receiver=_MODE_PROFILED_CZ,
+      mode=_MODE_CRC_CZ_REFINEMENT,
+      frame_receiver=_MODE_CZ_REFINEMENT,
       frame_crc_bits=16,
   ))
     haskey(supplied, field) || continue
     supplied[field] == expected || throw(ArgumentError(
-      "CrcConditionedCwzFrameModulation fixes $field=$expected"))
+      "CrcJointCwzComparisonModulation fixes $field=$expected"))
   end
-  conditioned = haskey(supplied, :cz_conditioned_joint) ?
-    supplied.cz_conditioned_joint : false
-  conditioned isa Bool || throw(ArgumentError(
-    "cz_conditioned_joint must be Boolean"))
-  Modulation(; (; cz_em_enabled=true,
-                 cz_independent_w=false,
-                 cz_bp_feedback=0.5,
-                 cz_vp_gradient=true,
+  joint_cwz_enabled = haskey(supplied, :joint_cwz_enabled) ?
+    supplied.joint_cwz_enabled : false
+  joint_cwz_enabled isa Bool || throw(ArgumentError(
+    "joint_cwz_enabled must be Boolean"))
+  Modulation(; (; cz_posterior_moment_update_enabled=true,
+                 cz_refit_w_from_decoder_posteriors=false,
+                 cz_decoder_posterior_weight=0.5,
+                 cz_variable_projection_gradient=true,
                  kwargs...,
-                 mode=_MODE_CRC_PROFILED_CZ_FRAME,
-                 frame_receiver=_MODE_PROFILED_CZ,
+                 mode=_MODE_CRC_CZ_REFINEMENT,
+                 frame_receiver=_MODE_CZ_REFINEMENT,
                  frame_crc_bits=16,
-                 cz_conditioned_joint=conditioned)...)
+                 joint_cwz_enabled)...)
 end
 
-function CrcConditionedJointCwzFrameModulation(; kwargs...)
+function CrcJointCwzModulation(; kwargs...)
   supplied = (; kwargs...)
-  haskey(supplied, :cz_conditioned_joint) &&
-    supplied.cz_conditioned_joint !== true &&
+  haskey(supplied, :joint_cwz_enabled) &&
+    supplied.joint_cwz_enabled !== true &&
     throw(ArgumentError(
-      "CrcConditionedJointCwzFrameModulation fixes cz_conditioned_joint=true"))
-  CrcConditionedCwzFrameModulation(
+      "CrcJointCwzModulation fixes joint_cwz_enabled=true"))
+  CrcJointCwzComparisonModulation(
     ; kwargs...,
-      cz_em_enabled=true,
-      cz_independent_w=false,
-      cz_bp_feedback=0.5,
-      cz_vp_gradient=true,
-      cz_conditioned_joint=true)
+      cz_posterior_moment_update_enabled=true,
+      cz_refit_w_from_decoder_posteriors=false,
+      cz_decoder_posterior_weight=0.5,
+      cz_variable_projection_gradient=true,
+      joint_cwz_enabled=true)
 end
 
 function _frame_receiver_profile(m::Modulation)
@@ -255,19 +257,25 @@ const _GRAD_CLIP = 100.0
 const _GRAD_BETA1 = 0.9
 const _GRAD_BETA2 = 0.999
 const _GRAD_EPS_ADAM = 1e-8
-const _SYNC_LEN = 2048                         # LFM sync samples front+back when sync=true (best estimation in a len×bw×SNR sweep)
+const _SYNC_LEN = 2048                         # LFM synchronization samples at both frame ends
 const _SYNC_BW = 0.9                           # chirp sweep as a fraction of the baseband band (sharp delay-Doppler peak)
 const _SYNC_PROFILE_LFM = :lfm
 
-const _FEEDBACK_REAL = :real
-const _FEEDBACK_FROZEN = :frozen
-const _FEEDBACK_GENIE = :genie
-const _FEEDBACK_GRADED = :graded
+const _FEEDBACK_DECODER_POSTERIOR = :decoder_posterior
+const _FEEDBACK_PILOTS_ONLY = :pilots_only
+const _FEEDBACK_TRANSMITTED_SYMBOLS = :transmitted_symbols
+const _FEEDBACK_CORRUPTED_TRANSMITTED_SYMBOLS =
+  :corrupted_transmitted_symbols
 const _FEEDBACK_MODES =
-  (_FEEDBACK_REAL, _FEEDBACK_FROZEN, _FEEDBACK_GENIE, _FEEDBACK_GRADED)
-# Arms that replace posterior decisions with (possibly corrupted) ground truth.
-const _FEEDBACK_ORACLE_MODES = (_FEEDBACK_GENIE, _FEEDBACK_GRADED)
-const _CZ_FEEDBACK_SOURCES = (:legacy, :frozen, :real, :genie)
+  (_FEEDBACK_DECODER_POSTERIOR, _FEEDBACK_PILOTS_ONLY,
+   _FEEDBACK_TRANSMITTED_SYMBOLS,
+   _FEEDBACK_CORRUPTED_TRANSMITTED_SYMBOLS)
+# Settings that replace posterior decisions with transmitted symbols.
+const _FEEDBACK_TRANSMITTED_SYMBOL_MODES =
+  (_FEEDBACK_TRANSMITTED_SYMBOLS,
+   _FEEDBACK_CORRUPTED_TRANSMITTED_SYMBOLS)
+const _CZ_FEEDBACK_SOURCES =
+  (:initial_logits, :decoder_posterior, :transmitted_symbols)
 const _LDPC_METHOD = "evencol"                 # make-ldpc construction
 const _PARTIAL_FFT_NBANDS = 16                 # frequency bands for the bandwise RLS combiner
 const _MAX_PARTIAL_FFT_PARTS = 16              # public complexity cap; band solves scale cubically in this count
@@ -309,22 +317,22 @@ struct _BPScratch
 end
 
 function Modulations.init(m::Modulation, fc, fs)
-  m.nc = 1024
-  m.np = 256
+  m.fft_length = 1024
+  m.cyclic_prefix_length = 256
   fs_value = try
     Float64(fs)
   catch
     NaN
   end
-  m.bw = isfinite(fs_value) && fs_value > 0 ?
+  m.occupied_bandwidth_fraction = isfinite(fs_value) && fs_value > 0 ?
     min(fs_value / _REFERENCE_BANDWIDTH_HZ, 1.0) : 1.0
-  m.dc0 = something(_dc0_for_fc(fc), Int16(0))
-  m.bpc = 2
+  m.rf_center_offset_khz = something(_dc0_for_fc(fc), Int16(0))
+  m.bits_per_data_carrier = 2
   m.pilot_ratio = 1/3
   m.inner_pilot_ratio = 1/2
   m.ldpc_k = 340
   m.ldpc_n = 1360
-  m.ldpc_npc = 3
+  m.ldpc_checks_per_column = 3
   m.partial_fft_parts = 4
   m.partial_fft_nbands = _PARTIAL_FFT_NBANDS
   # m.mode is left untouched so Modulation(mode=:robust) survives init()
@@ -333,14 +341,14 @@ function Modulations.init(m::Modulation, fc, fs)
   m.layout = nothing
   m.bp_scratch = nothing
   m.profiled_gradient_trace = nothing
-  m.cz_gradient_trace = nothing
+  m.cz_refinement_trace = nothing
   nothing
 end
 
-_bpc(m::Modulation) = Int(m.bpc)
-_dc0_hz(m::Modulation) = 1_000.0 * Int(m.dc0)
+_bpc(m::Modulation) = Int(m.bits_per_data_carrier)
+_dc0_hz(m::Modulation) = 1_000.0 * Int(m.rf_center_offset_khz)
 _rf_center_hz(m::Modulation) = _REFERENCE_CENTER_HZ + _dc0_hz(m)
-_occupied_bandwidth_hz(m::Modulation) = Float64(m.bw) * _REFERENCE_BANDWIDTH_HZ
+_occupied_bandwidth_hz(m::Modulation) = Float64(m.occupied_bandwidth_fraction) * _REFERENCE_BANDWIDTH_HZ
 
 function _rf_band_edges(m::Modulation)
   half_width = _occupied_bandwidth_hz(m) / 2
@@ -365,7 +373,7 @@ end
 
 _baseband_occupancy(m::Modulation, fs::Real) =
   _occupied_bandwidth_hz(m) / Float64(fs)
-_pm(b::Bool) = b ? -1.0 : 1.0    # bipolar map 1-2b: bit 0 -> +1, bit 1 -> -1
+_bit_to_bipolar(b::Bool) = b ? -1.0 : 1.0    # bipolar map 1-2b: bit 0 -> +1, bit 1 -> -1
 
 # Snap a pilot DENSITY ratio (fraction of positions that are pilots, e.g. 0.3) to the nearest
 # achievable 1/k spacing ("every k-th position"), k >= kmin. ratio <= 0 means "off" (0).
@@ -403,18 +411,18 @@ function Base.isvalid(m::Modulation, fc, fs)
   catch
     return false
   end
-  N = Int(m.nc)
-  L = Int(m.np)
+  N = Int(m.fft_length)
+  L = Int(m.cyclic_prefix_length)
   N > 2 && iseven(N) || return false
   0 <= L < N || return false
   _bpc(m) in (1, 2) || return false
-  0 < m.bw <= 1 && isfinite(m.bw) || return false
+  0 < m.occupied_bandwidth_fraction <= 1 && isfinite(m.occupied_bandwidth_fraction) || return false
   isapprox(Float64(fc), _rf_center_hz(m); rtol=0,
            atol=32eps(max(abs(Float64(fc)), _REFERENCE_CENTER_HZ))) || return false
   occupancy = _baseband_occupancy(m, Float64(fs))
   0 < occupancy <= 1 + 64eps(1.0) || return false
   0 < m.ldpc_k < m.ldpc_n || return false
-  0 < m.ldpc_npc <= m.ldpc_n - m.ldpc_k || return false
+  0 < m.ldpc_checks_per_column <= m.ldpc_n - m.ldpc_k || return false
   0 < m.partial_fft_parts <= min(N, _MAX_PARTIAL_FFT_PARTS) || return false
   0 < m.partial_fft_nbands <= N || return false
   profile = receiver_profile(m)
@@ -422,35 +430,35 @@ function Base.isvalid(m::Modulation, fc, fs)
   profile in (_MODE_FULL, _MODE_COUPLED) &&
     _bpc(m) != 2 && return false
   m.refinement_steps >= -1 || return false
-  m.feedback_mode in _FEEDBACK_MODES || return false
+  m.anchor_feedback_source in _FEEDBACK_MODES || return false
   if profile === _MODE_FRAME_WIDE_LDPC
     m.frame_crc_bits in (0, 16) || return false
-    m.frame_code_horizon >= 0 || return false
+    m.frame_code_component_block_count >= 0 || return false
     1 <= m.cz_restarts <= 5 || return false
     m.cz_restart_seed >= 0 || return false
     isfinite(m.cz_parity_weight) && m.cz_parity_weight >= 0.0 || return false
-    isfinite(m.cz_em_trust) && m.cz_em_trust >= 0.0 || return false
-    isfinite(m.cz_em_damping) &&
-      0.0 < m.cz_em_damping <= 1.0 || return false
-    isfinite(m.cz_bp_feedback) &&
-      0.0 <= m.cz_bp_feedback <= 1.0 || return false
+    isfinite(m.cz_response_anchor_weight) && m.cz_response_anchor_weight >= 0.0 || return false
+    isfinite(m.cz_response_update_fraction) &&
+      0.0 < m.cz_response_update_fraction <= 1.0 || return false
+    isfinite(m.cz_decoder_posterior_weight) &&
+      0.0 <= m.cz_decoder_posterior_weight <= 1.0 || return false
     m.cz_feedback_source in _CZ_FEEDBACK_SOURCES || return false
-    isfinite(m.cz_joint_c_radius) && m.cz_joint_c_radius > 0.0 ||
+    isfinite(m.joint_cwz_c_radius) && m.joint_cwz_c_radius > 0.0 ||
       return false
-    isfinite(m.cz_joint_w_radius) && m.cz_joint_w_radius > 0.0 ||
+    isfinite(m.joint_cwz_w_radius) && m.joint_cwz_w_radius > 0.0 ||
       return false
-    isfinite(m.cz_joint_z_radius) && m.cz_joint_z_radius > 0.0 ||
+    isfinite(m.joint_cwz_z_radius) && m.joint_cwz_z_radius > 0.0 ||
       return false
-    m.cz_joint_w_start >= 1 || return false
-    isfinite(m.cz_joint_pilot_tolerance) &&
-      m.cz_joint_pilot_tolerance >= 0.0 || return false
-    isfinite(m.cz_temporal_c_smoothness) &&
-      m.cz_temporal_c_smoothness >= 0.0 || return false
+    m.joint_cwz_first_w_iteration >= 1 || return false
+    isfinite(m.joint_cwz_pilot_tolerance) &&
+      m.joint_cwz_pilot_tolerance >= 0.0 || return false
+    isfinite(m.cz_temporal_c_penalty_weight) &&
+      m.cz_temporal_c_penalty_weight >= 0.0 || return false
     frame_profile = m.frame_receiver === :standard ?
       _MODE_OFDM_FEC : m.frame_receiver
     frame_profile in _FRAME_RECEIVER_PROFILES || return false
     frame_profile in (_MODE_FULL, _MODE_COUPLED,
-                      _MODE_PROFILED_GRADIENT, _MODE_PROFILED_CZ) &&
+                      _MODE_PROFILED_GRADIENT, _MODE_CZ_REFINEMENT) &&
       _bpc(m) != 2 &&
       return false
   end
@@ -483,11 +491,13 @@ end
 # 5. IFFT, cyclic prefix, and normalization produce one complex baseband block.
 # 6. Optional LFM sync wrapping produces [sync][blocks...][sync].
 #
-# How fc, fs, bw, and dc0 affect modulation: the modem reference centre and
-# width are both 24 kHz. `bw * 24 kHz` is the occupied RF width, while integer
-# `dc0` records the tuned centre as `24 kHz + dc0 kHz`; that centre must equal
+# How fc, fs, occupied_bandwidth_fraction, and rf_center_offset_khz affect
+# modulation: the modem reference centre and width are both 24 kHz.
+# `occupied_bandwidth_fraction * 24 kHz` is the occupied RF width, while
+# `rf_center_offset_khz` records the tuned centre relative to 24 kHz; that centre must equal
 # `fc`. `fs` is the complex-baseband grid width, so the active FFT fraction is
-# `(bw * 24 kHz) / fs`. Thus fc=25 kHz, fs=9.6 kHz, bw=0.4, dc0=1 occupies
+# `(occupied_bandwidth_fraction * 24 kHz) / fs`. Thus fc=25 kHz, fs=9.6 kHz,
+# occupied_bandwidth_fraction=0.4, rf_center_offset_khz=1 occupies
 # 20.2--29.8 kHz and fills the baseband grid. RF tuning does not shift the
 # generated complex-baseband bins. `fs` also sets the optional sync time scale.
 function Modulations.modulate(m::Modulation, bits, fc, fs)
@@ -511,7 +521,7 @@ function Modulations.modulate(m::Modulation, bits, fc, fs)
     samples = _modulate_block(m, layout, _encode(code, message))
     copyto!(out, 1 + (block - 1) * _blocklen(m), samples, 1, _blocklen(m))
   end
-  m.sync || return out
+  m.synchronization_enabled || return out
   sync = _sync_waveform(m, fs)
   vcat(sync, out, sync)
 end
@@ -540,7 +550,7 @@ function Modulations.demodulate(m::Modulation, nbits, x, fc, fs)
   nbits, waveform, code, layout, nblocks =
     _prepare_demodulation(m, nbits, x, fc, fs)
   cfo = 0.0
-  if m.sync
+  if m.synchronization_enabled
     waveform, cfo = _coarse_doppler(m, waveform, fc, fs, nblocks)
   end
   _require_block_samples(m, waveform, nblocks)
@@ -551,7 +561,7 @@ function Modulations.demodulate(m::Modulation, nbits, x, fc, fs)
     lo = 1 + (block - 1) * _blocklen(m)
     hi = block * _blocklen(m)
     candidate = _demodulate_block_candidate(m, code, layout, @view waveform[lo:hi])
-    pos = _write_payload_metrics!(metrics, pos, m, code, candidate.lpost_metric, Int(nbits))
+    pos = _write_payload_metrics!(metrics, pos, m, code, candidate.posterior_metric, Int(nbits))
   end
 
   metrics, cfo
@@ -562,15 +572,15 @@ function demodulate_methods(m::Modulation, nbits, x, fc, fs)
     return _demodulate_frame_methods(m, nbits, x, fc, fs)
   nbits, waveform, code, layout, nblocks =
     _prepare_demodulation(m, nbits, x, fc, fs)
-  if m.sync
+  if m.synchronization_enabled
     waveform, _ = _coarse_doppler(m, waveform, fc, fs, nblocks)
   end
   _require_block_samples(m, waveform, nblocks)
 
   ofdm_fec = Vector{Float64}(undef, Int(nbits))
   partial = Vector{Float64}(undef, Int(nbits))
-  juna = Vector{Float64}(undef, Int(nbits))
-  spos = ppos = jpos = 1
+  selected_receiver = Vector{Float64}(undef, Int(nbits))
+  ofdm_fec_position = partial_position = selected_receiver_position = 1
   for block in 1:nblocks
     lo = 1 + (block - 1) * _blocklen(m)
     hi = block * _blocklen(m)
@@ -582,18 +592,29 @@ function demodulate_methods(m::Modulation, nbits, x, fc, fs)
       ofdm_fec_candidate, partial_candidate)
     juna_candidate = _juna_candidate(
       m, code, layout, yparts, initial_candidate)
-    spos = _write_payload_metrics!(ofdm_fec, spos, m, code, ofdm_fec_candidate.lpost_metric, Int(nbits))
-    ppos = _write_payload_metrics!(
-      partial, ppos, m, code, partial_candidate.lpost_metric, Int(nbits))
-    jpos = _write_payload_metrics!(juna, jpos, m, code, juna_candidate.lpost_metric, Int(nbits))
+    ofdm_fec_position = _write_payload_metrics!(
+      ofdm_fec, ofdm_fec_position, m, code,
+      ofdm_fec_candidate.posterior_metric, Int(nbits))
+    partial_position = _write_payload_metrics!(
+      partial, partial_position, m, code,
+      partial_candidate.posterior_metric, Int(nbits))
+    selected_receiver_position = _write_payload_metrics!(
+      selected_receiver, selected_receiver_position, m, code,
+      juna_candidate.posterior_metric, Int(nbits))
   end
 
-  provenance = m.mode === _MODE_STANDARD ? _MODE_STANDARD : receiver_profile(m)
-  (ofdm_fec=ofdm_fec, partial=partial, juna=juna,
-   provenance, standard=ofdm_fec)
+  selected_receiver_profile =
+    m.mode === _MODE_STANDARD ? _MODE_STANDARD : receiver_profile(m)
+  (
+    ofdm_fec,
+    partial,
+    selected_receiver,
+    receiver_profile=selected_receiver_profile,
+    standard=ofdm_fec,
+  )
 end
 
-_blocklen(m::Modulation) = Int(m.nc) + Int(m.np)
+_blocklen(m::Modulation) = Int(m.fft_length) + Int(m.cyclic_prefix_length)
 function _positive_nbits(nbits)
   nbits isa Integer && !(nbits isa Bool) ||
     throw(ArgumentError("nbits must be a positive integer"))
@@ -617,10 +638,10 @@ end
 
 # ---- coarse Doppler via a per-frame sync (LFM) pre/postamble ----------------
 _synclen(m::Modulation) =
-  m.sync ? _SYNC_LEN : 0
+  m.synchronization_enabled ? _SYNC_LEN : 0
 
 function _sync_overhead(m::Modulation, fs)
-  m.sync ? 2 * _SYNC_LEN : 0
+  m.synchronization_enabled ? 2 * _SYNC_LEN : 0
 end
 
 """
@@ -722,15 +743,6 @@ function _coarse_doppler(m::Modulation, waveform::AbstractVector{<:Complex}, fc,
 end
 
 
-function _write_metrics!(out::Vector{Float64}, pos::Int, payload, nbits::Int)
-  @inbounds for bit in payload
-    pos > nbits && break
-    out[pos] = bit ? 1.0 : -1.0
-    pos += 1
-  end
-  pos
-end
-
 function _write_payload_metrics!(out::Vector{Float64}, pos::Int, m::Modulation,
                                  code::_Code, metrics::AbstractVector{<:Real}, nbits::Int)
   mparity = code.n - code.k
@@ -745,17 +757,28 @@ function _write_payload_metrics!(out::Vector{Float64}, pos::Int, m::Modulation,
 end
 
 function _layout(m::Modulation, fs)
-  sig = (Int(m.nc), Float64(m.bw), _pilot_spacing(m), Int(m.partial_fft_nbands),
-         Int(m.dc0), Float64(fs))
+  sig = (Int(m.fft_length), Float64(m.occupied_bandwidth_fraction), _pilot_spacing(m), Int(m.partial_fft_nbands),
+         Int(m.rf_center_offset_khz), Float64(fs))
   m.layout isa _Layout && m.layout.signature == sig && return m.layout::_Layout
 
-  N, bw, pilot_spacing, nbands, dc0_khz, fsr = sig
-  _ = dc0_khz
-  occupied_fraction = min(1.0, bw * _REFERENCE_BANDWIDTH_HZ / fsr)
-  nactive = clamp(floor(Int, (N - 1) * occupied_fraction), 2, N - 1)
+  fft_length, occupied_bandwidth_fraction, pilot_spacing, nbands,
+    rf_center_offset_khz, sample_rate = sig
+  _ = rf_center_offset_khz
+  occupied_fraction = min(
+    1.0,
+    occupied_bandwidth_fraction * _REFERENCE_BANDWIDTH_HZ / sample_rate,
+  )
+  nactive = clamp(
+    floor(Int, (fft_length - 1) * occupied_fraction),
+    2,
+    fft_length - 1,
+  )
   npos = nactive ÷ 2
   nneg = nactive - npos
-  active = vcat(collect(2:1+npos), collect(N-nneg+1:N))        # nactive carriers centred on DC
+  active = vcat(
+    collect(2:1+npos),
+    collect(fft_length-nneg+1:fft_length),
+  ) # nactive carriers centred on DC
   pilot_idx = [k for k in active if (k - 2) % pilot_spacing == 0]
   pilot_set = Set(pilot_idx)
   data_idx = [k for k in active if !(k in pilot_set)]
@@ -768,8 +791,8 @@ function _layout(m::Modulation, fs)
     lo, hi = _part_bounds(length(active), nbands, b)
     bands[b] = collect(@view active[lo:hi])
   end
-  band_ids = zeros(Int, N)
-  active_rank = zeros(Int, N)
+  band_ids = zeros(Int, fft_length)
+  active_rank = zeros(Int, fft_length)
   for (rank, k) in enumerate(active)
     active_rank[k] = rank
   end
@@ -784,23 +807,23 @@ end
 
 function _code(m::Modulation)
   method = _code_method(m)
-  seed = _code_seed(m, m.ldpc_k, m.ldpc_n, m.ldpc_npc)
+  seed = _code_seed(m, m.ldpc_k, m.ldpc_n, m.ldpc_checks_per_column)
   if m.code === nothing ||
       m.code.k != m.ldpc_k ||
       m.code.n != m.ldpc_n ||
-      m.code.npc != m.ldpc_npc ||
+      m.code.npc != m.ldpc_checks_per_column ||
       m.code.method != method ||
       m.code.seed != seed ||
-      m.code.no4cycle != m.ldpc_no4cycle
+      m.code.no4cycle != m.ldpc_eliminate_length_4_cycles
     m.code = _create_code(
-      m.ldpc_k, m.ldpc_n, m.ldpc_npc, method, seed, m.ldpc_no4cycle)
+      m.ldpc_k, m.ldpc_n, m.ldpc_checks_per_column, method, seed, m.ldpc_eliminate_length_4_cycles)
     m.bp_scratch = nothing
   end
   m.code
 end
 
-# Build the LDPC code through the shared LDPC.jl builder. `ldpc_npc` (the per-column
-# check count dc) is the configurable setting; the make-ldpc construction is fixed to the
+# Build the LDPC code through the shared LDPC.jl builder.
+# `ldpc_checks_per_column` is the configurable per-column check count; the make-ldpc construction is fixed to the
 # _LDPC_METHOD constant ("evencol") and threaded in here as the `method` argument.
 function _code_method(m::Modulation)
   m.ldpc_method === :auto && return _LDPC_METHOD
@@ -1025,7 +1048,7 @@ function _carrier_symbol(m::Modulation, codeword::AbstractVector{Bool}, tone::In
     j = 2 * (tone - 1) + 1
     bI = codeword[j]
     bQ = j + 1 <= length(codeword) ? codeword[j + 1] : false
-    ComplexF64(_pm(bI), _pm(bQ)) / sqrt(2)
+    ComplexF64(_bit_to_bipolar(bI), _bit_to_bipolar(bQ)) / sqrt(2)
   end
 end
 
@@ -1033,7 +1056,7 @@ end
 # coded data fill frequency bins, IFFT creates N time samples, the final L samples
 # become the cyclic prefix, and standard-deviation normalization fixes block scale.
 function _modulate_block(m::Modulation, layout::_Layout, codeword::AbstractVector{Bool})
-  carriers = zeros(ComplexF64, Int(m.nc))
+  carriers = zeros(ComplexF64, Int(m.fft_length))
 
   for (k, s) in zip(layout.pilot_idx, layout.pilot_syms)
     carriers[k] = s
@@ -1045,8 +1068,8 @@ function _modulate_block(m::Modulation, layout::_Layout, codeword::AbstractVecto
   end
 
   sym = ifft(carriers)
-  L = Int(m.np)
-  N = Int(m.nc)
+  L = Int(m.cyclic_prefix_length)
+  N = Int(m.fft_length)
   block = Vector{ComplexF64}(undef, L + N)
   @inbounds for i in 1:L
     block[i] = sym[N - L + i]
@@ -1064,7 +1087,7 @@ end
 # ----- demodulation paths -----------------------------------------------------
 
 function _demodulate_block(m::Modulation, code::_Code, layout::_Layout, waveform)
-  _payload_from_metrics(m, code, _demodulate_block_candidate(m, code, layout, waveform).lpost_metric)
+  _payload_from_metrics(m, code, _demodulate_block_candidate(m, code, layout, waveform).posterior_metric)
 end
 
 function _demodulate_block_candidate(m::Modulation, code::_Code, layout::_Layout, waveform)
@@ -1081,14 +1104,14 @@ function _demodulate_block_candidate(m::Modulation, code::_Code, layout::_Layout
 end
 
 function _demodulate_block_ofdm_fec(m::Modulation, code::_Code, layout::_Layout, yparts)
-  _payload_from_metrics(m, code, _ofdm_fec_candidate(m, code, layout, yparts).lpost_metric)
+  _payload_from_metrics(m, code, _ofdm_fec_candidate(m, code, layout, yparts).posterior_metric)
 end
 
 # Compatibility alias for callers using the former helper name.
 _demodulate_block_standard(args...) = _demodulate_block_ofdm_fec(args...)
 
 function _demodulate_block_partial(m::Modulation, code::_Code, layout::_Layout, yparts)
-  _payload_from_metrics(m, code, _initial_candidate(m, code, layout, yparts).lpost_metric)
+  _payload_from_metrics(m, code, _initial_candidate(m, code, layout, yparts).posterior_metric)
 end
 
 function _ofdm_fec_candidate(m::Modulation, code::_Code, layout::_Layout, yparts)
@@ -1147,7 +1170,7 @@ function _demodulate_block_juna(m::Modulation, code::_Code, layout::_Layout,
                                 yparts, initial_candidate=nothing)
   _payload_from_metrics(
     m, code,
-    _juna_candidate(m, code, layout, yparts, initial_candidate).lpost_metric)
+    _juna_candidate(m, code, layout, yparts, initial_candidate).posterior_metric)
 end
 
 function _juna_candidate(m::Modulation, code::_Code, layout::_Layout, yparts,
@@ -1173,31 +1196,33 @@ function _initial_candidate(m::Modulation, code::_Code, layout::_Layout, yparts)
 end
 
 function _select_initial_candidate(ofdm_fec, partial)
-  partial.valid && return partial
-  ofdm_fec.valid ? ofdm_fec : partial
+  partial.ldpc_valid && return partial
+  ofdm_fec.ldpc_valid ? ofdm_fec : partial
 end
 
 function _initial_candidate_from_ofdm_fec_and_partial_fft(
     m::Modulation, code::_Code, layout::_Layout, yparts)
   partial = _initial_candidate(m, code, layout, yparts)
-  partial.valid && return partial
+  partial.ldpc_valid && return partial
   _select_initial_candidate(_ofdm_fec_candidate(m, code, layout, yparts), partial)
 end
 
 function _decode_candidate(m::Modulation, code::_Code, layout::_Layout, equalized, metrics, pilot_mse)
   bp = _bp_decode(m, code, metrics)
-  tie_mse = _posterior_tie_mse(m, equalized, layout, bp.lpost_metric)
-  syndrome_norm = bp.syndrome / max(size(code.H, 1), 1)
-  mean_abs_lpost = mean(abs, bp.lpost_metric)
-  score = pilot_mse + 0.25 * tie_mse + 0.05 * syndrome_norm - 1e-4 * mean_abs_lpost
+  tie_mse = _posterior_tie_mse(m, equalized, layout, bp.posterior_metric)
+  normalized_syndrome_weight = bp.syndrome_weight / max(size(code.H, 1), 1)
+  mean_absolute_posterior_metric = mean(abs, bp.posterior_metric)
+  selection_score = pilot_mse + 0.25 * tie_mse +
+    0.05 * normalized_syndrome_weight -
+    1e-4 * mean_absolute_posterior_metric
   (
-    lpost_metric=bp.lpost_metric,
-    valid=bp.valid,
-    syndrome=bp.syndrome,
-    mean_abs_lpost=mean_abs_lpost,
-    pilot_mse=pilot_mse,
-    tie_mse=tie_mse,
-    score=score,
+    posterior_metric=bp.posterior_metric,
+    ldpc_valid=bp.ldpc_valid,
+    syndrome_weight=bp.syndrome_weight,
+    mean_absolute_posterior_metric,
+    pilot_mse,
+    tie_mse,
+    selection_score,
   )
 end
 
@@ -1285,7 +1310,7 @@ function _bp_decode_impl(m::Modulation, code::_Code, metrics, check_update!;
     end
   end
 
-  syndrome = typemax(Int)
+  syndrome_weight = typemax(Int)
   for _ in 1:_BP_ITERS
     for c in eachindex(cv)
       qc = q[c]
@@ -1305,15 +1330,19 @@ function _bp_decode_impl(m::Modulation, code::_Code, metrics, check_update!;
       end
     end
 
-    syndrome = _syndrome_weight(code, bits)
-    syndrome == 0 && break
+    syndrome_weight = _syndrome_weight(code, bits)
+    syndrome_weight == 0 && break
   end
 
-  lpost_metric = Vector{Float64}(undef, n)
+  posterior_metric = Vector{Float64}(undef, n)
   @inbounds for v in 1:n
-    lpost_metric[v] = -lpost[v]
+    posterior_metric[v] = -lpost[v]
   end
-  (lpost_metric=lpost_metric, valid=syndrome == 0, syndrome=syndrome)
+  (
+    posterior_metric,
+    ldpc_valid=syndrome_weight == 0,
+    syndrome_weight,
+  )
 end
 
 _bp_decode(m::Modulation, code::_Code, metrics) =
@@ -1352,8 +1381,8 @@ end
 _bpsk_symbol(bit::Bool) = bit ? ComplexF64(-1.0, 0.0) : ComplexF64(1.0, 0.0)
 
 function _branch_observations(m::Modulation, waveform)
-  N = Int(m.nc)
-  L = Int(m.np)
+  N = Int(m.fft_length)
+  L = Int(m.cyclic_prefix_length)
   yparts = Matrix{ComplexF64}(undef, m.partial_fft_parts, N)
   chunk = zeros(ComplexF64, N)
 
@@ -1371,12 +1400,12 @@ end
 function _equalize_from_targets(m::Modulation, yparts, layout::_Layout, target_idx, targets;
                                 target_weights = nothing)
   _validate_target_weights(target_idx, target_weights)
-  equalized = zeros(ComplexF64, Int(m.nc))
+  equalized = zeros(ComplexF64, Int(m.fft_length))
   P = m.partial_fft_parts
   A = Matrix{ComplexF64}(undef, P, P)
   b = Vector{ComplexF64}(undef, P)
   weights = Vector{ComplexF64}(undef, P)
-  target_pos = zeros(Int, Int(m.nc))
+  target_pos = zeros(Int, Int(m.fft_length))
   @inbounds for i in eachindex(target_idx)
     target_pos[target_idx[i]] = i
   end
@@ -1435,7 +1464,7 @@ function _fit_branch_weights!(weights::Vector{ComplexF64}, A::Matrix{ComplexF64}
   @inbounds for p in 1:P
     A[p, p] += _RIDGE
   end
-  _solve_small!(weights, A, b)
+  _solve_small_linear_system!(weights, A, b)
 end
 
 function _validate_target_weights(target_idx, target_weights)
@@ -1447,7 +1476,7 @@ function _validate_target_weights(target_idx, target_weights)
   nothing
 end
 
-function _solve_small!(x::Vector{ComplexF64}, A::Matrix{ComplexF64}, b::Vector{ComplexF64})
+function _solve_small_linear_system!(x::Vector{ComplexF64}, A::Matrix{ComplexF64}, b::Vector{ComplexF64})
   n = length(x)
   copyto!(x, b)
   @inbounds for k in 1:n
@@ -1532,21 +1561,21 @@ end
 # ----- posterior soft information ---------------------------------------------
 
 # Per-carrier posterior-mean constellation points from posterior metrics.
-function _posterior_symbols(m::Modulation, lpost_metric)
+function _posterior_symbols(m::Modulation, posterior_metric)
   if _bpc(m) == 1
-    anchors = Vector{ComplexF64}(undef, length(lpost_metric))
-    @inbounds for i in eachindex(lpost_metric)
-      anchors[i] = ComplexF64(-tanh(0.5 * lpost_metric[i]), 0.0)
+    anchors = Vector{ComplexF64}(undef, length(posterior_metric))
+    @inbounds for i in eachindex(posterior_metric)
+      anchors[i] = ComplexF64(-tanh(0.5 * posterior_metric[i]), 0.0)
     end
     anchors
   else
-    ntones = _ndata_tones(m, length(lpost_metric))
+    ntones = _ndata_tones(m, length(posterior_metric))
     anchors = Vector{ComplexF64}(undef, ntones)
     invsqrt2 = 1 / sqrt(2)
     @inbounds for t in 1:ntones
       base = 2t - 1
-      xr = -tanh(0.5 * lpost_metric[base])
-      xi = base + 1 <= length(lpost_metric) ? -tanh(0.5 * lpost_metric[base + 1]) : 0.0
+      xr = -tanh(0.5 * posterior_metric[base])
+      xi = base + 1 <= length(posterior_metric) ? -tanh(0.5 * posterior_metric[base + 1]) : 0.0
       anchors[t] = ComplexF64(xr, xi) * invsqrt2
     end
     anchors
@@ -1554,29 +1583,29 @@ function _posterior_symbols(m::Modulation, lpost_metric)
 end
 
 # Per-carrier confidence: BPSK |xi|, QPSK min(|xi_I|, |xi_Q|).
-function _posterior_confidence(m::Modulation, lpost_metric)
+function _posterior_confidence(m::Modulation, posterior_metric)
   if _bpc(m) == 1
-    confidence = Vector{Float64}(undef, length(lpost_metric))
-    @inbounds for i in eachindex(lpost_metric)
-      confidence[i] = abs(tanh(0.5 * lpost_metric[i]))
+    confidence = Vector{Float64}(undef, length(posterior_metric))
+    @inbounds for i in eachindex(posterior_metric)
+      confidence[i] = abs(tanh(0.5 * posterior_metric[i]))
     end
     confidence
   else
-    ntones = _ndata_tones(m, length(lpost_metric))
+    ntones = _ndata_tones(m, length(posterior_metric))
     confidence = Vector{Float64}(undef, ntones)
     @inbounds for t in 1:ntones
       base = 2t - 1
-      xr = abs(tanh(0.5 * lpost_metric[base]))
-      xi = base + 1 <= length(lpost_metric) ? abs(tanh(0.5 * lpost_metric[base + 1])) : xr
+      xr = abs(tanh(0.5 * posterior_metric[base]))
+      xi = base + 1 <= length(posterior_metric) ? abs(tanh(0.5 * posterior_metric[base + 1])) : xr
       confidence[t] = min(xr, xi)
     end
     confidence
   end
 end
 
-function _posterior_tie_mse(m::Modulation, equalized, layout::_Layout, lpost_metric)
-  anchors = _posterior_symbols(m, lpost_metric)
-  confidence = _posterior_confidence(m, lpost_metric)
+function _posterior_tie_mse(m::Modulation, equalized, layout::_Layout, posterior_metric)
+  anchors = _posterior_symbols(m, posterior_metric)
+  confidence = _posterior_confidence(m, posterior_metric)
   n = min(length(layout.data_idx), length(anchors), length(confidence))
   n == 0 && return Inf
   acc = 0.0
@@ -1589,21 +1618,21 @@ function _posterior_tie_mse(m::Modulation, equalized, layout::_Layout, lpost_met
   acc / weight_sum
 end
 
-function _juna_better(base, candidate)
-  candidate.valid != base.valid && return candidate.valid
-  candidate.syndrome != base.syndrome && return candidate.syndrome < base.syndrome
-  score_margin = 0.005 * max(abs(base.score), eps(Float64))
-  candidate.score < base.score - score_margin && return true
-  candidate.mean_abs_lpost > 1.01 * base.mean_abs_lpost + 1e-6
+function _candidate_is_better(base, candidate)
+  candidate.ldpc_valid != base.ldpc_valid && return candidate.ldpc_valid
+  candidate.syndrome_weight != base.syndrome_weight && return candidate.syndrome_weight < base.syndrome_weight
+  score_margin = 0.005 * max(abs(base.selection_score), eps(Float64))
+  candidate.selection_score < base.selection_score - score_margin && return true
+  candidate.mean_absolute_posterior_metric > 1.01 * base.mean_absolute_posterior_metric + 1e-6
 end
 
 function _juna_selection_reason(base, candidate)
-  candidate.valid != base.valid && return candidate.valid ? :validity : :lite_fallback
-  candidate.syndrome != base.syndrome &&
-    return candidate.syndrome < base.syndrome ? :syndrome : :lite_fallback
-  score_margin = 0.005 * max(abs(base.score), eps(Float64))
-  candidate.score < base.score - score_margin && return :score
-  candidate.mean_abs_lpost > 1.01 * base.mean_abs_lpost + 1e-6 &&
+  candidate.ldpc_valid != base.ldpc_valid && return candidate.ldpc_valid ? :validity : :lite_fallback
+  candidate.syndrome_weight != base.syndrome_weight &&
+    return candidate.syndrome_weight < base.syndrome_weight ? :syndrome : :lite_fallback
+  score_margin = 0.005 * max(abs(base.selection_score), eps(Float64))
+  candidate.selection_score < base.selection_score - score_margin && return :score
+  candidate.mean_absolute_posterior_metric > 1.01 * base.mean_absolute_posterior_metric + 1e-6 &&
     return :posterior_magnitude
   :lite_fallback
 end

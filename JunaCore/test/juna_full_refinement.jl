@@ -42,7 +42,7 @@ function full_refinement_fixture(; initial_candidate_valid::Bool = false)
     bits = full_payload_pattern(FullRefineModulations.bitspersymbol(m))
     message = FullRefineJuna._build_message(m, code, bits)
     codeword = FullRefineJuna._encode(code, message)
-    equalized = zeros(ComplexF64, Int(m.nc))
+    equalized = zeros(ComplexF64, Int(m.fft_length))
     equalized[layout.pilot_idx] .= layout.pilot_syms
     ncarriers = FullRefineJuna._ndata_tones(m, code.n)
     for t in 1:ncarriers
@@ -51,17 +51,17 @@ function full_refinement_fixture(; initial_candidate_valid::Bool = false)
     for t in ncarriers+1:length(layout.data_idx)
         equalized[layout.data_idx[t]] = one(ComplexF64)
     end
-    yparts = zeros(ComplexF64, 1, Int(m.nc))
+    yparts = zeros(ComplexF64, 1, Int(m.fft_length))
     yparts[1, :] .= equalized
     metrics = Float64[bit ? 6.0 : -6.0 for bit in codeword]
     initial_candidate = (
-        lpost_metric = metrics,
-        valid = initial_candidate_valid,
-        syndrome = initial_candidate_valid ? 0 : 77,
-        mean_abs_lpost = mean(abs, metrics),
+        posterior_metric = metrics,
+        ldpc_valid = initial_candidate_valid,
+        syndrome_weight = initial_candidate_valid ? 0 : 77,
+        mean_absolute_posterior_metric = mean(abs, metrics),
         pilot_mse = initial_candidate_valid ? 0.0 : 0.3,
         tie_mse = initial_candidate_valid ? 0.0 : 0.7,
-        score = initial_candidate_valid ? -0.001 : 0.8,
+        selection_score = initial_candidate_valid ? -0.001 : 0.8,
     )
     (m = m, layout = layout, code = code, bits = bits, codeword = codeword,
      yparts = yparts, metrics = metrics,
@@ -69,28 +69,31 @@ function full_refinement_fixture(; initial_candidate_valid::Bool = false)
 end
 
 function assert_full_candidate_contract(m, code, bits, codeword, candidate)
-    @test keys(candidate) == (:lpost_metric, :valid, :syndrome, :mean_abs_lpost,
-                              :pilot_mse, :tie_mse, :score)
-    @test candidate.lpost_metric isa Vector{Float64}
-    @test length(candidate.lpost_metric) == code.n
-    @test all(isfinite, candidate.lpost_metric)
-    @test all(isfinite, (candidate.mean_abs_lpost, candidate.pilot_mse,
-                         candidate.tie_mse, candidate.score))
-    @test candidate.valid
-    @test candidate.syndrome == 0
-    @test (candidate.lpost_metric .> 0) == codeword
-    @test FullRefineJuna._payload_from_metrics(m, code, candidate.lpost_metric) == bits
+    @test keys(candidate) == (:posterior_metric, :ldpc_valid, :syndrome_weight,
+                              :mean_absolute_posterior_metric, :pilot_mse,
+                              :tie_mse, :selection_score)
+    @test candidate.posterior_metric isa Vector{Float64}
+    @test length(candidate.posterior_metric) == code.n
+    @test all(isfinite, candidate.posterior_metric)
+    @test all(isfinite, (candidate.mean_absolute_posterior_metric,
+                         candidate.pilot_mse, candidate.tie_mse,
+                         candidate.selection_score))
+    @test candidate.ldpc_valid
+    @test candidate.syndrome_weight == 0
+    @test (candidate.posterior_metric .> 0) == codeword
+    @test FullRefineJuna._payload_from_metrics(
+        m, code, candidate.posterior_metric) == bits
 end
 
 function full_gradient_state(f)
-    W = FullRefineJuna._initial_gradient_W(f.m, f.yparts, f.layout)
+    W = FullRefineJuna._initial_pilot_W(f.m, f.yparts, f.layout)
     z = -copy(f.metrics)
     W0 = copy(W)
     z0 = copy(z)
     confidence = FullRefineJuna._posterior_confidence(f.m, z0)
     gW = similar(W)
     gz = zeros(Float64, length(z))
-    scratch = FullRefineJuna._GradientScratch(f.m, f.code)
+    scratch = FullRefineJuna._WzGradientScratch(f.m, f.code)
     (W = W, z = z, W0 = W0, z0 = z0, confidence = confidence,
      gW = gW, gz = gz, scratch = scratch)
 end
@@ -98,8 +101,8 @@ end
 function full_wz_loss_value(f, s, W, z)
     gW = similar(W)
     gz = zeros(Float64, length(z))
-    scratch = FullRefineJuna._GradientScratch(f.m, f.code)
-    FullRefineJuna._wz_loss_and_grad!(
+    scratch = FullRefineJuna._WzGradientScratch(f.m, f.code)
+    FullRefineJuna._wz_loss_and_gradient!(
         f.m, f.code, f.layout, gW, gz, W, z, s.W0, s.z0, f.yparts,
         s.confidence, f.code.check_vars, scratch)
 end
@@ -122,30 +125,33 @@ function full_centered_z_fd(f, s, W, z, idx, delta)
 end
 
 @testset verbose = true "W,z loss and gradients" begin
-    @testset "_gradient_symbol_grid! maps z to QPSK latents and rejects BPSK" begin
+    @testset "_wz_symbol_grid! maps z to QPSK latents and rejects BPSK" begin
         m = FullRefineJuna.FullModulation()
         z = [2.0, -2.0, 0.0, 4.0, -6.0]
-        S = Vector{ComplexF64}(undef, FullRefineJuna._ndata_tones(m, length(z)))
-        xbit = zeros(Float64, length(z))
-        returned = FullRefineJuna._gradient_symbol_grid!(m, S, xbit, z)
+        symbols = Vector{ComplexF64}(undef,
+            FullRefineJuna._ndata_tones(m, length(z)))
+        relaxed_bits = zeros(Float64, length(z))
+        returned = FullRefineJuna._wz_symbol_grid!(m, symbols, relaxed_bits, z)
         invsqrt2 = 1 / sqrt(2)
 
-        @test returned === S
-        @test xbit ≈ [tanh(1.0), -tanh(1.0), 0.0, tanh(2.0), -tanh(3.0)] atol=1e-15
-        @test S ≈ ComplexF64[
+        @test returned === symbols
+        @test relaxed_bits ≈
+              [tanh(1.0), -tanh(1.0), 0.0, tanh(2.0), -tanh(3.0)] atol=1e-15
+        @test symbols ≈ ComplexF64[
             tanh(1.0) - im * tanh(1.0),
             0.0 + im * tanh(2.0),
             -tanh(3.0) + 0.0im,
         ] .* invsqrt2 atol=1e-15
 
-        bpsk = FullRefineJuna.FullModulation(bpc = 1, ldpc_k = 170, ldpc_n = 680)
-        @test_throws ArgumentError FullRefineJuna._gradient_symbol_grid!(
+        bpsk = FullRefineJuna.FullModulation(
+            bits_per_data_carrier = 1, ldpc_k = 170, ldpc_n = 680)
+        @test_throws ArgumentError FullRefineJuna._wz_symbol_grid!(
             bpsk, Vector{ComplexF64}(undef, 3), zeros(Float64, 3), zeros(Float64, 3))
     end
 
-    @testset "_parity_penalty_and_gradx! has finite directional gradient" begin
-        gradx = zeros(Float64, 3)
-        xbit = [1.0, -1.0, 1.0]
+    @testset "_parity_penalty_and_bit_gradient! has finite directional gradient" begin
+        bit_gradient = zeros(Float64, 3)
+        relaxed_bits = [1.0, -1.0, 1.0]
         parity_sets = [[1, 2]]
         prefix = zeros(Float64, 2)
         clamped = zeros(Float64, 2)
@@ -159,28 +165,28 @@ end
             lambda * residual^2, [scale * c2, scale * c1, 0.0]
         end
 
-        penalty = FullRefineJuna._parity_penalty_and_gradx!(
-            gradx, xbit, parity_sets, lambda, prefix, clamped)
+        penalty = FullRefineJuna._parity_penalty_and_bit_gradient!(
+            bit_gradient, relaxed_bits, parity_sets, lambda, prefix, clamped)
 
         expected_penalty, expected_grad = expected_pair_penalty_and_grad(1.0, -1.0)
         @test penalty ≈ expected_penalty atol=1e-15
-        @test gradx ≈ expected_grad atol=1e-15
+        @test bit_gradient ≈ expected_grad atol=1e-15
         @test penalty < 4 * lambda
 
-        fill!(gradx, 0.0)
-        nearly_satisfied = FullRefineJuna._parity_penalty_and_gradx!(
-            gradx, [1.0, 1.0, -1.0], parity_sets, lambda, prefix, clamped)
+        fill!(bit_gradient, 0.0)
+        nearly_satisfied = FullRefineJuna._parity_penalty_and_bit_gradient!(
+            bit_gradient, [1.0, 1.0, -1.0], parity_sets, lambda, prefix, clamped)
         expected_tiny_penalty, expected_tiny_grad = expected_pair_penalty_and_grad(1.0, 1.0)
         @test nearly_satisfied ≈ expected_tiny_penalty atol=1e-15
-        @test gradx ≈ expected_tiny_grad atol=1e-15
+        @test bit_gradient ≈ expected_tiny_grad atol=1e-15
         @test nearly_satisfied < 1e-5
-        @test maximum(abs, gradx) < 1e-2
+        @test maximum(abs, bit_gradient) < 1e-2
     end
 
-    @testset "_wz_loss_and_grad! returns finite loss and gradients on a clean initial candidate" begin
+    @testset "_wz_loss_and_gradient! returns finite loss and gradients on a clean initial candidate" begin
         f = full_refinement_fixture()
         s = full_gradient_state(f)
-        loss = FullRefineJuna._wz_loss_and_grad!(
+        loss = FullRefineJuna._wz_loss_and_gradient!(
             f.m, f.code, f.layout, s.gW, s.gz, s.W, s.z, s.W0, s.z0, f.yparts,
             s.confidence, f.code.check_vars, s.scratch)
 
@@ -192,11 +198,13 @@ end
         @test loss > 0.0
         @test sum(abs2, s.gW) > 0.0
         @test sum(abs2, s.gz) > 0.0
-        @test length(s.scratch.S) == FullRefineJuna._ndata_tones(f.m, f.code.n)
-        @test all(x -> isfinite(real(x)) && isfinite(imag(x)), s.scratch.S)
+        @test length(s.scratch.symbols) ==
+              FullRefineJuna._ndata_tones(f.m, f.code.n)
+        @test all(x -> isfinite(real(x)) && isfinite(imag(x)),
+                  s.scratch.symbols)
     end
 
-    @testset "_wz_loss_and_grad! matches finite differences away from the clean initial candidate" begin
+    @testset "_wz_loss_and_gradient! matches finite differences away from the clean initial candidate" begin
         f = full_refinement_fixture()
         s = full_gradient_state(f)
 
@@ -204,7 +212,7 @@ end
         s.W[1, 9] -= 0.05 + 0.11im
         s.z[1:10] .= [0.7, -0.9, 0.35, -0.2, 1.1, -0.4, 0.15, -0.65, 0.5, -1.2]
 
-        loss = FullRefineJuna._wz_loss_and_grad!(
+        loss = FullRefineJuna._wz_loss_and_gradient!(
             f.m, f.code, f.layout, s.gW, s.gz, s.W, s.z, s.W0, s.z0, f.yparts,
             s.confidence, f.code.check_vars, s.scratch)
 
@@ -222,26 +230,26 @@ end
         end
     end
 
-    @testset "_gradient_candidate and _juna_wz_gradient_solve return valid candidates" begin
+    @testset "_wz_state_candidate and _juna_wz_adam_refine return valid candidates" begin
         f = full_refinement_fixture()
         s = full_gradient_state(f)
-        candidate = FullRefineJuna._gradient_candidate(f.m, f.code, f.layout,
-                                                       f.yparts, s.W, s.z)
-        solved = FullRefineJuna._juna_wz_gradient_solve(
+        candidate = FullRefineJuna._wz_state_candidate(
+            f.m, f.code, f.layout, f.yparts, s.W, s.z)
+        solved = FullRefineJuna._juna_wz_adam_refine(
             f.m, f.code, f.layout, f.yparts, f.initial_candidate)
 
         assert_full_candidate_contract(f.m, f.code, f.bits, f.codeword, candidate)
         assert_full_candidate_contract(f.m, f.code, f.bits, f.codeword, solved)
-        @test FullRefineJuna._juna_better(f.initial_candidate, solved)
-        @test solved.score < f.initial_candidate.score
-        @test solved.mean_abs_lpost > f.initial_candidate.mean_abs_lpost
+        @test FullRefineJuna._candidate_is_better(f.initial_candidate, solved)
+        @test solved.selection_score < f.initial_candidate.selection_score
+        @test solved.mean_absolute_posterior_metric >
+              f.initial_candidate.mean_absolute_posterior_metric
     end
 
     @testset "_juna_wz_candidate keeps the best candidate and _juna_wz extracts payload" begin
         f = full_refinement_fixture()
-        solved = FullRefineJuna._juna_wz_gradient_solve(f.m, f.code, f.layout,
-                                                        f.yparts,
-                                                        f.initial_candidate)
+        solved = FullRefineJuna._juna_wz_adam_refine(
+            f.m, f.code, f.layout, f.yparts, f.initial_candidate)
         selected = FullRefineJuna._juna_wz_candidate(f.m, f.code, f.layout,
                                                      f.yparts,
                                                      f.initial_candidate)
@@ -253,13 +261,13 @@ end
         @test payload == f.bits
 
         dominant_initial_candidate = (
-            lpost_metric = f.metrics,
-            valid = true,
-            syndrome = 0,
-            mean_abs_lpost = 1_000.0,
+            posterior_metric = f.metrics,
+            ldpc_valid = true,
+            syndrome_weight = 0,
+            mean_absolute_posterior_metric = 1_000.0,
             pilot_mse = 0.0,
             tie_mse = 0.0,
-            score = -100.0,
+            selection_score = -100.0,
         )
         preserved = FullRefineJuna._juna_wz_candidate(f.m, f.code, f.layout,
                                                       f.yparts,
@@ -269,5 +277,5 @@ end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    println("Profiled C,z checks passed")
+    println("C,z refinement checks passed")
 end

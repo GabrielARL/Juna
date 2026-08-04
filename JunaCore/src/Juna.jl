@@ -7,7 +7,7 @@ using Statistics
 using ..LDPC
 using ..Modulations
 
-# Migrated Lite and Profiled C,z closure. The Profiled C,z receiver uses the
+# Migrated Lite and C,z refinement closure. The C,z refinement receiver uses the
 # shared W,z and C,W,z types and conditional solves from full.jl and coupled.jl.
 # Other variant files (fully coupled, guarded, turbo MAP, and profiled
 # gradient) stay in the source repository. ForwardDiff and FixedPathChannel
@@ -17,6 +17,6 @@ include(joinpath(@__DIR__, "juna", "frame_wide_ldpc.jl"))
 include(joinpath(@__DIR__, "juna", "lite.jl"))
 include(joinpath(@__DIR__, "juna", "full.jl"))
 include(joinpath(@__DIR__, "juna", "coupled.jl"))
-include(joinpath(@__DIR__, "juna", "profiled_cz_frame.jl"))
+include(joinpath(@__DIR__, "juna", "cz_refinement.jl"))
 
 end # module Juna

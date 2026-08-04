@@ -448,7 +448,8 @@ def graph_data(query):
             narrow(ids, "symbol", token,
                    f"Source definition: {sym['name']}")
 
-    # A receiver is a conceptual stage DAG before it is a source call graph.
+    # A receiver is a conceptual stage directed acyclic graph before it is a
+    # source call graph.
     # Keep that architecture visible by default and disclose implementation
     # symbols only after a stage is selected.
     stage_view = (
@@ -1070,10 +1071,12 @@ def page_chain():
     body = f"""
 <h1>Receiver chains</h1>
 <div class="card">The receiver entries are views over one shared,
-contract-verified stage DAG. A baseline is a complete comparison receiver.
+contract-verified stage directed acyclic graph. A baseline is a complete
+comparison receiver.
 JUNA-Lite extends its Partial-FFT/FEC initial candidate only when that
 candidate is invalid;
-Profiled C,z processes the complete frame.</div>
+C,z refinement processes the complete frame. The joint C,W,z form uses an
+analytical gradient for its simultaneous update.</div>
 <div class="card"><label>Receiver:
 <select id="receiver-select">{options}</select></label>
 &nbsp; <label>Compare with:

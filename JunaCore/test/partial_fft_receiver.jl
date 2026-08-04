@@ -37,8 +37,8 @@ pfft_payload(n::Integer) = Bool[isodd(count_ones(23i + 11)) for i in 1:Int(n)]
 function pfft_piecewise_waveform(m, bits)
     waveform = collect(PfftModulations.modulate(m, bits, PFFT_FC, PFFT_FS))
     gains = ComplexF64[1.45 - 0.35im, 0.62 + 0.75im, -0.35 + 1.2im, 1.05 + 0.18im]
-    N = Int(m.nc)
-    L = Int(m.np)
+    N = Int(m.fft_length)
+    L = Int(m.cyclic_prefix_length)
     for p in 1:Int(m.partial_fft_parts)
         lo, hi = PfftJuna._part_bounds(N, Int(m.partial_fft_parts), p)
         @views waveform[L+lo:L+hi] .*= gains[mod1(p, length(gains))]
@@ -49,12 +49,13 @@ end
 @testset verbose = true "Partial-FFT and OFDM+FEC baseline receivers" begin
     @testset "one Partial-FFT view is the full useful-symbol FFT" begin
         m = PfftJuna.PartialFFTModulation(
-            nc=1024, np=256, bpc=1, partial_fft_parts=1)
+            fft_length=1024, cyclic_prefix_length=256,
+            bits_per_data_carrier=1, partial_fft_parts=1)
         rng = Xoshiro(20_260_725)
-        useful = randn(rng, ComplexF64, Int(m.nc))
-        block = vcat(useful[end-Int(m.np)+1:end], useful)
+        useful = randn(rng, ComplexF64, Int(m.fft_length))
+        block = vcat(useful[end-Int(m.cyclic_prefix_length)+1:end], useful)
         observation = PfftJuna._branch_observations(m, block)
-        @test size(observation) == (1, Int(m.nc))
+        @test size(observation) == (1, Int(m.fft_length))
         @test vec(observation) ≈ fft(useful) rtol=2e-14 atol=2e-12
     end
 
@@ -130,7 +131,8 @@ end
 
     @testset "both baselines roundtrip the compact BPSK code" begin
         for factory in (PfftJuna.OFDMFECModulation, PfftJuna.PartialFFTModulation)
-            m = factory(bpc = 1, ldpc_k = 170, ldpc_n = 680)
+            m = factory(
+                bits_per_data_carrier=1, ldpc_k=170, ldpc_n=680)
             @test isvalid(m, PFFT_FC, PFFT_FS)
             bits = pfft_payload(PfftModulations.bitspersymbol(m))
             wf = PfftModulations.modulate(m, bits, PFFT_FC, PFFT_FS)

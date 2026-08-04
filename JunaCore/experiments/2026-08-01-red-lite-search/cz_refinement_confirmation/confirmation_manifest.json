@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "experiment_id": "2026-08-01-red-lite-search",
+  "artifact_id": "cz_refinement_confirmation",
+  "result_scope": "60-frame confirmation",
+  "receiver_ids": [
+    "lite",
+    "cz_refinement",
+    "joint_cwz"
+  ],
+  "row_count": 288,
+  "confirmation": {
+    "snr_db": 20.0,
+    "frames_per_seed": 60,
+    "seeds": [
+      6,
+      7
+    ],
+    "configuration_source": "../results/red_config_finalists_20db_seeds6to7.csv",
+    "comparison_sources": [
+      "../results/red_config_finalists_20db_seeds6to7.csv",
+      "../results_partial_fft/red_config_finalists_20db_seeds6to7.csv"
+    ]
+  },
+  "historical_run": {
+    "recovered_directory": "/tmp/claude-1000/-home-gabiel-Documents-GitHub-Juna/67752847-7409-4388-a475-bff4d7d7269c/scratchpad/cz-run",
+    "recovered_csv_sha256": "a4667812072ece9e96f9c61c8e46bbaa1619ecbc87b5a183d777eb52b6526298",
+    "recovered_runner_sha256": "bfca090dc53b67d91b7f35929b01727fc70e6866102e406e89d8478669f3fbdb",
+    "recovered_comparison_sha256": "611ca2e2a3da8edcfe8f00cdec15df5abf34b28d338759faa349db75de9fbdbe",
+    "recovered_log_sha256": "432bed7ff13944f34b4931e3988971db3e635227c1f52120c794ba507c3b0588",
+    "recovered_manifest_sha256": "c4db1c3eb887f79d29a08c6a3ed1050117864c38b466c7d273115facdd54e943",
+    "package_path_recorded_by_manifest": "/home/gabiel/Documents/GitHub/Juna-worktrees/profiled-cz-restore/JunaCore",
+    "harness_path_at_run": "/home/gabiel/Documents/GitHub/Juna/JunaCore/experiments/2026-08-01-red-lite-search/benchmark_port.jl",
+    "harness_sha256": "38f9823ca6bb82f9767055f285f7fb9e2e88ba9728ac5d9b7dca94c78bd0a99a",
+    "replay_harness_path_at_run": "/home/gabiel/Documents/GitHub/Juna/JunaCore/experiments/2026-08-01-red-lite-search/replay_lane.jl",
+    "replay_harness_sha256": "e4e00b84e96abc863c42d76a8494c3cefc9d81cf3dbb2354be08ceba3cfae6f3",
+    "audit_observed_source_states": {
+      "qualification": "observed_during_this_audit_not_recorded_by_historical_run",
+      "historical_package_worktree_commit": "58c9f6174239e96ba564e5fb0d829a1e71621324",
+      "primary_harness_checkout_commit": "8a24c76d7bfe04e73c545383e4ebde38943eabf1"
+    }
+  },
+  "normalization": {
+    "receiver_ids_renamed": true,
+    "counter_columns_renamed": true,
+    "numeric_cells_preserved": true,
+    "row_order_preserved": true
+  },
+  "files": {
+    "confirmation_csv": {
+      "path": "red_cz_refinement_confirmation_20db_seeds6to7.csv",
+      "sha256": "812925fba6c8166df360aade9d644a1a8d0b8028637314c4e7c49c970133bc12"
+    },
+    "ranking": {
+      "path": "confirmed_receiver_ranking.json",
+      "sha256": "a9aeab03bda472285010c083da3f9fc2165a4af91ff63dacafd2256d3120c831"
+    }
+  },
+  "limitations": {
+    "source_commit_recorded": false,
+    "per_frame_workload_digests_retained": false,
+    "joint_cwz_step_scales_retained": false,
+    "joint_cwz_trial_rejections_retained": false,
+    "joint_cwz_step_counter_scope": "step_call",
+    "maximum_trials_per_step_call": 7
+  }
+}

@@ -55,7 +55,7 @@ end
 
     @testset "receiver adapter rejects unsupported or inconsistent inputs" begin
         f = coupled_receiver_fixture()
-        bpsk = CoupledInitJuna.Modulation(bpc = 1)
+        bpsk = CoupledInitJuna.Modulation(bits_per_data_carrier = 1)
 
         @test_throws ArgumentError CoupledInitJuna._coupled_problem_from_receiver(
             bpsk, f.code, f.layout, f.yparts,
@@ -90,7 +90,7 @@ end
         @test sum(abs2, state1.C) > 0
 
         unclamped = findall(.!problem.inner_pilot_mask)
-        expected_z = clamp.(-f.initial_candidate.lpost_metric, -10.0, 10.0)
+        expected_z = clamp.(-f.initial_candidate.posterior_metric, -10.0, 10.0)
         @test state1.z[unclamped] == expected_z[unclamped]
         @test tanh.(state1.z[problem.inner_pilot_mask] ./ 2) ≈
               [bit ? -tanh(5.0) : tanh(5.0)
@@ -105,7 +105,7 @@ end
         @test gradient.z[problem.inner_pilot_mask] == zeros(count(problem.inner_pilot_mask))
     end
 
-    @testset "profiled C and pilot-trained W improve their own objective families" begin
+    @testset "C from a conditional solve and pilot-trained W improve their own objective families" begin
         f = coupled_receiver_fixture()
         problem = CoupledInitJuna._coupled_problem_from_receiver(
             f.m, f.code, f.layout, f.yparts,
@@ -140,7 +140,8 @@ end
 
         short_initial_candidate = merge(
             f.initial_candidate,
-            (; lpost_metric = f.initial_candidate.lpost_metric[1:end-1]),
+            (; posterior_metric =
+                f.initial_candidate.posterior_metric[1:end-1]),
         )
         @test_throws DimensionMismatch CoupledInitJuna._initial_coupled_state(
             f.m, f.code, f.layout, problem, short_initial_candidate,
@@ -169,10 +170,10 @@ end
         problem = CoupledInitJuna._coupled_problem_from_receiver(
             f.m, f.code, f.layout, f.yparts,
         )
-        metrics = copy(f.initial_candidate.lpost_metric)
+        metrics = copy(f.initial_candidate.posterior_metric)
         metrics[1] = NaN
         bad_initial_candidate = merge(
-            f.initial_candidate, (; lpost_metric = metrics))
+            f.initial_candidate, (; posterior_metric = metrics))
         metric_error = try
             CoupledInitJuna._initial_coupled_state(
                 f.m, f.code, f.layout, problem, bad_initial_candidate,
@@ -187,5 +188,5 @@ end
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-    println("Profiled C,z checks passed")
+    println("C,z refinement checks passed")
 end
