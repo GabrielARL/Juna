@@ -18,7 +18,7 @@ Combiner, and Bit Latents}
 Underwater acoustic communication channels are time varying and frequency
 selective.  Multipath and ambient noise make uncoded symbol decisions
 unreliable, so transmissions carry forward error correction (FEC) that
-couples every coded carrier across the packet.  Partial fast Fourier transform
+couples every coded carrier in the codeword.  Partial fast Fourier transform
 (Partial-FFT) demodulation is an established defense against residual Doppler,
 and it keeps short-time observations of the symbol interval.  It has been used
 ahead of the decoder: pilot-trained combiner weights form pre-decoder soft
@@ -47,7 +47,7 @@ receiver.
 Underwater acoustic communication channels are time varying and frequency
 selective.  Multipath and ambient noise make uncoded symbol decisions
 unreliable, so transmissions carry forward error correction (FEC).  The
-parity constraints of the code couple every coded carrier across the packet,
+parity constraints of the code couple every coded carrier in the codeword,
 and they are the only constraints in the receiver that do so; pilots
 constrain their own carriers and their neighbours.
 
