@@ -4,6 +4,7 @@
 \usepackage{booktabs}
 \usepackage{cite}
 \usepackage{url}
+\usepackage{tikz}
 
 \newcommand{\Ftwo}{\mathbb{F}_2}
 \newcommand{\R}{\mathbb{R}}
@@ -187,16 +188,42 @@ with every message bit, so the search over \(\mathcal C\) cannot be carried
 out directly.  The bits are discrete while \(\bm\psi\) is continuous, so no
 gradient connects the two searches.
 
-We therefore relax the bits.  Each coded bit takes a real variable
-\(z_i\), and its relaxed bipolar value is
+For differentiability we avoid the step and use a tanh approximation.  A
+hard decision on a coded bit is a step: the bipolar value jumps from \(-1\)
+to \(+1\), and a step has no usable gradient.  Each coded bit therefore
+takes a real variable \(z_i\), and its relaxed bipolar value is
 \begin{equation}
   \xi_i(\mathbf z)=\tanh z_i,
   \qquad z_i\in\R,
   \label{eq:relaxed-bit}
 \end{equation}
-where \(\xi_i=\pm1\) recovers the hard bit and intermediate values carry its
-uncertainty.  The relaxed symbols \(\mathbf s(\mathbf z)\) follow through
-the same modulation map.  The parity constraints become a penalty on the
+where \(z_i\) is the real variable for coded bit \(i\).  The tanh agrees
+with the step for large \(\left|z_i\right|\), intermediate values carry the
+bit's uncertainty, and the gradient exists everywhere
+(Fig.~\ref{fig:step-tanh}).  The relaxed symbols \(\mathbf s(\mathbf z)\)
+follow through the same modulation map.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[scale=0.85]
+  \draw[->] (-3.3,0) -- (3.5,0) node[below] {$z_i$};
+  \draw[->] (0,-1.5) -- (0,1.8) node[right] {$\xi_i$};
+  \draw (0.08,1) -- (-0.08,1);
+  \node[left] at (-0.08,1) {$+1$};
+  \draw (0.08,-1) -- (-0.08,-1);
+  \node[right] at (0.08,-1) {$-1$};
+  \draw[dashed] (-3,-1) -- (0,-1);
+  \draw[dashed] (0,1) -- (3,1);
+  \draw[dashed] (0,-1) -- (0,1);
+  \draw[thick,domain=-3:3,samples=80,smooth] plot (\x,{tanh(\x)});
+  \node at (2.2,0.55) {$\tanh z_i$};
+  \node at (-1.9,-1.25) {step};
+\end{tikzpicture}
+\caption{The hard decision on a coded bit is a step in \(z_i\) (dashed) and
+has no usable gradient.  The relaxation \(\xi_i=\tanh z_i\) (solid) agrees
+with the step away from zero and has a gradient everywhere.}
+\label{fig:step-tanh}
+\end{figure}  The parity constraints become a penalty on the
 relaxed bits:
 \begin{equation}
   \mathcal R_{\mathrm{par}}(\mathbf z)
