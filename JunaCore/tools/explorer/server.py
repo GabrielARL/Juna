@@ -34,7 +34,11 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
+# JUNA_CORE_ROOT points the explorer at another checkout, so one Explorer can
+# read and run a second agent's package without editing it. The variable name
+# is the one test/interface_contract.jl already uses.
+ROOT = os.path.normpath(os.environ.get(
+    "JUNA_CORE_ROOT", os.path.join(HERE, "..", "..")))
 sys.path.insert(0, HERE)
 
 import source_coverage  # noqa: E402
