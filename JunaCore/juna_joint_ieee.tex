@@ -5,7 +5,10 @@
 \usepackage{cite}
 \usepackage{url}
 
-% Title: CL-52c amended by CL-70 ("latent" banned), 2026-08-05.
+\newcommand{\Ftwo}{\mathbb{F}_2}
+\newcommand{\R}{\mathbb{R}}
+
+% Title: CL-52c amended by CL-70, 2026-08-05.
 \title{Differentiable Joint Estimation of the Partial-FFT Response,
 Combiner, and Coded Bits}
 
@@ -105,14 +108,114 @@ the correct design.  The comparison is narrow by construction: the two
 receivers share every other setting, so their decoded bit error rates measure
 one difference alone.
 
-We develop this in four steps.  First, we write the Partial-FFT observation
-model and the pilot-trained combiner that the separate receiver fits.
-Second, we state the objective that carries the response, the combiner, and
-the relaxed bits together, and its relation to the MAP problem.  Third, we
-give the two receivers: the response solved exactly whenever the bits are
-held fixed, and the combiner either computed from that response or estimated
-beside it.  Fourth, we report what the comparison measures and the regime in
-which the difference should appear.
+We develop this in four steps.  First, we state the joint estimation and
+decoding problem in its most general form and relax it.  Second, we write
+the Partial-FFT observation model and the pilot-trained combiner that the
+separate receiver fits.  Third, we specialize the objective and give the two
+receivers: the response solved exactly whenever the bits are held fixed, and
+the combiner either computed from that response or estimated beside it.
+Fourth, we report what the comparison measures and the regime in which the
+difference should appear.
+
+\section{Joint Estimation and Decoding}
+
+We wish to determine two unknowns from the received observations alone: the
+coded bits, and the channel parameters through which those bits were
+observed.  This section states that problem in its most general form, before
+any receiver structure is chosen, and relaxes it so that descent can solve
+it.
+
+Let \(\mathbf b\in\Ftwo^{n_b}\) be the transmitted codeword of a linear
+block code with parity-check matrix \(\mathbf P\in\Ftwo^{m\times n_b}\), and
+let
+\begin{equation}
+  \mathcal C=\left\{\mathbf b\in\Ftwo^{n_b}:\mathbf P\mathbf b^{T}=\mathbf 0
+  \ \text{over}\ \Ftwo\right\}
+  \label{eq:codebook}
+\end{equation}
+be the codebook, where \(n_b\) is the coded-bit length and \(m\) is the
+number of parity constraints.  Every transmission is a member of
+\(\mathcal C\), so the code is a property of the transmitted signal itself,
+not a processing stage of the receiver.
+
+The modulation map turns the bits into transmitted symbols
+\(\mathbf s(\mathbf b)\), and the channel turns the symbols into
+observations:
+\begin{equation}
+  \mathbf Y=\mathcal A\!\left(\bm\psi,\mathbf s(\mathbf b)\right)+\mathbf n,
+  \label{eq:general-forward}
+\end{equation}
+where \(\mathbf Y\) collects every observation the receiver keeps,
+\(\mathcal A\) is the forward map, \(\bm\psi\) collects the unknown channel
+parameters, and \(\mathbf n\) is noise.  Everything the receiver will ever
+know about the bits and the channel is in \(\mathbf Y\), and both unknowns
+enter it together.
+
+The joint maximum a posteriori (MAP) formulation asks for both at once:
+\begin{equation}
+  (\widehat{\mathbf b},\widehat{\bm\psi})
+  =
+  \arg\max_{\mathbf b\in\mathcal C,\;\bm\psi}
+  p(\mathbf Y\mid\mathbf b,\bm\psi)\,p(\bm\psi),
+  \label{eq:general-map}
+\end{equation}
+where \(p(\mathbf Y\mid\mathbf b,\bm\psi)\) is the likelihood under
+\eqref{eq:general-forward} and \(p(\bm\psi)\) carries what is known about
+the channel before the observation, including the pilots.  Neither unknown
+is conditioned on a fixed estimate of the other, so a constraint on either
+one shapes the estimate of both.
+
+A separate receiver factorizes \eqref{eq:general-map} instead.  It
+estimates \(\bm\psi\) from pilots, forms soft symbols, and decodes
+afterward.  While each factor is then a small problem, the bits are decided
+against a channel estimate the code never shaped.
+
+Two features make \eqref{eq:general-map} intractable.  The codebook doubles
+with every message bit, so the search over \(\mathcal C\) cannot be carried
+out directly.  The bits are discrete while \(\bm\psi\) is continuous, so no
+gradient connects the two searches.
+
+We therefore relax the bits.  Each coded bit takes a real variable
+\(z_i\), and its relaxed bipolar value is
+\begin{equation}
+  \xi_i(\mathbf z)=\tanh z_i,
+  \qquad z_i\in\R,
+  \label{eq:relaxed-bit}
+\end{equation}
+where \(\xi_i=\pm1\) recovers the hard bit and intermediate values carry its
+uncertainty.  The relaxed symbols \(\mathbf s(\mathbf z)\) follow through
+the same modulation map.  The parity constraints become a penalty on the
+relaxed bits:
+\begin{equation}
+  \mathcal R_{\mathrm{par}}(\mathbf z)
+  =
+  \sum_{j=1}^{m}
+  \left(1-\prod_{i\in\mathcal N_j}\xi_i(\mathbf z)\right)^{2},
+  \label{eq:parity-penalty}
+\end{equation}
+where \(\mathcal N_j\) is the set of bits that parity check \(j\)
+constrains.  For hard bipolar values the product equals one exactly when the
+check is satisfied, so the penalty vanishes exactly on codewords.
+
+The relaxed joint problem is then one objective:
+\begin{equation}
+  \mathcal L(\bm\psi,\mathbf z)
+  =
+  -\log p\!\left(\mathbf Y\mid\mathbf s(\mathbf z),\bm\psi\right)
+  -\log p(\bm\psi)
+  +\lambda_{\mathrm p}\,\mathcal R_{\mathrm{par}}(\mathbf z),
+  \label{eq:general-objective}
+\end{equation}
+where \(\lambda_{\mathrm p}\) weighs the parity penalty against the
+likelihood.  Every term has a gradient with respect to every variable, so
+demodulation and decoding can improve by the same descent.  The objective is
+a surrogate, not the MAP problem itself: its minimizer depends on
+\(\lambda_{\mathrm p}\), the relaxed bits need not be hard, and validity is
+still checked on the hardened bits.
+
+The next section fixes the forward map.  Partial-FFT reception determines
+what \(\mathbf Y\) is, and the channel parameters \(\bm\psi\) split into the
+response and the combiner weights.
 
 \begin{thebibliography}{00}
 
