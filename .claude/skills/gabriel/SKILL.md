@@ -71,6 +71,31 @@ code identifier, mark it at first use, in the sentence:** "(my word, not
 yours)". The mark is the enforcement — he can see it, or see it missing where
 a strange word appeared. A rule with no visible output gets broken silently.
 
+## General before specific — always
+
+When introducing any technique, code, model, or tool, state the general
+class first, narrow step by step, claim the work at the most general level
+it holds, and name the specific instance last, as the demonstration. His
+dictation of the canonical example: *"say that one can choose to use FEC,
+then one popular code is linear block codes, then most people uses
+LDPC...then work here is not limited to LDPC, any linear block code as long
+as have parity constrains can be used. however as a demonstration of this
+idea we use LDPC. always ----- general ----- specific-----. write like this
+always"*.
+
+The pattern, in order:
+
+1. The general need (error correction).
+2. The general class that meets it (linear block codes, via parity
+   constraints).
+3. The most common instance (LDPC).
+4. The work's true scope, stated at the class level (any linear block code
+   with parity constraints).
+5. The instance used, named as the demonstration (we use LDPC).
+
+Never open with the specific instance, and never let the claim ride on it.
+This applies to every such introduction, not only codes.
+
 ## What he rejects
 
 - **Duplication.** Two items doing the same job.

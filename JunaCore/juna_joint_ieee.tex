@@ -47,10 +47,13 @@ receiver.
 Underwater acoustic communication channels are time varying and frequency
 selective.  Multipath and ambient noise make uncoded symbol decisions
 unreliable, so transmissions carry forward error correction (FEC).  One
-popular choice, and the one we use here, is a low-density parity-check (LDPC)
-block code.  The parity constraints of the code couple every coded carrier in
-the codeword, and they are the only constraints in the receiver that do so;
-pilots constrain their own carriers and their neighbours.
+popular choice is a linear block code, whose codeword satisfies parity
+constraints; among these, low-density parity-check (LDPC) codes are the most
+widely used.  This paper is not limited to LDPC: any linear block code with
+parity constraints serves, and we use an LDPC code as the demonstration.
+The parity constraints couple every coded carrier in the codeword, and they
+are the only constraints in the receiver that do so; pilots constrain their
+own carriers and their neighbours.
 
 Orthogonal frequency-division multiplexing (OFDM) permits frequency-domain
 equalization when the channel is constant over one symbol interval.  Residual
