@@ -162,7 +162,7 @@ have been verified.
 ## Claude decisions
 
 Claude's identifiers use the `CL` prefix so two agents cannot allocate the
-same one. Next free Claude identifier: **CL-65**.
+same one. Next free Claude identifier: **CL-66**.
 
 CL-21, CL-22 and CL-23 are skipped, not used. `experiments/2026-08-01-red-lite-search/NOTES.md`
 already cites `CL-21a` and `CL-23` for different decisions from an earlier
@@ -233,3 +233,4 @@ CL-20 already record.
 | CL-62 | open | Whether the new paper's body is cut down from `reference papers/tex/gab.tex` (equations and notation reused verbatim, prose rewritten under `mandar`) or written fresh against the code. Recommendation: cut down — `eq:juna_total` and the notation table are already correct and approved. |
 | CL-63 | open | Whether the paper states `gab.tex`'s alternating solver as a third receiver or as prior work it departs from. In that solver the combiner is a free block solved exactly by alternation, which is neither of the two receivers the paper compares. |
 | CL-64 | approved | User: "two as equals! finally you made me understood you!" The paper compares two receivers on equal footing and does not argue that either is the right design. Receiver 1 computes the combiner from the estimated response; receiver 2 estimates the combiner alongside the response and the bits. This settles CL-36 at two receivers and fixes the paper's claim as a comparison, not an advocacy. Also recorded: the user rejected Claude's coined vocabulary — "what is arm? I don't understand all these coined terms you come up with". `arm`, `profiled`, `conditioned joint step`, and `ladder` are withdrawn from all reader-facing text; the words that stay are `response`, `combiner`, and `bits`. |
+| CL-65 | applied, unconfirmed | User: "just write the introduction". Seven paragraphs in `JunaCore/juna_joint_ieee.tex`: the channel motivates the code; residual Doppler breaks the diagonal model; Partial-FFT as prior art (Yerramalli) with the separate receiver conceded before it is defeated; the discard and its regime; turbo equalization (Laot, Zheng) then the single objective and the relaxation; the two receivers compared as equals under CL-64; a four-step roadmap in D1 chapter 3's shape. The roadmap names steps rather than numbered sections, since the section skeleton CL-42 is unapproved. The mechanical style checker passes and no banned word appears. No term is coined: every name is the user's, a source's, or a code identifier. |

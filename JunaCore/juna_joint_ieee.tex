@@ -42,4 +42,98 @@ propagation, maximum a posteriori (MAP), joint estimation, iterative
 receiver.
 \end{IEEEkeywords}
 
+\section{Introduction}
+
+Underwater acoustic communication channels are time varying and frequency
+selective.  Multipath and ambient noise make uncoded symbol decisions
+unreliable, so transmissions carry forward error correction (FEC).  The
+parity constraints of the code couple every coded carrier across the packet,
+and they are the only constraints in the receiver that do so; pilots
+constrain their own carriers and their neighbours.
+
+Orthogonal frequency-division multiplexing (OFDM) permits frequency-domain
+equalization when the channel is constant over one symbol interval.  Residual
+Doppler removes that condition.  After initial resampling a residual Doppler
+factor and a carrier frequency offset remain, the channel varies within the
+interval, and the frequency-domain operator is no longer diagonal.  Its
+off-diagonal entries are intercarrier interference (ICI) coefficients, and a
+single full-interval fast Fourier transform (FFT) collapses the time-local
+information that would separate them.
+
+Partial-FFT demodulation divides the useful interval into segments and keeps
+one observation from every segment~\cite{yerramalli}.  It estimates no ICI
+coefficient.  It keeps time-local components of the same full-interval
+statistic, and complex combiner weights recombine them into one pre-decoder
+soft symbol per carrier.  The weights are fitted to pilots, and low-density
+parity-check (LDPC) decoding follows.  While this receiver is strong and
+costs only one small ridge fit per carrier band, it consults the code only
+after the soft symbols are formed.
+
+That separation discards information.  Each soft symbol is formed as though
+the coded carriers were independent, although the parity constraints tie
+them.  Where the pilots are dense enough to track the coupling, little is
+lost.  However, where pilots are sparse and residual Doppler is strong, the
+weights are fitted from a few nearby pilots.  The constraints that could have
+shaped that fit are invoked only after it is complete.
+
+Turbo equalization established the value of exchanging information between
+adaptive equalization and channel decoding~\cite{laot,zheng}.  We apply that
+principle to Partial-FFT reception and carry it one step further.  Rather
+than pass information between two fitted stages, we place the Partial-FFT
+response, the combiner weights, and the coded bits in a single
+objective~\cite{juna}.  Observations, pilots, and parity constraints then
+regularize one another while the symbols are still being estimated.  The
+joint maximum a posteriori (MAP) detection problem over these three
+quantities is intractable, since the bits are discrete while the response and
+the combiner are continuous, and a discrete parity check admits no gradient.
+We therefore relax each coded bit to a real variable and replace each parity
+check by a differentiable penalty on the relaxed bits.  Every term of the
+objective then has a gradient with respect to every quantity.
+
+Two receivers follow from that objective, and they differ in whether the
+combiner weights are estimated at all.  In the first, the weights are
+computed from the estimated response of the wanted carrier, so the relaxed
+bits are the only quantity searched.  In the second, the weights are
+estimated together with the response and the bits, and a step is kept only
+when the objective does not increase and the pilot error stays within a fixed
+tolerance.  We compare the two on equal terms and do not argue that either is
+the correct design.  The comparison is narrow by construction: the two
+receivers share every other setting, so their decoded bit error rates measure
+one difference alone.
+
+We develop this in four steps.  First, we write the Partial-FFT observation
+model and the pilot-trained combiner that the separate receiver fits.
+Second, we state the objective that carries the response, the combiner, and
+the relaxed bits together, and its relation to the MAP problem.  Third, we
+give the two receivers: the response solved exactly whenever the bits are
+held fixed, and the combiner either computed from that response or estimated
+beside it.  Fourth, we report what the comparison measures and the regime in
+which the difference should appear.
+
+\begin{thebibliography}{00}
+
+\bibitem{yerramalli}
+S. Yerramalli, M. Stojanovic, and U. Mitra,
+``Partial FFT Demodulation: A Detection Method for Highly Doppler Distorted
+OFDM Systems,''
+\emph{IEEE Transactions on Signal Processing}, 2012.
+
+\bibitem{laot}
+C. Laot, A. Glavieux, and J. Labat,
+``Turbo Equalization: Adaptive Equalization and Channel Decoding Jointly
+Optimized,''
+\emph{IEEE Transactions on Communications}, 2001.
+
+\bibitem{zheng}
+Y. R. Zheng, J. Wu, and C. Xiao,
+``Turbo Equalization for Single-Carrier Underwater Acoustic Communications,''
+\emph{IEEE Communications Magazine}.
+
+\bibitem{juna}
+G. C. Y. Han,
+\emph{JUNA: A Joint Receiver for Doppler-Resilient OFDM: Partial-FFT
+Coefficient Estimation and LDPC-Coupled Detection}.
+
+\end{thebibliography}
+
 \end{document}
