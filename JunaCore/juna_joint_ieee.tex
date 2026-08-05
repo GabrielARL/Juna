@@ -1,0 +1,70 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs}
+\usepackage{cite}
+\usepackage{url}
+
+% Title: CL-52c, approved 2026-08-05.
+\title{Differentiable Joint Estimation of the Partial-FFT Response,
+Combiner, and Bit Latents}
+
+\author{\IEEEauthorblockN{Gabriel Chua Yu Han}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Residual Doppler makes an underwater acoustic OFDM channel vary within one
+symbol interval, so the frequency-domain operator is no longer diagonal and
+neighbouring carriers couple.  A separate receiver meets this in stages:
+partial-FFT reception keeps short-time observations of the interval, combiner
+weights trained on pilots form one pre-decoder soft symbol per carrier, and
+low-density parity-check decoding follows.  Each stage is a small linear
+problem, and the chain works when the pilots are dense enough to track the
+coupling.  However, the parity constraints, which couple every coded carrier
+across the packet, are invoked only after soft-symbol formation is complete;
+where pilots are sparse and residual Doppler strong, the combiner is fitted
+from a few nearby pilots, and the code constraints arrive too late to shape
+the fit.  We formulate the receiver as one objective over the partial-FFT
+response, the combiner, and the relaxed codeword bits, in which
+observations, pilots, and parity constraints regularize one another
+throughout inference and every data carrier constrains the response and the
+combiner.  The joint maximum a posteriori (MAP) detection problem over
+these three quantities is intractable, because the bits are discrete while
+the response and the combiner are continuous, and a discrete code
+constraint admits no gradient.  We therefore relax each coded bit to a real
+variable and replace each parity check by a differentiable penalty on the
+relaxed bits; the objective above is the result.  Every term then has a
+gradient with respect to every variable, so demodulation and decoding can
+improve by the same descent: the observation term pulls the relaxed bits
+toward what was received, and the parity penalty pulls them toward a
+codeword.  Our receivers differ in which variables that gradient moves.
+Retaining only the pilot term needs no gradient at all and recovers the
+separate pilot-trained combiner.  Replacing gradient descent by the decoder
+posterior---the bits held at the belief-propagation output, the combiner
+refitted to the pilots and the decoded data symbols---gives the cheapest
+receiver, and its fit is solved exactly.  Letting the gradient move only
+the bits, with each band's combiner weights computed from the estimated
+response of the wanted carrier, keeps every term of the objective; the
+response is solved exactly whenever the bits are held fixed, one small
+linear system per band.  Letting the gradient move the response, the
+combiner, and the bits together faces the complete cost, and there nothing
+is solved exactly: a step is kept only when the objective does not
+increase and the pilot error stays within a fixed tolerance.  Hence
+completeness and exactness trade against each other: the fewer variables
+the gradient moves, the more of the objective is solved in closed form.
+The estimated response is not claimed to be the physical intercarrier
+interference: different responses can reproduce the same observations.
+All the receivers use the same partial-FFT observations as the separate
+receiver; they differ in when the code acts---during symbol estimation
+rather than after it.
+\end{abstract}
+
+\begin{IEEEkeywords}
+underwater acoustic communication, OFDM, Doppler, partial FFT, LDPC, belief
+propagation, maximum a posteriori (MAP), joint estimation, iterative
+receiver.
+\end{IEEEkeywords}
+
+\end{document}
