@@ -173,8 +173,14 @@ which constrain the bits, also improve the channel estimate.
 A receiver that performs demodulation and decoding separately does not
 solve \eqref{eq:general-map}.  It estimates \(\bm\psi\) from pilots alone,
 forms soft symbols with that estimate, and decodes afterward.  Each of these
-three steps is a small problem.  However, the bits are then decided against
-a channel estimate the code never shaped.
+three steps is a small problem, and when the pilots alone specify the
+channel well, the separation costs little.  What separation costs in general
+is mutual information, in both directions.  The parity constraints carry
+information about the channel, because the channel acted on symbols that
+must form a codeword.  The channel constraints carry information about the
+bits, because the received signal ties the two together in
+\eqref{eq:general-forward}.  A receiver that fixes the channel estimate
+before decoding uses neither piece of that information.
 
 Two features make \eqref{eq:general-map} intractable.  The codebook doubles
 with every message bit, so the search over \(\mathcal C\) cannot be carried
