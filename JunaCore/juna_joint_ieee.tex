@@ -296,9 +296,12 @@ a surrogate, not the MAP problem itself: its minimizer depends on
 \(\lambda_{\mathrm p}\), the relaxed bits need not be hard, and validity is
 still checked on the hardened bits.
 
-The next section fixes the forward map.  Partial-FFT reception determines
-what \(\mathbf Y\) is, and the channel parameters \(\bm\psi\) split into the
-response and the combiner weights.
+Three things make \eqref{eq:general-objective} concrete: the modulation
+that fixes \(\mathbf s\), the demodulation that fixes \(\mathbf Y\), and the
+channel parameters \(\bm\psi\).  The next section supplies the first two
+for OFDM under residual Doppler.  The section after it names
+\(\bm\psi\) --- the Partial-FFT response and the combiner weights --- and
+specializes the objective.
 
 \section{OFDM Demodulation}
 
@@ -306,7 +309,9 @@ The forward map \(\mathcal A\) of \eqref{eq:general-forward} is a general
 term, and nothing so far fixes the modulation or the channel.  In our case
 the modulation is OFDM over an underwater acoustic channel.  This section
 writes the demodulation equations that determine what the received signal
-\(\mathbf Y\) contains.
+\(\mathbf Y\) contains.  It does so in three moves: the one-tap model that
+holds when the channel is still, the coupling that residual Doppler adds,
+and the views that Partial-FFT demodulation keeps.
 
 Let \(N\) be the number of OFDM samples after cyclic-prefix removal, let
 \(\mathbf r\in\C^N\) be the received block, and let
