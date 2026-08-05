@@ -17,6 +17,17 @@ DROPPED_RECEIVERS = {"adaptive_lite"}
 SOURCES = [
     ("results/red_config_finalists_20db_seeds6to7.csv", "3arm"),
     ("results_pfft/red_config_finalists_20db_seeds6to7.csv", "pfft"),
+    ("results_cz/red_profiled_cz_confirm_20db_seeds6to7.csv", "cz"),
+]
+
+# CL-26(c): the Profiled C,z run measures four things the other runs have no
+# counterpart for, and they are reader-visible. A source may therefore carry
+# the base schema or the base schema plus these four, and nothing else — the
+# earlier "every source has identical columns" rule is kept as a two-shape
+# rule rather than dropped. Rows from a base-schema source read blank here.
+MECHANISM_COLUMNS = [
+    "gradient_accepted_frames", "conditioned_accepted_steps",
+    "conditioned_rejected_steps", "selection_reasons",
 ]
 
 # JCM-064 and JCM-067: keep every source column in row details and downloads,
@@ -26,7 +37,7 @@ DISPLAY_COLUMNS = [
     "code_rate", "outer_spacing", "inner_spacing", "check_degree",
     "payload_bits_per_frame", "successful_frames", "decode_failures",
     "decode_seconds", "effective_rate_bps", "run",
-]
+] + MECHANISM_COLUMNS
 HIDDEN_TABLE_COLUMNS = {
     "phase", "start_index", "horizon", "seed", "frames", "frame_blocks",
     "payload_bits", "bit_errors",
@@ -68,7 +79,7 @@ def _num(text):
 
 
 def load_configs():
-    columns = None
+    base_columns = None
     numeric_rows, raw_rows, row_ids, sources = [], [], [], []
     for relative, run in SOURCES:
         path = os.path.join(EXP, relative)
@@ -76,9 +87,12 @@ def load_configs():
             raise SystemExit("missing input: " + relative)
         with open(path, newline="", encoding="utf-8") as handle:
             reader = csv.DictReader(handle)
-            if columns is None:
-                columns = list(reader.fieldnames or [])
-            elif list(reader.fieldnames or []) != columns:
+            fields = list(reader.fieldnames or [])
+            if base_columns is None:
+                base_columns = [column for column in fields
+                                if column not in MECHANISM_COLUMNS]
+                columns = base_columns + MECHANISM_COLUMNS
+            if fields not in (base_columns, columns):
                 raise SystemExit("source columns differ: " + relative)
             source_count = included_count = 0
             excluded = {}
@@ -88,7 +102,7 @@ def load_configs():
                 if receiver in DROPPED_RECEIVERS:
                     excluded[receiver] = excluded.get(receiver, 0) + 1
                     continue
-                raw = [record[column] for column in columns] + [run]
+                raw = [record.get(column, "") for column in columns] + [run]
                 numeric = [_num(value) for value in raw]
                 numeric[columns.index("algorithm_id")] = canonical_receiver_id(
                     receiver)
@@ -139,14 +153,14 @@ def strip_dropped(winners):
 def validate_payload(columns, rows, raw_rows, row_ids, manifest):
     index = {column: i for i, column in enumerate(columns)}
     problems = []
-    if len(rows) != 288:
-        problems.append(f"expected 288 rows, found {len(rows)}")
+    if len(rows) != 384:
+        problems.append(f"expected 384 rows, found {len(rows)}")
     if not (len(rows) == len(raw_rows) == len(row_ids)):
         problems.append("numeric rows, source rows, and row IDs differ")
     if len(set(row_ids)) != len(row_ids):
         problems.append("row IDs are not unique")
     receivers = {row[index["algorithm_id"]] for row in rows}
-    if receivers != {"ofdm_fec", "lite", "pfft"}:
+    if receivers != {"ofdm_fec", "lite", "pfft", "profiled_cz"}:
         problems.append(f"receiver set differs: {sorted(receivers)}")
     if {row[index["frames"]] for row in rows} != {60}:
         problems.append("a retained row is not a 60-frame confirmation")

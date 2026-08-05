@@ -46,6 +46,7 @@ const CrcMods = JunaCore.Modulations
         @test !CrcJuna._cz_crc_choose_gradient(true, true)
         @test !CrcJuna._cz_crc_choose_gradient(true, false)
         @test CrcJuna.CrcProfiledCzFrameModulation().cz_crc_gate
+        @test !CrcJuna.CrcProfiledCzFrameModulation().cz_gradient_only
         @test !CrcJuna.CrcProfiledCzFrameModulation(
             cz_crc_gate=false).cz_crc_gate
     end
@@ -470,6 +471,33 @@ const CrcMods = JunaCore.Modulations
         @test trace.c_em_damping == guarded.cz_em_damping
         @test isempty(trace.feedback_value_history)
         @test !trace.selected_gradient
+    end
+
+    @testset "gradient-only arm bypasses CRC and Lite selection" begin
+        kwargs = (
+            nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+            partial_fft_parts=2, partial_fft_nbands=2,
+            pilot_ratio=1/3, inner_pilot_ratio=0.0,
+            frame_crc_bits=16,
+        )
+        transmitter = CrcJuna.FrameWideLDPCModulation(
+            ; kwargs..., frame_receiver=:standard)
+        gradient = CrcJuna.CrcProfiledCzFrameModulation(
+            ; kwargs..., refinement_steps=1, cz_crc_gate=false,
+            cz_gradient_only=true)
+        payload = Bool[isodd(count_ones(13i + 7)) for i in 1:24]
+        fc, fs = 24_000.0, 24_000.0
+        waveform = CrcMods.modulate(transmitter, payload, fc, fs)
+        metrics, _ = CrcMods.demodulate(
+            gradient, length(payload), waveform, fc, fs)
+        trace = CrcJuna._cz_gradient_last_trace(gradient)
+        @test length(metrics) == length(payload)
+        @test all(isfinite, metrics)
+        @test trace.selection_reason === :gradient_only
+        @test trace.selected_gradient
+        @test trace.selection_gate === :score
+        @test trace.bp_checkpoints >= 2
+        @test trace.crc_bits == 16
     end
 
     @testset "complete Profiled C,z family executes one update" begin

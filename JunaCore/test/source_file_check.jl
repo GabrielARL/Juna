@@ -23,7 +23,7 @@ const PROV_PINNED = [
     ("src/Juna.jl",   # diverged: Profiled C,z implementation closure
      "45634f3933f9fff511dde63f4990c52372430a4c51d244325fed72f5472434b0"),
     ("src/juna/common.jl",   # diverged: Rpchan/adaptive-lite removal; OFDM+FEC rename
-     "b86b82ff17e52f52de66f2a58882d8f0373043dee589dd99a426cb2110719469"),
+     "eded5d08e18472afe5ab4f59a8865b9a26d2e4475d48d36334f456a0ac05006a"),
     ("src/juna/frame_wide_ldpc.jl",   # diverged: Rpchan/adaptive-lite removal; OFDM+FEC rename
      "e24f27f50589cdd387366e0417e95f0173003723117ffad8eebd6316ae0e78cc"),
     ("src/juna/lite.jl",
@@ -33,7 +33,7 @@ const PROV_PINNED = [
     ("src/juna/coupled.jl",   # restored Profiled C,z dependency
      "e6e1da89ad988e8c31a7d3ff9c2801e3e403c00e66db6b2546017886d3d5a5ea"),
     ("src/juna/profiled_cz_frame.jl",   # approved Profiled C,z family
-     "c9e74bb82a720eaf226123a8f5cf1b34ad9cc9394cea4e32c27ab6baf75f2f13"),
+     "6c092c075621bd650e042b7b2adbad6c5d6551825642413ccb3021d2291f3f7d"),
     ("tools/ldpc/make-ldpc",
      "fa8b613a7297977858bdeaf44cc9c3fa9f49d90ed7c294b23330b36041716a23"),
     ("tools/ldpc/make-gen",

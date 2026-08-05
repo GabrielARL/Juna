@@ -459,8 +459,10 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
     m, code, lite.best, nblocks, payload_nbits)
   legacy_early_skip = crc_enabled ?
     lite_crc_valid : (ofdm_fec.best.valid || lite.best.valid)
+  # cz_gradient_only measures the gradient alone, so it must never take the
+  # early exit that returns Lite before the gradient has run.
   early_skip = config.steps == 0 ||
-    (!m.cz_gate_selection_only && legacy_early_skip)
+    (!m.cz_gate_selection_only && !m.cz_gradient_only && legacy_early_skip)
   if early_skip
     baseline = (crc_enabled || m.cz_gate_selection_only) ? lite :
       (ofdm_fec.best.valid ? ofdm_fec : lite)
@@ -709,16 +711,22 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
     best_crc_gradient !== nothing :
     _cz_candidate_crc_valid(
       m, code, best_gradient, nblocks, payload_nbits)
-  choose_gradient = crc_enabled ?
+  # Under cz_gradient_only the gradient's own decode is reported whether or
+  # not it beats Lite: the arm is being measured, not protected.
+  choose_gradient = m.cz_gradient_only ? true :
+    crc_enabled ?
     _cz_crc_choose_gradient(lite_crc_valid, gradient_crc_valid) :
     _juna_selection_reason(lite.best, best_gradient) !== :lite_fallback
-  if crc_enabled && choose_gradient
+  # The CRC-certified candidate may be `nothing` when no iterate passed CRC,
+  # so the standalone arm keeps the raw gradient rather than swapping it in.
+  if crc_enabled && choose_gradient && !m.cz_gradient_only
     best_gradient = best_crc_gradient
     best_gradient_equalized = best_crc_gradient_equalized
     selected_iteration = best_crc_iteration
     selected_restart = best_crc_restart
   end
-  reason = crc_enabled ?
+  reason = m.cz_gradient_only ? :gradient_only :
+    crc_enabled ?
     (choose_gradient ? :crc_rescue :
      lite_crc_valid ? :lite_crc_valid : :crc_fallback) :
     _juna_selection_reason(lite.best, best_gradient)

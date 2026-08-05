@@ -15,6 +15,7 @@
     --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #73716d;
     --grid: #dcdad4; --ring: #fcfcfb; --focus: #805500;
     --recv-ofdm-fec: #226fca; --recv-lite: #d95b28; --recv-pfft: #65645f;
+    --recv-profiled-cz: #a6307e;
     min-height: 100vh; background: var(--surface-1); color: var(--text-primary);
   }
   @media (prefers-color-scheme: dark) {
@@ -24,6 +25,7 @@
       --text-primary: #fff; --text-secondary: #c6c5bc; --text-muted: #aaa99f;
       --grid: #41413d; --ring: #191918; --focus: #ffd166;
       --recv-ofdm-fec: #4b97ec; --recv-lite: #ef7542; --recv-pfft: #b3b2aa;
+      --recv-profiled-cz: #d368af;
     }
   }
   a { color: inherit; }
@@ -76,7 +78,7 @@
 
   main { max-width: 96rem; margin: 0 auto; padding: 24px clamp(16px, 4vw, 48px) 52px; }
   .page > .lead { color: var(--text-secondary); margin: 0 0 18px; max-width: 84ch; }
-  .tiles { display: grid; grid-template-columns: repeat(4, minmax(145px, 1fr)); gap: 10px; margin: 16px 0 24px; }
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(145px, 1fr)); gap: 10px; margin: 16px 0 24px; }
   .tile { background: var(--surface-2); border-radius: 8px; padding: 12px 15px; }
   .tile .v { font-size: 25px; font-weight: 680; letter-spacing: -.02em; }
   .tile .l { color: var(--text-secondary); font-size: 12px; }
@@ -209,6 +211,7 @@
         <option value="ofdm_fec">OFDM+FEC</option>
         <option value="lite">JUNA-Lite</option>
         <option value="pfft">Partial FFT+FEC</option>
+        <option value="profiled_cz">Profiled C,z</option>
       </select>
     </label>
     <button id="f-reset" type="button">Reset</button>
@@ -222,7 +225,6 @@
         channel and hydrophone. Receiver does not filter this view.</p>
       <div class="tiles">
         <div class="tile"><div class="v">12 / 12</div><div class="l">channel–hydrophone results confirmed, zero decode failures</div></div>
-        <div class="tile"><div class="v">10 · 2 · 0</div><div class="l">OFDM+FEC · JUNA-Lite · Partial FFT+FEC wins</div></div>
         <div class="tile"><div class="v">3,625</div><div class="l">best rate, bit/s</div></div>
         <div class="tile"><div class="v" id="tile-configs">—</div><div class="l">confirmed configurations, 60 frames each</div></div>
       </div>
@@ -299,6 +301,7 @@
         <span><i class="sw" style="background:var(--recv-ofdm-fec)"></i>OFDM+FEC</span>
         <span><i class="sw" style="background:var(--recv-lite)"></i>JUNA-Lite</span>
         <span><i class="sw" style="background:var(--recv-pfft)"></i>Partial FFT+FEC</span>
+        <span><i class="sw" style="background:var(--recv-profiled-cz)"></i>Profiled C,z</span>
       </div>
       <div class="factors" id="factor-panels"></div>
     </section>
@@ -416,7 +419,7 @@ const PAGE_TITLES = {
   summary: 'Summary', landscape: 'Search landscape', factors: 'Factor analysis',
   configurations: 'Configurations', guide: 'Reading guide',
 };
-const RECEIVERS = ['ofdm_fec', 'lite', 'pfft'];
+const RECEIVERS = ['ofdm_fec', 'lite', 'pfft', 'profiled_cz'];
 const FACTORS = [
   { key: 'nfft', label: 'N — FFT size' },
   { key: 'cp', label: 'CP — cyclic prefix' },
@@ -430,9 +433,12 @@ const C = Object.fromEntries(CFG.cols.map((name, index) => [name, index]));
 const CSS = getComputedStyle(document.querySelector('.viz-root'));
 const color = id => id === 'ofdm_fec' ? CSS.getPropertyValue('--recv-ofdm-fec')
   : id === 'lite' ? CSS.getPropertyValue('--recv-lite')
+  : id === 'profiled_cz' ? CSS.getPropertyValue('--recv-profiled-cz')
   : CSS.getPropertyValue('--recv-pfft');
+// Reader-visible names come from tools/explorer/receivers.json, verbatim.
 const rname = id => id === 'lite' ? 'JUNA-Lite'
-  : id === 'pfft' ? 'Partial FFT+FEC' : 'OFDM+FEC';
+  : id === 'pfft' ? 'Partial FFT+FEC'
+  : id === 'profiled_cz' ? 'Profiled C,z' : 'OFDM+FEC';
 const canonicalReceiver = id => id === 'standard' ? 'ofdm_fec' : id;
 const fmt = number => Math.round(number).toLocaleString('en-US');
 const esc = value => String(value).replace(/[&<>"']/g, char => ({

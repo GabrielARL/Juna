@@ -1436,6 +1436,18 @@ def _experiment_id_from_result(path):
     return os.path.basename(os.path.dirname(os.path.dirname(path)))
 
 
+def _experiment_ids():
+    """Every experiment with a rendered results page, newest first.
+
+    Without this the Results tab silently shows whichever experiment was
+    written last, and the others are reachable only by typing a query string.
+    """
+    pattern = os.path.join(ROOT, "experiments", "*", "results",
+                           "results_view.html")
+    found = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
+    return [_experiment_id_from_result(path) for path in found]
+
+
 def page_results(query=""):
     experiment_id, page, other = _results_query(query)
     try:
@@ -1457,9 +1469,22 @@ shows the newest one.</div>"""
     stable_query = urllib.parse.urlencode(
         [("experiment", experiment_id), ("page", page)] + other)
     view_url = "/results/view?" + stable_query
+    available = _experiment_ids()
+    if len(available) > 1:
+        options = "".join(
+            f'<option value="{esc(name)}"'
+            f'{" selected" if name == experiment_id else ""}>'
+            f'{esc(name)}</option>' for name in available)
+        jump = ("location.search = '?experiment=' + "
+                "encodeURIComponent(this.value)")
+        picker = ('<label style="margin-right:auto">Experiment '
+                  f'<select onchange="{esc(jump)}">{options}</select></label>')
+    else:
+        picker = '<span style="margin-right:auto"></span>'
     body = f"""
 <h1>Experiment results</h1>
-<p style="margin:.2rem 0 .6rem;text-align:right">
+<p style="margin:.2rem 0 .6rem;display:flex;align-items:center;gap:.6rem">
+{picker}
 <a href="{view_url}" target="_blank">Open in its own tab</a></p>
 <iframe src="{view_url}" style="width:100%;height:calc(100vh - 150px);
 border:1px solid var(--line, #ccc);border-radius:6px;background:white">
