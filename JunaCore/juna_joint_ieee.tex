@@ -15,18 +15,25 @@ Combiner, and Bit Latents}
 \maketitle
 
 \begin{abstract}
-Residual Doppler makes an underwater acoustic OFDM channel vary within one
-symbol interval, so the frequency-domain operator is no longer diagonal and
-neighbouring carriers couple.  A separate receiver meets this in stages:
-partial-FFT reception keeps short-time observations of the interval, combiner
-weights trained on pilots form one pre-decoder soft symbol per carrier, and
-low-density parity-check decoding follows.  Each stage is a small linear
-problem, and the chain works when the pilots are dense enough to track the
-coupling.  However, the parity constraints, which couple every coded carrier
-across the packet, are invoked only after soft-symbol formation is complete;
-where pilots are sparse and residual Doppler strong, the combiner is fitted
-from a few nearby pilots, and the code constraints arrive too late to shape
-the fit.  We formulate the receiver as one objective over the partial-FFT
+Underwater acoustic communication channels are time varying and frequency
+selective, and multipath and ambient noise make uncoded symbol decisions
+unreliable.  Transmissions therefore carry an error correction code---here
+a low-density parity-check (LDPC) code---whose parity constraints couple
+every coded carrier across the packet.  Residual Doppler adds a further
+difficulty: the channel varies within one OFDM symbol interval, so the
+frequency-domain operator is no longer diagonal and neighbouring carriers
+couple.  A separate receiver meets this in stages: partial-FFT reception
+keeps short-time observations of the interval, combiner weights trained on
+pilots form one pre-decoder soft symbol per carrier, and LDPC decoding
+follows.  Each stage is a small linear problem, and the chain works when
+the pilots are dense enough to track the coupling.  However, the
+separation of demodulation from decoding discards the information the code
+carries: every soft symbol is formed as though the coded carriers were
+independent, although the parity constraints tie them, and those
+constraints are invoked only after soft-symbol formation is complete.
+Where pilots are sparse and residual Doppler strong, the combiner is
+therefore fitted from a few nearby pilots, and the code constraints that
+could shape the fit arrive too late.  We formulate the receiver as one objective over the partial-FFT
 response, the combiner, and the relaxed codeword bits, in which
 observations, pilots, and parity constraints regularize one another
 throughout inference and every data carrier constrains the response and the

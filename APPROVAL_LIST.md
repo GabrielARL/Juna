@@ -161,7 +161,7 @@ have been verified.
 ## Claude decisions
 
 Claude's identifiers use the `CL` prefix so two agents cannot allocate the
-same one. Next free Claude identifier: **CL-58**.
+same one. Next free Claude identifier: **CL-59**.
 
 CL-21, CL-22 and CL-23 are skipped, not used. `experiments/2026-08-01-red-lite-search/NOTES.md`
 already cites `CL-21a` and `CL-23` for different decisions from an earlier
@@ -225,3 +225,4 @@ CL-20 already record.
 | CL-55 | approved | User: "merge now". Claude merged `agent/integrate-source-graph` into `main` as `c26d0cc`, superseding JCM-025/JCM-081 for this merge. Codex's branches are untouched; CL-19's larger merge question stays open. |
 | CL-56 | closed, no action | User: "a" — check in `viewdata.json` as a one-off artifact exception since no generator exists. It was already tracked and clean on `agent/profiled-cz-restore`; Claude's exclusion report had mislabeled it as uncommitted. The committed `results_view.html` on that branch serves a stale page until `build_view.py` is rerun. |
 | CL-57 | approved | User: "a". The sweep `results_view.html`/`results_manifest.json` pages have no generator (the `validate_results.py` scripts only pin them), so they are checked in as artifact exceptions in `319ee66` on `agent/profiled-cz-restore` — nine files, including the red1_hydrophone2 per-run page. Red-lite-search's regenerable pair stays uncommitted; `2026-08-05-…-rate025` never had a page, so none exists to commit. |
+| CL-58 | approved | User: "I think you need to make it apparent that because the channel is often challenging error correction codes are used … separate demodulation and decoding … discards the information in the code structure", then "ok". Abstract rev. 7: the opening introduces the code as a consequence of the channel, and the pivot states the discard — soft symbols formed as though coded carriers were independent (gab.tex: "carrierwise independent"). "Suboptimal" itself has no source and is not used. |
