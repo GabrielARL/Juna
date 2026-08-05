@@ -165,9 +165,10 @@ The joint maximum a posteriori (MAP) formulation asks for both at once:
 \end{equation}
 where \(p(\mathbf Y\mid\mathbf b,\bm\psi)\) is the likelihood under
 \eqref{eq:general-forward} and \(p(\bm\psi)\) carries what is known about
-the channel before reception, including the pilots.  Neither unknown
-is conditioned on a fixed estimate of the other, so a constraint on either
-one shapes the estimate of both.
+the channel before reception, including the pilots.  The two unknowns are
+determined together.  Hence the pilots, which constrain the channel
+parameters, also improve the decision on the bits; and the parity checks,
+which constrain the bits, also improve the channel estimate.
 
 A separate receiver factorizes \eqref{eq:general-map} instead.  It
 estimates \(\bm\psi\) from pilots, forms soft symbols, and decodes
