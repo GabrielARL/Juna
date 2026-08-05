@@ -162,7 +162,7 @@ have been verified.
 ## Claude decisions
 
 Claude's identifiers use the `CL` prefix so two agents cannot allocate the
-same one. Next free Claude identifier: **CL-61**.
+same one. Next free Claude identifier: **CL-62**.
 
 CL-21, CL-22 and CL-23 are skipped, not used. `experiments/2026-08-01-red-lite-search/NOTES.md`
 already cites `CL-21a` and `CL-23` for different decisions from an earlier
@@ -229,3 +229,4 @@ CL-20 already record.
 | CL-58 | approved | User: "I think you need to make it apparent that because the channel is often challenging error correction codes are used … separate demodulation and decoding … discards the information in the code structure", then "ok". Abstract rev. 7: the opening introduces the code as a consequence of the channel, and the pivot states the discard — soft symbols formed as though coded carriers were independent (gab.tex: "carrierwise independent"). "Suboptimal" itself has no source and is not used. |
 | CL-59 | approved | User: "don't need to say low-density parity-check (LDPC) code, just say carry some kind of FEC". Applied to the user's own condensed rev. 8 abstract: sentence two now reads "carry forward error correction (FEC) that couples every coded carrier across the packet" — the parity-constraints clause went with the LDPC mention, since parity checks are the LDPC form specifically — and the LDPC expansion moved to the decoding sentence, its first remaining use. |
 | CL-60 | approved | User: "remove this: Although we do not claim that the estimated response is the physical intercarrier interference, different responses can reproduce the same observations. All receivers use the same Partial-FFT observations." Both sentences cut; the closing clause stands alone as "The code acts during symbol estimation rather than after it." The identifiability limitation (joe.tex: "Multiple triples can explain the same partial-FFT observations") now appears nowhere in the abstract and must be carried by the body. |
+| CL-61 | approved | User: "introduce (Partial-FFT) which is used in another paper. is used. however, it is formulated here into the joint demodulation and decoding framework". Partial-FFT is now introduced as prior art — "an established defense against residual Doppler" (`defense`: joe.tex; `established`: lexicon, juna_lite_ieee.tex) — then "It has been used ahead of the decoder", then "We keep the same Partial-FFT demodulation, but formulate one objective". Two style conflicts, both resolved away from the user's phrasing: the `mandar` skill forbids citations in an abstract, so Yerramalli is attributed without a citation and the reference belongs in the introduction; and `framework` is on the banned list, so the sentence says `one objective`, the project's own word. |
