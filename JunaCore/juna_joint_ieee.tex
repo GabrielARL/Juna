@@ -23,14 +23,14 @@ selective.  Multipath and ambient noise make uncoded symbol decisions
 unreliable, so transmissions carry forward error correction (FEC) that
 couples every coded carrier in the codeword.  Partial fast Fourier transform
 (Partial-FFT) demodulation is an established defense against residual Doppler,
-and it keeps short-time observations of the symbol interval.  It has been used
+and it keeps short-time views of the symbol interval.  It has been used
 ahead of the decoder: pilot-trained combiner weights form pre-decoder soft
 symbols, and FEC decoding follows.  However, where
 pilots are sparse and residual Doppler strong, separating demodulation from
 decoding discards the information the code carries during the combiner fit.
 We keep the same Partial-FFT demodulation, but formulate one objective over
-the Partial-FFT response, combiner, and relaxed codeword bits; observations,
-pilots, and parity constraints regularize one another.  This joint maximum a posteriori (MAP)
+the Partial-FFT response, combiner, and relaxed codeword bits; the views, the
+pilots, and the parity constraints regularize one another.  This joint maximum a posteriori (MAP)
 problem is intractable because bits are discrete while the response and
 combiner are continuous.  We therefore relax coded bits to real variables and
 replace parity checks with differentiable penalties.  We show that completeness
@@ -68,7 +68,7 @@ single full-interval fast Fourier transform (FFT) collapses the time-local
 information that would separate them.
 
 Partial-FFT demodulation divides the useful interval into segments and keeps
-one observation from every segment~\cite{yerramalli}.  It estimates no ICI
+one view from every segment~\cite{yerramalli}.  It estimates no ICI
 coefficient.  It keeps time-local components of the same full-interval
 statistic, and complex combiner weights recombine them into one pre-decoder
 soft symbol per carrier.  The weights are fitted to pilots, and FEC decoding
@@ -88,8 +88,8 @@ adaptive equalization and channel decoding~\cite{laot,zheng}.  We apply that
 principle to Partial-FFT reception and carry it one step further.  Rather
 than pass information between two fitted stages, we place the Partial-FFT
 response, the combiner weights, and the coded bits in a single
-objective~\cite{juna}.  Observations, pilots, and parity constraints then
-regularize one another while the symbols are still being estimated.  The
+objective~\cite{juna}.  The views, the pilots, and the parity constraints
+then regularize one another while the symbols are still being estimated.  The
 joint maximum a posteriori (MAP) detection problem over these three
 quantities is intractable, since the bits are discrete while the response and
 the combiner are continuous, and a discrete parity check admits no gradient.
@@ -110,7 +110,7 @@ one difference alone.
 
 We develop this in four steps.  First, we state the joint estimation and
 decoding problem in its most general form and relax it.  Second, we write
-the Partial-FFT observation model and the pilot-trained combiner that the
+the Partial-FFT forward model and the pilot-trained combiner that the
 separate receiver fits.  Third, we specialize the objective and give the two
 receivers: the response solved exactly whenever the bits are held fixed, and
 the combiner either computed from that response or estimated beside it.
@@ -119,9 +119,9 @@ difference should appear.
 
 \section{Joint Estimation and Decoding}
 
-We wish to determine two unknowns from the received observations alone: the
-coded bits, and the channel parameters through which those bits were
-observed.  This section states that problem in its most general form, before
+We wish to determine two unknowns from the received signal alone: the
+coded bits, and the channel parameters through which they were
+received.  This section states that problem in its most general form, before
 any receiver structure is chosen, and relaxes it so that descent can solve
 it.
 
@@ -140,12 +140,12 @@ not a processing stage of the receiver.
 
 The modulation map turns the bits into transmitted symbols
 \(\mathbf s(\mathbf b)\), and the channel turns the symbols into
-observations:
+the received signal:
 \begin{equation}
   \mathbf Y=\mathcal A\!\left(\bm\psi,\mathbf s(\mathbf b)\right)+\mathbf n,
   \label{eq:general-forward}
 \end{equation}
-where \(\mathbf Y\) collects every observation the receiver keeps,
+where \(\mathbf Y\) collects the received samples the receiver keeps,
 \(\mathcal A\) is the forward map, \(\bm\psi\) collects the unknown channel
 parameters, and \(\mathbf n\) is noise.  Everything the receiver will ever
 know about the bits and the channel is in \(\mathbf Y\), and both unknowns
@@ -161,7 +161,7 @@ The joint maximum a posteriori (MAP) formulation asks for both at once:
 \end{equation}
 where \(p(\mathbf Y\mid\mathbf b,\bm\psi)\) is the likelihood under
 \eqref{eq:general-forward} and \(p(\bm\psi)\) carries what is known about
-the channel before the observation, including the pilots.  Neither unknown
+the channel before reception, including the pilots.  Neither unknown
 is conditioned on a fixed estimate of the other, so a constraint on either
 one shapes the estimate of both.
 
