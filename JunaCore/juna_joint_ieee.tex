@@ -22,7 +22,7 @@ couples every coded carrier in the codeword.  Partial fast Fourier transform
 (Partial-FFT) demodulation is an established defense against residual Doppler,
 and it keeps short-time observations of the symbol interval.  It has been used
 ahead of the decoder: pilot-trained combiner weights form pre-decoder soft
-symbols, and low-density parity-check (LDPC) decoding follows.  However, where
+symbols, and FEC decoding follows.  However, where
 pilots are sparse and residual Doppler strong, separating demodulation from
 decoding discards the information the code carries during the combiner fit.
 We keep the same Partial-FFT demodulation, but formulate one objective over
@@ -46,10 +46,11 @@ receiver.
 
 Underwater acoustic communication channels are time varying and frequency
 selective.  Multipath and ambient noise make uncoded symbol decisions
-unreliable, so transmissions carry forward error correction (FEC).  The
-parity constraints of the code couple every coded carrier in the codeword,
-and they are the only constraints in the receiver that do so; pilots
-constrain their own carriers and their neighbours.
+unreliable, so transmissions carry forward error correction (FEC).  One
+popular choice, and the one we use here, is a low-density parity-check (LDPC)
+block code.  The parity constraints of the code couple every coded carrier in
+the codeword, and they are the only constraints in the receiver that do so;
+pilots constrain their own carriers and their neighbours.
 
 Orthogonal frequency-division multiplexing (OFDM) permits frequency-domain
 equalization when the channel is constant over one symbol interval.  Residual
@@ -64,8 +65,8 @@ Partial-FFT demodulation divides the useful interval into segments and keeps
 one observation from every segment~\cite{yerramalli}.  It estimates no ICI
 coefficient.  It keeps time-local components of the same full-interval
 statistic, and complex combiner weights recombine them into one pre-decoder
-soft symbol per carrier.  The weights are fitted to pilots, and low-density
-parity-check (LDPC) decoding follows.  While this receiver is strong and
+soft symbol per carrier.  The weights are fitted to pilots, and FEC decoding
+follows.  While this receiver is strong and
 costs only one small ridge fit per carrier band, it consults the code only
 after the soft symbols are formed.
 
