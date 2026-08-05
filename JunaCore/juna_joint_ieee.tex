@@ -114,8 +114,8 @@ one difference alone.
 
 We develop this in four steps.  First, we state the joint estimation and
 decoding problem in its most general form and relax it.  Second, we write
-the Partial-FFT forward model and the pilot-trained combiner that the
-separate receiver fits.  Third, we specialize the objective and give the two
+the Partial-FFT forward model and the pilot-trained combiner used when
+demodulation and decoding are separate.  Third, we specialize the objective and give the two
 receivers: the response solved exactly whenever the bits are held fixed, and
 the combiner either computed from that response or estimated beside it.
 Fourth, we report what the comparison measures and the regime in which the
@@ -170,10 +170,11 @@ determined together.  Hence the pilots, which constrain the channel
 parameters, also improve the decision on the bits; and the parity checks,
 which constrain the bits, also improve the channel estimate.
 
-A separate receiver factorizes \eqref{eq:general-map} instead.  It
-estimates \(\bm\psi\) from pilots, forms soft symbols, and decodes
-afterward.  While each factor is then a small problem, the bits are decided
-against a channel estimate the code never shaped.
+A receiver that performs demodulation and decoding separately does not
+solve \eqref{eq:general-map}.  It estimates \(\bm\psi\) from pilots alone,
+forms soft symbols with that estimate, and decodes afterward.  Each of these
+three steps is a small problem.  However, the bits are then decided against
+a channel estimate the code never shaped.
 
 Two features make \eqref{eq:general-map} intractable.  The codebook doubles
 with every message bit, so the search over \(\mathcal C\) cannot be carried

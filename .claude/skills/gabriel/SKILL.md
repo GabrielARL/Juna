@@ -96,6 +96,27 @@ The pattern, in order:
 Never open with the specific instance, and never let the claim ride on it.
 This applies to every such introduction, not only codes.
 
+## One reading only — spell the action out
+
+A noun phrase that compresses an action makes the reader unpack it, and
+some readers unpack it wrongly. "A separate receiver" reads as a kind of
+hardware; what was meant is *"a receiver that performs demodulation and
+decoding separately"*. His dictation: *"what is a separate receiver? say: a
+receiver that does separate demodulation and decoding, please avoid
+sentence formation that would confuse the human reader"* and *"whatever you
+write, recheck it many times to see if it can be intepreted in any other
+way that is not intended"*.
+
+Two obligations follow:
+
+1. **Write the action, not a label for the action.** If a phrase stands
+   for a process, spell the process out at least once per section, and
+   prefer spelling it out everywhere.
+2. **Before delivering any sentence, reread it hunting for other
+   parses.** Read it as a hostile stranger: every pronoun, every "this",
+   every compressed modifier. If a second reading exists, rewrite until
+   only the intended one survives. Do this for chat as well as documents.
+
 ## What he rejects
 
 - **Duplication.** Two items doing the same job.
