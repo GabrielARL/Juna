@@ -161,7 +161,7 @@ have been verified.
 ## Claude decisions
 
 Claude's identifiers use the `CL` prefix so two agents cannot allocate the
-same one. Next free Claude identifier: **CL-56**.
+same one. Next free Claude identifier: **CL-57**.
 
 CL-21, CL-22 and CL-23 are skipped, not used. `experiments/2026-08-01-red-lite-search/NOTES.md`
 already cites `CL-21a` and `CL-23` for different decisions from an earlier
@@ -223,3 +223,4 @@ CL-20 already record.
 | CL-53 | approved | User: "b". A one-commit agent push to `main` authorized, superseding JCM-025/JCM-081 for that commit only. |
 | CL-54 | approved | User: "b". The CL-53 push overshot: a fast-forward carried thirteen branch commits onto `main`. `main` was restored to `0e551f8` with a pinned lease and the abstract cherry-picked alone as `da72a2d`. |
 | CL-55 | approved | User: "merge now". Claude merged `agent/integrate-source-graph` into `main` as `c26d0cc`, superseding JCM-025/JCM-081 for this merge. Codex's branches are untouched; CL-19's larger merge question stays open. |
+| CL-56 | closed, no action | User: "a" — check in `viewdata.json` as a one-off artifact exception since no generator exists. It was already tracked and clean on `agent/profiled-cz-restore`; Claude's exclusion report had mislabeled it as uncommitted. The committed `results_view.html` on that branch serves a stale page until `build_view.py` is rerun. |
