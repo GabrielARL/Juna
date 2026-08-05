@@ -7,6 +7,10 @@
 
 \newcommand{\Ftwo}{\mathbb{F}_2}
 \newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\Kset}{\mathcal{K}}
+\newcommand{\Pset}{\mathcal{P}}
+\newcommand{\Dset}{\mathcal{D}}
 
 % Title: CL-52c amended by CL-70, 2026-08-05.
 \title{Differentiable Joint Estimation of the Partial-FFT Response,
@@ -216,6 +220,119 @@ still checked on the hardened bits.
 The next section fixes the forward map.  Partial-FFT reception determines
 what \(\mathbf Y\) is, and the channel parameters \(\bm\psi\) split into the
 response and the combiner weights.
+
+\section{OFDM Demodulation}
+
+The forward map \(\mathcal A\) of \eqref{eq:general-forward} is a general
+term, and nothing so far fixes the modulation or the channel.  In our case
+the modulation is OFDM over an underwater acoustic channel.  This section
+writes the demodulation equations that determine what the received signal
+\(\mathbf Y\) contains.
+
+Let \(N\) be the number of OFDM samples after cyclic-prefix removal, let
+\(\mathbf r\in\C^N\) be the received block, and let
+\(\mathbf F\in\C^{N\times N}\) be the unitary FFT matrix.  The active-carrier
+set is \(\Kset\), the pilot set is \(\Pset\), and the data set is
+\(\Dset=\Kset\setminus\Pset\).  The transmitted symbol on carrier \(k\) is
+\(X_k\), and the transmitted block is \(\mathbf F^H\mathbf X\).  Full-FFT
+demodulation takes one number per carrier:
+\begin{equation}
+  Y_k^{\mathrm{full}}
+  =
+  \mathbf e_k^{T}\mathbf F\mathbf r,
+  \label{eq:full-fft-bin}
+\end{equation}
+where \(\mathbf e_k\) selects bin \(k\).  When the channel does not vary over
+the block, cyclic-prefix removal leaves a circulant operator, the FFT
+diagonalizes it, and every carrier obeys the one-tap model
+\begin{equation}
+  Y_k^{\mathrm{full}}
+  =
+  H_{k,k}X_k+\nu_k,
+  \label{eq:one-tap}
+\end{equation}
+where \(H_{k,k}\) is the response on carrier \(k\) and \(\nu_k\) is noise.
+One equalizer tap per carrier then suffices, and pilots specify it.
+
+Motion time-scales the received waveform.  After initial resampling a
+residual Doppler factor \(a\) and a carrier frequency offset \(\theta\)
+remain, so carrier \(\ell\) arrives at index \((1+a)\ell+\theta\) rather than
+at \(\ell\).  Bin \(k\) multiplies by \(e^{-j2\pi kn/N}\) and averages, so
+carrier \(\ell\) enters bin \(k\) with the coefficient
+\begin{align}
+  H_{k,\ell}
+  &=
+  \frac{1}{N}\sum_{n=0}^{N-1}
+  e^{j2\pi\Delta_{k,\ell}n/N},
+  \label{eq:ici-coefficient}\\
+  \Delta_{k,\ell}
+  &=
+  (\ell-k)+\theta+a\ell,
+  \label{eq:leftover-turns}
+\end{align}
+where \(\Delta_{k,\ell}\) is the number of turns carrier \(\ell\) makes
+relative to bin \(k\) over one block.  When \(a\) and \(\theta\) are zero the
+turn count is an integer, the sum closes, and the coefficient vanishes for
+every \(\ell\neq k\); this is subcarrier orthogonality.  A nonzero \(a\) or
+\(\theta\) makes the turn count fractional, and the residue is the ICI
+coefficient.  Collecting the coefficients of all active carriers,
+\begin{equation}
+  Y_k^{\mathrm{full}}
+  =
+  H_{k,k}X_k
+  +
+  \sum_{\ell\in\Kset\setminus\{k\}}
+  H_{k,\ell}X_\ell
+  +
+  \nu_k,
+  \label{eq:ici-row}
+\end{equation}
+where the first term carries the wanted symbol and the sum is the ICI.  The
+magnitude of \eqref{eq:ici-coefficient} is a Dirichlet kernel in
+\(\Delta_{k,\ell}\), so for small \(a\) and \(\theta\) the coefficients stay
+near the diagonal and the operator is banded.
+
+Partial-FFT demodulation divides the useful interval into \(M\) segments.
+Let \(g_m[n]\), \(m=1,\ldots,M\), be deterministic non-overlapping segment
+windows, and define
+\begin{equation}
+  \mathbf S_m
+  =
+  \operatorname{diag}\!\left(g_m[0],\ldots,g_m[N-1]\right).
+  \label{eq:segment}
+\end{equation}
+Partial-FFT view \(m\) on carrier \(k\) is
+\begin{equation}
+  Y_{k,m}
+  =
+  \mathbf e_k^{T}\mathbf F\mathbf S_m\mathbf r,
+  \qquad
+  \mathbf Y_k
+  =
+  [Y_{k,1},\ldots,Y_{k,M}]^T\in\C^M,
+  \label{eq:view}
+\end{equation}
+where \(\mathbf Y_k\) collects the \(M\) views of carrier \(k\).  When the
+windows form a partition of unity, \(\sum_{m=1}^{M}g_m[n]=1\), the views sum
+to the full-FFT bin:
+\begin{equation}
+  \sum_{m=1}^{M}Y_{k,m}
+  =
+  \mathbf e_k^T\mathbf F
+  \left(\sum_{m=1}^{M}\mathbf S_m\right)\mathbf r
+  =
+  Y_k^{\mathrm{full}}.
+  \label{eq:view-identity}
+\end{equation}
+Partial-FFT demodulation therefore creates no new information; it keeps
+temporally localized components of the same full-interval statistic, which a
+single full-interval FFT would collapse.
+
+In the notation of \eqref{eq:general-forward}, the received signal
+\(\mathbf Y\) is the collection of view vectors
+\(\{\mathbf Y_k:k\in\Kset\}\).  The next section writes the forward map that
+connects them to the relaxed symbols, and the channel parameters that the
+receivers estimate.
 
 \begin{thebibliography}{00}
 
