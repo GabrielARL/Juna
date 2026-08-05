@@ -173,15 +173,59 @@ which constrain the bits, also improve the channel estimate.
 
 A receiver that performs demodulation and decoding separately does not
 solve \eqref{eq:general-map}.  It estimates \(\bm\psi\) from pilots alone,
-forms soft symbols with that estimate, and decodes afterward.  Each of these
-three steps is a small problem, and when the pilots alone specify the
-channel well, the separation costs little.  What separation costs in general
-is mutual information, in both directions.  The parity constraints carry
-information about the channel, because the channel acted on symbols that
-must form a codeword.  The channel constraints carry information about the
-bits, because the received signal ties the channel and the bits
-together in \eqref{eq:general-forward}.  A receiver that fixes the channel estimate
-before decoding uses neither piece of that information.
+forms soft symbols with that estimate, and decodes from them.  Write the
+soft symbols as
+\begin{equation}
+  \widetilde{\mathbf X}=g(\mathbf Y),
+  \label{eq:soft-symbol-statistic}
+\end{equation}
+where \(g\) is the map the pilots trained and \(\widetilde{\mathbf X}\) is
+what the decoder reads.  Given the pilots, the chain
+\(\mathbf b\rightarrow\mathbf Y\rightarrow\widetilde{\mathbf X}\) is Markov,
+since \(\widetilde{\mathbf X}\) is computed from \(\mathbf Y\) and nothing
+else.  The data-processing inequality then bounds what any decoder can
+recover from the soft symbols:
+\begin{equation}
+  I(\mathbf b;\widetilde{\mathbf X})
+  \le
+  I(\mathbf b;\mathbf Y),
+  \label{eq:dpi}
+\end{equation}
+where \(I\) denotes mutual information.  Equality holds exactly when
+\(\widetilde{\mathbf X}\) is sufficient for \(\mathbf b\), that is, when
+\(p(\mathbf b\mid\mathbf Y)=p(\mathbf b\mid\widetilde{\mathbf X})\).  When
+the pilots alone specify the channel well, the soft symbols are close to
+sufficient and the separation costs little.  The amount lost in general is
+the conditional mutual information
+\begin{equation}
+  I(\mathbf b;\mathbf Y\mid\widetilde{\mathbf X})
+  =
+  H(\mathbf b\mid\widetilde{\mathbf X})
+  -
+  H(\mathbf b\mid\mathbf Y)
+  \;\ge\;0,
+  \label{eq:residual-information}
+\end{equation}
+where \(H\) denotes entropy.  This is the information about the bits that
+remains in the received signal after the soft symbols are known, and a
+receiver that decodes from \(\widetilde{\mathbf X}\) alone forgoes it.
+
+The loss runs in the other direction as well.  Estimating the channel with
+the knowledge that the transmitted bits form a codeword cannot increase the
+uncertainty about the channel:
+\begin{equation}
+  H(\bm\psi\mid\mathbf Y,\mathcal C)
+  \le
+  H(\bm\psi\mid\mathbf Y),
+  \label{eq:channel-entropy-reduction}
+\end{equation}
+where conditioning on \(\mathcal C\) denotes estimation that uses
+\(\mathbf b\in\mathcal C\) and omitting it denotes estimation that ignores
+the code.  The reduction is strict whenever the code resolves an ambiguity
+that the pilots do not.  A receiver that fixes the channel estimate before
+decoding, and then decodes from \(\widetilde{\mathbf X}\) alone, forgoes
+both \eqref{eq:residual-information} and
+\eqref{eq:channel-entropy-reduction}.
 
 Two features make \eqref{eq:general-map} intractable.  The codebook doubles
 with every message bit, so the search over \(\mathcal C\) cannot be carried
