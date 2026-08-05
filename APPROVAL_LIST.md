@@ -11,7 +11,7 @@ This is Juna's register. It is governed by `SOP_HUMAN_AI_COWORK.md`.
 - A rejected item keeps its identifier.
 - Silence is not approval.
 
-Next free Juna identifier: **JCM-061**.
+Next free Juna identifier: **JCM-062**.
 
 The earlier D sequence still has a gap. D6 to D12 were approved in another
 session but were never recorded. They remain reserved and must not be reused.
@@ -93,6 +93,7 @@ session but were never recorded. They remain reserved and must not be reused.
 | JCM-058 | approved | Apply JCM-032's `branch` in the Explorer. User: "do it". `partial-FFT views` becomes `partial-FFT branches` in `chain.json` and the symbol explorer; the colliding code-path sense in `chain.json` becomes `the standard one-tap path`, reusing that file's own word. |
 | JCM-059 | approved | Replace the Source files run-on sentence with a Kind / Count / What it is table, and rescan on every page load. User: "can we have something like this to make it more intuitive. and can it be dynamic. scan each time reload?". This supersedes the JNR-001 to JNR-006 wording that S20 pinned; the counts, the kind labels, and the module, structure, and abstract type names are all read from the analyzer, and S20 now checks the rows instead of the sentence. The rescan fix is separate: the watch list was a snapshot taken at import, so a source file added after the server started was never seen. |
 | JCM-060 | approved | Name the checked files in the Source file check introduction. User: "can you write their names in the brief introduction. above the technical details". Edited in `test/runtests.jl`, the source of truth, and `suites.json` regenerated. |
+| JCM-061 | approved | Replace the 548-word abstract in `JunaCore/juna_joint_ieee.tex` with this 202-word abstract: "Underwater acoustic communication channels are time varying and frequency selective. Multipath and ambient noise make uncoded symbol decisions unreliable, so transmissions carry a low-density parity-check (LDPC) code whose parity constraints couple every coded carrier across the packet. The separate receiver uses pilot-trained combiner weights to form pre-decoder soft symbols from partial fast Fourier transform (Partial-FFT) observations before LDPC decoding. However, where pilots are sparse and residual Doppler strong, separating demodulation from decoding discards the information the code carries during the combiner fit. We formulate one objective over the Partial-FFT response, combiner, and relaxed codeword bits; observations, pilots, and parity constraints regularize one another. This joint maximum a posteriori (MAP) problem is intractable because bits are discrete while the response and combiner are continuous. We therefore relax coded bits to real variables and replace parity checks with differentiable penalties. We show that completeness and exactness trade against each other; the fewer variables the gradient moves, the more of the objective is solved in closed form. Although we do not claim that the estimated response is the physical intercarrier interference, different responses can reproduce the same observations. All receivers use the same Partial-FFT observations; the code acts during symbol estimation rather than after it." This is a deletion-based condensation of lines 18--68. It removes the receiver-by-receiver claims about the pilot-only recovery, decoder-posterior fit, bit-only response solve, and joint-step acceptance rule; preserves the CL-58 channel-to-code and discarded-code-information chain; introduces no technical claim or name; and does not resolve the separate open decisions CL-46, CL-48, CL-49, or CL-51. User: "061 approved". |
 
 ## Proposed
 
@@ -161,7 +162,7 @@ have been verified.
 ## Claude decisions
 
 Claude's identifiers use the `CL` prefix so two agents cannot allocate the
-same one. Next free Claude identifier: **CL-59**.
+same one. Next free Claude identifier: **CL-60**.
 
 CL-21, CL-22 and CL-23 are skipped, not used. `experiments/2026-08-01-red-lite-search/NOTES.md`
 already cites `CL-21a` and `CL-23` for different decisions from an earlier
@@ -226,3 +227,4 @@ CL-20 already record.
 | CL-56 | closed, no action | User: "a" — check in `viewdata.json` as a one-off artifact exception since no generator exists. It was already tracked and clean on `agent/profiled-cz-restore`; Claude's exclusion report had mislabeled it as uncommitted. The committed `results_view.html` on that branch serves a stale page until `build_view.py` is rerun. |
 | CL-57 | approved | User: "a". The sweep `results_view.html`/`results_manifest.json` pages have no generator (the `validate_results.py` scripts only pin them), so they are checked in as artifact exceptions in `319ee66` on `agent/profiled-cz-restore` — nine files, including the red1_hydrophone2 per-run page. Red-lite-search's regenerable pair stays uncommitted; `2026-08-05-…-rate025` never had a page, so none exists to commit. |
 | CL-58 | approved | User: "I think you need to make it apparent that because the channel is often challenging error correction codes are used … separate demodulation and decoding … discards the information in the code structure", then "ok". Abstract rev. 7: the opening introduces the code as a consequence of the channel, and the pivot states the discard — soft symbols formed as though coded carriers were independent (gab.tex: "carrierwise independent"). "Suboptimal" itself has no source and is not used. |
+| CL-59 | approved | User: "don't need to say low-density parity-check (LDPC) code, just say carry some kind of FEC". Applied to the user's own condensed rev. 8 abstract: sentence two now reads "carry forward error correction (FEC) that couples every coded carrier across the packet" — the parity-constraints clause went with the LDPC mention, since parity checks are the LDPC form specifically — and the LDPC expansion moved to the decoding sentence, its first remaining use. |
