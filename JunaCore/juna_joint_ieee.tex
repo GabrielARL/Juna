@@ -35,9 +35,9 @@ pilots are sparse and residual Doppler strong, separating demodulation from
 decoding discards the information the code carries during the combiner fit.
 We keep the same Partial-FFT demodulation, but formulate one objective over
 the Partial-FFT response, combiner, and relaxed codeword bits; the views, the
-pilots, and the parity constraints regularize one another.  This joint maximum a posteriori (MAP)
-problem is intractable because bits are discrete while the response and
-combiner are continuous.  We therefore relax coded bits to real variables and
+pilots, and the parity constraints regularize one another.  The joint maximum a posteriori (MAP) problem over the Partial-FFT
+response, combiner, and coded bits is intractable because bits are discrete
+while the response and combiner are continuous.  We therefore relax coded bits to real variables and
 replace parity checks with differentiable penalties.  We show that completeness
 and exactness trade against each other; the fewer variables the gradient moves,
 the more of the objective is solved in closed form.  The code acts during
@@ -57,7 +57,7 @@ selective.  Multipath and ambient noise make uncoded symbol decisions
 unreliable, so transmissions carry forward error correction (FEC).  One
 popular choice is a linear block code, whose codeword satisfies parity
 constraints; among these, low-density parity-check (LDPC) codes are the most
-widely used.  This paper is not limited to LDPC: any linear block code with
+widely used.  This paper is not limited to LDPC: any binary linear block code with
 parity constraints serves, and we use an LDPC code as the demonstration.
 The parity constraints couple every coded carrier in the codeword, and they
 are the only constraints in the receiver that do so; pilots constrain their
@@ -90,17 +90,16 @@ shaped that fit are invoked only after it is complete.
 
 Turbo equalization established the value of exchanging information between
 adaptive equalization and channel decoding~\cite{laot,zheng}.  We apply that
-principle to Partial-FFT reception and carry it one step further.  Rather
-than pass information between two fitted stages, we place the Partial-FFT
-response, the combiner weights, and the coded bits in a single
-objective~\cite{juna}.  The views, the pilots, and the parity constraints
+principle to Partial-FFT reception and carry it one step further.  Rather than pass information between two fitted stages, we place three
+quantities in a single objective~\cite{juna}: the Partial-FFT response,
+the combiner weights, and the coded bits.  The Partial-FFT response is the
+response of each carrier as seen in the Partial-FFT views.  The views, the pilots, and the parity constraints
 then regularize one another while the symbols are still being estimated.  The
 joint maximum a posteriori (MAP) detection problem over these three
 quantities is intractable, since the bits are discrete while the response and
 the combiner are continuous, and a discrete parity check admits no gradient.
 We therefore relax each coded bit to a real variable and replace each parity
-check by a differentiable penalty on the relaxed bits.  Every term of the
-objective then has a gradient with respect to every quantity.
+check by a differentiable penalty on the relaxed bits.  The objective then has a gradient with respect to every quantity.
 
 Two receivers follow from that objective, and they differ in whether the
 combiner weights are estimated at all.  In the first, the weights are
@@ -290,7 +289,7 @@ The relaxed joint problem is then one objective:
   \label{eq:general-objective}
 \end{equation}
 where \(\lambda_{\mathrm p}\) weighs the parity penalty against the
-likelihood.  Every term has a gradient with respect to every variable, so
+likelihood.  The objective has a gradient with respect to every variable, so
 demodulation and decoding can improve by the same descent.  The objective is
 a surrogate, not the MAP problem itself: its minimizer depends on
 \(\lambda_{\mathrm p}\), the relaxed bits need not be hard, and validity is
@@ -326,8 +325,8 @@ demodulation takes one number per carrier:
   \mathbf e_k^{T}\mathbf F\mathbf r,
   \label{eq:full-fft-bin}
 \end{equation}
-where \(\mathbf e_k\) selects bin \(k\).  When the channel does not vary over
-the block, cyclic-prefix removal leaves a circulant operator, the FFT
+where \(\mathbf e_k\) selects bin \(k\).  With an adequate cyclic prefix and a channel that does not vary over the
+block, cyclic-prefix removal leaves a circulant operator, the FFT
 diagonalizes it, and every carrier obeys the one-tap model
 \begin{equation}
   Y_k^{\mathrm{full}}
@@ -415,8 +414,8 @@ single full-interval FFT would collapse.
 In the notation of \eqref{eq:general-forward}, the received signal
 \(\mathbf Y\) is the collection of view vectors
 \(\{\mathbf Y_k:k\in\Kset\}\).  The next section writes the forward map that
-connects them to the relaxed symbols, and the channel parameters that the
-receivers estimate.
+connects them to the relaxed symbols, and names the channel parameters that
+the receivers estimate.
 
 \begin{thebibliography}{00}
 
