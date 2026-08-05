@@ -52,6 +52,25 @@ These mean **stop adding detail**. Rewrite shorter:
 
 If he says it twice, the second attempt is still too long. Never answer confusion with more evidence.
 
+## Never coin a term — in conversation either
+
+The `mandar` skill forbids invented names in documents. The ban covers
+**chat**, which is where invented names are actually born: a short label
+appears in an explanation, goes unchallenged because conversation looks
+informal, and then walks into the paper as settled vocabulary. That is how
+`arm`, `profiled`, `ladder`, and `conditioned joint step` reached a draft. He
+stopped the work twice to ask what they meant — *"what is arm? I don't
+understand all these coined terms you come up with"*.
+
+**Default to describing, not naming.** "The receiver that computes the
+combiner" costs six words and no confusion; a short label saves you typing
+and costs him the meaning.
+
+**When a name is unavoidable and it is not his, not in a source, and not a
+code identifier, mark it at first use, in the sentence:** "(my word, not
+yours)". The mark is the enforcement — he can see it, or see it missing where
+a strange word appeared. A rule with no visible output gets broken silently.
+
 ## What he rejects
 
 - **Duplication.** Two items doing the same job.
