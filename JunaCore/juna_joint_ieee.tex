@@ -12,6 +12,7 @@
 \newcommand{\Kset}{\mathcal{K}}
 \newcommand{\Pset}{\mathcal{P}}
 \newcommand{\Dset}{\mathcal{D}}
+\newcommand{\E}{\mathbb{E}}
 
 % Title: CL-52c amended by CL-70, 2026-08-05.
 \title{Differentiable Joint Estimation of the Partial-FFT Response,
@@ -89,8 +90,8 @@ weights are fitted from a few nearby pilots.  The constraints that could have
 shaped that fit are invoked only after it is complete.
 
 Turbo equalization established the value of exchanging information between
-adaptive equalization and channel decoding~\cite{laot,zheng}.  We apply that
-principle to Partial-FFT reception and carry it one step further.  Rather than pass information between two fitted stages, we place three
+adaptive equalization and channel decoding~\cite{laot,zheng}.  We carry that
+exchange one step further for Partial-FFT reception.  Rather than pass information between two fitted stages, we place three
 quantities in a single objective~\cite{juna}: the Partial-FFT response,
 the combiner weights, and the coded bits.  The Partial-FFT response is the
 response of each carrier as seen in the Partial-FFT views.  The views, the pilots, and the parity constraints
@@ -297,10 +298,11 @@ still checked on the hardened bits.
 
 Three things make \eqref{eq:general-objective} concrete: the modulation
 that fixes \(\mathbf s\), the demodulation that fixes \(\mathbf Y\), and the
-channel parameters \(\bm\psi\).  The next section supplies the first two
-for OFDM under residual Doppler.  The section after it names
-\(\bm\psi\) --- the Partial-FFT response and the combiner weights --- and
-specializes the objective.
+channel parameters \(\bm\psi\).  The next two sections supply the
+first two for OFDM under residual Doppler: the demodulation, then the
+pilot-trained combiner whose output the decoder reads.  The section after
+them names \(\bm\psi\) --- the Partial-FFT response and the combiner
+weights --- and specializes the objective.
 
 \section{OFDM Demodulation}
 
@@ -375,6 +377,47 @@ magnitude of \eqref{eq:ici-coefficient} is a Dirichlet kernel in
 \(\Delta_{k,\ell}\), so for small \(a\) and \(\theta\) the coefficients stay
 near the diagonal and the operator is banded.
 
+The same coupling can be written at the operator level.  Let \(\mathbf G\)
+be the time-domain channel operator over one useful block after
+cyclic-prefix removal, so that
+\begin{equation}
+  \mathbf Y^{\mathrm{full}}
+  =
+  \mathbf F\mathbf G\mathbf F^{H}\mathbf X+\bm\nu
+  \triangleq
+  \mathbf H_{\mathrm{fd}}\mathbf X+\bm\nu,
+  \label{eq:fd-operator}
+\end{equation}
+where \(\mathbf H_{\mathrm{fd}}\) collects every coefficient
+\(H_{k,\ell}\) and \(\bm\nu\) is the noise vector.  When the channel is
+still over the block, \(\mathbf G\) is circulant and
+\(\mathbf H_{\mathrm{fd}}\) is diagonal.  Residual Doppler makes
+\(\mathbf G\) non-circulant and \(\mathbf H_{\mathrm{fd}}\)
+non-diagonal.  For local Doppler the off-diagonal energy concentrates near
+the main diagonal, and we use the banded approximation
+\begin{equation}
+  Y_k^{\mathrm{full}}
+  =
+  H_{k,k}X_k
+  +\sum_{q\in\mathcal B_K(k)\setminus\{k\}}H_{k,q}X_q
+  +\nu_k,
+  \label{eq:banded}
+\end{equation}
+where \(\mathcal B_K(k)=\{q\in\Kset:\left|q-k\right|\le K_{\mathrm{ICI}}\}\)
+is the local ICI neighbourhood and \(K_{\mathrm{ICI}}\) its half-bandwidth.
+The truncation error is
+\begin{equation}
+  \epsilon_k^{(K)}
+  =\sum_{q\notin\mathcal B_K(k)}H_{k,q}X_q,
+  \qquad
+  \E\left|\epsilon_k^{(K)}\right|^2
+  =\sum_{q\notin\mathcal B_K(k)}\left|H_{k,q}\right|^2\E\left|X_q\right|^2,
+  \label{eq:truncation}
+\end{equation}
+for independent zero-mean symbols, where \(\E\) denotes expectation.
+Increasing \(K_{\mathrm{ICI}}\) reduces the bias of the model but
+increases the number of coefficients a receiver must estimate.
+
 Partial-FFT demodulation divides the useful interval into \(M\) segments.
 Let \(g_m[n]\), \(m=1,\ldots,M\), be deterministic non-overlapping segment
 windows, and define
@@ -395,7 +438,17 @@ Partial-FFT view \(m\) on carrier \(k\) is
   [Y_{k,1},\ldots,Y_{k,M}]^T\in\C^M,
   \label{eq:view}
 \end{equation}
-where \(\mathbf Y_k\) collects the \(M\) views of carrier \(k\).  When the
+where \(\mathbf Y_k\) collects the \(M\) views of carrier \(k\).
+Equivalently, in sample notation,
+\begin{equation}
+  Y_{k,m}
+  =
+  \frac{1}{\sqrt N}\sum_{n=0}^{N-1}
+  g_m[n]\,r[n]\,e^{-j2\pi kn/N},
+  \label{eq:view-sample}
+\end{equation}
+where \(r[n]\) is sample \(n\) of the received block.  Each view is the
+FFT of one windowed piece of the block, taken at bin \(k\).  When the
 windows form a partition of unity, \(\sum_{m=1}^{M}g_m[n]=1\), the views sum
 to the full-FFT bin:
 \begin{equation}
@@ -411,11 +464,122 @@ Partial-FFT demodulation therefore creates no new information; it keeps
 temporally localized components of the same full-interval statistic, which a
 single full-interval FFT would collapse.
 
+The views help because residual Doppler is mainly a slow phase drift within
+one OFDM symbol.  Partition the useful interval into segment index sets
+\(\mathcal T_m\), and let the channel hold still across the symbol while a
+phase \(\phi_m\) evolves from segment to segment:
+\begin{equation}
+  r[n]
+  \approx
+  e^{j\phi_m}
+  \sum_{\ell=0}^{L-1}h_\ell\,x[(n-\ell)\bmod N]+\nu[n],
+  \qquad n\in\mathcal T_m,
+  \label{eq:piecewise-phase}
+\end{equation}
+where \(h_\ell\) are the \(L\) channel taps and \(x[n]\) is the
+transmitted block.  Each view then obeys
+\begin{equation}
+  Y_{k,m}
+  \approx
+  e^{j\phi_m}H_{k,k}X_k + I_{k,m}+\nu_{k,m},
+  \label{eq:view-phase-model}
+\end{equation}
+where \(I_{k,m}\) collects the local ICI the approximation neglects and
+\(\nu_{k,m}\) is the noise in view \(m\).  The views of one carrier
+differ mainly by the per-segment phases, so one complex weight per view can
+realign them.  This poses the question the combiner answers: given the
+\(M\) views of carrier \(k\), which linear combination recovers a
+reliable pre-decoder soft symbol?
+
 In the notation of \eqref{eq:general-forward}, the received signal
 \(\mathbf Y\) is the collection of view vectors
-\(\{\mathbf Y_k:k\in\Kset\}\).  The next section writes the forward map that
-connects them to the relaxed symbols, and names the channel parameters that
-the receivers estimate.
+\(\{\mathbf Y_k:k\in\Kset\}\).  The next section writes the combiner
+that turns the views of each carrier into the soft symbol the decoder
+reads when demodulation and decoding are separate.
+
+\section{Pilot-Trained Partial-FFT Combining}
+
+When demodulation and decoding are separate, the views of every carrier are
+combined into one soft symbol before the decoder reads them.  This section
+writes that combiner.  It is the pilot-trained map \(g\) of
+\eqref{eq:soft-symbol-statistic} made concrete.
+
+The pre-decoder soft symbol is
+\begin{equation}
+  \widetilde X_k=\mathbf W_k^{H}\mathbf Y_k,
+  \label{eq:combiner}
+\end{equation}
+where \(\mathbf W_k\in\C^M\) is the combining vector for carrier \(k\).
+The weights rotate and scale the views back toward the transmitted symbol,
+and the pilots supply the carriers where that symbol is known.
+
+Let \(\Pset(k)\subseteq\Pset\) be the nearby pilot set for carrier
+\(k\).  The pilot-trained ridge criterion is
+\begin{equation}
+  J_k(\mathbf W_k)
+  =
+  \sum_{p\in\Pset(k)}
+  \left|\mathbf W_k^{H}\mathbf Y_p-X_p\right|^2
+  +\delta\left\lVert\mathbf W_k\right\rVert_2^2,
+  \label{eq:ridge-criterion}
+\end{equation}
+where \(\delta>0\) is the ridge parameter.  Each pilot contributes one
+constraint built from its \(M\) views, and the ridge keeps the fit stable
+when the pilots are few.  With
+\begin{equation}
+  \mathbf R_k=\sum_{p\in\Pset(k)}\mathbf Y_p\mathbf Y_p^{H}+\delta\mathbf I,
+  \qquad
+  \mathbf r_k=\sum_{p\in\Pset(k)}\mathbf Y_pX_p^{*},
+  \label{eq:pilot-correlations}
+\end{equation}
+where \(\mathbf R_k\) is the pilot correlation matrix and
+\(\mathbf r_k\) the pilot cross-correlation vector, the minimizer of
+\eqref{eq:ridge-criterion} solves the normal equations
+\begin{equation}
+  \mathbf R_k\widehat{\mathbf W}_k=\mathbf r_k,
+  \qquad
+  \widehat{\mathbf W}_k=\mathbf R_k^{-1}\mathbf r_k.
+  \label{eq:batch-solution}
+\end{equation}
+One small linear system per carrier recovers the \(M\) weights.
+
+The same criterion admits a recursive update as pilots arrive.  For pilot
+regressors \(\mathbf u_t=\mathbf Y_{p_t}\), desired responses
+\(d_t=X_{p_t}\), and forgetting factor \(\beta\in(0,1]\),
+\begin{align}
+  \mathbf g_t
+  &=
+  \frac{\mathbf Q_{t-1}\mathbf u_t}
+  {\beta+\mathbf u_t^{H}\mathbf Q_{t-1}\mathbf u_t},
+  \label{eq:rls-gain}\\
+  e_t
+  &=
+  d_t-\mathbf W_{k,t-1}^{H}\mathbf u_t,
+  \label{eq:rls-error}\\
+  \mathbf W_{k,t}
+  &=
+  \mathbf W_{k,t-1}+\mathbf g_t e_t^{*},
+  \label{eq:rls-update}\\
+  \mathbf Q_t
+  &=
+  \beta^{-1}
+  \left(\mathbf Q_{t-1}-\mathbf g_t\mathbf u_t^{H}\mathbf Q_{t-1}\right),
+  \label{eq:rls-inverse}
+\end{align}
+where \(\mathbf g_t\) is the gain, \(e_t\) the prediction error, and
+\(\mathbf Q_t\) the inverse correlation matrix.  Recursive least squares
+is the sequential implementation of \eqref{eq:batch-solution}: it updates
+the inverse correlation matrix as pilot rows arrive rather than rebuilding
+the batch matrix.
+
+This combiner is fitted from the pilots alone, and its output is the
+statistic that \eqref{eq:dpi} bounds: the \(M\) views of each carrier
+collapse to one scalar before the parity constraints are used.  When the
+nearby pilot set is too small to specify \(M\) weights, the ridge trades
+bias for variance but cannot add information.  The next section names the
+channel parameters \(\bm\psi\) and specializes the objective
+\eqref{eq:general-objective}, so that every coded carrier constrains the
+fit.
 
 \begin{thebibliography}{00}
 

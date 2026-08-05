@@ -162,7 +162,7 @@ have been verified.
 ## Claude decisions
 
 Claude's identifiers use the `CL` prefix so two agents cannot allocate the
-same one. Next free Claude identifier: **CL-90**.
+same one. Next free Claude identifier: **CL-92**.
 
 CL-21, CL-22 and CL-23 are skipped, not used. `experiments/2026-08-01-red-lite-search/NOTES.md`
 already cites `CL-21a` and `CL-23` for different decisions from an earlier
@@ -258,3 +258,6 @@ CL-20 already record.
 | CL-87 | approved | User: "yes". The one-tap sentence now carries both conditions: "With an adequate cyclic prefix and a channel that does not vary over the block..." (JCM-054a wording). |
 | CL-88 | approved | User: "yes". "Every term has a gradient with respect to every variable" was false — the parity penalty has zero gradient in the channel parameters and the prior in the bits. Both occurrences now read "The objective has a gradient with respect to every variable/quantity". |
 | CL-89 | open | Replaces CL-85. The sentence "We apply that principle to Partial-FFT reception and carry it one step further." names the thing instead of Claude's word "principle" and removes the ambiguous "it": "We carry that exchange one step further for Partial-FFT reception." The antecedent of "that exchange" is explicit in the preceding sentence: "exchanging information between adaptive equalization and channel decoding". |
+| CL-89 | approved | User: "89-ok". Applied: "We carry that exchange one step further for Partial-FFT reception." |
+| CL-90 | applied, unconfirmed | User: "do you see equations 0.5 - 0.20 of gab.tex, understand them and weave them into this paper seamlessly". Woven: the operator form of the coupling (eq:fd-operator, gab 0.5), the banded approximation and its truncation error (eq:banded, eq:truncation, gab 0.6-0.7), the sample-notation view (eq:view-sample, gab 0.9), the per-segment phase interpretation that motivates combining (eq:piecewise-phase, eq:view-phase-model, gab 0.11-0.12), and a new section "Pilot-Trained Partial-FFT Combining" (JCM-034 wording) carrying gab 0.13-0.20: the pre-decoder soft symbol (eq:combiner), the ridge criterion (eq:ridge-criterion), pilot correlations and the batch solution (eq:pilot-correlations, eq:batch-solution), and the RLS recursion (eq:rls-gain through eq:rls-inverse). The seams: the combiner is introduced as the map g of eq:soft-symbol-statistic made concrete, and its closing paragraph ties the collapse of M views to one scalar back to the data-processing bound eq:dpi. gab.tex's "branch" became "view" (JCM-052d) and its "anchors known pilots" phrasing was avoided throughout. Section II's closing promise now names both coming sections. Gab 0.8 and 0.10 were already in the paper (eq:view, eq:view-identity). |
+| CL-91 | open | gab.tex's RLS recursion writes the inverse correlation matrix as P_t, which collides with the parity-check matrix P of eq:codebook. Claude renamed it Q_t (unused elsewhere in the paper). Options: (a) keep Q_t; (b) keep gab.tex's P_t and accept the collision; (c) another symbol the user names. |
