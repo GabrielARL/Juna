@@ -162,7 +162,7 @@ have been verified.
 ## Claude decisions
 
 Claude's identifiers use the `CL` prefix so two agents cannot allocate the
-same one. Next free Claude identifier: **CL-60**.
+same one. Next free Claude identifier: **CL-61**.
 
 CL-21, CL-22 and CL-23 are skipped, not used. `experiments/2026-08-01-red-lite-search/NOTES.md`
 already cites `CL-21a` and `CL-23` for different decisions from an earlier
@@ -228,3 +228,4 @@ CL-20 already record.
 | CL-57 | approved | User: "a". The sweep `results_view.html`/`results_manifest.json` pages have no generator (the `validate_results.py` scripts only pin them), so they are checked in as artifact exceptions in `319ee66` on `agent/profiled-cz-restore` — nine files, including the red1_hydrophone2 per-run page. Red-lite-search's regenerable pair stays uncommitted; `2026-08-05-…-rate025` never had a page, so none exists to commit. |
 | CL-58 | approved | User: "I think you need to make it apparent that because the channel is often challenging error correction codes are used … separate demodulation and decoding … discards the information in the code structure", then "ok". Abstract rev. 7: the opening introduces the code as a consequence of the channel, and the pivot states the discard — soft symbols formed as though coded carriers were independent (gab.tex: "carrierwise independent"). "Suboptimal" itself has no source and is not used. |
 | CL-59 | approved | User: "don't need to say low-density parity-check (LDPC) code, just say carry some kind of FEC". Applied to the user's own condensed rev. 8 abstract: sentence two now reads "carry forward error correction (FEC) that couples every coded carrier across the packet" — the parity-constraints clause went with the LDPC mention, since parity checks are the LDPC form specifically — and the LDPC expansion moved to the decoding sentence, its first remaining use. |
+| CL-60 | approved | User: "remove this: Although we do not claim that the estimated response is the physical intercarrier interference, different responses can reproduce the same observations. All receivers use the same Partial-FFT observations." Both sentences cut; the closing clause stands alone as "The code acts during symbol estimation rather than after it." The identifiability limitation (joe.tex: "Multiple triples can explain the same partial-FFT observations") now appears nowhere in the abstract and must be carried by the body. |
