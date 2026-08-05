@@ -1,0 +1,918 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,mathtools,bm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{listings}
+\usepackage{longtable}
+\usepackage{caption}
+
+\definecolor{codegray}{RGB}{245,245,245}
+\definecolor{codeborder}{RGB}{210,210,210}
+\definecolor{darkblue}{RGB}{20,75,140}
+
+\lstdefinelanguage{Julia}{
+  morekeywords={function,struct,mutable,abstract,type,where,return,for,in,end,if,else,elseif,while,begin,let,do,try,catch,finally,module,using,import,export,const,global,local,break,continue,true,false,Nothing,Union,Vector,Matrix,Array,ComplexF64,Float64,Int,Bool,Symbol,Dict,Tuple,NamedTuple},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]",
+}
+\lstset{
+  language=Julia,
+  backgroundcolor=\color{codegray},
+  frame=single,
+  rulecolor=\color{codeborder},
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{darkblue}\bfseries,
+  commentstyle=\color{gray},
+  stringstyle=\color{teal!70!black},
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false,
+  breaklines=true,
+  tabsize=2
+}
+
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\F}{\mathbb{F}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\jj}{\mathrm{j}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\abs}[1]{\left\lvert #1 \right\rvert}
+\newcommand{\re}{\operatorname{Re}}
+\newcommand{\im}{\operatorname{Im}}
+\newcommand{\sech}{\operatorname{sech}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\clip}{\operatorname{clip}}
+
+\title{SC-JUNA Manual Gradient Implementation Plan\\
+\large Hand-Derived Real Gradients for LDPC-Coupled Receiver Updates}
+\author{Implementation specification for Julia}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This document specifies how to implement the SC-JUNA bit-latent update without relying on automatic differentiation.  Closed-form least-squares updates serve the partial-FFT observation model and the combiner, and a hand-derived real gradient serves the latent vector.  Automatic differentiation may be used only as a test-time gradient checker.  The planned SC-JUNA code should use the formulas in this document.
+\end{abstract}
+
+\tableofcontents
+\clearpage
+
+\section{Implementation decision}
+
+The implementation should \emph{not} require automatic differentiation for the main receiver loop.  SC-JUNA has a block structure:
+\begin{align}
+\mathbf C &\leftarrow \text{ridge least squares},\\
+\mathbf W &\leftarrow \text{ridge least squares or block-tridiagonal least squares},\\
+\bm z &\leftarrow \text{manual real-gradient update}.
+\end{align}
+The only nontrivial gradient is the gradient with respect to the real bit-latent vector $\bm z$.  That gradient is short, stable, and easy to unit-test by finite differences.
+
+\paragraph{Production rule.}
+Use the hand-derived gradient in Section~\ref{sec:z-gradient}.  Do not use complex automatic differentiation (AD) inside the production solver.
+
+\paragraph{Testing rule.}
+Use central finite differences as the required gradient check.  AD may be used as an optional secondary check, but the finite-difference test is the authoritative test.
+
+\paragraph{Reason.}
+The $\bm z$ variables are real, while the observation residuals are complex.  Although AD removes the need to derive gradients by hand, several Julia packages handle complex-valued intermediate computations differently.  A manual real gradient avoids package-specific complex-AD conventions and makes the implementation deterministic.
+
+\section{Version-1 restrictions}
+
+To keep the implementation deterministic, version 1 uses the following restrictions.
+
+\begin{table}[h]
+\centering
+\caption{Version-1 choices.  These are implementation constraints, not theoretical limits.}
+\begin{tabular}{@{}llp{0.45\linewidth}@{}}
+\toprule
+Item & Value & Reason \\
+\midrule
+Noise weight & $\Sigma_k^{-1}=\sigma^{-2}I_M$ & Gives simple closed-form $\mathbf C$ update and simple gradients. \\
+Partial-FFT windows & nested rectangular only & Guarantees partition-of-unity and allows adjacent partial-FFT views to be merged. \\
+Latents & real $z_i\in\R$ only & Avoids complex AD and makes parity penalty simple. \\
+Symbol map & relaxed QPSK, $s=(\xi_I+\jj\xi_Q)/\sqrt2$ & Smooth map from bits to complex symbols. \\
+Neighborhood edge handling & skip invalid neighbors & No wraparound at band edges. \\
+Optimizer for $\bm z$ & Adam or normalized gradient descent & Both use the same manual gradient. \\
+AD & test-only & Never required for production. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Notation and array layout}
+
+All Julia arrays use 1-based indexing.
+
+\begin{longtable}{@{}p{0.23\linewidth}p{0.19\linewidth}p{0.48\linewidth}@{}}
+\caption{Required array shapes and indexing conventions.}\label{tab:layout}\\
+\toprule
+Quantity & Julia shape & Meaning \\
+\midrule
+\endfirsthead
+\toprule
+Quantity & Julia shape & Meaning \\
+\midrule
+\endhead
+\bottomrule
+\endfoot
+\texttt{Ypartial} & \texttt{N x M} & $Y_{k,m}$, partial-FFT view for carrier $k$ and view $m$. \\
+\texttt{W} & \texttt{N x M} & $W[k,m]=w_{k,m}$.  Scalar output is $a_k=\mathbf w_k^H\mathbf Y_k$. \\
+\texttt{C} & \texttt{N x (2K+1) x M} & $C[k,o,m]=c_{k,q,m}$ with $o=q-k+K+1$. \\
+\texttt{z} & \texttt{nbits} & Real bit latents. \\
+\texttt{xi} & \texttt{nbits} & $\xi_i=\tanh z_i$. \\
+\texttt{tanhprime} & \texttt{nbits} & $r_i=1-\xi_i^2$. \\
+\texttt{s} & \texttt{N} & Relaxed carrier symbols.  Data carriers use $\bm z$; pilots are fixed; nulls are zero. \\
+\texttt{carrier\_to\_bits} & \texttt{N} entries & For data carrier $q$, returns $(i_I(q),i_Q(q))$.  For pilots/nulls, returns $(0,0)$. \\
+\texttt{bit\_to\_carrier} & \texttt{nbits} & Carrier containing bit $i$. \\
+\texttt{bit\_to\_axis} & \texttt{nbits} & Either \texttt{:I} or \texttt{:Q}. \\
+\end{longtable}
+
+\subsection{Local ICI indexing}
+
+The local ICI neighborhood of carrier $k$ is
+\begin{equation}
+\mathcal B_K(k)=\{q: q\in\mathcal K,\ |q-k|\le K\}.
+\end{equation}
+The corresponding offset index is
+\begin{equation}
+ o(k,q)=q-k+K+1.
+\end{equation}
+The implementation must skip invalid neighbors:
+\begin{equation}
+q<1 \quad\text{or}\quad q>N \quad\Longrightarrow\quad \text{skip } q.
+\end{equation}
+There is no circular wraparound.
+
+\begin{lstlisting}
+@inline function neighbor_indices(k::Int, N::Int, K::Int)
+    return max(1, k-K):min(N, k+K)
+end
+
+@inline function c_offset(k::Int, q::Int, K::Int)::Int
+    return q - k + K + 1
+end
+\end{lstlisting}
+
+\section{Latent bits and relaxed symbols}
+
+The formulas in this section define $z_i$ as the bit latent for the planned
+SC-JUNA update.  The current frame-wide JUNA-Wz path calls $z_i$ a logit and
+maps it with $\tanh(z_i/2)$ in
+\texttt{src/juna/frame\_wide\_ldpc.jl}.  Its chain rule therefore carries the
+factor $1/2$.  These are different code paths; the formulas below apply only
+to the bit-latent update specified here.
+
+The relaxed bipolar bit is
+\begin{equation}
+\xi_i=\tanh z_i,
+\qquad
+r_i=\frac{\partial \xi_i}{\partial z_i}=1-\xi_i^2.
+\end{equation}
+For data carrier $q$, let $(i_I(q),i_Q(q))$ be its two coded-bit indices.  The relaxed QPSK symbol is
+\begin{equation}
+ s_q(\bm z)=\frac{1}{\sqrt2}\left(\xi_{i_I(q)}+\jj\xi_{i_Q(q)}\right).
+\end{equation}
+Define the local derivative coefficient
+\begin{equation}
+\alpha_i=\frac{\partial s_{q(i)}}{\partial \xi_i}
+=\begin{cases}
+1/\sqrt2, & \text{if bit }i\text{ is the in-phase bit},\\
+\jj/\sqrt2, & \text{if bit }i\text{ is the quadrature bit}.
+\end{cases}
+\end{equation}
+Then
+\begin{equation}
+\frac{\partial s_{q(i)}}{\partial z_i}=\alpha_i(1-\xi_i^2).
+\end{equation}
+
+\begin{lstlisting}
+@inline function alpha_for_axis(axis::Symbol)::ComplexF64
+    invsqrt2 = inv(sqrt(2.0))
+    if axis === :I
+        return complex(invsqrt2, 0.0)
+    elseif axis === :Q
+        return complex(0.0, invsqrt2)
+    else
+        error("axis must be :I or :Q")
+    end
+end
+\end{lstlisting}
+
+\section{Normalized $z$-subproblem}
+\label{sec:z-subproblem}
+
+The solver updates $\mathbf C$ and $\mathbf W$ outside the $\bm z$ subproblem.  With $\mathbf C$ and $\mathbf W$ fixed, define
+\begin{equation}
+\mathbf e_k(\bm z)
+=\mathbf Y_k-\sum_{q\in\mathcal B_K(k)}\mathbf c_{kq}s_q(\bm z),
+\end{equation}
+where $\mathbf Y_k\in\C^M$ and $\mathbf c_{kq}\in\C^M$.
+
+Define the scalar combiner output
+\begin{equation}
+ a_q=\mathbf w_q^H\mathbf Y_q.
+\end{equation}
+The implemented normalized loss is
+\begin{equation}
+\boxed{
+\begin{aligned}
+\mathcal L_z(\bm z)
+&=\frac{\lambda_d}{N_{\rm act}\sigma^2}
+\sum_{k\in\mathcal K_{\rm act}}
+\norm{\mathbf e_k(\bm z)}_2^2 \\
+&\quad +\frac{\rho}{N_D}
+\sum_{q\in\mathcal D}
+\abs{a_q-s_q(\bm z)}^2 \\
+&\quad +\frac{\lambda_p}{N_C}
+\sum_{j=1}^{N_C}
+\left(1-\prod_{i\in\mathcal N_j}\xi_i\right)^2.
+\end{aligned}}
+\label{eq:lz}
+\end{equation}
+Here $N_{\rm act}=|\mathcal K_{\rm act}|$, $N_D=|\mathcal D|$, and $N_C$ is the number of LDPC parity checks.  The normalization makes default weights less dependent on packet size.
+
+\subsection{Default weights}
+
+\begin{table}[h]
+\centering
+\caption{Default $z$-update constants.}
+\begin{tabular}{@{}lll@{}}
+\toprule
+Parameter & Default & Meaning \\
+\midrule
+$\lambda_d$ & $1.0$ & partial-FFT observation consistency \\
+$\rho_{\max}$ & $0.25$ & combiner-symbol tie strength \\
+$\lambda_{p,\max}$ & $0.05$ & LDPC parity penalty strength \\
+$T_\rho$ & $8$ outer iterations & tie-term ramp time \\
+$T_p$ & $12$ outer iterations & parity-term ramp time \\
+$z_{\max}$ & $8.0$ & clamp $z_i$ to $[-z_{\max},z_{\max}]$ \\
+Gradient clip & $10.0$ & clip $\ell_2$ norm of $\nabla_z\mathcal L_z$ \\
+Adam step size & $2\times 10^{-2}$ & default inner update step \\
+Adam $(\beta_1,\beta_2,\epsilon)$ & $(0.9,0.999,10^{-8})$ & default Adam constants \\
+Finite-difference $\epsilon$ & $10^{-5}$ & gradient-check step \\
+Gradient-check tolerance & $10^{-4}$ relative & required finite-difference tolerance \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The scheduled weights are
+\begin{align}
+\rho^{(t)}&=\rho_{\max}\left(1-e^{-t/T_\rho}\right)q_{\rm sym}^{(t)},\\
+\lambda_p^{(t)}&=\lambda_{p,\max}\left(1-e^{-t/T_p}\right)q_{\rm dec}^{(t)}.
+\end{align}
+Version 1 uses deterministic gates
+\begin{equation}
+q_{\rm sym}^{(t)}=q_{\rm dec}^{(t)}=1.
+\end{equation}
+Confidence-dependent gates may be added later, but they are not part of the first implementation.
+
+\section{Manual gradient for the $z$-subproblem}
+\label{sec:z-gradient}
+
+The implementation computes the gradient in two stages:
+\begin{enumerate}[label=(\alph*)]
+\item accumulate $g_i^{(\xi)}=\partial\mathcal L_z/\partial\xi_i$;
+\item apply the tanh chain rule:
+\begin{equation}
+ g_i^{(z)}=\frac{\partial\mathcal L_z}{\partial z_i}
+ =\left(1-\xi_i^2\right)g_i^{(\xi)}.
+\end{equation}
+\end{enumerate}
+
+\subsection{Observation-consistency gradient}
+
+The observation loss is
+\begin{equation}
+\mathcal L_d
+=\frac{\lambda_d}{N_{\rm act}\sigma^2}
+\sum_k \mathbf e_k^H\mathbf e_k.
+\end{equation}
+For a bit $i$ living on carrier $q(i)$,
+\begin{equation}
+\frac{\partial \mathcal L_d}{\partial \xi_i}
+= -\frac{2\lambda_d}{N_{\rm act}\sigma^2}
+\re\left\{
+\alpha_i^*\sum_{k:q(i)\in\mathcal B_K(k)}
+\mathbf c_{k,q(i)}^H\mathbf e_k
+\right\}.
+\label{eq:grad_obs}
+\end{equation}
+This formula follows from
+\begin{equation}
+\dd\left(\mathbf e^H\mathbf e\right)=2\re\{(\dd\mathbf e)^H\mathbf e\},
+\qquad
+\frac{\partial\mathbf e_k}{\partial\xi_i}=-\mathbf c_{k,q(i)}\alpha_i.
+\end{equation}
+
+\paragraph{Implementation detail.}
+Use Julia's \texttt{dot(cvec,e)} for $\mathbf c^H\mathbf e$ because \texttt{dot} conjugates its first argument.
+
+\begin{lstlisting}
+function add_observation_gradient!(
+    gxi::Vector{Float64},
+    e_cache::Matrix{ComplexF64},      # N x M, row k is e_k
+    C::Array{ComplexF64,3},           # N x (2K+1) x M
+    problem::JUNAProblem,
+    cfg::JUNAConfig,
+    lambda_d::Float64,
+    sigma2::Float64
+)::Nothing
+    N = problem.ofdm.N
+    M = cfg.M
+    K = cfg.Kici
+    scale = -2.0 * lambda_d / (length(problem.active_indices) * sigma2)
+
+    for k in problem.active_indices
+        eview = @view e_cache[k, :]
+        for q in neighbor_indices(k, N, K)
+            bits = problem.bitmap.carrier_to_bits[q]
+            iI, iQ = bits[1], bits[2]
+            if iI == 0
+                continue  # pilot or null; no z-gradient
+            end
+            o = c_offset(k, q, K)
+            cvec = @view C[k, o, :]
+            u = dot(cvec, eview)  # c_{kq}^H e_k
+
+            alphaI = complex(inv(sqrt(2.0)), 0.0)
+            alphaQ = complex(0.0, inv(sqrt(2.0)))
+            gxi[iI] += scale * real(conj(alphaI) * u)
+            gxi[iQ] += scale * real(conj(alphaQ) * u)
+        end
+    end
+    return nothing
+end
+\end{lstlisting}
+
+\subsection{Combiner-symbol tie gradient}
+
+The tie loss is
+\begin{equation}
+\mathcal L_\rho
+=\frac{\rho}{N_D}\sum_{q\in\mathcal D}\abs{a_q-s_q}^2,
+\qquad
+ a_q=\mathbf w_q^H\mathbf Y_q.
+\end{equation}
+Let
+\begin{equation}
+ r_q=a_q-s_q.
+\end{equation}
+For bit $i$ on carrier $q(i)$,
+\begin{equation}
+\frac{\partial \mathcal L_\rho}{\partial\xi_i}
+=-\frac{2\rho}{N_D}\re\{\alpha_i^*r_{q(i)}\}.
+\label{eq:grad_tie}
+\end{equation}
+
+\begin{lstlisting}
+function add_tie_gradient!(
+    gxi::Vector{Float64},
+    shat::Vector{ComplexF64},       # a_q = w_q^H Y_q
+    s::Vector{ComplexF64},
+    problem::JUNAProblem,
+    rho::Float64
+)::Nothing
+    scale = -2.0 * rho / length(problem.data_indices)
+    alphaI = complex(inv(sqrt(2.0)), 0.0)
+    alphaQ = complex(0.0, inv(sqrt(2.0)))
+
+    for q in problem.data_indices
+        iI, iQ = problem.bitmap.carrier_to_bits[q]
+        r = shat[q] - s[q]
+        gxi[iI] += scale * real(conj(alphaI) * r)
+        gxi[iQ] += scale * real(conj(alphaQ) * r)
+    end
+    return nothing
+end
+\end{lstlisting}
+
+\subsection{LDPC parity-penalty gradient}
+
+For check $j$, define
+\begin{equation}
+ p_j=\prod_{i\in\mathcal N_j}\xi_i,
+\qquad
+R_j=(1-p_j)^2.
+\end{equation}
+Then
+\begin{equation}
+\frac{\partial R_j}{\partial\xi_i}
+= -2(1-p_j)\prod_{\ell\in\mathcal N_j\setminus\{i\}}\xi_\ell,
+\qquad i\in\mathcal N_j.
+\end{equation}
+Therefore
+\begin{equation}
+\frac{\partial\mathcal L_p}{\partial\xi_i}
+= -\frac{2\lambda_p}{N_C}
+\sum_{j:i\in\mathcal N_j}
+(1-p_j)
+\prod_{\ell\in\mathcal N_j\setminus\{i\}}\xi_\ell.
+\label{eq:grad_parity}
+\end{equation}
+
+\paragraph{Important numerical rule.}
+Do not compute $\prod_{\ell\ne i}\xi_\ell$ as $p_j/\xi_i$.  If $\xi_i\approx0$, this division is unstable.  Use prefix/suffix products or direct multiplication over the small check neighborhood.
+
+\begin{lstlisting}
+function add_parity_gradient!(
+    gxi::Vector{Float64},
+    xi::Vector{Float64},
+    code::LDPCCode,
+    lambda_p::Float64
+)::Nothing
+    nchecks = code.nchecks
+    scale = lambda_p / nchecks
+
+    for j in 1:nchecks
+        vars = code.check_to_vars[j]
+        deg = length(vars)
+
+        # prefix[t] = product xi[vars[1:t-1]]
+        prefix = ones(Float64, deg + 1)
+        suffix = ones(Float64, deg + 1)
+
+        for t in 1:deg
+            prefix[t+1] = prefix[t] * xi[vars[t]]
+        end
+        for t in deg:-1:1
+            suffix[t] = suffix[t+1] * xi[vars[t]]
+        end
+
+        pj = prefix[deg+1]
+        common = -2.0 * scale * (1.0 - pj)
+
+        for t in 1:deg
+            i = vars[t]
+            prod_excluding_i = prefix[t] * suffix[t+1]
+            gxi[i] += common * prod_excluding_i
+        end
+    end
+    return nothing
+end
+\end{lstlisting}
+
+\subsection{Chain rule to $z$}
+
+After all $\xi$-gradients have been accumulated,
+\begin{equation}
+ g_i^{(z)}=(1-\xi_i^2)g_i^{(\xi)}.
+\label{eq:chain}
+\end{equation}
+
+\begin{lstlisting}
+function chain_to_z_gradient!(
+    gz::Vector{Float64},
+    gxi::Vector{Float64},
+    xi::Vector{Float64}
+)::Nothing
+    @inbounds for i in eachindex(xi)
+        gz[i] = (1.0 - xi[i]^2) * gxi[i]
+    end
+    return nothing
+end
+\end{lstlisting}
+
+\section{Optional code-aided differential-OFDM gradient}
+\label{sec:diff-gradient}
+
+This section is for the optional code-aided differential benchmark.  It is separate from the main SC-JUNA loss.
+
+For a differential pair $(k^-,k)$, define the relaxed differential increment
+\begin{equation}
+D_k(\bm z)=\frac{1}{\sqrt2}\left(\xi_{i_I(k)}+\jj\xi_{i_Q(k)}\right).
+\end{equation}
+This is a smooth relaxation of the DQPSK increment alphabet.  The differential residual is
+\begin{equation}
+ e_k^{\rm diff}=Y_k-D_k(\bm z)Y_{k^-}.
+\end{equation}
+The normalized differential loss is
+\begin{equation}
+\mathcal L_{\rm diff}
+=\frac{\lambda_{\rm diff}}{N_{\rm diff}}
+\sum_{k\in\mathcal D_{\rm diff}}
+\omega_k\frac{\abs{e_k^{\rm diff}}^2}{\sigma_{{\rm diff},k}^2}.
+\end{equation}
+For bit $i$ on differential increment $D_k$,
+\begin{equation}
+\frac{\partial\mathcal L_{\rm diff}}{\partial\xi_i}
+= -\frac{2\lambda_{\rm diff}}{N_{\rm diff}}
+\omega_k\frac{1}{\sigma_{{\rm diff},k}^2}
+\re\left\{\alpha_i^*Y_{k^-}^*e_k^{\rm diff}\right\}.
+\label{eq:grad_diff}
+\end{equation}
+The same tanh chain rule in \eqref{eq:chain} converts this to a $z$-gradient.
+
+\paragraph{Use case.}
+This optional gradient supports a receiver of the form
+\begin{equation}
+\text{differential metric}+\text{LDPC parity penalty}\rightarrow\text{code-aided differential decoding}.
+\end{equation}
+It should be implemented as a separate benchmark before being combined with SC-JUNA.
+
+\section{Complete manual-gradient API}
+
+\begin{lstlisting}
+struct ManualGradientConfig
+    use_observation::Bool
+    use_tie::Bool
+    use_parity::Bool
+    use_differential::Bool
+    fd_epsilon::Float64
+    fd_rtol::Float64
+    grad_clip_norm::Float64
+end
+
+struct ZGradientWorkspace
+    xi::Vector{Float64}
+    tanhprime::Vector{Float64}
+    s::Vector{ComplexF64}
+    shat::Vector{ComplexF64}
+    e_cache::Matrix{ComplexF64}
+    gxi::Vector{Float64}
+    gz::Vector{Float64}
+end
+\end{lstlisting}
+
+Required functions:
+
+\begin{lstlisting}
+function compute_xi!(ws::ZGradientWorkspace, z::Vector{Float64})::Nothing
+function compute_symbols!(ws::ZGradientWorkspace, problem::JUNAProblem)::Nothing
+function compute_combiner_outputs!(ws::ZGradientWorkspace, state::JUNAState, obs::RxObservations)::Nothing
+function compute_branch_residuals!(ws::ZGradientWorkspace, state::JUNAState, obs::RxObservations, problem::JUNAProblem, cfg::JUNAConfig)::Nothing
+
+function juna_z_loss(
+    z::Vector{Float64},
+    state::JUNAState,
+    obs::RxObservations,
+    problem::JUNAProblem,
+    cfg::JUNAConfig,
+    weights::JUNAIterationWeights,
+    ws::ZGradientWorkspace
+)::Float64
+
+function juna_z_gradient!(
+    gz::Vector{Float64},
+    z::Vector{Float64},
+    state::JUNAState,
+    obs::RxObservations,
+    problem::JUNAProblem,
+    cfg::JUNAConfig,
+    weights::JUNAIterationWeights,
+    ws::ZGradientWorkspace
+)::Nothing
+\end{lstlisting}
+
+\section{Reference implementation pseudocode}
+
+\begin{lstlisting}
+function juna_z_gradient!(gz, z, state, obs, problem, cfg, weights, ws)
+    # 1. Forward pass
+    compute_xi!(ws, z)
+    compute_symbols!(ws, problem)
+    compute_combiner_outputs!(ws, state, obs)
+    compute_branch_residuals!(ws, state, obs, problem, cfg)
+
+    # 2. Accumulate gradient with respect to xi
+    fill!(ws.gxi, 0.0)
+
+    if cfg.grad.use_observation
+        add_observation_gradient!(
+            ws.gxi, ws.e_cache, state.C, problem, cfg,
+            weights.lambda_d, obs.noise_power
+        )
+    end
+
+    if cfg.grad.use_tie
+        add_tie_gradient!(ws.gxi, ws.shat, ws.s, problem, weights.rho)
+    end
+
+    if cfg.grad.use_parity
+        add_parity_gradient!(ws.gxi, ws.xi, problem.ldpc, weights.lambda_p)
+    end
+
+    if cfg.grad.use_differential
+        add_differential_gradient!(ws.gxi, ws.xi, obs, problem, cfg, weights)
+    end
+
+    # 3. Chain rule xi = tanh(z)
+    chain_to_z_gradient!(gz, ws.gxi, ws.xi)
+
+    # 4. Optional norm clipping
+    clip_gradient_norm!(gz, cfg.grad.grad_clip_norm)
+
+    return nothing
+end
+\end{lstlisting}
+
+\section{Manual-gradient $z$ update}
+
+Use Adam for the first implementation.  Store Adam moments in the solver state.
+
+\begin{lstlisting}
+mutable struct AdamState
+    m::Vector{Float64}
+    v::Vector{Float64}
+    t::Int
+end
+
+function adam_step!(z, gz, adam::AdamState; eta=0.02, beta1=0.9, beta2=0.999, eps=1e-8, zmax=8.0)
+    adam.t += 1
+    @inbounds for i in eachindex(z)
+        adam.m[i] = beta1 * adam.m[i] + (1.0 - beta1) * gz[i]
+        adam.v[i] = beta2 * adam.v[i] + (1.0 - beta2) * gz[i]^2
+        mhat = adam.m[i] / (1.0 - beta1^adam.t)
+        vhat = adam.v[i] / (1.0 - beta2^adam.t)
+        z[i] -= eta * mhat / (sqrt(vhat) + eps)
+        z[i] = clamp(z[i], -zmax, zmax)
+    end
+    return nothing
+end
+\end{lstlisting}
+
+\section{Closed-form updates for $\mathbf C$ and $\mathbf W$}
+
+No gradient or AD is needed for $\mathbf C$ or $\mathbf W$ in version 1.
+
+\subsection{$\mathbf C$ update}
+
+For each carrier $k$, let
+\begin{equation}
+\mathbf s_k=[s_q]_{q\in\mathcal B_K(k)}\in\C^{B_k},
+\qquad
+\mathbf C_k=[\mathbf c_{kq_1},\ldots,\mathbf c_{kq_{B_k}}]\in\C^{M\times B_k}.
+\end{equation}
+With diagonal noise weight, the ridge subproblem is
+\begin{equation}
+\min_{\mathbf C_k}
+\frac{\lambda_d}{N_{\rm act}\sigma^2}
+\norm{\mathbf Y_k-\mathbf C_k\mathbf s_k}_2^2
++\gamma_C\norm{\mathbf C_k}_F^2.
+\end{equation}
+Define
+\begin{equation}
+\mu_C=\frac{\lambda_d}{N_{\rm act}\sigma^2}.
+\end{equation}
+The solution is
+\begin{equation}
+\boxed{
+\mathbf C_k
+=\mu_C\mathbf Y_k\mathbf s_k^H
+\left(\mu_C\mathbf s_k\mathbf s_k^H+\gamma_C I\right)^{-1}.}
+\end{equation}
+
+\subsection{$\mathbf W$ update without smoothness}
+
+For each carrier $k$, set
+\begin{equation}
+d_k=\begin{cases}
+P_k, & k\in\mathcal P_{\rm fit},\\
+s_k, & k\in\mathcal D,
+\end{cases}
+\qquad
+a_k=\begin{cases}
+\eta/N_P, & k\in\mathcal P_{\rm fit},\\
+\rho/N_D, & k\in\mathcal D.
+\end{cases}
+\end{equation}
+The ridge subproblem is
+\begin{equation}
+\min_{\mathbf w_k}
+a_k\abs{\mathbf w_k^H\mathbf Y_k-d_k}^2+\gamma_W\norm{\mathbf w_k}_2^2.
+\end{equation}
+The solution is
+\begin{equation}
+\boxed{
+\mathbf w_k=
+\left(a_k\mathbf Y_k\mathbf Y_k^H+\gamma_W I\right)^{-1}
+a_k\mathbf Y_k d_k^*.}
+\end{equation}
+
+\subsection{$\mathbf W$ update with smoothness}
+
+If smoothness is enabled, solve
+\begin{equation}
+\sum_k a_k\abs{\mathbf w_k^H\mathbf Y_k-d_k}^2
++\gamma_W\sum_k\norm{\mathbf w_k}_2^2
++\gamma_S\sum_k\norm{\mathbf w_{k+1}-\mathbf w_k}_2^2.
+\end{equation}
+This gives a block-tridiagonal linear system.  Interior block equations are
+\begin{equation}
+\left(a_k\mathbf Y_k\mathbf Y_k^H+(\gamma_W+2\gamma_S)I\right)\mathbf w_k
+-\gamma_S\mathbf w_{k-1}
+-\gamma_S\mathbf w_{k+1}
+=a_k\mathbf Y_k d_k^*.
+\end{equation}
+Endpoint carriers use one smoothness neighbor instead of two.  Version 1 may set $\gamma_S=0$ and use the independent formula above.  Version 2 should implement the block-tridiagonal solve.
+
+\section{Gradient checks}
+\label{sec:checks}
+
+Every gradient component must pass a finite-difference test before integration.
+
+\subsection{Central finite difference}
+
+For a random test direction $\bm v$ with $\norm{\bm v}_2=1$,
+\begin{equation}
+D_{\rm fd}=\frac{\mathcal L_z(\bm z+\epsilon\bm v)-\mathcal L_z(\bm z-\epsilon\bm v)}{2\epsilon}.
+\end{equation}
+The analytic directional derivative is
+\begin{equation}
+D_{\rm an}=\bm v^T\nabla_z\mathcal L_z(\bm z).
+\end{equation}
+Pass if
+\begin{equation}
+\frac{\abs{D_{\rm fd}-D_{\rm an}}}{\max(1,\abs{D_{\rm fd}},\abs{D_{\rm an}})}<10^{-4}.
+\end{equation}
+
+\begin{lstlisting}
+function gradient_check_directional(
+    lossfun::Function,
+    gradfun!::Function,
+    z::Vector{Float64};
+    eps::Float64 = 1e-5,
+    rtol::Float64 = 1e-4,
+    rng::AbstractRNG = Random.default_rng()
+)::Bool
+    v = randn(rng, length(z))
+    v ./= norm(v)
+
+    gz = similar(z)
+    gradfun!(gz, z)
+
+    fd = (lossfun(z .+ eps .* v) - lossfun(z .- eps .* v)) / (2eps)
+    an = dot(v, gz)
+    relerr = abs(fd - an) / max(1.0, abs(fd), abs(an))
+    return relerr < rtol
+end
+\end{lstlisting}
+
+\subsection{Required unit tests}
+
+\begin{enumerate}[label=\textbf{G\arabic*.},leftmargin=*]
+\item \textbf{Tie-only gradient.}  Set $\lambda_d=0$, $\lambda_p=0$, $\rho>0$.  Compare analytic gradient against finite difference.
+\item \textbf{Observation-only gradient.}  Set $\rho=0$, $\lambda_p=0$, $\lambda_d>0$.  Use $N=5$, $M=3$, $K=1$, random fixed $\mathbf C$, and finite-difference check.
+\item \textbf{Parity-only gradient.}  Use one parity check $\mathcal N_1=\{1,2,3\}$.  Compare analytic gradient against finite difference.
+\item \textbf{Full $z$ gradient.}  Enable observation, tie, and parity terms.  Test ten random directions.
+\item \textbf{Differential gradient.}  Enable only $\mathcal L_{\rm diff}$ for a small synthetic differential chain.  Test finite difference.
+\item \textbf{No invalid edge access.}  Use $K=3$ and $N=4$.  Confirm all neighbor loops skip invalid carriers and do not wrap.
+\end{enumerate}
+
+\section{Solver loop using manual gradients}
+
+\begin{lstlisting}
+function run_juna_solver_manualgrad(
+    state::JUNAState,
+    obs::RxObservations,
+    problem::JUNAProblem,
+    cfg::JUNAConfig,
+    bp_cfg::BPConfig
+)::JUNAResult
+    ws = allocate_z_gradient_workspace(state, obs, problem, cfg)
+    adam = AdamState(zeros(length(state.z)), zeros(length(state.z)), 0)
+    gz = zeros(length(state.z))
+
+    for outer in 1:cfg.max_outer
+        weights = iteration_weights(cfg, outer)
+
+        # 1. Update relaxed symbols from current z
+        compute_xi!(ws, state.z)
+        compute_symbols!(ws, problem)
+        copyto!(state.s, ws.s)
+
+        # 2. Closed-form front-end updates
+        update_C_closed_form!(state, obs, problem, cfg, weights)
+        update_W_closed_form!(state, obs, problem, cfg, weights)
+
+        # 3. Manual-gradient z update
+        for inner in 1:cfg.z_steps_per_outer
+            juna_z_gradient!(gz, state.z, state, obs, problem, cfg, weights, ws)
+            adam_step!(
+                state.z, gz, adam;
+                eta = cfg.z_stepsize,
+                beta1 = 0.9,
+                beta2 = 0.999,
+                eps = 1e-8,
+                zmax = cfg.z_clip
+            )
+        end
+
+        # 4. Form LLRs, run BP, stop on parity success
+        llr = form_llrs_from_state(state, obs, problem, cfg)
+        bp = bp_decode(llr, problem.ldpc, bp_cfg)
+        push!(state.loss_history, juna_z_loss(state.z, state, obs, problem, cfg, weights, ws))
+        push!(state.syndrome_history, bp.syndrome_weight)
+
+        if bp.success
+            return JUNAResult(bp.bits, llr, bp, state, cfg, nothing, obs.diagnostics)
+        end
+    end
+
+    llr = form_llrs_from_state(state, obs, problem, cfg)
+    bp = bp_decode(llr, problem.ldpc, bp_cfg)
+    return JUNAResult(bp.bits, llr, bp, state, cfg, nothing, obs.diagnostics)
+end
+\end{lstlisting}
+
+\section{LLR reliability and erasure}
+
+Manual gradients do not replace reliability control.  After the front-end produces scalar soft symbols
+\begin{equation}
+\widehat s_k=\mathbf w_k^H\mathbf Y_k,
+\end{equation}
+compute an effective variance from pilot residuals:
+\begin{equation}
+\widehat\sigma_{{\rm eff},k}^2
+=\operatorname{localmedian}_{p\approx k}
+\abs{\mathbf w_p^H\mathbf Y_p-P_p}^2+\epsilon.
+\end{equation}
+Then QPSK LLRs are
+\begin{align}
+L_{I,k}&=\frac{2\sqrt2\re\{\widehat s_k\}}{\widehat\sigma_{{\rm eff},k}^2},\\
+L_{Q,k}&=\frac{2\sqrt2\im\{\widehat s_k\}}{\widehat\sigma_{{\rm eff},k}^2}.
+\end{align}
+Clip and erase:
+\begin{align}
+L_i&\leftarrow \clip(L_i,-L_{\max},L_{\max}),\\
+\gamma_k&=\frac{1}{\widehat\sigma_{{\rm eff},k}^2+\epsilon},\\
+\gamma_k<\tau_{\rm erase}&\Longrightarrow L_{I,k}=L_{Q,k}=0.
+\end{align}
+Defaults:
+\begin{equation}
+L_{\max}=12,
+\qquad
+\tau_{\rm erase}=0.05\cdot\operatorname{median}_k(\gamma_k).
+\end{equation}
+
+\section{When to use AD}
+
+AD is not needed for the production solver.  Acceptable uses of AD are:
+\begin{enumerate}[label=(\alph*)]
+\item checking the manual gradient in small real-valued toy problems;
+\item prototyping new penalty terms before deriving their gradients;
+\item validating a future non-diagonal $\Sigma_k^{-1}$ implementation.
+\end{enumerate}
+
+If AD is used for checking, the loss must be a real scalar function of a real vector:
+\begin{equation}
+\mathcal L:\R^{n_b}\rightarrow\R.
+\end{equation}
+Do not expose complex parameters as AD variables in the first implementation.  Keep $\mathbf C$, $\mathbf W$, and observations fixed while checking $\nabla_z\mathcal L_z$.
+
+\section{Implementation order}
+
+\begin{enumerate}[label=\textbf{Step \arabic*.},leftmargin=*]
+\item Implement array-layout helpers: neighbor loops, offset mapping, carrier-bit map, and axis lookup.
+\item Implement forward pass: $\bm z\mapsto\bm\xi\mapsto\mathbf s$, combiner outputs, and partial-FFT observation residuals.
+\item Implement scalar loss terms: observation loss, tie loss, parity loss, optional differential loss.
+\item Implement manual gradient components: observation, tie, parity, optional differential.
+\item Implement finite-difference tests for each component.
+\item Implement $\mathbf C$ closed-form update.
+\item Implement $\mathbf W$ closed-form update without smoothness.
+\item Integrate Adam $z$ update.
+\item Add BP decoder call and stopping rule.
+\item Add SC-JUNA candidate selection only after the fixed JUNA manual-gradient solver passes all tests.
+\item Add smooth $\mathbf W$ block-tridiagonal solve as a version-2 improvement.
+\item Add optional AD gradient checker only after the finite-difference checker passes.
+\end{enumerate}
+
+\section{Minimum acceptance checklist}
+
+The implementation is not acceptable until the following pass:
+\begin{enumerate}[leftmargin=*]
+\item Partial-FFT partition-of-unity test passes.
+\item LDPC noiseless BP decode passes.
+\item Tie-only gradient finite-difference test passes.
+\item Observation-only gradient finite-difference test passes.
+\item Parity-only gradient finite-difference test passes.
+\item Full $z$ gradient finite-difference test passes on ten random directions.
+\item $\mathbf C$ update reduces the partial-FFT observation residual in a deterministic toy case.
+\item $\mathbf W$ update reduces pilot residual in a deterministic toy case.
+\item Fixed JUNA runs without AD and produces finite loss values for all iterations.
+\item LLR clipping and erasure do not produce NaN or Inf.
+\end{enumerate}
+
+\section{Summary}
+
+The hand-derived gradient is short because all optimized bit variables are real.  The complex quantities $\mathbf C$ and $\mathbf W$ remain fixed during the $\bm z$ update, so the gradient only requires real derivatives through the relaxed QPSK map and the LDPC parity products.  The recommended implementation is
+\begin{equation}
+\boxed{
+\text{closed-form }\mathbf C
++\text{ closed-form }\mathbf W
++\text{ manual }\nabla_z
++\text{ finite-difference gradient checks}.}
+\end{equation}
+While AD is useful for experimentation, it should not be the production dependency for the SC-JUNA solver.
+
+\end{document}

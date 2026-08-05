@@ -1,27 +1,123 @@
 {
+  "schema_version": 2,
   "note": [
-    "Declared JUNA-Lite receiver chain: stage -> implementing symbols -> protecting suites.",
+    "Declared receiver DAG: receiver path -> shared stage -> implementing symbols -> protecting suites.",
     "A static call graph cannot recover these conceptual stages, so this file is the",
     "authoritative mapping. tools/explorer/explorer_contract.py verifies every symbol",
     "against the analyzer's symbol table and every suite key against suites.json",
     "(exported from test/runtests.jl), so a renamed function or a dropped suite fails",
     "loudly instead of leaving the chain page stale.",
-    "kind: shared = infrastructure both baselines also use; seed = runs once to produce",
-    "the starting candidate; iterative = inside the Lite refinement loop;",
+    "kind: shared = infrastructure both baselines also use; initial = runs once to produce",
+    "the initial candidate; iterative = inside the Lite refinement loop;",
     "deployment = frame-stateful wrapping of the per-block receiver.",
     "evidence: direct = at least one declared suite textually names a stage symbol",
     "(contract-enforced against the coverage scan); behavioral = the declared suites",
     "exercise the stage through the public API without naming internals - rendered",
     "as declared-only on the coverage page, never as a direct reference."
   ],
+  "receivers": [
+    {
+      "id": "standard",
+      "facade": "JunaStandard",
+      "path": [
+        "acquisition",
+        "standard"
+      ]
+    },
+    {
+      "id": "partial-fft",
+      "facade": "JunaPartialFFT",
+      "path": [
+        "acquisition",
+        "initial-candidate"
+      ]
+    },
+    {
+      "id": "lite",
+      "facade": "JunaLite",
+      "path": [
+        "acquisition",
+        "initial-candidate",
+        "posterior",
+        "anchors",
+        "refit",
+        "redecode",
+        "keep-best"
+      ],
+      "optional_stages": [
+        "frame"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "receiver": "standard",
+      "from": "acquisition",
+      "to": "standard"
+    },
+    {
+      "receiver": "partial-fft",
+      "from": "acquisition",
+      "to": "initial-candidate"
+    },
+    {
+      "receiver": "lite",
+      "from": "acquisition",
+      "to": "initial-candidate"
+    },
+    {
+      "receiver": "lite",
+      "from": "initial-candidate",
+      "to": "keep-best",
+      "condition": "valid initial candidate: return without refinement"
+    },
+    {
+      "receiver": "lite",
+      "from": "initial-candidate",
+      "to": "posterior",
+      "condition": "invalid initial candidate: enter refinement"
+    },
+    {
+      "receiver": "lite",
+      "from": "posterior",
+      "to": "anchors"
+    },
+    {
+      "receiver": "lite",
+      "from": "anchors",
+      "to": "refit"
+    },
+    {
+      "receiver": "lite",
+      "from": "refit",
+      "to": "redecode"
+    },
+    {
+      "receiver": "lite",
+      "from": "redecode",
+      "to": "keep-best"
+    },
+    {
+      "receiver": "lite",
+      "from": "keep-best",
+      "to": "posterior",
+      "condition": "improved invalid candidate and iterations remain"
+    },
+    {
+      "receiver": "lite",
+      "from": "frame",
+      "to": "acquisition",
+      "condition": "frame-wide deployment wrapper selected"
+    }
+  ],
   "stages": [
     {
       "id": "acquisition",
-      "title": "Acquisition and block setup",
-      "detail": "Synchronization (LFM or rpchan preamble), guard handling, and partial-FFT branch spectra yparts.",
+      "title": "Packet acquisition",
+      "detail": "LFM synchronization, guard handling, and partial-FFT branches.",
       "symbols": [
-        "_rpchan_preamble",
-        "_rpchan_acquire",
+        "_sync_waveform",
+        "_coarse_doppler",
         "_branch_observations"
       ],
       "suites": [
@@ -33,27 +129,41 @@
       "evidence": "direct"
     },
     {
-      "id": "seed",
-      "title": "Partial-FFT seed candidate",
-      "detail": "Pilot-trained per-band combining (with the standard one-tap branch as fallback comparator) equalizes and BP-decodes the initial candidate. Lite starts where Partial-FFT+FEC ends; a valid seed returns immediately.",
+      "id": "standard",
+      "title": "One-tap pilot-interpolated equalization + FEC",
+      "detail": "Pilot-interpolated one-tap equalization produces the Standard baseline candidate and FEC result, with no partial-FFT combining or refinement.",
       "symbols": [
-        "_seed_candidate",
-        "_front_end_seed_candidate",
-        "_select_front_end_seed",
+        "_standard_candidate"
+      ],
+      "suites": [
+        "pfft",
+        "smoke",
+        "contract"
+      ],
+      "kind": "initial",
+      "evidence": "behavioral"
+    },
+    {
+      "id": "initial-candidate",
+      "title": "Partial-FFT/FEC initial-candidate path",
+      "detail": "Pilot-trained per-band combining (with the standard one-tap path as fallback comparator) equalizes and BP-decodes the initial candidate. Lite starts where Partial-FFT+FEC ends; a valid initial candidate returns immediately.",
+      "symbols": [
+        "_initial_candidate",
+        "_front_end_initial_candidate",
+        "_select_front_end_initial_candidate",
         "_demodulate_block_partial",
         "_standard_candidate"
       ],
       "suites": [
         "pfft",
-        "adaptive-lite",
         "smoke"
       ],
-      "kind": "seed",
+      "kind": "initial",
       "evidence": "behavioral"
     },
     {
       "id": "posterior",
-      "title": "Posterior interpretation",
+      "title": "Posterior means and confidences",
       "detail": "BP posterior log-metrics become symbol decisions and per-tone confidences.",
       "symbols": [
         "_posterior_symbols",
@@ -68,7 +178,7 @@
     },
     {
       "id": "anchors",
-      "title": "Feedback anchor selection",
+      "title": "Anchor selection",
       "detail": "Pilots always anchor; confident data decisions join up to the anchor cap. The :frozen/:genie/:graded arms swap decision anchors for nothing or for (corrupted) truth without changing the code path.",
       "symbols": [
         "_juna_anchor_targets",
@@ -84,8 +194,8 @@
     },
     {
       "id": "refit",
-      "title": "Confidence-weighted combiner refit",
-      "detail": "Weighted ridge refit of the partial-FFT combiner W toward the anchors. Lite refits W only; the physical response C is never formed.",
+      "title": "Combiner refit",
+      "detail": "Ridge refit of the partial-FFT combiner W toward the anchors. Data-anchor confidence values weight the refit. Lite refits W only; the physical response C is never formed.",
       "symbols": [
         "_equalize_from_targets"
       ],
@@ -98,8 +208,8 @@
     },
     {
       "id": "redecode",
-      "title": "Re-equalize and re-decode",
-      "detail": "The refit combiner re-equalizes the branch spectra and BP re-decodes into a fresh candidate; payload extraction credits correct bits.",
+      "title": "Re-decode",
+      "detail": "The refit combiner re-equalizes the partial-FFT observations and BP re-decodes into a fresh candidate; payload extraction credits correct bits.",
       "symbols": [
         "_candidate_from_equalized",
         "_payload_from_metrics"
@@ -113,7 +223,7 @@
     },
     {
       "id": "keep-best",
-      "title": "Candidate selection and stopping",
+      "title": "Candidate selection",
       "detail": "Keep the best candidate by validity then syndrome; stop on success, non-improvement, or the iteration limit.",
       "symbols": [
         "_juna_better",
@@ -131,7 +241,7 @@
     },
     {
       "id": "frame",
-      "title": "Frame-stateful deployment",
+      "title": "Frame-wide FEC receiver",
       "detail": "The per-block Lite receiver deployed across a frame-wide LDPC graph (frame_receiver = :lite / :stateful_lite), as the mechanism suites exercise it.",
       "symbols": [
         "FrameWideLDPCModulation",
@@ -139,8 +249,7 @@
         "_demodulate_frame_wide_ldpc"
       ],
       "suites": [
-        "feedback-modes",
-        "adaptive-lite"
+        "feedback-modes"
       ],
       "kind": "deployment",
       "evidence": "direct"

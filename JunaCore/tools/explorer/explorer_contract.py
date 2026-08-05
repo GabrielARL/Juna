@@ -10,7 +10,7 @@ C2  suites.json integrity: parses; keys unique; every suite file exists under
 C3  registry completeness: every test/*.jl except test/support/ appears in the
     registry, so a new suite cannot exist outside the catalog.
 C4  chain.json integrity: parses; stage ids unique; kind in
-    {shared, seed, iterative, deployment}; evidence in {direct, behavioral};
+    {shared, initial, iterative, deployment}; evidence in {direct, behavioral};
     every stage symbol exists in the analyzer symbol table; every stage suite
     key exists in suites.json.
 C5  evidence honesty: every evidence="direct" stage has at least one declared
@@ -23,9 +23,22 @@ C6  scanner honesty: source_coverage's report note states the static-not-
 C7  vendored analyzer health: analyze() sees exactly the migrated source
     files with a sane symbol count, and render_html is offline-safe (the
     vendored vis-network is embedded; no CDN fallback) with the #sym= deep
-    link route present. (The analyzer's full authoritative contract runs in
-    the source repository it is vendored from; this is the migrated-scope
-    check.)
+    link route present. This contract checks the analyzer maintained by Juna.
+C8  receivers.json freshness and integrity: it is exported from the Julia
+    receiver catalog; receiver ids/facades are unique and exactly match the
+    receivers declared by chain.json.
+C9  multi-receiver DAG integrity: schema version 2, every receiver path and
+    edge references real stages, paths start at acquisition, the three
+    package facades are represented, and conditional edges carry labels.
+C10 suite applicability is explicit and computable: each registry entry is
+    structural, all receivers, one receiver, or a DAG stage; stage-scoped
+    suites are declared on that stage; each receiver has universal coverage
+    and either a receiver-specific suite or a justified exemption.
+C11 reader-visible stage names exactly match the nine labels approved on
+    2026-08-01, and the combiner-refit description follows the current code by
+    stating that data-anchor confidence values weight the refit.
+C12 the interface test uses the four reader-visible result labels approved on
+    2026-08-01 and does not retain their ambiguous predecessors.
 """
 import json
 import os
@@ -40,8 +53,19 @@ sys.path.insert(0, HERE)
 import source_coverage  # noqa: E402
 from source_symbol_explorer import analyze  # noqa: E402
 
-ALLOWED_KINDS = {"shared", "seed", "iterative", "deployment"}
+ALLOWED_KINDS = {"shared", "initial", "iterative", "deployment"}
 ALLOWED_EVIDENCE = {"direct", "behavioral"}
+APPROVED_STAGE_TITLES = {
+    "acquisition": "Packet acquisition",
+    "standard": "One-tap pilot-interpolated equalization + FEC",
+    "initial-candidate": "Partial-FFT/FEC initial-candidate path",
+    "posterior": "Posterior means and confidences",
+    "anchors": "Anchor selection",
+    "refit": "Combiner refit",
+    "redecode": "Re-decode",
+    "keep-best": "Candidate selection",
+    "frame": "Frame-wide FEC receiver",
+}
 
 
 def check():
@@ -112,6 +136,162 @@ def check():
                 problems.append(f"C4: stage '{st['id']}' suite '{key}' is "
                                 "absent from suites.json")
 
+    # C8 receiver catalog freshness and integrity
+    fd, tmp = tempfile.mkstemp(suffix=".json")
+    os.close(fd)
+    try:
+        run = subprocess.run(
+            ["julia", "--project=.", os.path.join(HERE,
+                                                  "export_receivers.jl"), tmp],
+            capture_output=True, text=True, cwd=ROOT)
+        if run.returncode != 0:
+            problems.append("C8: export_receivers.jl failed: " +
+                            run.stderr.strip()[-300:])
+        else:
+            with open(tmp) as fh:
+                fresh = fh.read()
+            with open(os.path.join(HERE, "receivers.json")) as fh:
+                committed = fh.read()
+            if fresh != committed:
+                problems.append(
+                    "C8: receivers.json is stale relative to "
+                    "receiver_catalog.jl - rerun: julia --project=. "
+                    "tools/explorer/export_receivers.jl")
+    finally:
+        os.unlink(tmp)
+    with open(os.path.join(HERE, "receivers.json")) as fh:
+        receivers = json.load(fh)["receivers"]
+    receiver_ids = [r["id"] for r in receivers]
+    facades = [r["facade"] for r in receivers]
+    if len(set(receiver_ids)) != len(receiver_ids):
+        problems.append("C8: duplicate receiver ids")
+    if len(set(facades)) != len(facades):
+        problems.append("C8: duplicate receiver facades")
+
+    # C9 shared stage DAG integrity
+    if chain.get("schema_version") != 2:
+        problems.append("C9: chain schema_version must be 2")
+    chain_receivers = chain.get("receivers", [])
+    chain_ids = [r.get("id") for r in chain_receivers]
+    if set(chain_ids) != set(receiver_ids):
+        problems.append("C9: chain receiver ids do not match receivers.json")
+    if set(facades) != {"JunaStandard", "JunaPartialFFT", "JunaLite"}:
+        problems.append("C9: catalog must expose the three package facades")
+    stage_ids = set(ids)
+    for receiver in chain_receivers:
+        path = receiver.get("path", [])
+        if not path or path[0] != "acquisition":
+            problems.append(
+                f"C9: receiver '{receiver.get('id')}' must start at acquisition")
+        for stage_id in path:
+            if stage_id not in stage_ids:
+                problems.append(
+                    f"C9: receiver '{receiver.get('id')}' references unknown "
+                    f"stage '{stage_id}'")
+        for stage_id in receiver.get("optional_stages", []):
+            if stage_id not in stage_ids:
+                problems.append(
+                    f"C9: receiver '{receiver.get('id')}' optional stage "
+                    f"'{stage_id}' is unknown")
+        catalog_receiver = next(
+            (r for r in receivers if r["id"] == receiver.get("id")), None)
+        if catalog_receiver and catalog_receiver["chain_path"] != path:
+            problems.append(
+                f"C9: receiver '{receiver.get('id')}' path differs between "
+                "chain.json and receivers.json")
+    conditional = 0
+    for edge in chain.get("edges", []):
+        if edge.get("from") not in stage_ids or edge.get("to") not in stage_ids:
+            problems.append(f"C9: edge references unknown stage: {edge}")
+        if edge.get("condition"):
+            conditional += 1
+    if conditional < 2:
+        problems.append("C9: DAG must declare Lite's conditional exit/refine edges")
+
+    # C10 executable test tiers and applicability
+    allowed_tiers = {"structural", "universal", "mechanism",
+                     "receiver-specific"}
+    for suite in suites:
+        tier = suite.get("tier")
+        scope = suite.get("receivers", "")
+        if tier not in allowed_tiers:
+            problems.append(f"C10: suite '{suite['key']}' has invalid tier "
+                            f"'{tier}'")
+        if scope in {"structural", "all"}:
+            continue
+        prefix, sep, target = scope.partition(":")
+        if sep != ":" or prefix not in {"stage", "receiver"}:
+            problems.append(f"C10: suite '{suite['key']}' has invalid receiver "
+                            f"scope '{scope}'")
+        elif prefix == "stage":
+            if target not in stage_ids:
+                problems.append(f"C10: suite '{suite['key']}' references "
+                                f"unknown stage '{target}'")
+            else:
+                stage = next(st for st in stages if st["id"] == target)
+                if suite["key"] not in stage["suites"]:
+                    problems.append(f"C10: stage-scoped suite '{suite['key']}' "
+                                    f"is absent from stage '{target}'")
+        elif target not in receiver_ids:
+            problems.append(f"C10: suite '{suite['key']}' references unknown "
+                            f"receiver '{target}'")
+    if not any(s.get("tier") == "universal" and
+               s.get("receivers") == "all" for s in suites):
+        problems.append("C10: no universal all-receiver suite exists")
+    specific = {s.get("receivers", "").split(":", 1)[1]
+                for s in suites
+                if s.get("tier") == "receiver-specific" and
+                s.get("receivers", "").startswith("receiver:")}
+    for receiver in receivers:
+        if (receiver["id"] not in specific and
+                not receiver.get("specific_suite_exemption")):
+            problems.append(f"C10: receiver '{receiver['id']}' has neither a "
+                            "receiver-specific suite nor an exemption")
+
+    # C11 approved reader-visible stage names and code-authoritative wording
+    actual_titles = {stage["id"]: stage.get("title") for stage in stages}
+    if actual_titles != APPROVED_STAGE_TITLES:
+        problems.append(
+            "C11: stage titles differ from the nine labels approved on "
+            f"2026-08-01: {actual_titles}")
+    refit = next((stage for stage in stages if stage["id"] == "refit"), {})
+    if "Data-anchor confidence values weight the refit." not in refit.get(
+            "detail", ""):
+        problems.append(
+            "C11: combiner-refit detail does not state the current code's "
+            "data-anchor confidence weighting")
+
+    # C12 approved JNR-016 through JNR-019 interface result labels
+    with open(os.path.join(ROOT, "test", "interface_contract.jl")) as fh:
+        interface_test = fh.read()
+    for marker in (
+            '@testset verbose = true "Standard, Partial FFT, and JUNA-Lite provide the same operations" begin',
+            '@testset "Receiver mode names map to their expected profiles" '
+            'begin',
+            '@testset "The default receiver is JUNA-Lite" begin',
+            '@testset "$(descriptor.name) recovers all 128 test bits from '
+            'its own clean waveform" begin',
+            'println("Standard, Partial FFT, and JUNA-Lite provide the same operations: passed")'):
+        if marker not in interface_test:
+            problems.append(
+                f"C12: interface test lost approved result label {marker}")
+    for old_label in (
+            "JUNA interface contract",
+            "receiver family includes per-symbol modes",
+            "default constructor remains the Lite public alias",
+            "interface + noiseless loopback decodes payload-exactly"):
+        if old_label in interface_test:
+            problems.append(
+                f"C12: interface test retains old result label '{old_label}'")
+    contract_suite = next((suite for suite in suites
+                           if suite["key"] == "contract"), None)
+    if (contract_suite is None or contract_suite.get("reader_title") !=
+            "Standard, Partial FFT, and JUNA-Lite provide the same "
+            "operations"):
+        problems.append(
+            "C12: contract registry reader title is not the approved "
+            "27-6c wording")
+
     # C5 evidence honesty
     report = source_coverage.scan(ROOT)
     evidence = source_coverage.stage_evidence(ROOT, report)
@@ -163,4 +343,4 @@ if __name__ == "__main__":
         for p in problems:
             print("  -", p)
         sys.exit(1)
-    print("explorer contract: PASS (C1-C7)")
+    print("explorer contract: PASS (C1-C12)")

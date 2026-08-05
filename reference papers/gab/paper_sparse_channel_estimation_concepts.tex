@@ -1,0 +1,99 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+\input{paper_note_style.tex}
+
+\begin{document}
+
+\papercover
+  {Sparse Channel Estimation}
+  {Berger, Zhou, Preisig, and Willett}
+  {IEEE Transactions on Signal Processing, 2010}
+  {sparse_channel_estimation_ofdm_uwa.pdf}
+
+\begin{frame}{Core problem}
+\twocolmodel{
+  \begin{itemize}\setlength{\itemsep}{0.45em}
+    \item UWA channels have long delay and few paths
+    \item Doppler spread causes OFDM subcarrier interference
+    \item Dense time-varying channels require too many pilots
+  \end{itemize}
+}{
+  \[
+    h(t,\tau)
+    =
+    \sum_{\ell=1}^{L}
+    \alpha_\ell
+    e^{j2\pi\nu_\ell t}
+    \delta(\tau-\tau_\ell)
+  \]
+  \[
+    L \ll \text{delay-Doppler grid size}
+  \]
+}{
+  Sparse paths make OFDM channel estimation tractable.
+}{
+  Estimate a few paths, not every possible tap.
+}
+\end{frame}
+
+\begin{frame}{Estimation methods}
+\begin{columns}[T,onlytextwidth]
+\begin{column}{0.49\textwidth}
+\textbf{\color{accentblue}Subspace}
+\begin{itemize}\setlength{\itemsep}{0.35em}
+  \item Root-MUSIC and ESPRIT estimate path parameters
+  \item Limited Doppler spread
+  \item Requires a model order
+  \item High-resolution path estimates
+\end{itemize}
+\end{column}
+\begin{column}{0.49\textwidth}
+\textbf{\color{accentgreen}Compressed Sensing}
+\begin{itemize}\setlength{\itemsep}{0.35em}
+  \item OMP and basis pursuit search an overcomplete dictionary
+  \item Handles significant Doppler spread
+  \item Supports sparse delay-Doppler channels
+\end{itemize}
+\end{column}
+\end{columns}
+\[
+  \vy_{\mathcal P}=\vA_{\mathcal P}\valpha+\vn,
+  \qquad
+  \widehat{\valpha}
+  =
+  \argmin_{\valpha}\norm{\vy_{\mathcal P}-\vA_{\mathcal P}\valpha}_2^2
+  +\lambda\norm{\valpha}_1 .
+\]
+\bottomnote{Subspace methods resolve paths finely. However, severe Doppler spread makes model order unreliable.}
+\end{frame}
+
+\begin{frame}{Receiver}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[flowbox] (pilot) at (-5.0,0) {Pilot\\tones};
+  \node[method,minimum width=3.0cm] (dict) at (-1.8,0) {Delay-Doppler\\dictionary};
+  \node[method,minimum width=2.7cm] (sparse) at (1.2,0) {Sparse path\\recovery};
+  \node[flowbox] (eq) at (4.5,0) {ICI-aware\\equalizer};
+  \draw[flowarr] (pilot) -- (dict);
+  \draw[flowarr] (dict) -- (sparse);
+  \draw[flowarr] (sparse) -- (eq);
+\end{tikzpicture}
+\end{center}
+\bottomnote{Estimate the channel in a physical basis. Convert it into the OFDM ICI pattern.\\The delay-Doppler model links channel estimation and equalization.}
+\end{frame}
+
+\begin{frame}{JUNA}
+\begin{itemize}\setlength{\itemsep}{0.5em}
+  \item Select the sparse support explicitly
+  \item Use few delay-Doppler paths:
+  \[
+    \vY_k=\sum_{q\in\mathcal B(k)}\bm c_{kq}s_q+\vn_k,
+    \qquad
+    \bm c_{kq}\text{ comes from few delay-Doppler paths.}
+  \]
+  \item Choose support by OMP, basis pursuit, or candidates
+  \item Refine the coefficients afterwards
+  \item Use reliable decoded carriers as anchors
+\end{itemize}
+\end{frame}
+
+\end{document}

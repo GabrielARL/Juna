@@ -1,0 +1,385 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=0.9in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts,mathtools,bm}
+\usepackage{booktabs,longtable,array}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{hyperref}
+
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black}
+\setlist{leftmargin=2em}
+\setlength{\parskip}{0.35em}
+\setlength{\parindent}{0pt}
+
+\newcommand{\C}{\mathbb C}
+\newcommand{\R}{\mathbb R}
+\newcommand{\Hh}{^{\mathsf H}}
+\newcommand{\T}{^{\mathsf T}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\abs}[1]{\left\lvert #1 \right\rvert}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\Ree}{\operatorname{Re}}
+\newcommand{\argmin}{\operatorname*{arg\,min}}
+
+\title{Manual Gradients for Code-Constrained OFDM Receiver Ideas\\
+\large How the Underwater OFDM Paper Set Fits a Hand-Derived SC-JUNA Update}
+\author{Project SONIQUE}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This note explains how to use manual gradients, rather than production
+automatic differentiation, on the receiver ideas represented by the OFDM
+papers in this directory.  The central recommendation is selective: use a
+hand-derived gradient for the real coded-bit latent vector, use closed-form
+least squares or deterministic candidates for most physical variables, and use
+the FEC code constraints as a differentiable prior inside the OFDM receiver.
+\end{abstract}
+
+\section{Core Principle}
+
+The suitable common abstraction is
+\begin{equation}
+  \min_{\bm z,\Theta,\bm u}
+  \mathcal L(\bm z,\Theta,\bm u)
+  =
+  \mathcal D\big(\bm y;\bm s(\bm z),\Theta,\bm u\big)
+  +\mathcal R_{\rm phys}(\Theta,\bm u)
+  +\lambda_p \mathcal R_{\rm code}(\bm z).
+  \label{eq:master}
+\end{equation}
+Here $\bm z\in\R^{n_b}$ is a real latent vector for coded bits, $\Theta$
+contains receiver physics such as Doppler, ICI span, channel coefficients, and
+partial-FFT combiners, and $\bm u$ contains nuisance terms such as impulsive
+noise or external interference.
+
+The important design choice is:
+\begin{quote}
+\textbf{Differentiate only the part that benefits from differentiability: the
+soft coded-bit latent vector and a few low-dimensional continuous refinements.
+Keep support selection, candidate selection, and most channel/interference
+updates explicit.}
+\end{quote}
+
+\section{Bit Latents and Code Constraint}
+
+For binary coded QPSK, define
+\begin{equation}
+  \xi_i=\tanh z_i,\qquad \xi_i\in(-1,1),
+\end{equation}
+and for data carrier $k$ with coded-bit indices $(i_I(k),i_Q(k))$,
+\begin{equation}
+  s_k(\bm z)=\frac{1}{\sqrt 2}\big(\xi_{i_I(k)}+j\xi_{i_Q(k)}\big).
+  \label{eq:qpsk}
+\end{equation}
+The derivatives are
+\begin{equation}
+  \frac{\partial s_k}{\partial z_i}
+  =
+  \begin{cases}
+    (1-\xi_i^2)/\sqrt 2, & i=i_I(k),\\
+    j(1-\xi_i^2)/\sqrt 2, & i=i_Q(k),\\
+    0, & \text{otherwise.}
+  \end{cases}
+  \label{eq:symbol_derivative}
+\end{equation}
+
+For an LDPC parity-check graph with checks $\mathcal N_j$, use the relaxed
+parity residual
+\begin{equation}
+  \mathcal R_{\rm code}(\bm z)
+  =
+  \sum_j
+  \left(1-\prod_{i\in\mathcal N_j}\xi_i\right)^2.
+  \label{eq:parity_penalty}
+\end{equation}
+Let $P_j=\prod_{i\in\mathcal N_j}\xi_i$ and
+$P_{j\setminus i}=\prod_{r\in\mathcal N_j\setminus i}\xi_r$.  Then
+\begin{equation}
+  \frac{\partial \mathcal R_{\rm code}}{\partial z_i}
+  =
+  -2(1-\xi_i^2)
+  \sum_{j:i\in\mathcal N_j}
+  (1-P_j)P_{j\setminus i}.
+  \label{eq:parity_gradient}
+\end{equation}
+Do not compute $P_{j\setminus i}$ by division $P_j/\xi_i$; compute the
+excluded product directly or with prefix/suffix products so zeros are safe.
+
+\section{Universal Manual Gradient}
+
+Most paper ideas can be written locally as a linear observation model around
+the current physical variables:
+\begin{equation}
+  \widehat{\bm y}_a
+  =
+  \sum_{k\in\mathcal D_a}\bm a_{ak}(\Theta)s_k(\bm z)
+  +\bm B_a(\Theta)\bm u,
+  \qquad
+  \bm e_a=\widehat{\bm y}_a-\bm y_a .
+  \label{eq:local_model}
+\end{equation}
+For
+\begin{equation}
+  \mathcal D_{\rm obs}=\sum_a \norm{\bm e_a}_2^2,
+\end{equation}
+the hand gradient is
+\begin{equation}
+  \frac{\partial \mathcal D_{\rm obs}}{\partial z_i}
+  =
+  2\sum_{a:\,k(i)\in\mathcal D_a}
+  \Ree\left[
+    \bm e_a\Hh \bm a_{a,k(i)}
+    \frac{\partial s_{k(i)}}{\partial z_i}
+  \right],
+  \label{eq:universal_z_gradient}
+\end{equation}
+where $k(i)$ is the carrier containing bit $i$.  The full $z$ gradient is
+\begin{equation}
+  \nabla_z\mathcal L
+  =
+  \nabla_z\mathcal D_{\rm obs}
+  +\lambda_p\nabla_z\mathcal R_{\rm code}
+  +\nabla_z\mathcal R_{\rm aux}.
+  \label{eq:full_z_gradient}
+\end{equation}
+This is the reusable manual-gradient hook for the whole paper set.
+
+\section{Suitable Concepts From the Papers}
+
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.24\linewidth}>{\raggedright\arraybackslash}p{0.28\linewidth}>{\raggedright\arraybackslash}p{0.38\linewidth}@{}}
+\toprule
+Paper concept & What to differentiate manually & What should stay explicit \\
+\midrule
+Partial FFT demodulation
+& Differentiate the coded-bit latents through the partial-FFT observation model
+$\bm Y_k\approx\sum_q \bm c_{kq}s_q(\bm z)$.  Use
+Eq.~\eqref{eq:universal_z_gradient}.
+& Partial-FFT windows, the number of partial-FFT views $M$, and the combiner weights should be
+deterministic candidates or least-squares updates. \\
+
+Progressive ICI equalization
+& Differentiate $\bm z$ for the current ICI half-bandwidth
+$K_{\rm ICI}$.  Soft code constraints replace hard tentative decisions.
+& Increasing $K_{\rm ICI}$ is a model-selection step.  Use CRC, BP success,
+parity residual, and residual energy, not gradient descent on integer span. \\
+
+Nonuniform Doppler compensation
+& After a Doppler candidate is chosen, differentiate $\bm z$ through the
+resulting OFDM/partial-FFT observation.  Optional v2: hand-derive one scalar
+gradient for residual Doppler if interpolation is fixed.
+& Coarse resampling, timing, and Doppler search should be a deterministic grid
+or preamble-based estimator.  Do not differentiate the full acquisition path in
+v1. \\
+
+Sparse delay-Doppler channel estimation
+& Differentiate $\bm z$ after a sparse support or dictionary slice has been
+chosen.  Reliable soft symbols become code-constrained anchors.
+& OMP support selection, basis-pursuit active sets, and dictionary pruning are
+not good gradient targets.  Use OMP/BP/proximal steps and then LS. \\
+
+Clustered channel adaptation
+& Possible manual gradients for low-dimensional cluster delay/Doppler offsets:
+$\partial L/\partial\theta_c=2\Ree[\bm e\Hh(\partial A/\partial\theta_c)\bm s]$.
+& Cluster assignment and large support changes should be discrete candidates.
+Cluster amplitudes should be LS. \\
+
+Impulsive noise mitigation
+& Differentiate $\bm z$ after subtracting the current impulse estimate.  If a
+soft impulse mask is used, its scalar gradient can be derived explicitly.
+& Detect impulse positions by threshold/GLRT/null-tone residuals.  Estimate
+impulse samples by LS or sparse proximal updates. \\
+
+Partial-band partial-block interference
+& Differentiate $\bm z$ through
+$\widehat{\bm y}=A\bm s(\bm z)+B_{\rm int}\alpha$.  The code penalty prevents
+over-cancellation of valid signal energy.
+& Interference support in time/frequency should come from GLRT or candidate
+sets.  Interference coefficients $\alpha$ should be LS. \\
+
+Nonbinary LDPC coding
+& v1: binary-image bit latents and binary parity gradients.  v2: group bit
+latents into GF($2^m$) symbols and derive a nonbinary check surrogate.
+& Nonbinary BP messages and field operations should remain explicit.  Do not
+hide the finite-field algebra inside a black-box differentiator. \\
+
+Asynchronous multiuser OFDM
+& Give each user its own latent vector $\bm z^{(u)}$ and parity penalty.  The
+gradient for user $u$ uses that user's mixing matrix
+$A_u(\tau_u,\Theta_u)$.
+& User timing offsets, overlap segmentation, and cancellation order should be
+candidates or small-grid searches. \\
+
+Physical-layer network coding
+& Use manual gradients for separate latents $(\bm z_A,\bm z_B)$, network-coded
+latents $\bm z_\oplus$, or composite latents with an XOR consistency penalty.
+& Which PLNC decoding mode to trust is a candidate-scoring problem, not a
+continuous-gradient problem. \\
+
+Adaptive modulation/coding and outer erasure coding
+& No packet-level gradient is needed.  Use manual-gradient receiver outputs as
+features: parity residual, LLR margin, selected $M$, selected $K_{\rm ICI}$,
+CRC status, and residual energy.
+& Mode selection and erasure-code allocation are system-layer policies. \\
+\bottomrule
+\end{longtable}
+
+\section{Concrete Losses for the Most Useful Modules}
+
+\subsection{Partial FFT and ICI}
+
+Let $\bm Y_k\in\C^M$ be the partial-FFT vector for carrier $k$, and let
+$\bm c_{kq}\in\C^M$ be the response from transmitted carrier $q$ across
+the $M$ partial-FFT views at received carrier $k$.  With
+$\mathcal B_K(k)=\{q:\abs{q-k}\le K\}$,
+\begin{equation}
+  \bm r_k
+  =
+  \sum_{q\in\mathcal B_K(k)}\bm c_{kq}s_q(\bm z)-\bm Y_k.
+\end{equation}
+Use
+\begin{equation}
+  \mathcal L_{\rm pfft}
+  =
+  \lambda_d\sum_k\norm{\bm r_k}_2^2
+  +\lambda_p\mathcal R_{\rm code}(\bm z).
+\end{equation}
+Then for bit $i$ on carrier $q$,
+\begin{equation}
+  \frac{\partial \mathcal L_{\rm pfft}}{\partial z_i}
+  =
+  2\lambda_d
+  \sum_{k:q\in\mathcal B_K(k)}
+  \Ree\left[
+    \bm r_k\Hh\bm c_{kq}\frac{\partial s_q}{\partial z_i}
+  \right]
+  +\lambda_p
+  \frac{\partial\mathcal R_{\rm code}}{\partial z_i}.
+  \label{eq:pfft_gradient}
+\end{equation}
+
+\subsection{Combiner Symbol Tie}
+
+If $\widehat s_k=\bm w_k\Hh\bm Y_k$, add
+\begin{equation}
+  \mathcal L_{\rm tie}
+  =
+  \rho\sum_{k\in\mathcal D}\abs{\widehat s_k-s_k(\bm z)}^2 .
+\end{equation}
+For bit $i$ on carrier $k$,
+\begin{equation}
+  \frac{\partial \mathcal L_{\rm tie}}{\partial z_i}
+  =
+  -2\rho\Ree\left[
+    \big(\widehat s_k-s_k\big)^*
+    \frac{\partial s_k}{\partial z_i}
+  \right].
+  \label{eq:tie_gradient}
+\end{equation}
+The negative sign appears because the residual is $\widehat s_k-s_k$.
+
+\subsection{Sparse or Clustered Channel Refinement}
+
+After support selection, write the model as
+\begin{equation}
+  \widehat{\bm y}=A(\bm\theta)\bm s(\bm z),\qquad
+  \bm e=\widehat{\bm y}-\bm y.
+\end{equation}
+For a scalar cluster or path parameter $\theta_c$,
+\begin{equation}
+  \frac{\partial}{\partial\theta_c}\norm{\bm e}^2
+  =
+  2\Ree\left[
+    \bm e\Hh
+    \frac{\partial A(\bm\theta)}{\partial\theta_c}
+    \bm s(\bm z)
+  \right].
+  \label{eq:theta_gradient}
+\end{equation}
+Use this only for a small number of continuous refinements, such as residual
+Doppler offset or cluster delay drift.  If $\partial A/\partial\theta_c$ is
+messy or discontinuous because of interpolation boundaries, prefer a local grid
+search.
+
+\subsection{Impulse and External-Interference Nuisance Terms}
+
+For impulsive noise or partial-band interference,
+\begin{equation}
+  \widehat{\bm y}=A\bm s(\bm z)+B\bm u,\qquad
+  \bm e=\widehat{\bm y}-\bm y.
+\end{equation}
+Given $\bm z$, update $\bm u$ by
+\begin{equation}
+  \bm u
+  =
+  \argmin_{\bm u}\norm{A\bm s(\bm z)+B\bm u-\bm y}^2
+  +\lambda_u\mathcal R_u(\bm u),
+\end{equation}
+using LS if $\mathcal R_u=0$, or a sparse proximal step if $\mathcal R_u$ is an
+$\ell_1$ penalty.  Given $\bm u$, update $\bm z$ by
+Eq.~\eqref{eq:universal_z_gradient}.  This alternating structure is safer than
+trying to manually differentiate every nuisance detector.
+
+\section{Recommended Solver Schedule}
+
+\begin{enumerate}
+  \item Generate deterministic candidates for coarse Doppler, partial-FFT
+  number of partial-FFT views $M$, and ICI span $K_{\rm ICI}$.
+  \item For each candidate, initialize channel and response coefficients from pilots
+  and optional sparse support selection.
+  \item Alternate:
+  \begin{enumerate}
+    \item update channel and interference variables by LS, grid, or proximal
+    rule;
+    \item update $\bm z$ by a few manual-gradient steps using
+    Eq.~\eqref{eq:full_z_gradient};
+    \item run BP or use BP extrinsic information to refresh LLRs and confidence.
+  \end{enumerate}
+  \item Score candidates by pilot residual, data residual, parity residual,
+  LLR margin, BP success, and CRC.
+  \item Treat high parity residual or CRC failure as an erasure signal for any
+  outer erasure code or AMC policy.
+\end{enumerate}
+
+\section{What Not to Differentiate}
+
+Manual gradients are most useful when the mapping is smooth and low-dimensional.
+They are not the right tool for every idea in the papers.
+
+\begin{itemize}
+  \item Do not gradient-descent integer quantities: ICI span, number of partial-FFT views,
+  pilot pattern, LDPC graph, support size, or modulation mode.
+  \item Do not differentiate through hard OMP support selection, GLRT decisions,
+  CRC decisions, or BP stopping rules.
+  \item Do not make the finite-field LDPC algebra an opaque real-valued neural
+  layer.  Keep BP explicit and use the relaxed parity penalty only as a
+  receiver-side soft constraint.
+  \item Do not let impulse/interference nuisance variables explain everything.
+  Always score with parity and CRC so the receiver prefers code-valid signal
+  explanations.
+\end{itemize}
+
+\section{Summary}
+
+The best manual-gradient use of the paper set is not a fully differentiable
+receiver.  It is a structured alternating receiver:
+\begin{equation}
+  \boxed{
+  \begin{gathered}
+  \text{LS/grid/prox for physics}\\
+  {}+\text{ manual gradient for coded bits}\\
+  {}+\text{ BP/CRC/parity for code consistency}
+  \end{gathered}
+  }
+\end{equation}
+Partial FFT, progressive ICI, Doppler compensation, sparse and clustered
+channels, interference cancellation, multiuser reception, and PLNC can all plug
+into this pattern by changing the observation matrix or nuisance basis while
+leaving the hand-derived coded-bit gradient intact.
+
+\end{document}

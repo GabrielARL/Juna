@@ -4,13 +4,17 @@ Standalone home of the **JUNA-Lite** underwater-acoustic OFDM/LDPC receiver and
 the two paper baselines it is measured against.
 
 Migrated from `sonique/research/JunaCore` @ `d49fff0127732af4fad3862628fd93a96e2e75e9`
-(branch `juna-dev`). The algorithm files `src/juna/common.jl`,
-`src/juna/frame_wide_ldpc.jl` (frame-stateful Lite deployment), and
-`src/juna/lite.jl`, the modem interface, the LDPC wrapper, and the
-`tools/ldpc` helper binaries are byte-identical to that commit; only the
-wrappers (`src/JunaCore.jl`, `src/Juna.jl`) and `Project.toml` are pruned.
-Cross-repo parity: `julia --project=. tools/parity_check.jl` prints a digest
-that must match when run under both repositories.
+(branch `juna-dev`). This records where the migration began. Juna is a separate
+entity and does not have to remain byte-identical to that source or produce the
+same receiver results. This package removed the rpchan synchronization and
+compatibility profiles and the FrameRLS preset, keeping only the linear
+frequency-modulated synchronization path. The wrappers (`src/JunaCore.jl`,
+`src/Juna.jl`) and `Project.toml` are pruned.
+
+`test/source_file_check.jl` stores values for selected Juna files so a reviewed
+change is visible. `tools/parity_check.jl` repeats fixed Juna transmit and
+receive cases and compares them with results stored in this repository. Neither
+check requires a corresponding Sonique change.
 
 ## Public facades
 
@@ -62,10 +66,26 @@ captures.
 python3 tools/explorer/server.py   # http://127.0.0.1:8772/
 ```
 
-Chain-centric workbench: Home | Tests | Map | Chain | Source | Coverage |
-Progress. The Chain tab renders the declared stage map
-(`tools/explorer/chain.json`); Coverage shows static source-to-test
-references (never presented as runtime coverage) plus last recorded runs.
-Data contracts: `python3 tools/explorer/explorer_contract.py` (C1–C7) and
-`python3 tools/explorer/server_contract.py` (S1–S7). The source repository's
-explorer remains the home of the full nine-receiver family on port 8771.
+Unified workbench: Home | Tests | Map | Chain | Source | Coverage | Health |
+Progress, all served by one shell with a command palette (Ctrl-K) and an
+uncommitted-state banner. Source has two integrated modes:
+`/source` is the evidence inspector, and `/source/graph` is the advanced
+context graph entered from receiver, stage, suite, file, and symbol links
+throughout the workbench. The original self-contained analyzer is retained at
+`/source-advanced` (with `/source-legacy` as a compatibility alias) and carries
+an Explorer bridge bar. The Health tab runs a fixed allowlist of verification
+commands and records results (with commit and dirty-state) separately from
+browser test runs.
+
+JSON API layer (`/api/repository`, `/api/suites`, `/api/chain`,
+`/api/receivers`, `/api/symbols`, `/api/symbol/<name>`, `/api/graph`,
+`/api/coverage`, `/api/runs`, `/api/health`, `/api/palette`): every response
+carries the provenance
+envelope `{commit, working_tree_dirty, generated_at, schema_version, data}`.
+Any future frontend builds against these APIs, not against page HTML.
+
+Data contracts: `python3 tools/explorer/explorer_contract.py` (C1–C10) and
+`python3 tools/explorer/server_contract.py` (S1–S17, including headless-browser
+canvas-pixel checks). The source
+repository's explorer remains the home of the full nine-receiver family on
+port 8771.

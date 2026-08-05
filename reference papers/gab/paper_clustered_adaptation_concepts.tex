@@ -1,0 +1,81 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+\input{paper_note_style.tex}
+
+\begin{document}
+
+\papercover
+  {Clustered Channel Adaptation}
+  {Zhaohui Wang, Shengli Zhou, Preisig, Pattipati, and Willett}
+  {IEEE Transactions on Signal Processing, 2012}
+  {clustered_channel_adaptation_ofdm_uwa.pdf}
+
+\begin{frame}{1. Core problem}
+\twocolmodel{
+  \begin{itemize}\setlength{\itemsep}{0.45em}
+    \item UWA paths are sparse, but not isolated one by one
+    \item Refraction, surface bounce, and bottom bounce form clusters
+    \item Clusters evolve differently across OFDM blocks
+  \end{itemize}
+}{
+  \[
+    \mathcal S
+    =
+    \mathcal C_1\cup\mathcal C_2\cup\cdots\cup\mathcal C_G
+  \]
+  \[
+    \Delta_g=(\Delta a_g,\Delta \tau_g,\Delta \alpha_g)
+  \]
+}{
+  The paper carries memory across blocks without requiring the whole channel to move as one object.
+}{
+  Cluster-level variation sits between dense re-estimation and a single global update.
+}
+\end{frame}
+
+\begin{frame}{2. Adaptation model}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[flowbox] (prev) at (-5.0,0) {Previous\\sparse channel};
+  \node[method,minimum width=3.0cm] (cluster) at (-1.8,0) {Group paths\\into clusters};
+  \node[method,minimum width=3.0cm] (offset) at (1.5,0) {Estimate cluster\\offsets};
+  \node[flowbox] (curr) at (4.8,0) {Current\\channel};
+  \draw[flowarr] (prev) -- (cluster);
+  \draw[flowarr] (cluster) -- (offset);
+  \draw[flowarr] (offset) -- (curr);
+\end{tikzpicture}
+\end{center}
+\[
+  \widehat{\Delta}_g
+  =
+  \argmin_{\Delta_g}
+  \norm{\vy_{\mathcal P}^{(b)}
+  -\vA_{\mathcal P}\big(\mathcal C_g+\Delta_g\big)\valpha_g}_2^2
+\]
+\bottomnote{The previous block's channel becomes a structured prior, and each cluster then drifts on its own.}
+\end{frame}
+
+\begin{frame}{3. Hybrid estimator}
+\begin{itemize}\setlength{\itemsep}{0.48em}
+  \item Keep sparse path knowledge from the previous block
+  \item Estimate cluster amplitude, delay, and Doppler changes
+  \item Combine adapted prior paths with new pilot evidence
+  \item Beat block-by-block pilot estimation where coherence exists
+\end{itemize}
+\bottomnote{While the estimator uses memory across blocks, it does not assume that every path shares the same motion.}
+\end{frame}
+
+\begin{frame}{4. JUNA connection}
+\begin{itemize}\setlength{\itemsep}{0.5em}
+  \item Regularize local ICI coefficients by cluster:
+  \[
+    \bm c_{kq}^{(b)}
+    \approx
+    \bm c_{kq}^{(b-1)}+\text{cluster drift}.
+  \]
+  \item Cluster identity is discrete; estimate it explicitly or by candidates
+  \item Low-dimensional cluster offsets suit continuous refinement
+  \item A guide for temporal smoothing in receiver refinement
+\end{itemize}
+\end{frame}
+
+\end{document}

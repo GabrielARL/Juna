@@ -1,0 +1,81 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+\input{paper_note_style.tex}
+
+\begin{document}
+
+\papercover
+  {Partial FFT Demodulation}
+  {Yerramalli, Stojanovic, and Mitra}
+  {IEEE Transactions on Signal Processing, 2012}
+  {partial_fft_doppler_ofdm.pdf}
+
+\begin{frame}{Core problem}
+\twocolmodel{
+  \begin{itemize}\setlength{\itemsep}{0.45em}
+    \item One full-symbol FFT averages a changing channel
+    \item Subcarrier orthogonality breaks; ICI grows
+    \item Full block equalization is costly in large systems
+  \end{itemize}
+}{
+  \[
+    y_k=\int_0^T r(t)e^{-j2\pi f_k t}\,dt
+  \]
+  \[
+    H(t)\;\text{varies inside }[0,T]
+    \Rightarrow
+    \text{ICI}
+  \]
+}{
+  Use several partial FFTs.
+}{
+  Short windows contain less channel variation. Weight and combine their outputs.
+}
+\end{frame}
+
+\begin{frame}{Partial FFT}
+\begin{center}
+\begin{tikzpicture}[x=1cm,y=1cm]
+  \node[flowbox] (sym) at (-5.0,0) {OFDM\\symbol};
+  \node[method,minimum width=3.0cm] (split) at (-1.8,0) {Split into\\$M$ intervals};
+  \node[method,minimum width=3.0cm] (fft) at (1.5,0) {FFT each\\interval};
+  \node[flowbox] (vec) at (4.8,0) {Partial-FFT observation vector\\$\vY_k$};
+  \draw[flowarr] (sym) -- (split);
+  \draw[flowarr] (split) -- (fft);
+  \draw[flowarr] (fft) -- (vec);
+\end{tikzpicture}
+\end{center}
+\[
+  \vY_k=
+  \begin{bmatrix}
+    Y_{k,1}&Y_{k,2}&\cdots&Y_{k,M}
+  \end{bmatrix}\T,
+  \qquad
+  \widehat X_k=\vW_k\Hh\vY_k .
+\]
+\bottomnote{Equal weights give conventional full FFT demodulation.\\Combiner weights reduce ICI.}
+\end{frame}
+
+\begin{frame}{Channel knowledge}
+\begin{itemize}\setlength{\itemsep}{0.48em}
+  \item Full knowledge: weights suppress ICI directly
+  \item Partial knowledge: reduced channel information
+  \item No knowledge: observations and pilots determine weights
+  \item Moderate complexity: $M$ values per carrier
+\end{itemize}
+\bottomnote{This paper is not by Wang or Zhou. \texttt{JUNA\_vs\_RPC} uses its partial-FFT combiner.}
+\end{frame}
+
+\begin{frame}{Two receivers}
+\begin{itemize}\setlength{\itemsep}{0.5em}
+  \item Partial-FFT combining maps $\vY_k$ to one scalar
+  \item JUNA keeps the $M$-vector
+  \item Nearby transmitted symbols generate this vector:
+  \[
+    \vY_k=\sum_{q\in\mathcal B(k)}\bm c_{kq}s_q+\vn_k .
+  \]
+  \item JUNA estimates the transmitted symbols jointly
+\end{itemize}
+\bottomnote{\texttt{JUNA\_vs\_RPC.tex} compares these two receivers.}
+\end{frame}
+
+\end{document}

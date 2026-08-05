@@ -9,7 +9,7 @@
 #                             best candidate before final payload extraction.
 #
 # If this fails: the lite receiver may still pass clean loopbacks by returning a
-# valid seed, while the actual posterior-anchor refit path is broken or degraded.
+# valid initial candidate, while the actual posterior-anchor refit path is broken or degraded.
 #
 # Run alone:  julia --project=. test/juna_lite_refinement.jl
 # Via runner: julia --project=. test/runtests.jl lite
@@ -53,7 +53,7 @@ function lite_refinement_fixture()
     yparts = zeros(ComplexF64, 1, Int(m.nc))
     yparts[1, :] .= equalized
     metrics = Float64[bit ? 6.0 : -6.0 for bit in codeword]
-    seed = (
+    initial_candidate = (
         lpost_metric = metrics,
         valid = false,
         syndrome = 88,
@@ -63,7 +63,7 @@ function lite_refinement_fixture()
         score = 0.9,
     )
     (m = m, layout = layout, code = code, bits = bits, codeword = codeword,
-     yparts = yparts, metrics = metrics, seed = seed)
+     yparts = yparts, metrics = metrics, initial_candidate = initial_candidate)
 end
 
 function assert_lite_candidate_contract(m, code, bits, codeword, candidate)
@@ -158,21 +158,21 @@ end
 
     @testset "_juna_step turns posterior anchors into a finite valid candidate" begin
         f = lite_refinement_fixture()
-        candidate = LiteRefineJuna._juna_step(f.m, f.code, f.layout, f.yparts, f.seed)
+        candidate = LiteRefineJuna._juna_step(f.m, f.code, f.layout, f.yparts, f.initial_candidate)
 
         assert_lite_candidate_contract(f.m, f.code, f.bits, f.codeword, candidate)
-        @test LiteRefineJuna._juna_better(f.seed, candidate)
-        @test candidate.score < f.seed.score
-        @test candidate.mean_abs_lpost > f.seed.mean_abs_lpost
+        @test LiteRefineJuna._juna_better(f.initial_candidate, candidate)
+        @test candidate.score < f.initial_candidate.score
+        @test candidate.mean_abs_lpost > f.initial_candidate.mean_abs_lpost
         @test candidate.pilot_mse == 0.0
         @test candidate.tie_mse < 1e-8
     end
 
-    @testset "_juna_lite_candidate refines invalid seeds but preserves valid seeds" begin
+    @testset "_juna_lite_candidate refines invalid initial candidates but preserves valid initial candidates" begin
         f = lite_refinement_fixture()
-        step = LiteRefineJuna._juna_step(f.m, f.code, f.layout, f.yparts, f.seed)
-        refined = LiteRefineJuna._juna_lite_candidate(f.m, f.code, f.layout, f.yparts, f.seed)
-        payload = LiteRefineJuna._juna_lite(f.m, f.code, f.layout, f.yparts, f.seed)
+        step = LiteRefineJuna._juna_step(f.m, f.code, f.layout, f.yparts, f.initial_candidate)
+        refined = LiteRefineJuna._juna_lite_candidate(f.m, f.code, f.layout, f.yparts, f.initial_candidate)
+        payload = LiteRefineJuna._juna_lite(f.m, f.code, f.layout, f.yparts, f.initial_candidate)
         bad_yparts = zeros(ComplexF64, 0, Int(f.m.nc))
         early = LiteRefineJuna._juna_lite_candidate(f.m, f.code, f.layout, bad_yparts, step)
 

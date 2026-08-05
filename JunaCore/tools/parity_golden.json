@@ -1,0 +1,15 @@
+{
+  "source_repository": "sonique/research/JunaCore",
+  "source_commit": "d49fff0127732af4fad3862628fd93a96e2e75e9",
+  "julia_version": "1.12.6",
+  "seed": 20260730,
+  "scenarios": {"clean": 0.0, "mild_noise": 0.05},
+  "digests": {
+    "lite.clean": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27",
+    "lite.mild_noise": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27",
+    "partial-fft.clean": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27",
+    "partial-fft.mild_noise": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27",
+    "standard.clean": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27",
+    "standard.mild_noise": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27"
+  }
+}
