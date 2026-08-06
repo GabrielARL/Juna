@@ -1450,6 +1450,16 @@ def _experiment_ids():
 
 _SWEEP_NAME_PATTERN = re.compile(
     r"-n(\d+)-cp(\d+)-rate(\d+)-p(\d+)-(\d+)-dc(\d+)-k(\w+)$")
+_RESULTS_PATH_PATTERN = re.compile(r"([A-Za-z0-9._-]+):([1-9][0-9]*)")
+_SWEEP_FIELDS = [
+    ("N", "nfft"),
+    ("CP", "cp"),
+    ("code rate", "code_rate"),
+    ("outer spacing", "outer_spacing"),
+    ("inner spacing", "inner_spacing"),
+    ("check degree", "check_degree"),
+    ("horizon", "horizon"),
+]
 
 
 def _sweep_name_parameters(name):
@@ -1469,32 +1479,94 @@ def _sweep_name_parameters(name):
             "inner spacing": inner, "check degree": check, "horizon": horizon}
 
 
-def _sweep_parameter_row(available, experiment_id):
+def _experiment_result_paths(experiment_id):
+    """Channel/hydrophone paths declared by one schema-2 result manifest."""
+    try:
+        manifest = _experiment_result_file(experiment_id,
+                                           "results_manifest.json")
+        with open(manifest, encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return []
+    paths = []
+    for raw in payload.get("paths", []):
+        match = re.fullmatch(r"([A-Za-z0-9._-]+)\s+([1-9][0-9]*)",
+                             str(raw).strip())
+        if not match:
+            continue
+        channel, hydrophone = match.groups()
+        paths.append({"value": f"{channel}:{hydrophone}",
+                      "label": f"{channel} hydrophone {hydrophone}"})
+    return paths
+
+
+def _sweep_parameter_row(available, experiment_id, single_url,
+                         initial_path=""):
     """One dropdown per sweep parameter, above the experiment dropdown.
 
     Each dropdown lists only the values that exist among the experiments
-    compatible with the other selections; when the selections match exactly
-    one experiment, its results page opens. Experiments whose names carry
-    no parameters stay reachable through the experiment dropdown.
+    compatible with the other selections. Choosing a channel/hydrophone shows
+    that BER-SNR panel from every compatible fixed-geometry experiment.
+    Experiments whose names carry no parameters stay reachable through the
+    experiment dropdown but do not enter the comparison grid.
     """
-    parsed = [{"id": name, "parameters": _sweep_name_parameters(name)}
-              for name in available]
-    parsed = [entry for entry in parsed if entry["parameters"]]
+    parsed = []
+    for name in available:
+        parameters = _sweep_name_parameters(name)
+        paths = _experiment_result_paths(name)
+        if parameters and paths:
+            parsed.append({"id": name, "parameters": parameters,
+                           "paths": paths})
     if len(parsed) < 2:
         return ""
+    all_paths = {}
+    for entry in parsed:
+        for path in entry["paths"]:
+            all_paths[path["value"]] = path["label"]
+    if initial_path not in all_paths:
+        initial_path = ""
+    path_options = ['<option value="">(all)</option>']
+    path_options.extend(
+        f'<option value="{esc(value)}"'
+        f'{" selected" if value == initial_path else ""}>'
+        f'{esc(all_paths[value])}</option>'
+        for value in sorted(
+            all_paths,
+            key=lambda value: (value.rsplit(":", 1)[0],
+                               int(value.rsplit(":", 1)[1]))))
     data = json.dumps(parsed).replace("</", "<\\/")
     current = json.dumps(experiment_id).replace("</", "<\\/")
+    fields = json.dumps([{"name": name, "query": query}
+                         for name, query in _SWEEP_FIELDS])
+    default_view = json.dumps(single_url).replace("</", "<\\/")
     return ("""
 <p style="margin:.2rem 0 .4rem;display:flex;align-items:center;gap:.6rem;
-flex-wrap:wrap" id="sweep-parameters"></p>
+flex-wrap:wrap" id="sweep-parameters">
+<span id="sweep-parameter-controls" style="display:contents"></span>
+<label>Channel / hydrophone <select id="path-filter">""" +
+            "".join(path_options) + """</select></label>
+<span id="sweep-match-count"></span></p>
 <script>
-(function () {
+window.addEventListener("DOMContentLoaded", function () {
   var experiments = """ + data + """;
   var current = """ + current + """;
-  var names = Object.keys(experiments[0].parameters);
+  var fields = """ + fields + """;
+  var names = fields.map(function (field) { return field.name; });
+  var query = new URLSearchParams(location.search);
   var chosen = {};
-  names.forEach(function (name) { chosen[name] = ""; });
-  var row = document.getElementById("sweep-parameters");
+  fields.forEach(function (field) {
+    chosen[field.name] = query.get(field.query) || "";
+  });
+  var controls = document.getElementById("sweep-parameter-controls");
+  var count = document.getElementById("sweep-match-count");
+  var pathSelect = document.getElementById("path-filter");
+  var single = document.getElementById("single-result");
+  var comparison = document.getElementById("comparison-result");
+  var empty = document.getElementById("comparison-empty");
+  var openLink = document.getElementById("results-open");
+  var singleUrl = """ + default_view + """;
+  var selectedPath = pathSelect.value;
+
   function matching(skipped) {
     return experiments.filter(function (entry) {
       return names.every(function (name) {
@@ -1503,14 +1575,70 @@ flex-wrap:wrap" id="sweep-parameters"></p>
       });
     });
   }
+
+  function updateAddress() {
+    var url = new URL(location.href);
+    fields.forEach(function (field) {
+      if (chosen[field.name])
+        url.searchParams.set(field.query, chosen[field.name]);
+      else
+        url.searchParams.delete(field.query);
+    });
+    if (selectedPath) url.searchParams.set("path", selectedPath);
+    else url.searchParams.delete("path");
+    history.replaceState(null, "", url);
+  }
+
+  function comparisonUrl(found) {
+    var params = new URLSearchParams();
+    found.forEach(function (entry) {
+      params.append("experiment", entry.id);
+    });
+    params.set("path", selectedPath);
+    return "/results/compare?" + params.toString();
+  }
+
+  function renderResult(found) {
+    if (!selectedPath) {
+      comparison.hidden = true;
+      empty.hidden = true;
+      single.hidden = false;
+      openLink.href = singleUrl;
+      return;
+    }
+    var withPath = found.filter(function (entry) {
+      return entry.paths.some(function (path) {
+        return path.value === selectedPath;
+      });
+    });
+    single.hidden = true;
+    if (!withPath.length) {
+      comparison.hidden = true;
+      empty.hidden = false;
+      empty.textContent = "No BER-SNR plot matches the selected " +
+                          "experiment conditions and channel/hydrophone.";
+      openLink.removeAttribute("href");
+      return;
+    }
+    var url = comparisonUrl(withPath);
+    empty.hidden = true;
+    comparison.hidden = false;
+    if (comparison.getAttribute("src") !== url)
+      comparison.setAttribute("src", url);
+    openLink.href = url;
+  }
+
   function render() {
-    row.textContent = "";
-    names.forEach(function (name) {
+    controls.textContent = "";
+    fields.forEach(function (field) {
+      var name = field.name;
       var values = [];
       matching(name).forEach(function (entry) {
         if (values.indexOf(entry.parameters[name]) < 0)
           values.push(entry.parameters[name]);
       });
+      if (chosen[name] && values.indexOf(chosen[name]) < 0)
+        values.push(chosen[name]);
       values.sort(function (a, b) {
         var x = parseFloat(a), y = parseFloat(b);
         if (isNaN(x) || isNaN(y)) return a < b ? -1 : 1;
@@ -1533,25 +1661,133 @@ flex-wrap:wrap" id="sweep-parameters"></p>
       select.onchange = function () {
         chosen[name] = select.value;
         var found = matching(null);
-        if (found.length === 1 && found[0].id !== current) {
-          location.search =
-            "?experiment=" + encodeURIComponent(found[0].id);
+        updateAddress();
+        if (!selectedPath && found.length === 1 &&
+            found[0].id !== current) {
+          var url = new URL(location.href);
+          url.searchParams.set("experiment", found[0].id);
+          location.href = url;
           return;
         }
         render();
       };
       label.appendChild(select);
-      row.appendChild(label);
+      controls.appendChild(label);
     });
     var found = matching(null);
-    var count = document.createElement("span");
-    if (found.length !== 1)
-      count.textContent = found.length + " experiments match";
-    row.appendChild(count);
+    count.textContent = selectedPath
+      ? found.filter(function (entry) {
+          return entry.paths.some(function (path) {
+            return path.value === selectedPath;
+          });
+        }).length + " plots match across experiments"
+      : found.length + " experiments match";
+    renderResult(found);
   }
+
+  pathSelect.onchange = function () {
+    selectedPath = pathSelect.value;
+    updateAddress();
+    render();
+  };
+  var picker = document.getElementById("experiment-picker");
+  if (picker) picker.onchange = function () {
+    var url = new URL(location.href);
+    url.searchParams.set("experiment", picker.value);
+    location.href = url;
+  };
   render();
-})();
+});
 </script>""")
+
+
+def _results_comparison_query(query):
+    """Validated experiment IDs and one channel/hydrophone comparison key."""
+    pairs = urllib.parse.parse_qsl(query or "", keep_blank_values=True)
+    experiment_ids = [value for key, value in pairs
+                      if key == "experiment"]
+    path_values = [value for key, value in pairs if key == "path"]
+    if not experiment_ids or len(experiment_ids) > 64 or len(path_values) != 1:
+        raise FileNotFoundError("incomplete comparison query")
+    if any(not _EXPERIMENT_ID_RE.fullmatch(value)
+           for value in experiment_ids):
+        raise FileNotFoundError("unsafe experiment ID")
+    match = _RESULTS_PATH_PATTERN.fullmatch(path_values[0])
+    if not match:
+        raise FileNotFoundError("unsafe channel/hydrophone path")
+    unique_ids = list(dict.fromkeys(experiment_ids))
+    for experiment_id in unique_ids:
+        _experiment_result_file(experiment_id, "results_view.html")
+    return unique_ids, match.group(1), int(match.group(2))
+
+
+_RESULT_PANEL_RE = re.compile(
+    r'<figure\b[^>]*class="[^"]*\bpanel\b[^"]*"[^>]*>.*?</figure>',
+    re.IGNORECASE | re.DOTALL)
+
+
+def _result_panel(document, channel, hydrophone):
+    """Extract one generated BER-SNR figure by its reader-facing caption."""
+    wanted = f"{channel} hydrophone {hydrophone}"
+    for panel in _RESULT_PANEL_RE.findall(document):
+        caption = re.search(
+            r'<figcaption\b[^>]*>\s*<b\b[^>]*>(.*?)</b>', panel,
+            re.IGNORECASE | re.DOTALL)
+        if not caption:
+            continue
+        title = html.unescape(re.sub(r"<[^>]+>", "", caption.group(1))).strip()
+        if title == wanted or title.startswith(wanted + " —"):
+            return panel
+    return None
+
+
+def page_results_comparison(query):
+    """One selected BER-SNR panel from each requested experiment."""
+    experiment_ids, channel, hydrophone = _results_comparison_query(query)
+    cards, plot_style, legend = [], "", ""
+    for experiment_id in experiment_ids:
+        result = _experiment_result_file(experiment_id, "results_view.html")
+        with open(result, encoding="utf-8") as handle:
+            document = handle.read()
+        panel = _result_panel(document, channel, hydrophone)
+        if panel is None:
+            continue
+        if not plot_style:
+            style = re.search(r"<style\b[^>]*>(.*?)</style>", document,
+                              re.IGNORECASE | re.DOTALL)
+            plot_style = style.group(1) if style else ""
+        if not legend:
+            block = re.search(r'<div\b[^>]*class="[^"]*\blegend\b[^"]*"[^>]*>'
+                              r'.*?</div>', document,
+                              re.IGNORECASE | re.DOTALL)
+            legend = block.group(0) if block else ""
+        cards.append(
+            f'<article class="experiment-result" '
+            f'data-experiment-id="{esc(experiment_id)}" '
+            f'data-channel="{esc(channel)}" '
+            f'data-hydrophone="{hydrophone}">'
+            f'<h2>{esc(experiment_id)}</h2>{panel}</article>')
+    if not cards:
+        raise FileNotFoundError("no matching BER-SNR panels")
+    label = f"{channel} hydrophone {hydrophone}"
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{esc(label)} across experiments</title>
+<style>{plot_style}
+.comparison-grid {{ display:grid;gap:12px;
+  grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); }}
+.experiment-result {{ min-width:0; }}
+.experiment-result h2 {{ font:600 12px/1.35 system-ui,sans-serif;
+  overflow-wrap:anywhere;margin:0 0 5px;color:var(--text-secondary); }}
+.experiment-result .panel {{ height:calc(100% - 22px); }}
+</style></head><body><div class="viz-root">
+<h1>{esc(label)}: BER versus added-noise SNR across experiments</h1>
+<p class="axis-title">{len(cards)} plots from {len(experiment_ids)} matching
+experiments.</p>
+{legend}
+<div class="comparison-grid">{"".join(cards)}</div>
+</div></body></html>"""
 
 
 def page_results(query=""):
@@ -1581,20 +1817,31 @@ shows the newest one.</div>"""
             f'<option value="{esc(name)}"'
             f'{" selected" if name == experiment_id else ""}>'
             f'{esc(name)}</option>' for name in available)
-        jump = ("location.search = '?experiment=' + "
-                "encodeURIComponent(this.value)")
+        jump = ("var url = new URL(location.href); "
+                "url.searchParams.set('experiment', this.value); "
+                "location.href = url")
         picker = ('<label style="margin-right:auto">Experiment '
-                  f'<select onchange="{esc(jump)}">{options}</select></label>')
+                  f'<select id="experiment-picker" onchange="{esc(jump)}">'
+                  f'{options}</select></label>')
     else:
         picker = '<span style="margin-right:auto"></span>'
-    parameter_row = _sweep_parameter_row(available, experiment_id)
+    path_values = [value for key, value in other if key == "path"]
+    initial_path = path_values[0] if len(path_values) == 1 else ""
+    parameter_row = _sweep_parameter_row(
+        available, experiment_id, view_url, initial_path)
     body = f"""
 <h1>Experiment results</h1>
 {parameter_row}
 <p style="margin:.2rem 0 .6rem;display:flex;align-items:center;gap:.6rem">
 {picker}
-<a href="{view_url}" target="_blank">Open in its own tab</a></p>
-<iframe src="{view_url}" style="width:100%;height:calc(100vh - 150px);
+<a id="results-open" href="{view_url}" target="_blank">Open in its own tab</a></p>
+<div id="comparison-empty" class="card" hidden></div>
+<iframe id="single-result" src="{view_url}"
+style="width:100%;height:calc(100vh - 150px);
+border:1px solid var(--line, #ccc);border-radius:6px;background:white">
+ </iframe>
+<iframe id="comparison-result" hidden
+style="width:100%;height:calc(100vh - 150px);
 border:1px solid var(--line, #ccc);border-radius:6px;background:white">
 </iframe>"""
     return shell("Results", "/results", body, wide=True)
@@ -1774,6 +2021,12 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(page_results(query))
                 except FileNotFoundError:
                     return self._send("experiment results not found", 404,
+                                      "text/plain")
+            if path == "/results/compare":
+                try:
+                    return self._send(page_results_comparison(query))
+                except FileNotFoundError:
+                    return self._send("comparison results not found", 404,
                                       "text/plain")
             if path == "/results/view":
                 try:

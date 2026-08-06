@@ -75,6 +75,9 @@ S24 Source promotes the rich three-pane analyzer to /source, retains the
     JCM-077 and omits their five predecessors.
 S25 a full source rescan discovers a newly added .jl file without restarting
     the Explorer process.
+S26 Results offers one channel/hydrophone selector and a comparison view that
+    returns exactly that BER-SNR panel from every requested sweep experiment,
+    while rejecting unknown paths and unsafe experiment IDs.
 """
 import json
 import os
@@ -142,6 +145,31 @@ def check():
     with open(os.path.join(fixture_results, "results_manifest.json"), "w") as fh:
         json.dump({"schema_version": 1, "experiment_id": fixture_id,
                    "row_count": 2, "columns": ["channel", "lane"]}, fh)
+
+    fixture_token = fixture_id.removeprefix("server-contract-")
+    sweep_fixture_ids = [
+        (f"server-contract-{fixture_token}-"
+         "n512-cp16-rate05-p3-4-dc10-kfill"),
+        (f"server-contract-{fixture_token}-"
+         "n1024-cp32-rate025-p5-8-dc8-k4"),
+    ]
+    for index, sweep_id in enumerate(sweep_fixture_ids, start=1):
+        sweep_results = os.path.join(experiments, sweep_id, "results")
+        os.makedirs(sweep_results)
+        with open(os.path.join(sweep_results, "results_view.html"), "w") as fh:
+            fh.write(
+                '<!doctype html><style>.panel{display:block}</style>'
+                '<div class="viz-root"><div class="legend">fixture legend</div>'
+                '<div class="grid-panels">'
+                '<figure class="panel"><figcaption><b>red1 hydrophone 1</b>'
+                f'</figcaption><svg data-contract-experiment="{index}"></svg>'
+                '</figure>'
+                '<figure class="panel"><figcaption><b>red2 hydrophone 2</b>'
+                f'</figcaption><svg data-contract-other="{index}"></svg>'
+                '</figure></div></div>')
+        with open(os.path.join(sweep_results, "results_manifest.json"), "w") as fh:
+            json.dump({"schema_version": 2, "experiment_id": sweep_id,
+                       "paths": ["red1 1", "red2 2"], "row_count": 4}, fh)
 
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
     port = httpd.server_address[1]
@@ -1082,7 +1110,124 @@ def check():
         if os.path.exists(probe_path):
             os.unlink(probe_path)
 
+    # S26
+    original_experiment_ids = server._experiment_ids
+    server._experiment_ids = lambda: sweep_fixture_ids + [fixture_id]
+    try:
+        code, filter_page = fetch(
+            base, "/results?experiment=" + sweep_fixture_ids[0])
+        for marker in ('id="path-filter"', "Channel / hydrophone",
+                       'value="red1:1"', 'value="red2:2"',
+                       'id="comparison-result"'):
+            if code != 200 or marker not in filter_page:
+                problems.append(
+                    f"S26: Results channel/hydrophone control lost '{marker}'")
+
+        selected_query = urllib.parse.urlencode([
+            ("experiment", sweep_fixture_ids[0]), ("path", "red1:1")])
+        selected_dom, browser_error = browser_dom(
+            base, "/results?" + selected_query)
+        if selected_dom is None:
+            problems.append(
+                f"S26: browser comparison not checked: {browser_error}")
+        else:
+            if "2 plots match across experiments" not in selected_dom:
+                problems.append(
+                    "S26: browser did not render both matching plots")
+            comparison_tag = _re.search(
+                r'<iframe id="comparison-result"([^>]*)>', selected_dom)
+            single_tag = _re.search(
+                r'<iframe id="single-result"([^>]*)>', selected_dom)
+            if (not comparison_tag or "hidden" in comparison_tag.group(1) or
+                    not single_tag or "hidden" not in single_tag.group(1)):
+                problems.append(
+                    "S26: selected path did not replace the single result view")
+
+        one_query = urllib.parse.urlencode([
+            ("experiment", sweep_fixture_ids[0]), ("path", "red1:1"),
+            ("nfft", "1024")])
+        one_dom, browser_error = browser_dom(base, "/results?" + one_query)
+        if one_dom is None:
+            problems.append(
+                f"S26: one-experiment comparison not checked: {browser_error}")
+        else:
+            comparison_tag = _re.search(
+                r'<iframe id="comparison-result"([^>]*)>', one_dom)
+            comparison_attributes = (comparison_tag.group(1)
+                                     if comparison_tag else "")
+            if ("1 plots match across experiments" not in one_dom or
+                    sweep_fixture_ids[1] not in comparison_attributes or
+                    sweep_fixture_ids[0] in comparison_attributes):
+                problems.append(
+                    "S26: parameter condition did not narrow the comparison")
+
+        empty_query = urllib.parse.urlencode([
+            ("experiment", sweep_fixture_ids[0]), ("path", "red1:1"),
+            ("nfft", "512"), ("cp", "32")])
+        empty_dom, browser_error = browser_dom(base, "/results?" + empty_query)
+        if empty_dom is None:
+            problems.append(
+                f"S26: empty comparison not checked: {browser_error}")
+        else:
+            empty_tag = _re.search(
+                r'<div id="comparison-empty"([^>]*)>', empty_dom)
+            if ("0 plots match across experiments" not in empty_dom or
+                    not empty_tag or "hidden" in empty_tag.group(1)):
+                problems.append(
+                    "S26: zero-match selection lacks its empty state")
+
+        all_dom, browser_error = browser_dom(
+            base, "/results?experiment=" + sweep_fixture_ids[0])
+        if all_dom is None:
+            problems.append(
+                f"S26: all-path restoration not checked: {browser_error}")
+        else:
+            comparison_tag = _re.search(
+                r'<iframe id="comparison-result"([^>]*)>', all_dom)
+            single_tag = _re.search(
+                r'<iframe id="single-result"([^>]*)>', all_dom)
+            if (not comparison_tag or "hidden" not in comparison_tag.group(1) or
+                    not single_tag or "hidden" in single_tag.group(1)):
+                problems.append(
+                    "S26: (all) did not restore the single experiment view")
+    finally:
+        server._experiment_ids = original_experiment_ids
+    compare_query = urllib.parse.urlencode([
+        ("experiment", sweep_fixture_ids[0]),
+        ("experiment", sweep_fixture_ids[1]),
+        ("path", "red1:1"),
+    ])
+    code, comparison = fetch(base, "/results/compare?" + compare_query)
+    if code != 200:
+        problems.append(f"S26: comparison returned {code}")
+    else:
+        if comparison.count('<figure class="panel">') != 2:
+            problems.append(
+                "S26: comparison did not return one panel per experiment")
+        for marker in ('data-contract-experiment="1"',
+                       'data-contract-experiment="2"'):
+            if marker not in comparison:
+                problems.append(
+                    f"S26: comparison lost requested panel '{marker}'")
+        if "data-contract-other" in comparison:
+            problems.append(
+                "S26: comparison retained a different channel/hydrophone")
+    bad_path_query = urllib.parse.urlencode([
+        ("experiment", sweep_fixture_ids[0]), ("path", "red9:9")])
+    code, _ = fetch(base, "/results/compare?" + bad_path_query)
+    if code != 404:
+        problems.append(
+            f"S26: unknown comparison path returned {code}, expected 404")
+    unsafe_compare = urllib.parse.urlencode([
+        ("experiment", "../outside"), ("path", "red1:1")])
+    code, _ = fetch(base, "/results/compare?" + unsafe_compare)
+    if code != 404:
+        problems.append(
+            f"S26: unsafe comparison experiment returned {code}, expected 404")
+
     httpd.shutdown()
+    for sweep_id in sweep_fixture_ids:
+        shutil.rmtree(os.path.join(experiments, sweep_id), ignore_errors=True)
     shutil.rmtree(fixture, ignore_errors=True)
     return problems
 
@@ -1094,4 +1239,4 @@ if __name__ == "__main__":
         for p in problems:
             print("  -", p)
         sys.exit(1)
-    print("server contract: PASS (S1-S25)")
+    print("server contract: PASS (S1-S26)")
