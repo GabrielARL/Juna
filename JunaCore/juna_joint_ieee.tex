@@ -124,8 +124,7 @@ proposal, while the weights begin to move after a fixed iteration.  A step is
 kept only when the criterion does not increase and its pilot term stays within
 a fixed tolerance.
 We compare the two on equal terms and do not argue that either is the correct
-design.  The comparison holds every setting outside these update rules fixed,
-so the decoded bit error rates measure the difference between the rules.
+design.
 
 We develop this in four steps.  First, we state the joint estimation and
 decoding problem in its most general form and relax it.  Second, we write
@@ -162,7 +161,7 @@ $\mathcal A$ & forward map\\
 $\bm\psi$ & unknown channel parameters (here the response $\mathbf C$)\\
 $\mathbf n$ & noise in the general forward model\\
 $\widetilde{\mathbf X}$, $\widetilde X_k$ & soft symbols the decoder reads\\
-$g$ & read-out map from received signal to soft symbols\\
+$g$ & map from received signal to soft symbols\\
 $I(\cdot;\cdot)$ & mutual information\\
 $\mathbf y$, $X_1$, $X_2$, $\alpha$ & two-sample example: samples, wanted symbol, neighbour, coupling strength\\
 $z_i$, $\mathbf z$ & real variable for coded bit $i$; their vector\\
@@ -187,7 +186,7 @@ $\mathbf G$, $\mathbf H_{\mathrm{fd}}$ & time-domain and frequency-domain channe
 $a$, $\theta$ & residual Doppler factor; carrier frequency offset\\
 $\mathcal B_K(k)$, $K_{\mathrm{ICI}}$ & local ICI neighbourhood; its half-bandwidth\\
 $\epsilon_k^{(K)}$ & truncation error of the banded model\\
-$\nu_k$, $\bm\nu$, $\nu_{k,m}$ & noise per bin, as a vector, per view\\
+$\nu_k$, $\bm\nu$, $\nu_{k,m}$, $\nu[n]$ & noise per bin, as a vector, per view, per sample\\
 $h_\ell$, $L$ & channel taps; their number\\
 $\phi_m$, $\mathcal T_m$ & segment phase; segment index set\\
 $I_{k,m}$ & local ICI neglected by the per-segment phase model\\
@@ -226,10 +225,10 @@ $s_k(\mathbf z)$ & relaxed QPSK symbol\\
 $\mathbf c_{k,q}$, $\mathbf C$ & Partial-FFT response vectors; their collection\\
 $c_{k,q,m}$, $\mathbf 1$ & component $m$ of $\mathbf c_{k,q}$; all-ones vector\\
 $\mathbf n_k$ & noise in the views of carrier $k$\\
-$\lambda_{\mathrm d}$, $\eta$, $\rho$ & weights of the signal, pilot, and tie terms\\
+$\lambda_{\mathrm d}$, $\eta$, $\rho$ & weights of the signal term, the fit to pilots, and the fit to relaxed data symbols\\
 $\gamma_C$, $\gamma_W$, $\gamma_S$ & weights bounding response energy, combiner energy, and weight smoothness\\
 $\mathcal J$ & complete objective over $(\mathbf C,\mathbf W,\mathbf z)$\\
-$\mathcal R_g$ & read-out terms of $\mathcal J$\\
+$\mathcal R_g$ & terms of $\mathcal J$ added through the map $g$\\
 $\overline{\mathcal J}$ & $\mathcal J$ with the signal term replaced by its expected value\\
 $\mathcal J_{\mathrm{prop}}^{(t)}$ & proposal criterion at decoder checkpoint $t$\\
 $\tau_C$, $\tau_W$, $\tau_T$ & trust weights: response, weights, cross-symbol smoothness\\
@@ -524,8 +523,10 @@ response in Section~\ref{sec:joint}.}
 Motion time-scales the received waveform.  After initial resampling a
 residual Doppler factor \(a\) and a carrier frequency offset \(\theta\)
 remain, so carrier \(\ell\) arrives at index \((1+a)\ell+\theta\) rather than
-at \(\ell\).  Bin \(k\) multiplies by \(e^{-j2\pi kn/N}\) and averages, so
-carrier \(\ell\) enters bin \(k\) with the coefficient
+at \(\ell\).  Bin \(k\) multiplies by \(e^{-j2\pi kn/N}\); with the
+\(1/\sqrt N\) of the transmitted block \(\mathbf F^{H}\mathbf X\) and
+the \(1/\sqrt N\) of bin \(k\), carrier \(\ell\) enters bin \(k\)
+with the coefficient
 \begin{align}
   H_{k,\ell}
   &=
@@ -680,8 +681,9 @@ What each view keeps has a shape.  For the channel of
   +\nu_{k,m},
   \label{eq:view-row}
 \end{equation}
-where \(\mathcal T_m\) is the index set of segment \(m\) and
-\(\nu_{k,m}\) is the noise in view \(m\).  The inner average is one arc
+where \(\mathcal T_m\) is the index set of segment \(m\), on which
+\(g_m[n]=1\), and \(\nu_{k,m}\) is the noise in view \(m\).  The inner
+sum is one arc
 of the loop of Fig.~\ref{fig:loops}.  The ICI coefficient
 \eqref{eq:ici-coefficient} is the average of the whole loop, and the views
 keep its arcs.
@@ -691,11 +693,11 @@ and \(\theta=0.20\).  The wanted carrier of bin \(4\) makes
 \(\Delta_{4,4}=0.228\) turns.  Its loop splits into four arcs that share
 the magnitude \(0.249\) and carry the phases \(10.2^\circ\),
 \(30.7^\circ\), \(51.3^\circ\), \(71.8^\circ\): equal parts, fanned
-by the drift.  Their plain sum is the channel gain,
+by the residual Doppler.  Their plain sum is the channel gain,
 \(H_{4,4}=0.692+0.601j\), with magnitude \(0.917\).  Weights that undo
 the four phases recover magnitude \(0.995\).  The full-FFT scalar has
 already lost what the views still hold, and the same fan, read for a
-neighbouring carrier, is what a combiner can scramble instead of align.
+neighbouring carrier, is what a combiner can cancel instead of align.
 
 In the notation of \eqref{eq:general-forward}, the received signal
 \(\mathbf Y\) is the collection of view vectors
@@ -710,7 +712,8 @@ concrete.
 
 The views help because residual Doppler is mainly a slow phase drift within
 one OFDM symbol.  Let the channel be fixed across the symbol while a phase
-\(\phi_m\) evolves from segment to segment:
+\(\phi_m\) evolves from segment to segment, the segments having equal
+length:
 \begin{equation}
   r[n]
   \approx
@@ -724,7 +727,7 @@ transmitted block.  Each view then obeys
 \begin{equation}
   Y_{k,m}
   \approx
-  e^{j\phi_m}H_{k,k}X_k + I_{k,m}+\nu_{k,m},
+  \frac{e^{j\phi_m}}{M}H_{k,k}X_k + I_{k,m}+\nu_{k,m},
   \label{eq:view-phase-model}
 \end{equation}
 where \(I_{k,m}\) collects the local ICI the approximation neglects and
@@ -860,7 +863,7 @@ response, and the symbols enter through the relaxed bits.  Setting
 
 The response is tied to the ICI coefficients of \eqref{eq:ici-row}.  When
 the windows form a partition of unity, summing \eqref{eq:view-forward} over
-the views and comparing with \eqref{eq:ici-row} matches the coefficients:
+the views and comparing with \eqref{eq:banded} matches the coefficients:
 \begin{equation}
   H_{k,q}
   =
@@ -873,7 +876,7 @@ where \(c_{k,q,m}\) is component \(m\) of \(\mathbf c_{k,q}\) and
 \(\mathbf 1\) is the all-ones vector.  Every ICI coefficient splits into
 per-view parts, exactly as the views split the full-FFT bin in
 \eqref{eq:view-identity}.  For the channel of \eqref{eq:ici-coefficient},
-component \(m\) is the inner average of \eqref{eq:view-row}: one arc of
+component \(m\) is the inner sum of \eqref{eq:view-row}: one arc of
 the loop of Fig.~\ref{fig:loops}.  The response collects, carrier by
 carrier, the arcs the views keep, and the numeric example of
 Section~\ref{sec:ofdm} is its wanted-carrier case.  Without residual
