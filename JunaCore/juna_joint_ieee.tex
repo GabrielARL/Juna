@@ -13,6 +13,7 @@
 \newcommand{\Pset}{\mathcal{P}}
 \newcommand{\Dset}{\mathcal{D}}
 \newcommand{\E}{\mathbb{E}}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert}
 
 % Title: CL-52c amended by CL-70, 2026-08-05.
 \title{Differentiable Joint Estimation of the Partial-FFT Response,
@@ -581,6 +582,120 @@ bias for variance but cannot add information.  The next section names the
 channel parameters \(\bm\psi\) and specializes the objective
 \eqref{eq:general-objective}, so that every coded carrier constrains the
 fit.
+
+\section{The Joint Demodulation and Decoding Problem}
+
+We now name the channel parameters \(\bm\psi\) and specialize the objective
+\eqref{eq:general-objective}.  In this special case \(\bm\psi\) has two
+parts: the Partial-FFT response, and the combiner weights that form the
+soft symbols.
+
+The modulation map is Gray-labeled quadrature phase-shift keying (QPSK).
+Data carrier \(k\) carries coded bits \(i_1(k)\) and \(i_2(k)\), and its
+relaxed symbol is
+\begin{equation}
+  s_k(\mathbf z)
+  =
+  \frac{1}{\sqrt 2}
+  \left[
+  \xi_{i_1(k)}(\mathbf z)
+  +
+  j\,\xi_{i_2(k)}(\mathbf z)
+  \right],
+  \label{eq:qpsk-relaxed}
+\end{equation}
+where \(\xi_i\) is the relaxed bipolar bit of \eqref{eq:relaxed-bit}.
+Pilot carriers keep their known symbols.  Hard bits give the four QPSK
+points, and relaxed bits move the symbol inside the square those points
+span.
+
+The Partial-FFT response collects vectors \(\mathbf c_{k,q}\in\C^M\): the
+coupling from transmitted carrier \(q\) into the \(M\) views of carrier
+\(k\).  With the banded support of \eqref{eq:banded}, the views of carrier
+\(k\) obey
+\begin{equation}
+  \mathbf Y_k
+  =
+  \sum_{q\in\mathcal B_K(k)}
+  \mathbf c_{k,q}\,s_q(\mathbf z)
+  +\mathbf n_k,
+  \label{eq:view-forward}
+\end{equation}
+where \(\mathbf n_k\) is the noise in the views of carrier \(k\).  This is
+\eqref{eq:general-forward} made concrete: the forward map is linear in the
+response, and the symbols enter through the relaxed bits.  Setting
+\(K_{\mathrm{ICI}}=0\) recovers a per-carrier model, and a larger
+\(K_{\mathrm{ICI}}\) admits stronger local mixing.
+
+The specialized objective writes out the terms that
+\eqref{eq:general-objective} holds abstractly.  Under Gaussian noise the
+negative log-likelihood becomes the signal term, and the knowledge of
+\(\bm\psi\) becomes pilot, tie, and regularization terms:
+\begin{equation}
+  \begin{aligned}
+    \mathcal L(\mathbf C,\mathbf W,\mathbf z)
+    ={}&\lambda_{\mathrm d}\sum_{k\in\Kset}
+        \Big\|\mathbf Y_k-\sum_{q\in\mathcal B_K(k)}
+        \mathbf c_{k,q}s_q(\mathbf z)\Big\|_2^2\\
+    &+\eta\sum_{p\in\Pset}
+      \left|\mathbf W_p^{H}\mathbf Y_p-X_p\right|^2
+     +\rho\sum_{k\in\Dset}
+      \left|\mathbf W_k^{H}\mathbf Y_k-s_k(\mathbf z)\right|^2\\
+    &+\gamma_C\norm{\mathbf C}_F^2
+     +\gamma_W\sum_{k\in\Kset}\norm{\mathbf W_k}_2^2
+     +\gamma_S\sum_{k\in\Kset}\norm{\mathbf W_{k+1}-\mathbf W_k}_2^2\\
+    &+\lambda_{\mathrm p}\,\mathcal R_{\mathrm{par}}(\mathbf z),
+  \end{aligned}
+  \label{eq:joint-objective}
+\end{equation}
+where \(\mathbf C\) collects every \(\mathbf c_{k,q}\), \(\mathbf W\)
+collects every \(\mathbf W_k\), and
+\(\lambda_{\mathrm d},\eta,\rho,\gamma_C,\gamma_W,\gamma_S,
+\lambda_{\mathrm p}\) weigh the terms.  The first term is the signal term:
+it ties the response and the bits to the views.  The second and third tie
+the combiner output to the pilots and to the relaxed data symbols, so the
+pilot fit of \eqref{eq:ridge-criterion} reappears with every data carrier
+added as a soft constraint.  The remaining terms bound the response energy,
+bound the combiner energy, smooth the weights across neighbouring carriers,
+and bring the parity constraints.
+
+The objective is not an identifiable physical channel estimator.  Different
+triples \((\mathbf C,\mathbf W,\mathbf z)\) can reproduce the same views,
+and no term forces the combiner weights to invert the response.  The
+response exposes the coupled-carrier structure, and the pilots and parity
+constraints select among the triples that fit.
+
+Two receivers minimize \eqref{eq:joint-objective}, and they differ in
+whether the combiner weights are searched.  In the first, the weights are
+not searched.  Each carrier's weights are computed from its own estimated
+response,
+\begin{equation}
+  \mathbf W_k
+  =
+  \frac{\mathbf c_{k,k}}
+  {\norm{\mathbf c_{k,k}}_2^2+\delta},
+  \label{eq:derived-weights}
+\end{equation}
+where \(\delta>0\) plays the same ridge role as in
+\eqref{eq:ridge-criterion}.  The weights realign what the response says the
+wanted symbol looks like in the views, so they follow every improvement of
+the response.  With the bits held fixed, the response solves a ridge
+least-squares problem, one small linear system per carrier.  The relaxed
+bits are then the only searched quantity, moved by the gradient of
+\eqref{eq:joint-objective}.
+
+In the second receiver, the weights are searched together with the response
+and the bits.  All three move at once, and a step is kept only when the
+objective does not increase and its pilot term stays within a fixed
+tolerance.  A rejected step is halved and tried again, up to a fixed number
+of times.  The computed weights of \eqref{eq:derived-weights} still serve
+this receiver as a reference that the search is penalized for leaving.  We
+compare the two on equal terms: they share every other setting, so their
+decoded bit error rates measure the value of searching the combiner
+weights.
+
+The last section states what the comparison measures and the regime in
+which the difference between the two receivers should appear.
 
 \begin{thebibliography}{00}
 
