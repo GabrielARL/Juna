@@ -183,7 +183,7 @@ have been verified.
 ## Claude decisions
 
 Claude's identifiers use the `CL` prefix so two agents cannot allocate the
-same one. Next free Claude identifier: **CL-104**.
+same one. Next free Claude identifier: **CL-111**.
 
 CL-21, CL-22 and CL-23 are skipped, not used. `experiments/2026-08-01-red-lite-search/NOTES.md`
 already cites `CL-21a` and `CL-23` for different decisions from an earlier
