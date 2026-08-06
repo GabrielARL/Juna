@@ -5,6 +5,7 @@
 \usepackage{cite}
 \usepackage{url}
 \usepackage{tikz}
+\usetikzlibrary{arrows.meta}
 
 \newcommand{\Ftwo}{\mathbb{F}_2}
 \newcommand{\R}{\mathbb{R}}
@@ -68,14 +69,19 @@ The parity constraints couple every coded carrier in the codeword, and they
 are the only constraints in the receiver that do so; pilots constrain their
 own carriers and their neighbours.
 
-Orthogonal frequency-division multiplexing (OFDM) permits frequency-domain
-equalization when the channel is constant over one symbol interval.  Residual
-Doppler removes that condition.  After initial resampling a residual Doppler
-factor and a carrier frequency offset remain, the channel varies within the
-interval, and the frequency-domain operator is no longer diagonal.  Its
-off-diagonal entries are intercarrier interference (ICI) coefficients, and a
-single full-interval fast Fourier transform (FFT) collapses the time-local
-information that would separate them.
+Orthogonal frequency-division multiplexing (OFDM) sends each symbol on a
+carrier, and a carrier is a clock: over one symbol interval its phase makes
+a whole number of turns.  A fast Fourier transform (FFT) bin reads carrier
+\(k\) by spinning backward at rate \(k\) and averaging.  Every other
+carrier is left with a whole number of turns, so its loop closes and its
+average is zero.  Subcarrier orthogonality is exactly this closure, and
+one-tap equalization rests on it.  Residual Doppler changes the clock
+rates.  After initial resampling a residual Doppler factor and a carrier
+frequency offset remain, every loop misses closure by a fraction of a turn,
+and the unfinished loop leaves a leftover arrow.  That arrow is an
+intercarrier interference (ICI) coefficient, and the frequency-domain
+operator is no longer diagonal.  A single full-interval FFT collapses the
+time-local information that would separate these coefficients.
 
 Partial-FFT demodulation divides the useful interval into segments and keeps
 one view from every segment~\cite{yerramalli}.  It estimates no ICI
@@ -529,11 +535,46 @@ carrier \(\ell\) enters bin \(k\) with the coefficient
   \label{eq:leftover-turns}
 \end{align}
 where \(\Delta_{k,\ell}\) is the number of turns carrier \(\ell\) makes
-relative to bin \(k\) over one block.  When \(a\) and \(\theta\) are zero the
-turn count is an integer, the sum closes, and the coefficient vanishes for
-every \(\ell\neq k\); this is subcarrier orthogonality.  A nonzero \(a\) or
-\(\theta\) makes the turn count fractional, and the residue is the ICI
-coefficient.  Collecting the coefficients of all active carriers,
+relative to bin \(k\) over one block.  When \(a\) and \(\theta\) are zero
+the turn count is an integer, the loop closes, and the coefficient vanishes
+for every \(\ell\neq k\); this is subcarrier orthogonality
+(Fig.~\ref{fig:loops}, left).  A nonzero \(a\) or \(\theta\) makes the
+turn count fractional.  The loop misses closure, and the leftover arrow ---
+the average of the unfinished loop --- is the ICI coefficient
+(Fig.~\ref{fig:loops}, right).
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[scale=0.9]
+  % left: closed loop
+  \draw[black!45] (-1.2,0) -- (1.2,0);
+  \draw[black!45] (0,-1.2) -- (0,1.2);
+  \draw[black!75,thick] (0,0) circle (0.95);
+  \draw[black!75,thick,-{Stealth}] (0.95,0) arc (0:70:0.95);
+  \fill[black] (0,0) circle (1.2pt);
+  \node[font=\scriptsize, align=center] at (0,-1.75)
+    {\(\Delta_{k,\ell}\) integer\\loop closes, average zero};
+  % right: unfinished loop with leftover arrow
+  \begin{scope}[shift={(4.6,0)}]
+    \draw[black!45] (-1.2,0) -- (1.2,0);
+    \draw[black!45] (0,-1.2) -- (0,1.2);
+    \draw[black!75,thick,domain=0:445,samples=90]
+      plot ({0.95*cos(\x)},{0.95*sin(\x)});
+    \draw[black!75,thick,-{Stealth}] ({0.95*cos(437)},{0.95*sin(437)})
+      arc (437:445:0.95);
+    \draw[black,very thick,-{Stealth}] (0,0) -- (0.42,0.27);
+    \node[font=\scriptsize, align=center] at (0,-1.75)
+      {\(\Delta_{k,\ell}\) fractional\\leftover arrow \(=H_{k,\ell}\)};
+  \end{scope}
+\end{tikzpicture}
+\caption{One carrier seen from bin \(k\) over one block.  Left: an integer
+turn count closes the loop and the average over the block is zero ---
+subcarrier orthogonality.  Right: residual Doppler makes the turn count
+fractional; the loop misses closure, and the leftover arrow, the average of
+the unfinished loop, is the ICI coefficient of
+\eqref{eq:ici-coefficient}.}
+\label{fig:loops}
+\end{figure}  Collecting the coefficients of all active carriers,
 \begin{equation}
   Y_k^{\mathrm{full}}
   =
