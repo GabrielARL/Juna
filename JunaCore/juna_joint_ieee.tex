@@ -830,15 +830,29 @@ The response is tied to the ICI coefficients of \eqref{eq:ici-row}.  When
 the windows form a partition of unity, summing \eqref{eq:view-forward} over
 the views and comparing with \eqref{eq:ici-row} matches the coefficients:
 \begin{equation}
-  \sum_{m=1}^{M}c_{k,q,m}=H_{k,q},
-  \qquad
-  \mathbf 1^{T}\mathbf c_{k,k}=H_{k,k},
+  H_{k,q}
+  =
+  \mathbf 1^{T}\mathbf c_{k,q}
+  =
+  \sum_{m=1}^{M}c_{k,q,m},
   \label{eq:gain-decomposition}
 \end{equation}
 where \(c_{k,q,m}\) is component \(m\) of \(\mathbf c_{k,q}\) and
-\(\mathbf 1\) is the all-ones vector.  The response decomposes every ICI
-coefficient into per-view parts, exactly as the views decompose the
-full-FFT bin in \eqref{eq:view-identity}.  In particular the channel gain
+\(\mathbf 1\) is the all-ones vector.  Every ICI coefficient splits into
+per-view parts, exactly as the views split the full-FFT bin in
+\eqref{eq:view-identity}.  For the channel of \eqref{eq:ici-coefficient},
+each part is the average over one segment alone:
+\begin{equation}
+  c_{k,q,m}
+  =
+  \frac{1}{N}\sum_{n\in\mathcal T_m}
+  e^{j2\pi\Delta_{k,q}n/N},
+  \label{eq:view-arc}
+\end{equation}
+where \(\mathcal T_m\) is the index set of segment \(m\), as in
+\eqref{eq:piecewise-phase}.  Each component is one arc of the loop of
+Fig.~\ref{fig:loops}; the ICI coefficient is the average of the whole
+loop, and the views keep its arcs.  In particular the channel gain
 \(H_{k,k}\) is the sum of the wanted carrier's response across the views.
 Without residual Doppler the parts add in phase.  Residual Doppler spreads
 their phases, and a weighted combination can realign what a plain sum would
