@@ -217,6 +217,7 @@ $\mathbf W_{k,t}$ & weights after step $t$\\
 $i_1(k)$, $i_2(k)$ & the two coded bits of QPSK carrier $k$\\
 $s_k(\mathbf z)$ & relaxed QPSK symbol\\
 $\mathbf c_{k,q}$, $\mathbf C$ & Partial-FFT response vectors; their collection\\
+$c_{k,q,m}$, $\mathbf 1$ & component $m$ of $\mathbf c_{k,q}$; all-ones vector\\
 $\mathbf n_k$ & noise in the views of carrier $k$\\
 $\lambda_{\mathrm d}$, $\eta$, $\rho$ & weights of the signal, pilot, and tie terms\\
 $\gamma_C$, $\gamma_W$, $\gamma_S$ & weights bounding response energy, combiner energy, and weight smoothness\\
@@ -783,6 +784,24 @@ where \(\mathbf n_k\) is the noise in the views of carrier \(k\).  This is
 response, and the symbols enter through the relaxed bits.  Setting
 \(K_{\mathrm{ICI}}=0\) recovers a per-carrier model, and a larger
 \(K_{\mathrm{ICI}}\) admits stronger local mixing.
+
+The response is tied to the ICI coefficients of \eqref{eq:ici-row}.  When
+the windows form a partition of unity, summing \eqref{eq:view-forward} over
+the views and comparing with \eqref{eq:ici-row} matches the coefficients:
+\begin{equation}
+  \sum_{m=1}^{M}c_{k,q,m}=H_{k,q},
+  \qquad
+  \mathbf 1^{T}\mathbf c_{k,k}=H_{k,k},
+  \label{eq:gain-decomposition}
+\end{equation}
+where \(c_{k,q,m}\) is component \(m\) of \(\mathbf c_{k,q}\) and
+\(\mathbf 1\) is the all-ones vector.  The response decomposes every ICI
+coefficient into per-view parts, exactly as the views decompose the
+full-FFT bin in \eqref{eq:view-identity}.  In particular the channel gain
+\(H_{k,k}\) is the sum of the wanted carrier's response across the views.
+Without residual Doppler the parts add in phase.  Residual Doppler spreads
+their phases, and a weighted combination can realign what a plain sum would
+cancel.
 
 The combiner uses the linear map
 \(g_k(\mathbf Y_k)=\mathbf W_k^H\mathbf Y_k\).  Under Gaussian noise and a
