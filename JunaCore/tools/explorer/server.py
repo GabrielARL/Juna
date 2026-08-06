@@ -1448,6 +1448,112 @@ def _experiment_ids():
     return [_experiment_id_from_result(path) for path in found]
 
 
+_SWEEP_NAME_PATTERN = re.compile(
+    r"-n(\d+)-cp(\d+)-rate(\d+)-p(\d+)-(\d+)-dc(\d+)-k(\w+)$")
+
+
+def _sweep_name_parameters(name):
+    """The seven sweep parameters an experiment directory name encodes.
+
+    `...-n2048-cp16-rate025-p3-5-dc10-k4` carries nfft, cp, code_rate,
+    outer_spacing, inner_spacing, check_degree, and horizon — the columns
+    of red_snr_sweep_uwa_noise.csv. Names without the suffix return None.
+    """
+    match = _SWEEP_NAME_PATTERN.search(name)
+    if not match:
+        return None
+    nfft, cp, rate, outer, inner, check, horizon = match.groups()
+    if rate.startswith("0") and len(rate) > 1:
+        rate = "0." + rate[1:]
+    return {"N": nfft, "CP": cp, "code rate": rate, "outer spacing": outer,
+            "inner spacing": inner, "check degree": check, "horizon": horizon}
+
+
+def _sweep_parameter_row(available, experiment_id):
+    """One dropdown per sweep parameter, above the experiment dropdown.
+
+    Each dropdown lists only the values that exist among the experiments
+    compatible with the other selections; when the selections match exactly
+    one experiment, its results page opens. Experiments whose names carry
+    no parameters stay reachable through the experiment dropdown.
+    """
+    parsed = [{"id": name, "parameters": _sweep_name_parameters(name)}
+              for name in available]
+    parsed = [entry for entry in parsed if entry["parameters"]]
+    if len(parsed) < 2:
+        return ""
+    data = json.dumps(parsed).replace("</", "<\\/")
+    current = json.dumps(experiment_id).replace("</", "<\\/")
+    return ("""
+<p style="margin:.2rem 0 .4rem;display:flex;align-items:center;gap:.6rem;
+flex-wrap:wrap" id="sweep-parameters"></p>
+<script>
+(function () {
+  var experiments = """ + data + """;
+  var current = """ + current + """;
+  var names = Object.keys(experiments[0].parameters);
+  var chosen = {};
+  names.forEach(function (name) { chosen[name] = ""; });
+  var row = document.getElementById("sweep-parameters");
+  function matching(skipped) {
+    return experiments.filter(function (entry) {
+      return names.every(function (name) {
+        return name === skipped || chosen[name] === "" ||
+               entry.parameters[name] === chosen[name];
+      });
+    });
+  }
+  function render() {
+    row.textContent = "";
+    names.forEach(function (name) {
+      var values = [];
+      matching(name).forEach(function (entry) {
+        if (values.indexOf(entry.parameters[name]) < 0)
+          values.push(entry.parameters[name]);
+      });
+      values.sort(function (a, b) {
+        var x = parseFloat(a), y = parseFloat(b);
+        if (isNaN(x) || isNaN(y)) return a < b ? -1 : 1;
+        return x - y;
+      });
+      var label = document.createElement("label");
+      label.textContent = name + " ";
+      var select = document.createElement("select");
+      var blank = document.createElement("option");
+      blank.value = "";
+      blank.textContent = "(all)";
+      select.appendChild(blank);
+      values.forEach(function (value) {
+        var option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        if (value === chosen[name]) option.selected = true;
+        select.appendChild(option);
+      });
+      select.onchange = function () {
+        chosen[name] = select.value;
+        var found = matching(null);
+        if (found.length === 1 && found[0].id !== current) {
+          location.search =
+            "?experiment=" + encodeURIComponent(found[0].id);
+          return;
+        }
+        render();
+      };
+      label.appendChild(select);
+      row.appendChild(label);
+    });
+    var found = matching(null);
+    var count = document.createElement("span");
+    if (found.length !== 1)
+      count.textContent = found.length + " experiments match";
+    row.appendChild(count);
+  }
+  render();
+})();
+</script>""")
+
+
 def page_results(query=""):
     experiment_id, page, other = _results_query(query)
     try:
@@ -1481,8 +1587,10 @@ shows the newest one.</div>"""
                   f'<select onchange="{esc(jump)}">{options}</select></label>')
     else:
         picker = '<span style="margin-right:auto"></span>'
+    parameter_row = _sweep_parameter_row(available, experiment_id)
     body = f"""
 <h1>Experiment results</h1>
+{parameter_row}
 <p style="margin:.2rem 0 .6rem;display:flex;align-items:center;gap:.6rem">
 {picker}
 <a href="{view_url}" target="_blank">Open in its own tab</a></p>
