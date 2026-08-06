@@ -85,9 +85,10 @@ time-local information that would separate these coefficients.
 
 Partial-FFT demodulation divides the useful interval into segments and keeps
 one view from every segment~\cite{yerramalli}.  It estimates no ICI
-coefficient.  It keeps time-local components of the same full-interval
-statistic, and complex combiner weights recombine them into one pre-decoder
-soft symbol per carrier.  The weights are fitted to pilots, and FEC decoding
+coefficient.  Each view keeps one segment's arc of every carrier's loop, so
+what the full-interval average collapses is kept in pieces.  Complex
+combiner weights recombine the pieces into one pre-decoder soft symbol per
+carrier.  The weights are fitted to pilots, and FEC decoding
 follows.  While this receiver is strong and
 costs only one small ridge fit per carrier band, it consults the code only
 after the soft symbols are formed.
@@ -330,7 +331,8 @@ neighbour.  The difference of the two samples carries \(\alpha X_2\)
 alone.  A scalar soft symbol keeps one combination of the two samples and
 discards the other.  Whatever the discarded combination said about
 \(X_2\) --- a coded symbol, tied to every other coded bit by the parity
-constraints --- is lost to the decoder.
+constraints --- is lost to the decoder.  Section~\ref{sec:ofdm} makes the
+two samples physical: they are two views of one carrier.
 
 The loss runs in the other direction as well.  The parity constraints
 restrict which transmitted symbol patterns are possible, so a channel
@@ -418,6 +420,7 @@ objective.  It also introduces \(\mathbf W\), the combiner weights that
 parameterize the map \(g\).
 
 \section{OFDM Demodulation and Partial-FFT Combining}
+\label{sec:ofdm}
 
 The forward map \(\mathcal A\) of \eqref{eq:general-forward} is a general
 term, and nothing so far fixes the modulation or the channel.  In our case
@@ -664,6 +667,36 @@ Partial-FFT demodulation therefore creates no new information; it keeps
 temporally localized components of the same full-interval statistic, which a
 single full-interval FFT would collapse.
 
+What each view keeps has a shape.  For the channel of
+\eqref{eq:ici-coefficient}, substituting the arriving carriers into
+\eqref{eq:view-sample} gives the view-domain row
+\begin{equation}
+  Y_{k,m}
+  =
+  \sum_{\ell\in\Kset}
+  X_\ell\,
+  \frac{1}{N}\sum_{n\in\mathcal T_m}
+  e^{j2\pi\Delta_{k,\ell}n/N}
+  +\nu_{k,m},
+  \label{eq:view-row}
+\end{equation}
+where \(\mathcal T_m\) is the index set of segment \(m\) and
+\(\nu_{k,m}\) is the noise in view \(m\).  The inner average is one arc
+of the loop of Fig.~\ref{fig:loops}.  The ICI coefficient
+\eqref{eq:ici-coefficient} is the average of the whole loop, and the views
+keep its arcs.
+
+A number makes this concrete.  Take \(N=1024\), \(M=4\), \(a=0.007\),
+and \(\theta=0.20\).  The wanted carrier of bin \(4\) makes
+\(\Delta_{4,4}=0.228\) turns.  Its loop splits into four arcs that share
+the magnitude \(0.249\) and carry the phases \(10.2^\circ\),
+\(30.7^\circ\), \(51.3^\circ\), \(71.8^\circ\): equal parts, fanned
+by the drift.  Their plain sum is the channel gain,
+\(H_{4,4}=0.692+0.601j\), with magnitude \(0.917\).  Weights that undo
+the four phases recover magnitude \(0.995\).  The full-FFT scalar has
+already lost what the views still hold, and the same fan, read for a
+neighbouring carrier, is what a combiner can scramble instead of align.
+
 In the notation of \eqref{eq:general-forward}, the received signal
 \(\mathbf Y\) is the collection of view vectors
 \(\{\mathbf Y_k:k\in\Kset\}\).
@@ -676,9 +709,8 @@ is the pilot-trained map \(g\) of \eqref{eq:soft-symbol-statistic} made
 concrete.
 
 The views help because residual Doppler is mainly a slow phase drift within
-one OFDM symbol.  Partition the useful interval into segment index sets
-\(\mathcal T_m\), and let the channel be fixed across the symbol while a
-phase \(\phi_m\) evolves from segment to segment:
+one OFDM symbol.  Let the channel be fixed across the symbol while a phase
+\(\phi_m\) evolves from segment to segment:
 \begin{equation}
   r[n]
   \approx
@@ -697,8 +729,8 @@ transmitted block.  Each view then obeys
 \end{equation}
 where \(I_{k,m}\) collects the local ICI the approximation neglects and
 \(\nu_{k,m}\) is the noise in view \(m\).  The views of one carrier
-differ mainly by the per-segment phases, so one complex weight per view can
-realign them.  This poses the question the combiner answers: given the
+differ mainly by the per-segment phases --- the directions of its arcs ---
+so one complex weight per view can realign them.  This poses the question the combiner answers: given the
 \(M\) views of carrier \(k\), which linear combination recovers a
 reliable pre-decoder soft symbol?
 
@@ -841,32 +873,12 @@ where \(c_{k,q,m}\) is component \(m\) of \(\mathbf c_{k,q}\) and
 \(\mathbf 1\) is the all-ones vector.  Every ICI coefficient splits into
 per-view parts, exactly as the views split the full-FFT bin in
 \eqref{eq:view-identity}.  For the channel of \eqref{eq:ici-coefficient},
-each part is the average over one segment alone:
-\begin{equation}
-  c_{k,q,m}
-  =
-  \frac{1}{N}\sum_{n\in\mathcal T_m}
-  e^{j2\pi\Delta_{k,q}n/N},
-  \label{eq:view-arc}
-\end{equation}
-where \(\mathcal T_m\) is the index set of segment \(m\), as in
-\eqref{eq:piecewise-phase}.  Each component is one arc of the loop of
-Fig.~\ref{fig:loops}; the ICI coefficient is the average of the whole
-loop, and the views keep its arcs.  In particular the channel gain
-\(H_{k,k}\) is the sum of the wanted carrier's response across the views.
-Without residual Doppler the parts add in phase.  Residual Doppler spreads
-their phases, and a weighted combination can realign what a plain sum would
-cancel.
-
-A number makes the distinction concrete.  Take \(N=1024\), \(M=4\),
-\(a=0.007\), and \(\theta=0.20\).  For the wanted pair \(k=\ell=4\),
-the four components of \(\mathbf c_{4,4}\) share the magnitude \(0.249\)
-and carry the phases \(10.2^\circ\), \(30.7^\circ\), \(51.3^\circ\),
-\(71.8^\circ\): equal parts, fanned by the drift.  Their plain sum is the
-channel gain, \(H_{4,4}=0.692+0.601j\), with magnitude \(0.917\).
-Weights that undo the four phases recover magnitude \(0.995\).  The scalar
-has already lost what the vector still holds, and the same fan, read for a
-neighbouring carrier, is what the combiner scrambles instead of aligns.
+component \(m\) is the inner average of \eqref{eq:view-row}: one arc of
+the loop of Fig.~\ref{fig:loops}.  The response collects, carrier by
+carrier, the arcs the views keep, and the numeric example of
+Section~\ref{sec:ofdm} is its wanted-carrier case.  Without residual
+Doppler the parts add in phase.  Residual Doppler spreads their phases, and
+a weighted combination can realign what a plain sum would cancel.
 
 The combiner uses the linear map
 \(g_k(\mathbf Y_k)=\mathbf W_k^H\mathbf Y_k\).  Under Gaussian noise and a
