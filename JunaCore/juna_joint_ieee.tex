@@ -354,7 +354,51 @@ where \(\mathbf H_{\mathrm{fd}}\) collects every coefficient
 not vary over the block, \(\mathbf G\) is circulant and
 \(\mathbf H_{\mathrm{fd}}\) is diagonal.  Residual Doppler makes
 \(\mathbf G\) non-circulant and \(\mathbf H_{\mathrm{fd}}\)
-non-diagonal.
+non-diagonal (Fig.~\ref{fig:hfd-band}).
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[scale=0.34]
+  % left panel: diagonal operator
+  \draw[black!70] (0,0) rectangle (7,7);
+  \foreach \i in {0,...,6}{
+    \fill[black!80] (\i,6-\i) rectangle +(0.85,0.85);
+  }
+  \node[font=\scriptsize] at (3.5,7.7) {carrier $\ell$};
+  \node[font=\scriptsize, rotate=90] at (-0.8,3.5) {bin $k$};
+  \node[font=\scriptsize, align=center] at (3.5,-1.4)
+    {channel does not vary\\over the block};
+  % right panel: banded operator
+  \begin{scope}[shift={(11,0)}]
+    \draw[black!70] (0,0) rectangle (7,7);
+    \foreach \i in {0,...,6}{
+      \foreach \j in {0,...,6}{
+        \pgfmathtruncatemacro{\dist}{abs(\i-\j)}
+        \ifnum\dist=0
+          \fill[black!80] (\j,6-\i) rectangle +(0.85,0.85);
+        \else\ifnum\dist=1
+          \fill[black!45] (\j,6-\i) rectangle +(0.85,0.85);
+        \else\ifnum\dist=2
+          \fill[black!18] (\j,6-\i) rectangle +(0.85,0.85);
+        \fi\fi\fi
+      }
+    }
+    \node[font=\scriptsize] at (3.5,7.7)
+      {band $\left|\ell-k\right|\le K_{\mathrm{ICI}}$};
+    \node[font=\scriptsize] at (3.5,-1.4) {residual Doppler};
+  \end{scope}
+\end{tikzpicture}
+\caption{Shape of the frequency-domain operator
+\(\mathbf H_{\mathrm{fd}}\) of \eqref{eq:fd-operator}.  Left: when the
+channel does not vary over the block, only the channel gains
+\(H_{k,k}\) on the diagonal are nonzero.  Right: residual Doppler fills
+the near-diagonal with ICI coefficients that fade with
+\(\left|\ell-k\right|\), the Dirichlet decay of
+\eqref{eq:ici-coefficient}; the banded approximation \eqref{eq:banded}
+keeps the band.  The same banded support carries to the Partial-FFT
+response in Section~\ref{sec:joint}.}
+\label{fig:hfd-band}
+\end{figure}
 
 Motion time-scales the received waveform.  After initial resampling a
 residual Doppler factor \(a\) and a carrier frequency offset \(\theta\)
@@ -394,7 +438,8 @@ magnitude of \eqref{eq:ici-coefficient} is a Dirichlet kernel in
 \(\Delta_{k,\ell}\), so for small \(a\) and \(\theta\) the coefficients stay
 near the diagonal and the operator is banded.
 
-Hence we use the banded approximation
+Hence we use the banded approximation shown in
+Fig.~\ref{fig:hfd-band}:
 \begin{equation}
   Y_k^{\mathrm{full}}
   =
@@ -584,6 +629,7 @@ channel parameters \(\bm\psi\) and specializes the objective
 fit.
 
 \section{The Joint Demodulation and Decoding Problem}
+\label{sec:joint}
 
 We now name the channel parameters \(\bm\psi\) and specialize the objective
 \eqref{eq:general-objective}.  In this special case \(\bm\psi\) has two
