@@ -37,10 +37,9 @@ const CHANNEL_IDS = (:red1, :red2, :red3, :red4)
 const LANES = (1, 2, 3)
 const CHANNEL_FILES = (red1="red_1.mat", red2="red_2.mat",
                        red3="red_3.mat", red4="red_4.mat")
-const SEARCH = "/home/gabiel/Documents/GitHub/Juna/JunaCore/experiments/2026-08-01-red-lite-search"
-const NOISE_MAT = joinpath(SEARCH, "data", "red_noise.mat")
+const SEARCH = normpath(joinpath(@__DIR__, "..", "2026-08-01-red-lite-search"))
 const OBJECTIVE_LABEL = Ref("min-BER")
-const CZ_RESULTS = "/home/gabiel/Documents/GitHub/Juna-worktrees/profiled-cz-restore/JunaCore/experiments/2026-08-01-red-lite-search"
+const CZ_RESULTS = SEARCH
 
 const ALGORITHMS = (
     (id=:ofdm_fec, name="OFDM + FEC", profile=:ofdm_fec),
@@ -199,7 +198,7 @@ function _write_csv(destination, rows)
 end
 
 function smoke(data_dir=joinpath(SEARCH, "data"))
-    model = UwaNoise.load_model(NOISE_MAT)
+    model = UwaNoise.load_model(joinpath(data_dir, "red_noise.mat"))
     geometries = best_geometries()
     config = geometries[(:red1, 1)]
     println("red1 lane 1 best-BER geometry: N=", config.nfft, " CP=", config.cp,
@@ -233,7 +232,7 @@ function run(channel::Symbol=:red1, lane::Integer=1,
              config_override=nothing,
              result_label::Union{Nothing,AbstractString}=nothing,
              destination::Union{Nothing,AbstractString}=nothing)
-    model = UwaNoise.load_model(NOISE_MAT)
+    model = UwaNoise.load_model(joinpath(data_dir, "red_noise.mat"))
     override = config_override !== nothing
     if override
         result_label === nothing &&
