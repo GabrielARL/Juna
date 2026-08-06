@@ -35,15 +35,18 @@ ahead of the decoder: pilot-trained combiner weights form pre-decoder soft
 symbols, and FEC decoding follows.  However, where
 pilots are sparse and residual Doppler strong, separating demodulation from
 decoding discards the information the code carries during the combiner fit.
-We keep the same Partial-FFT demodulation, but formulate one objective over
-the Partial-FFT response, combiner, and relaxed codeword bits; the views, the
-pilots, and the parity constraints regularize one another.  The joint maximum a posteriori (MAP) problem over the Partial-FFT
-response, combiner, and coded bits is intractable because bits are discrete
-while the response and combiner are continuous.  We therefore relax coded bits to real variables and
-replace parity checks with differentiable penalties.  We show that completeness
-and exactness trade against each other; the fewer variables the gradient moves,
-the more of the objective is solved in closed form.  The code acts during
-symbol estimation rather than after it.
+We keep the same Partial-FFT demodulation and begin with a joint maximum a
+posteriori (MAP) problem over the Partial-FFT response and coded bits.  This
+problem is intractable because the bits are discrete while the response is
+continuous.  We therefore relax coded bits to real variables and replace
+parity checks with differentiable penalties.  We add the combiner weights
+through fits to the pilots and relaxed data symbols.  The resulting regularized
+objective contains the response, combiner weights, and relaxed codeword bits;
+the views, pilots, and parity constraints regularize one another.  We show
+which terms instantiate the relaxed objective and which terms are added for
+the combiner.  One receiver computes the combiner weights from the response.
+The other permits the weights to move with the response and bits after a fixed
+iteration.  The code acts during symbol estimation rather than after it.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -92,34 +95,38 @@ shaped that fit are invoked only after it is complete.
 
 Turbo equalization established the value of exchanging information between
 adaptive equalization and channel decoding~\cite{laot,zheng}.  We carry that
-exchange one step further for Partial-FFT reception.  Rather than pass information between two fitted stages, we place three
-quantities in a single objective~\cite{juna}: the Partial-FFT response,
-the combiner weights, and the coded bits.  The Partial-FFT response is the
-response of each carrier as seen in the Partial-FFT views.  The views, the pilots, and the parity constraints
-then regularize one another while the symbols are still being estimated.  The
-joint maximum a posteriori (MAP) detection problem over these three
-quantities is intractable, since the bits are discrete while the response and
-the combiner are continuous, and a discrete parity check admits no gradient.
-We therefore relax each coded bit to a real variable and replace each parity
-check by a differentiable penalty on the relaxed bits.  The objective then has a gradient with respect to every quantity.
+exchange one step further for Partial-FFT reception.  Rather than pass
+information between two fitted stages, we retain the response of each carrier
+as seen in the Partial-FFT views.  This is the Partial-FFT response.  We begin
+with a joint maximum a posteriori (MAP) problem for this response and the coded
+bits~\cite{juna}.  The received views and parity constraints then regularize
+one another while the symbols are still being estimated.  The MAP problem is
+intractable because the bits are discrete while the response is continuous,
+and a discrete parity check admits no gradient.  We therefore relax each coded
+bit to a real variable and replace each parity check by a differentiable
+penalty on the relaxed bits.  We then add the combiner weights through fits to
+the pilots and relaxed data symbols.  The resulting objective has a gradient
+with respect to every quantity.
 
-Two receivers follow from that objective, and they differ in whether the
-combiner weights are estimated at all.  In the first, the weights are
-computed from each carrier's own estimated response, so the relaxed
-bits are the only quantity searched.  In the second, the weights are
-estimated together with the response and the bits.  A step is kept only
-when the objective does not increase and its pilot term stays within a
-fixed tolerance.  We compare the two on equal terms and do not argue that either is
-the correct design.  The comparison is narrow by construction: the two
-receivers share every other setting, so their decoded bit error rates measure
-one difference alone.
+The two receiver update rules differ in whether the combiner weights are
+independent variables.  In the first, the response is updated from the current
+bits, and weights shared within each frequency band are computed from that
+response.  The gradient moves the relaxed bits while holding the updated
+response and weights fixed.  In the second, the response and bits move in every
+proposal, while the weights begin to move after a fixed iteration.  A step is
+kept only when the criterion does not increase and its pilot term stays within
+a fixed tolerance.
+We compare the two on equal terms and do not argue that either is the correct
+design.  The comparison holds every setting outside these update rules fixed,
+so the decoded bit error rates measure the difference between the rules.
 
 We develop this in four steps.  First, we state the joint estimation and
 decoding problem in its most general form and relax it.  Second, we write
 the Partial-FFT forward model and the pilot-trained combiner used when
-demodulation and decoding are separate.  Third, we specialize the objective and give the two
-receivers: the response solved exactly whenever the bits are held fixed, and
-the combiner either computed from that response or estimated beside it.
+demodulation and decoding are separate.  Third, we specialize the objective
+for the response and coded bits, add the combiner terms, and give the two
+receiver update rules.  The response is updated from the current bits, and the
+combiner is either computed from that response or estimated beside it.
 Fourth, we report what the comparison measures and the regime in which the
 difference should appear.
 
@@ -167,7 +174,8 @@ The joint maximum a posteriori (MAP) formulation asks for both at once:
 \end{equation}
 where \(p(\mathbf Y\mid\mathbf b,\bm\psi)\) is the likelihood under
 \eqref{eq:general-forward} and \(p(\bm\psi)\) carries what is known about
-the channel before reception, including the pilots.  The two unknowns are
+the channel before reception.  Known pilots enter the likelihood through the
+fixed transmitted symbols in \(\mathbf s(\mathbf b)\).  The two unknowns are
 determined together.  Hence the pilots, which constrain the channel
 parameters, also improve the decision on the bits; and the parity checks,
 which constrain the bits, also improve the channel estimate.
@@ -296,8 +304,9 @@ that fixes \(\mathbf s\), the demodulation that fixes \(\mathbf Y\), and the
 channel parameters \(\bm\psi\).  The next section supplies the
 first two for OFDM under residual Doppler, ending with the pilot-trained
 combiner whose output the decoder reads.  The section after it names
-\(\bm\psi\) --- the Partial-FFT response and the combiner weights --- and
-specializes the objective.
+\(\bm\psi\) as the Partial-FFT response \(\mathbf C\) and specializes the
+objective.  It also introduces \(\mathbf W\), the combiner weights that
+parameterize the map \(g\).
 
 \section{OFDM Demodulation and Partial-FFT Combining}
 
@@ -623,18 +632,18 @@ This combiner is fitted from the pilots alone, and its output is the
 statistic that \eqref{eq:dpi} bounds: the \(M\) views of each carrier
 collapse to one scalar before the parity constraints are used.  When the
 nearby pilot set is too small to specify \(M\) weights, the ridge trades
-bias for variance but cannot add information.  The next section names the
-channel parameters \(\bm\psi\) and specializes the objective
-\eqref{eq:general-objective}, so that every coded carrier constrains the
-fit.
+bias for variance but cannot add information.  The next section identifies
+the channel parameters \(\bm\psi\) with the Partial-FFT response \(\mathbf C\).
+It then extends \eqref{eq:general-objective} with the combiner weights
+\(\mathbf W\), so that every coded carrier constrains the fit.
 
 \section{The Joint Demodulation and Decoding Problem}
 \label{sec:joint}
 
-We now name the channel parameters \(\bm\psi\) and specialize the objective
-\eqref{eq:general-objective}.  In this special case \(\bm\psi\) has two
-parts: the Partial-FFT response, and the combiner weights that form the
-soft symbols.
+We now specialize the channel parameters in \eqref{eq:general-objective}.
+In this special case, \(\bm\psi\) is the Partial-FFT response \(\mathbf C\).
+The combiner weights \(\mathbf W\) instead parameterize the map \(g\) that
+forms the soft symbols.
 
 The modulation map is Gray-labeled quadrature phase-shift keying (QPSK).
 Data carrier \(k\) carries coded bits \(i_1(k)\) and \(i_2(k)\), and its
@@ -673,13 +682,28 @@ response, and the symbols enter through the relaxed bits.  Setting
 \(K_{\mathrm{ICI}}=0\) recovers a per-carrier model, and a larger
 \(K_{\mathrm{ICI}}\) admits stronger local mixing.
 
-The specialized objective writes out the terms that
-\eqref{eq:general-objective} holds abstractly.  Under Gaussian noise the
-negative log-likelihood becomes the signal term, and the knowledge of
-\(\bm\psi\) becomes pilot, tie, and regularization terms:
+The combiner uses the linear map
+\(g_k(\mathbf Y_k)=\mathbf W_k^H\mathbf Y_k\).  Under Gaussian noise and a
+Gaussian prior on \(\mathbf C\) with mean zero,
+\eqref{eq:general-objective} supplies the signal term, a term that bounds the
+response energy, and the parity term below.  The combiner weights do not enter
+\eqref{eq:view-forward}, so their terms are added through the map \(g\).
+After dropping an additive constant, the complete objective has the
+decomposition
+\begin{equation}
+  \mathcal J(\mathbf C,\mathbf W,\mathbf z)
+  =
+  \left.\mathcal L(\bm\psi,\mathbf z)\right|_{\bm\psi=\mathbf C}
+  +\mathcal R_g(\mathbf W,\mathbf z),
+  \label{eq:objective-decomposition}
+\end{equation}
+where \(\mathcal R_g\) contains the fits to pilots and relaxed data symbols.
+It also contains the term that bounds combiner energy and the term that smooths
+weights across neighbouring carriers.  Writing both parts of
+\eqref{eq:objective-decomposition} gives
 \begin{equation}
   \begin{aligned}
-    \mathcal L(\mathbf C,\mathbf W,\mathbf z)
+    \mathcal J(\mathbf C,\mathbf W,\mathbf z)
     ={}&\lambda_{\mathrm d}\sum_{k\in\Kset}
         \Big\|\mathbf Y_k-\sum_{q\in\mathcal B_K(k)}
         \mathbf c_{k,q}s_q(\mathbf z)\Big\|_2^2\\
@@ -688,8 +712,8 @@ negative log-likelihood becomes the signal term, and the knowledge of
      +\rho\sum_{k\in\Dset}
       \left|\mathbf W_k^{H}\mathbf Y_k-s_k(\mathbf z)\right|^2\\
     &+\gamma_C\norm{\mathbf C}_F^2
-     +\gamma_W\sum_{k\in\Kset}\norm{\mathbf W_k}_2^2
-     +\gamma_S\sum_{k\in\Kset}\norm{\mathbf W_{k+1}-\mathbf W_k}_2^2\\
+     +\gamma_W\sum_{k\in\Kset}\norm{\mathbf W_k}_2^2\\
+    &+\gamma_S\sum_{k\in\Kset}\norm{\mathbf W_{k+1}-\mathbf W_k}_2^2\\
     &+\lambda_{\mathrm p}\,\mathcal R_{\mathrm{par}}(\mathbf z),
   \end{aligned}
   \label{eq:joint-objective}
@@ -697,13 +721,15 @@ negative log-likelihood becomes the signal term, and the knowledge of
 where \(\mathbf C\) collects every \(\mathbf c_{k,q}\), \(\mathbf W\)
 collects every \(\mathbf W_k\), and
 \(\lambda_{\mathrm d},\eta,\rho,\gamma_C,\gamma_W,\gamma_S,
-\lambda_{\mathrm p}\) weigh the terms.  The first term is the signal term:
-it ties the response and the bits to the views.  The second and third tie
-the combiner output to the pilots and to the relaxed data symbols, so the
-pilot fit of \eqref{eq:ridge-criterion} reappears with every data carrier
-added as a soft constraint.  The remaining terms bound the response energy,
-bound the combiner energy, smooth the weights across neighbouring carriers,
-and bring the parity constraints.
+\lambda_{\mathrm p}\) weigh the terms.  The signal term comes from the
+likelihood in \eqref{eq:general-objective}, and
+\(\gamma_C\norm{\mathbf C}_F^2\) comes from the response prior in that
+objective.  The parity term in \eqref{eq:general-objective} is carried over
+unchanged.  The signal term, response bound, and parity term therefore
+instantiate \eqref{eq:general-objective} with
+\(\bm\psi=\mathbf C\).  The fits to pilots and relaxed data symbols, the bound
+on combiner energy, and the smoothness across neighbouring carriers form
+\(\mathcal R_g\).  They are not terms of \eqref{eq:general-objective}.
 
 The objective is not an identifiable physical channel estimator.  Different
 triples \((\mathbf C,\mathbf W,\mathbf z)\) can reproduce the same views,
@@ -711,10 +737,9 @@ and no term forces the combiner weights to invert the response.  The
 response exposes the coupled-carrier structure, and the pilots and parity
 constraints select among the triples that fit.
 
-Two receivers minimize \eqref{eq:joint-objective}, and they differ in
-whether the combiner weights are searched.  In the first, the weights are
-not searched.  Each carrier's weights are computed from its own estimated
-response,
+The two receiver update rules use these terms, but they do not both minimize
+one fixed objective.  In the first receiver, the combiner weights are not
+independent variables.  Their per-carrier form is
 \begin{equation}
   \mathbf W_k
   =
@@ -723,22 +748,42 @@ response,
   \label{eq:derived-weights}
 \end{equation}
 where \(\delta>0\) plays the same ridge role as in
-\eqref{eq:ridge-criterion}.  The weights realign what the response says the
-wanted symbol looks like in the views, so they follow every improvement of
-the response.  With the bits held fixed, the response solves a ridge
-least-squares problem, one small linear system per carrier.  The relaxed
-bits are then the only searched quantity, moved by the gradient of
-\eqref{eq:joint-objective}.
+\eqref{eq:ridge-criterion}.  The executable receiver ties carriers in the
+same frequency band and applies \eqref{eq:derived-weights} to the response
+shared within each band.  The response is updated from the current bits, and
+the weights are then computed from that response.  The bit gradient is
+evaluated with the updated response and computed weights fixed.
 
-In the second receiver, the weights are searched together with the response
-and the bits.  All three move at once, and a step is kept only when the
-objective does not increase and its pilot term stays within a fixed
-tolerance.  A rejected step is halved and tried again, up to a fixed number
-of times.  The computed weights of \eqref{eq:derived-weights} still serve
-this receiver as a reference that the search is penalized for leaving.  We
-compare the two on equal terms: they share every other setting, so their
-decoded bit error rates measure the value of searching the combiner
-weights.
+In the second receiver, the response and bits move in every proposal, and
+the weights begin to move after a fixed iteration.  Equation
+\eqref{eq:joint-objective} shows the common terms, not the executable
+acceptance criterion.  Let \(\overline{\mathcal J}\) denote \(\mathcal J\)
+with its signal term replaced by its expected value under the relaxed symbols.
+This expected squared error includes their variance.  At decoder checkpoint
+\(t\), the executable proposal criterion is
+\begin{equation}
+  \begin{aligned}
+    \mathcal J_{\mathrm{prop}}^{(t)}(\mathbf C,\mathbf W,\mathbf z)
+    ={}&\overline{\mathcal J}(\mathbf C,\mathbf W,\mathbf z)\\
+    &+\tau_C\norm{\mathbf C-\mathbf C_{\mathrm{ref}}}_F^2\\
+    &+\tau_W\norm{\mathbf W-\mathbf W_{\mathrm{ref}}^{(t)}}_F^2\\
+    &+\tau_T\sum_s\norm{\mathbf C_{s+1}-\mathbf C_s}_F^2,
+  \end{aligned}
+  \label{eq:proposal-objective}
+\end{equation}
+where \(\mathbf C_{\mathrm{ref}}\) and \(\mathbf W_{\mathrm{ref}}^{(t)}\) are
+the response and weight references, \(\tau_C,\tau_W,\tau_T\) are nonnegative
+weights, and \(\mathbf C_s\) is the response in OFDM symbol \(s\).
+The weight \(\tau_T=0\) when response smoothness across adjacent OFDM symbols
+is not used.  The response reference is set before the proposals and remains
+fixed.  The weight reference is computed from
+\eqref{eq:derived-weights}, held fixed within a proposal, and refreshed
+between decoder checkpoints.  A step is kept only when
+\(\mathcal J_{\mathrm{prop}}^{(t)}\) does not increase and its pilot term stays
+within a fixed tolerance.  A rejected step is halved and tried again, up to a
+fixed number of times.  We compare the two on equal terms: they share every
+setting outside these update rules, so their decoded bit error rates measure
+the difference between the rules.
 
 The last section states what the comparison measures and the regime in
 which the difference between the two receivers should appear.
