@@ -844,6 +844,16 @@ Without residual Doppler the parts add in phase.  Residual Doppler spreads
 their phases, and a weighted combination can realign what a plain sum would
 cancel.
 
+A number makes the distinction concrete.  Take \(N=1024\), \(M=4\),
+\(a=0.007\), and \(\theta=0.20\).  For the wanted pair \(k=\ell=4\),
+the four components of \(\mathbf c_{4,4}\) share the magnitude \(0.249\)
+and carry the phases \(10.2^\circ\), \(30.7^\circ\), \(51.3^\circ\),
+\(71.8^\circ\): equal parts, fanned by the drift.  Their plain sum is the
+channel gain, \(H_{4,4}=0.692+0.601j\), with magnitude \(0.917\).
+Weights that undo the four phases recover magnitude \(0.995\).  The scalar
+has already lost what the vector still holds, and the same fan, read for a
+neighbouring carrier, is what the combiner scrambles instead of aligns.
+
 The combiner uses the linear map
 \(g_k(\mathbf Y_k)=\mathbf W_k^H\mathbf Y_k\).  Under Gaussian noise and a
 Gaussian prior on \(\mathbf C\) with mean zero,
