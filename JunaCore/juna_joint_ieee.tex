@@ -128,7 +128,109 @@ for the response and coded bits, add the combiner terms, and give the two
 receiver update rules.  The response is updated from the current bits, and the
 combiner is either computed from that response or estimated beside it.
 Fourth, we report what the comparison measures and the regime in which the
-difference should appear.
+difference should appear.  Table~\ref{tab:notation} collects the
+notation.
+
+\begin{table*}[t]
+\caption{Notation used in the remainder of the paper.}
+\label{tab:notation}
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.05}
+\begin{minipage}[t]{0.49\textwidth}
+\vspace{0pt}
+\centering
+\begin{tabular}{@{} l p{0.70\linewidth} @{}}
+\toprule
+\multicolumn{2}{@{}l}{\textbf{Code and General Problem}}\\
+\midrule
+$\mathbf b$ & transmitted codeword in $\Ftwo^{n_b}$\\
+$\mathbf P$ & parity-check matrix in $\Ftwo^{m\times n_b}$\\
+$\mathcal C$ & codebook\\
+$n_b$, $m$ & coded-bit length; number of parity constraints\\
+$\mathbf s(\cdot)$ & modulation map; $\mathbf s(\mathbf b)$ hard, $\mathbf s(\mathbf z)$ relaxed\\
+$\mathbf Y$ & received signal (the collection of view vectors)\\
+$\mathcal A$ & forward map\\
+$\bm\psi$ & unknown channel parameters (here the response $\mathbf C$)\\
+$\mathbf n$ & noise in the general forward model\\
+$\widetilde{\mathbf X}$, $\widetilde X_k$ & soft symbols the decoder reads\\
+$g$ & read-out map from received signal to soft symbols\\
+$I(\cdot;\cdot)$ & mutual information\\
+$\mathbf y$, $X_1$, $X_2$, $\alpha$ & two-sample example: samples, wanted symbol, neighbour, coupling strength\\
+$z_i$, $\mathbf z$ & real variable for coded bit $i$; their vector\\
+$\xi_i(\mathbf z)$ & relaxed bipolar bit, $\tanh z_i$\\
+$\mathcal N_j$ & bits constrained by parity check $j$\\
+$\mathcal R_{\mathrm{par}}$ & differentiable parity penalty\\
+$\lambda_{\mathrm p}$ & weight of the parity penalty\\
+$\mathcal L$ & relaxed general objective\\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{OFDM and Channel}}\\
+\midrule
+$N$ & number of OFDM samples after cyclic-prefix removal\\
+$\mathbf r$, $r[n]$ & received block; its samples\\
+$\mathbf F$ & unitary FFT matrix\\
+$\Kset$, $\Pset$, $\Dset$ & active, pilot, and data carrier sets\\
+$X_k$, $\mathbf X$, $x[n]$ & transmitted symbol; their vector; block samples\\
+$\mathbf e_k$ & selector of bin $k$\\
+$Y_k^{\mathrm{full}}$ & full-FFT bin at carrier $k$\\
+$H_{k,k}$ & channel gain on carrier $k$\\
+$H_{k,\ell}$, $\Delta_{k,\ell}$ & ICI coefficient; turn count\\
+$\mathbf G$, $\mathbf H_{\mathrm{fd}}$ & time-domain and frequency-domain channel operators\\
+$a$, $\theta$ & residual Doppler factor; carrier frequency offset\\
+$\mathcal B_K(k)$, $K_{\mathrm{ICI}}$ & local ICI neighbourhood; its half-bandwidth\\
+$\epsilon_k^{(K)}$ & truncation error of the banded model\\
+$\nu_k$, $\bm\nu$, $\nu_{k,m}$ & noise per bin, as a vector, per view\\
+$h_\ell$, $L$ & channel taps; their number\\
+$\phi_m$, $\mathcal T_m$ & segment phase; segment index set\\
+$I_{k,m}$ & local ICI neglected by the per-segment phase model\\
+$\E$ & expectation\\
+\bottomrule
+\end{tabular}
+\end{minipage}\hfill
+\begin{minipage}[t]{0.49\textwidth}
+\vspace{0pt}
+\centering
+\begin{tabular}{@{} l p{0.70\linewidth} @{}}
+\toprule
+\multicolumn{2}{@{}l}{\textbf{Partial-FFT Views}}\\
+\midrule
+$M$ & number of views\\
+$g_m[n]$, $\mathbf S_m$ & segment windows; their diagonal matrices\\
+$Y_{k,m}$ & view $m$ of carrier $k$\\
+$\mathbf Y_k$ & view vector of carrier $k$\\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{Pilot-Trained Combiner}}\\
+\midrule
+$\mathbf W_k$, $\widehat{\mathbf W}_k$ & combiner weights of carrier $k$; their fitted value\\
+$\Pset(k)$ & nearby pilot set of carrier $k$\\
+$J_k$, $\delta$ & ridge criterion; ridge parameter\\
+$\mathbf R_k$, $\mathbf r_k$ & pilot correlation matrix; pilot cross-correlation vector\\
+$\mathbf u_t$, $d_t$ & pilot regressor; pilot symbol at step $t$\\
+$\beta$ & forgetting factor\\
+$\mathbf g_t$, $e_t$ & gain; prediction error\\
+$\mathbf Q_t$ & inverse correlation matrix\\
+$\mathbf W_{k,t}$ & weights after step $t$\\
+\midrule
+\multicolumn{2}{@{}l}{\textbf{Joint Objective and Receivers}}\\
+\midrule
+$i_1(k)$, $i_2(k)$ & the two coded bits of QPSK carrier $k$\\
+$s_k(\mathbf z)$ & relaxed QPSK symbol\\
+$\mathbf c_{k,q}$, $\mathbf C$ & Partial-FFT response vectors; their collection\\
+$\mathbf n_k$ & noise in the views of carrier $k$\\
+$\lambda_{\mathrm d}$, $\eta$, $\rho$ & weights of the signal, pilot, and tie terms\\
+$\gamma_C$, $\gamma_W$, $\gamma_S$ & weights bounding response energy, combiner energy, and weight smoothness\\
+$\mathcal J$ & complete objective over $(\mathbf C,\mathbf W,\mathbf z)$\\
+$\mathcal R_g$ & read-out terms of $\mathcal J$\\
+$\overline{\mathcal J}$ & $\mathcal J$ with the signal term replaced by its expected value\\
+$\mathcal J_{\mathrm{prop}}^{(t)}$ & proposal criterion at decoder checkpoint $t$\\
+$\tau_C$, $\tau_W$, $\tau_T$ & trust weights: response, weights, cross-symbol smoothness\\
+$\mathbf C_{\mathrm{ref}}$, $\mathbf W_{\mathrm{ref}}^{(t)}$ & response and weight references\\
+$\mathbf C_s$ & response in OFDM symbol $s$\\
+\bottomrule
+\end{tabular}
+\end{minipage}
+\end{table*}
 
 \section{Joint Estimation and Decoding}
 
