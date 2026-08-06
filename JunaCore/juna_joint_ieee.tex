@@ -104,11 +104,11 @@ check by a differentiable penalty on the relaxed bits.  The objective then has a
 
 Two receivers follow from that objective, and they differ in whether the
 combiner weights are estimated at all.  In the first, the weights are
-computed from the estimated response of the wanted carrier, so the relaxed
+computed from each carrier's own estimated response, so the relaxed
 bits are the only quantity searched.  In the second, the weights are
-estimated together with the response and the bits, and a step is kept only
-when the objective does not increase and the pilot error stays within a fixed
-tolerance.  We compare the two on equal terms and do not argue that either is
+estimated together with the response and the bits.  A step is kept only
+when the objective does not increase and its pilot term stays within a
+fixed tolerance.  We compare the two on equal terms and do not argue that either is
 the correct design.  The comparison is narrow by construction: the two
 receivers share every other setting, so their decoded bit error rates measure
 one difference alone.
@@ -195,37 +195,30 @@ where \(I\) denotes mutual information.  Equality holds exactly when
 \(\widetilde{\mathbf X}\) is sufficient for \(\mathbf b\), that is, when
 \(p(\mathbf b\mid\mathbf Y)=p(\mathbf b\mid\widetilde{\mathbf X})\).  When
 the pilots alone specify the channel well, the soft symbols are close to
-sufficient and the separation costs little.  The amount lost in general is
-the conditional mutual information
+sufficient and the separation costs little.  A small example shows what the inequality hides.  Let the receiver keep
+two samples of two coded symbols,
 \begin{equation}
-  I(\mathbf b;\mathbf Y\mid\widetilde{\mathbf X})
+  \mathbf y
   =
-  H(\mathbf b\mid\widetilde{\mathbf X})
-  -
-  H(\mathbf b\mid\mathbf Y)
-  \;\ge\;0,
-  \label{eq:residual-information}
+  X_1\begin{bmatrix}1\\1\end{bmatrix}
+  +\alpha X_2\begin{bmatrix}1\\-1\end{bmatrix}
+  +\mathbf n,
+  \label{eq:two-sample-example}
 \end{equation}
-where \(H\) denotes entropy.  This is the information about the bits that
-remains in the received signal after the soft symbols are known, and a
-receiver that decodes from \(\widetilde{\mathbf X}\) alone forgoes it.
+where \(X_1\) is the symbol the soft symbol is for, \(X_2\) is a
+neighbouring coded symbol, and \(\alpha\) sets how strongly the neighbour
+enters.  The average of the two samples recovers \(X_1\) and cancels the
+neighbour.  The difference of the two samples carries \(\alpha X_2\)
+alone.  A scalar soft symbol keeps one combination of the two samples and
+discards the other.  Whatever the discarded combination said about
+\(X_2\) --- a coded symbol, tied to every other coded bit by the parity
+constraints --- is lost to the decoder.
 
-The loss runs in the other direction as well.  Estimating the channel with
-the knowledge that the transmitted bits form a codeword cannot increase the
-uncertainty about the channel:
-\begin{equation}
-  H(\bm\psi\mid\mathbf Y,\mathcal C)
-  \le
-  H(\bm\psi\mid\mathbf Y),
-  \label{eq:channel-entropy-reduction}
-\end{equation}
-where conditioning on \(\mathcal C\) denotes estimation that uses
-\(\mathbf b\in\mathcal C\) and omitting it denotes estimation that ignores
-the code.  The reduction is strict whenever the code resolves an ambiguity
-that the pilots do not.  A receiver that fixes the channel estimate before
-decoding, and then decodes from \(\widetilde{\mathbf X}\) alone, forgoes
-both \eqref{eq:residual-information} and
-\eqref{eq:channel-entropy-reduction}.
+The loss runs in the other direction as well.  The parity constraints
+restrict which transmitted symbol patterns are possible, so a channel
+estimate that uses them cannot get worse and can improve.  A receiver that
+fixes the channel estimate before decoding, and then decodes from
+\(\widetilde{\mathbf X}\) alone, forgoes both pieces of information.
 
 Two features make \eqref{eq:general-map} intractable.  The codebook doubles
 with every message bit, so the search over \(\mathcal C\) cannot be carried
@@ -267,8 +260,9 @@ follow through the same modulation map.
 has no usable gradient.  The relaxation \(\xi_i=\tanh z_i\) (solid) agrees
 with the step away from zero and has a gradient everywhere.}
 \label{fig:step-tanh}
-\end{figure}  The parity constraints become a penalty on the
-relaxed bits:
+\end{figure}
+
+The parity constraints become a penalty on the relaxed bits:
 \begin{equation}
   \mathcal R_{\mathrm{par}}(\mathbf z)
   =
@@ -298,27 +292,29 @@ still checked on the hardened bits.
 
 Three things make \eqref{eq:general-objective} concrete: the modulation
 that fixes \(\mathbf s\), the demodulation that fixes \(\mathbf Y\), and the
-channel parameters \(\bm\psi\).  The next two sections supply the
-first two for OFDM under residual Doppler: the demodulation, then the
-pilot-trained combiner whose output the decoder reads.  The section after
-them names \(\bm\psi\) --- the Partial-FFT response and the combiner
-weights --- and specializes the objective.
+channel parameters \(\bm\psi\).  The next section supplies the
+first two for OFDM under residual Doppler, ending with the pilot-trained
+combiner whose output the decoder reads.  The section after it names
+\(\bm\psi\) --- the Partial-FFT response and the combiner weights --- and
+specializes the objective.
 
-\section{OFDM Demodulation}
+\section{OFDM Demodulation and Partial-FFT Combining}
 
 The forward map \(\mathcal A\) of \eqref{eq:general-forward} is a general
 term, and nothing so far fixes the modulation or the channel.  In our case
-the modulation is OFDM over an underwater acoustic channel.  This section
-writes the demodulation equations that determine what the received signal
-\(\mathbf Y\) contains.  It does so in three moves: the one-tap model that
-holds when the channel is still, the coupling that residual Doppler adds,
-and the views that Partial-FFT demodulation keeps.
+the modulation is OFDM over an underwater acoustic channel.  This section is
+that special case.  In it, the received signal \(\mathbf Y\) becomes a
+collection of view vectors, and the forward map becomes the channel followed
+by windowed FFTs.  The channel parameters \(\bm\psi\) are named in the
+next section.  We proceed in three parts: OFDM and residual Doppler, the
+Partial-FFT views, and the pilot-trained combiner weights.
+
+\subsection{OFDM and Residual Doppler}
 
 Let \(N\) be the number of OFDM samples after cyclic-prefix removal, let
 \(\mathbf r\in\C^N\) be the received block, and let
 \(\mathbf F\in\C^{N\times N}\) be the unitary FFT matrix.  The active-carrier
-set is \(\Kset\), the pilot set is \(\Pset\), and the data set is
-\(\Dset=\Kset\setminus\Pset\).  The transmitted symbol on carrier \(k\) is
+set is \(\Kset\).  The transmitted symbol on carrier \(k\) is
 \(X_k\), and the transmitted block is \(\mathbf F^H\mathbf X\).  Full-FFT
 demodulation takes one number per carrier:
 \begin{equation}
@@ -327,7 +323,8 @@ demodulation takes one number per carrier:
   \mathbf e_k^{T}\mathbf F\mathbf r,
   \label{eq:full-fft-bin}
 \end{equation}
-where \(\mathbf e_k\) selects bin \(k\).  With an adequate cyclic prefix and a channel that does not vary over the
+where \(\mathbf e_k\) selects bin \(k\), the FFT output at carrier
+\(k\).  With an adequate cyclic prefix and a channel that does not vary over the
 block, cyclic-prefix removal leaves a circulant operator, the FFT
 diagonalizes it, and every carrier obeys the one-tap model
 \begin{equation}
@@ -336,8 +333,27 @@ diagonalizes it, and every carrier obeys the one-tap model
   H_{k,k}X_k+\nu_k,
   \label{eq:one-tap}
 \end{equation}
-where \(H_{k,k}\) is the response on carrier \(k\) and \(\nu_k\) is noise.
+where \(H_{k,k}\) is the channel gain on carrier \(k\) and \(\nu_k\) is
+noise.
 One equalizer tap per carrier then suffices, and pilots specify it.
+
+We write the channel at the operator level.  Let \(\mathbf G\)
+be the time-domain channel operator over one useful block after
+cyclic-prefix removal, so that
+\begin{equation}
+  \mathbf Y^{\mathrm{full}}
+  =
+  \mathbf F\mathbf G\mathbf F^{H}\mathbf X+\bm\nu
+  \triangleq
+  \mathbf H_{\mathrm{fd}}\mathbf X+\bm\nu,
+  \label{eq:fd-operator}
+\end{equation}
+where \(\mathbf H_{\mathrm{fd}}\) collects every coefficient
+\(H_{k,\ell}\) and \(\bm\nu\) is the noise vector.  When the channel does
+not vary over the block, \(\mathbf G\) is circulant and
+\(\mathbf H_{\mathrm{fd}}\) is diagonal.  Residual Doppler makes
+\(\mathbf G\) non-circulant and \(\mathbf H_{\mathrm{fd}}\)
+non-diagonal.
 
 Motion time-scales the received waveform.  After initial resampling a
 residual Doppler factor \(a\) and a carrier frequency offset \(\theta\)
@@ -377,24 +393,7 @@ magnitude of \eqref{eq:ici-coefficient} is a Dirichlet kernel in
 \(\Delta_{k,\ell}\), so for small \(a\) and \(\theta\) the coefficients stay
 near the diagonal and the operator is banded.
 
-The same coupling can be written at the operator level.  Let \(\mathbf G\)
-be the time-domain channel operator over one useful block after
-cyclic-prefix removal, so that
-\begin{equation}
-  \mathbf Y^{\mathrm{full}}
-  =
-  \mathbf F\mathbf G\mathbf F^{H}\mathbf X+\bm\nu
-  \triangleq
-  \mathbf H_{\mathrm{fd}}\mathbf X+\bm\nu,
-  \label{eq:fd-operator}
-\end{equation}
-where \(\mathbf H_{\mathrm{fd}}\) collects every coefficient
-\(H_{k,\ell}\) and \(\bm\nu\) is the noise vector.  When the channel is
-still over the block, \(\mathbf G\) is circulant and
-\(\mathbf H_{\mathrm{fd}}\) is diagonal.  Residual Doppler makes
-\(\mathbf G\) non-circulant and \(\mathbf H_{\mathrm{fd}}\)
-non-diagonal.  For local Doppler the off-diagonal energy concentrates near
-the main diagonal, and we use the banded approximation
+Hence we use the banded approximation
 \begin{equation}
   Y_k^{\mathrm{full}}
   =
@@ -417,6 +416,8 @@ The truncation error is
 for independent zero-mean symbols, where \(\E\) denotes expectation.
 Increasing \(K_{\mathrm{ICI}}\) reduces the bias of the model but
 increases the number of coefficients a receiver must estimate.
+
+\subsection{Partial-FFT Views}
 
 Partial-FFT demodulation divides the useful interval into \(M\) segments.
 Let \(g_m[n]\), \(m=1,\ldots,M\), be deterministic non-overlapping segment
@@ -464,9 +465,20 @@ Partial-FFT demodulation therefore creates no new information; it keeps
 temporally localized components of the same full-interval statistic, which a
 single full-interval FFT would collapse.
 
+In the notation of \eqref{eq:general-forward}, the received signal
+\(\mathbf Y\) is the collection of view vectors
+\(\{\mathbf Y_k:k\in\Kset\}\).
+
+\subsection{The Pilot-Trained Combiner}
+
+When demodulation and decoding are separate, the views of every carrier are
+combined into one soft symbol before the decoder reads them.  That combiner
+is the pilot-trained map \(g\) of \eqref{eq:soft-symbol-statistic} made
+concrete.
+
 The views help because residual Doppler is mainly a slow phase drift within
 one OFDM symbol.  Partition the useful interval into segment index sets
-\(\mathcal T_m\), and let the channel hold still across the symbol while a
+\(\mathcal T_m\), and let the channel be fixed across the symbol while a
 phase \(\phi_m\) evolves from segment to segment:
 \begin{equation}
   r[n]
@@ -491,30 +503,19 @@ realign them.  This poses the question the combiner answers: given the
 \(M\) views of carrier \(k\), which linear combination recovers a
 reliable pre-decoder soft symbol?
 
-In the notation of \eqref{eq:general-forward}, the received signal
-\(\mathbf Y\) is the collection of view vectors
-\(\{\mathbf Y_k:k\in\Kset\}\).  The next section writes the combiner
-that turns the views of each carrier into the soft symbol the decoder
-reads when demodulation and decoding are separate.
-
-\section{Pilot-Trained Partial-FFT Combining}
-
-When demodulation and decoding are separate, the views of every carrier are
-combined into one soft symbol before the decoder reads them.  This section
-writes that combiner.  It is the pilot-trained map \(g\) of
-\eqref{eq:soft-symbol-statistic} made concrete.
-
 The pre-decoder soft symbol is
 \begin{equation}
   \widetilde X_k=\mathbf W_k^{H}\mathbf Y_k,
   \label{eq:combiner}
 \end{equation}
-where \(\mathbf W_k\in\C^M\) is the combining vector for carrier \(k\).
+where \(\mathbf W_k\in\C^M\) collects the combiner weights for carrier
+\(k\).
 The weights rotate and scale the views back toward the transmitted symbol,
 and the pilots supply the carriers where that symbol is known.
 
-Let \(\Pset(k)\subseteq\Pset\) be the nearby pilot set for carrier
-\(k\).  The pilot-trained ridge criterion is
+The pilot set is \(\Pset\), and the data set is
+\(\Dset=\Kset\setminus\Pset\).  Let \(\Pset(k)\subseteq\Pset\) be the
+nearby pilot set for carrier \(k\).  The pilot-trained ridge criterion is
 \begin{equation}
   J_k(\mathbf W_k)
   =
@@ -544,7 +545,7 @@ where \(\mathbf R_k\) is the pilot correlation matrix and
 One small linear system per carrier recovers the \(M\) weights.
 
 The same criterion admits a recursive update as pilots arrive.  For pilot
-regressors \(\mathbf u_t=\mathbf Y_{p_t}\), desired responses
+regressors \(\mathbf u_t=\mathbf Y_{p_t}\), pilot symbols
 \(d_t=X_{p_t}\), and forgetting factor \(\beta\in(0,1]\),
 \begin{align}
   \mathbf g_t
