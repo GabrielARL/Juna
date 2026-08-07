@@ -45,9 +45,11 @@ through fits to the pilots and relaxed data symbols.  The resulting regularized
 objective contains the response, combiner weights, and relaxed codeword bits;
 the views, pilots, and parity constraints regularize one another.  We show
 which terms instantiate the relaxed objective and which terms are added for
-the combiner.  One receiver computes the combiner weights from the response.
-The other permits the weights to move with the response and bits after a fixed
-iteration.  The code acts during symbol estimation rather than after it.
+the combiner.  The joint C,W,z receiver permits the weights to move with the
+response and bits after a fixed iteration.  C,z refinement computes the
+combiner weights from the wanted response.  JUNA-Lite forms no response and
+conditionally fits the combiner weights to pilots and belief-propagation
+posterior means.  The code acts during symbol estimation rather than after it.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -115,27 +117,23 @@ penalty on the relaxed bits.  We then add the combiner weights through fits to
 the pilots and relaxed data symbols.  The resulting objective has a gradient
 with respect to every quantity.
 
-The two receiver update rules differ in whether the combiner weights are
-independent variables.  In the first, the response is updated from the current
-bits, and weights shared within each frequency band are computed from that
-response.  The gradient moves the relaxed bits while holding the updated
-response and weights fixed.  In the second, the response and bits move in every
-proposal, while the weights begin to move after a fixed iteration.  A step is
-kept only when the criterion does not increase and its pilot term stays within
-a fixed tolerance.
-We compare the two on equal terms and do not argue that either is the correct
-design.
+The receiver updates differ in which quantities remain independent.  The joint
+C,W,z form permits the response, combiner weights, and relaxed bits to move.
+C,z refinement instead updates the response and bits, while it computes the
+combiner weights from the wanted response.  JUNA-Lite makes a further
+approximation: it forms no response and replaces continuous bit descent by
+belief-propagation posterior means.  We do not argue that one of these choices
+is the correct design.
 
-We develop this in four steps.  First, we state the joint estimation and
+We develop this in five steps.  First, we state the joint estimation and
 decoding problem in its most general form and relax it.  Second, we write
 the Partial-FFT forward model and the pilot-trained combiner used when
 demodulation and decoding are separate.  Third, we specialize the objective
-for the response and coded bits, add the combiner terms, and give the two
-receiver update rules.  The response is updated from the current bits, and the
-combiner is either computed from that response or estimated beside it.
-Fourth, we report what the comparison measures and the regime in which the
-difference should appear.  Table~\ref{tab:notation} collects the
-notation.
+for the response and coded bits, add the combiner terms, and give the joint
+C,W,z proposal.  Fourth, we reduce the calculation to C,z refinement and
+JUNA-Lite.  Fifth, the proposed comparison will report what it measures and
+the regime in which the difference should appear.  Table~\ref{tab:notation}
+collects the notation.
 
 \begin{table*}[t]
 \caption{Notation used in the remainder of the paper.}
@@ -152,9 +150,9 @@ notation.
 \multicolumn{2}{@{}l}{\textbf{Code and General Problem}}\\
 \midrule
 $\mathbf b$ & transmitted codeword in $\Ftwo^{n_b}$\\
-$\mathbf P$ & parity-check matrix in $\Ftwo^{m\times n_b}$\\
+$\mathbf P$ & parity-check matrix in $\Ftwo^{n_{\mathrm{par}}\times n_b}$\\
 $\mathcal C$ & codebook\\
-$n_b$, $m$ & coded-bit length; number of parity constraints\\
+$n_b$, $n_{\mathrm{par}}$ & coded-bit length; number of parity constraints\\
 $\mathbf s(\cdot)$ & modulation map; $\mathbf s(\mathbf b)$ hard, $\mathbf s(\mathbf z)$ relaxed\\
 $\mathbf Y$ & received signal (the collection of view vectors)\\
 $\mathcal A$ & forward map\\
@@ -181,12 +179,13 @@ $X_k$, $\mathbf X$, $x[n]$ & transmitted symbol; their vector; block samples\\
 $\mathbf e_k$ & selector of bin $k$\\
 $Y_k^{\mathrm{full}}$ & full-FFT bin at carrier $k$\\
 $H_{k,k}$ & channel gain on carrier $k$\\
-$H_{k,\ell}$, $\Delta_{k,\ell}$ & ICI coefficient; turn count\\
+$H_{k,q}$, $\Delta_{k,q}$ & ICI coefficient; turn count\\
 $\mathbf G$, $\mathbf H_{\mathrm{fd}}$ & time-domain and frequency-domain channel operators\\
 $a$, $\theta$ & residual Doppler factor; carrier frequency offset\\
 $\mathcal B_K(k)$, $K_{\mathrm{ICI}}$ & local ICI neighbourhood; its half-bandwidth\\
 $\epsilon_k^{(K)}$ & truncation error of the banded model\\
-$\nu_k$, $\bm\nu$, $\nu_{k,m}$, $\nu[n]$ & noise per bin, as a vector, per view, per sample\\
+$\nu_k$, $\bm\nu$ & full-FFT noise per bin; its vector\\
+$\nu_{k,m}$, $\bm\nu_k$, $\nu[n]$ & noise per view; its vector; per sample\\
 $h_\ell$, $L$ & channel taps; their number\\
 $\phi_m$, $\mathcal T_m$ & segment phase; segment index set\\
 $I_{k,m}$ & local ICI neglected by the per-segment phase model\\
@@ -202,7 +201,7 @@ $\E$ & expectation\\
 \multicolumn{2}{@{}l}{\textbf{Partial-FFT Views}}\\
 \midrule
 $M$ & number of views\\
-$g_m[n]$, $\mathbf S_m$ & segment windows; their diagonal matrices\\
+$\omega_m[n]$, $\mathbf S_m$ & segment windows; their diagonal matrices\\
 $Y_{k,m}$ & view $m$ of carrier $k$\\
 $\mathbf Y_k$ & view vector of carrier $k$\\
 \midrule
@@ -211,10 +210,10 @@ $\mathbf Y_k$ & view vector of carrier $k$\\
 $\mathbf W_k$, $\widehat{\mathbf W}_k$ & combiner weights of carrier $k$; their fitted value\\
 $\Pset(k)$ & nearby pilot set of carrier $k$\\
 $J_k$, $\delta$ & ridge criterion; ridge parameter\\
-$\mathbf R_k$, $\mathbf r_k$ & pilot correlation matrix; pilot cross-correlation vector\\
-$\mathbf u_t$, $d_t$ & pilot regressor; pilot symbol at step $t$\\
+$\mathbf R_k$, $\mathbf p_k$ & pilot correlation matrix; pilot cross-correlation vector\\
+$\mathbf u_t$, $X_{p_t}$ & pilot regressor; pilot symbol at step $t$\\
 $\beta$ & forgetting factor\\
-$\mathbf g_t$, $e_t$ & gain; prediction error\\
+$\boldsymbol\kappa_t$, $e_t$ & gain; prediction error\\
 $\mathbf Q_t$ & inverse correlation matrix\\
 $\mathbf W_{k,t}$ & weights after step $t$\\
 \midrule
@@ -224,16 +223,15 @@ $i_1(k)$, $i_2(k)$ & the two coded bits of QPSK carrier $k$\\
 $s_k(\mathbf z)$ & relaxed QPSK symbol\\
 $\mathbf c_{k,q}$, $\mathbf C$ & Partial-FFT response vectors; their collection\\
 $c_{k,q,m}$, $\mathbf 1$ & component $m$ of $\mathbf c_{k,q}$; all-ones vector\\
-$\mathbf n_k$ & noise in the views of carrier $k$\\
 $\lambda_{\mathrm d}$, $\eta$, $\rho$ & weights of the signal term, the fit to pilots, and the fit to relaxed data symbols\\
 $\gamma_C$, $\gamma_W$, $\gamma_S$ & weights bounding response energy, combiner energy, and weight smoothness\\
 $\mathcal J$ & complete objective over $(\mathbf C,\mathbf W,\mathbf z)$\\
 $\mathcal R_g$ & terms of $\mathcal J$ added through the map $g$\\
 $\overline{\mathcal J}$ & $\mathcal J$ with the signal term replaced by its expected value\\
-$\mathcal J_{\mathrm{prop}}^{(t)}$ & proposal criterion at decoder checkpoint $t$\\
+$\mathcal J_{\mathrm{prop}}$ & proposal criterion at a decoder checkpoint\\
 $\tau_C$, $\tau_W$, $\tau_T$ & trust weights: response, weights, cross-symbol smoothness\\
-$\mathbf C_{\mathrm{ref}}$, $\mathbf W_{\mathrm{ref}}^{(t)}$ & response and weight references\\
-$\mathbf C_s$ & response in OFDM symbol $s$\\
+$\mathbf C_{\mathrm{ref}}$, $\mathbf W_{\mathrm{ref}}$ & response and weight references\\
+$\mathbf C_{\iota}$ & response in OFDM symbol $\iota$\\
 \bottomrule
 \end{tabular}
 \end{minipage}
@@ -248,15 +246,16 @@ any receiver structure is chosen, and relaxes it so that descent can solve
 it.
 
 Let \(\mathbf b\in\Ftwo^{n_b}\) be the transmitted codeword of a linear
-block code with parity-check matrix \(\mathbf P\in\Ftwo^{m\times n_b}\), and
+block code with parity-check matrix
+\(\mathbf P\in\Ftwo^{n_{\mathrm{par}}\times n_b}\), and
 let
 \begin{equation}
   \mathcal C=\left\{\mathbf b\in\Ftwo^{n_b}:\mathbf P\mathbf b^{T}=\mathbf 0
   \ \text{over}\ \Ftwo\right\}
   \label{eq:codebook}
 \end{equation}
-be the codebook, where \(n_b\) is the coded-bit length and \(m\) is the
-number of parity constraints.  Every transmission is a member of
+be the codebook, where \(n_b\) is the coded-bit length and
+\(n_{\mathrm{par}}\) is the number of parity constraints.  Every transmission is a member of
 \(\mathcal C\), so the code is a property of the transmitted signal itself,
 not a processing stage of the receiver.
 
@@ -385,7 +384,7 @@ The parity constraints become a penalty on the relaxed bits:
 \begin{equation}
   \mathcal R_{\mathrm{par}}(\mathbf z)
   =
-  \sum_{j=1}^{m}
+  \sum_{j=1}^{n_{\mathrm{par}}}
   \left(1-\prod_{i\in\mathcal N_j}\xi_i(\mathbf z)\right)^{2},
   \label{eq:parity-penalty}
 \end{equation}
@@ -470,7 +469,7 @@ cyclic-prefix removal, so that
   \label{eq:fd-operator}
 \end{equation}
 where \(\mathbf H_{\mathrm{fd}}\) collects every coefficient
-\(H_{k,\ell}\) and \(\bm\nu\) is the noise vector.  When the channel does
+\(H_{k,q}\) and \(\bm\nu\) is the noise vector.  When the channel does
 not vary over the block, \(\mathbf G\) is circulant and
 \(\mathbf H_{\mathrm{fd}}\) is diagonal.  Residual Doppler makes
 \(\mathbf G\) non-circulant and \(\mathbf H_{\mathrm{fd}}\)
@@ -484,7 +483,7 @@ non-diagonal (Fig.~\ref{fig:hfd-band}).
   \foreach \i in {0,...,6}{
     \fill[black!80] (\i,6-\i) rectangle +(0.85,0.85);
   }
-  \node[font=\scriptsize] at (3.5,7.7) {carrier $\ell$};
+  \node[font=\scriptsize] at (3.5,7.7) {carrier $q$};
   \node[font=\scriptsize, rotate=90] at (-0.8,3.5) {bin $k$};
   \node[font=\scriptsize, align=center] at (3.5,-1.4)
     {channel does not vary\\over the block};
@@ -504,7 +503,7 @@ non-diagonal (Fig.~\ref{fig:hfd-band}).
       }
     }
     \node[font=\scriptsize] at (3.5,7.7)
-      {band $\left|\ell-k\right|\le K_{\mathrm{ICI}}$};
+      {band $\left|q-k\right|\le K_{\mathrm{ICI}}$};
     \node[font=\scriptsize] at (3.5,-1.4) {residual Doppler};
   \end{scope}
 \end{tikzpicture}
@@ -512,36 +511,37 @@ non-diagonal (Fig.~\ref{fig:hfd-band}).
 \(\mathbf H_{\mathrm{fd}}\) of \eqref{eq:fd-operator}.  Left: when the
 channel does not vary over the block, only the channel gains
 \(H_{k,k}\) on the diagonal are nonzero.  Right: residual Doppler fills
-the near-diagonal with ICI coefficients that fade with
-\(\left|\ell-k\right|\), the Dirichlet decay of
-\eqref{eq:ici-coefficient}; the banded approximation \eqref{eq:banded}
+the near-diagonal with ICI coefficients.  The single-path illustration of
+\eqref{eq:ici-coefficient} gives their Dirichlet decay with
+\(\left|q-k\right|\); the banded approximation \eqref{eq:banded}
 keeps the band.  The same banded support carries to the Partial-FFT
 response in Section~\ref{sec:joint}.}
 \label{fig:hfd-band}
 \end{figure}
 
-Motion time-scales the received waveform.  After initial resampling a
-residual Doppler factor \(a\) and a carrier frequency offset \(\theta\)
-remain, so carrier \(\ell\) arrives at index \((1+a)\ell+\theta\) rather than
-at \(\ell\).  Bin \(k\) multiplies by \(e^{-j2\pi kn/N}\); with the
-\(1/\sqrt N\) of the transmitted block \(\mathbf F^{H}\mathbf X\) and
-the \(1/\sqrt N\) of bin \(k\), carrier \(\ell\) enters bin \(k\)
-with the coefficient
+Motion time-scales the received waveform.  The origin of ICI is already
+visible in a stripped-down single-path channel with unit gain.  After initial
+resampling a residual Doppler factor \(a\) and a carrier frequency offset
+\(\theta\) remain, so carrier \(q\) arrives at index \((1+a)q+\theta\)
+rather than at \(q\).  In this special case, bin \(k\) multiplies by
+\(e^{-\mathrm j2\pi kn/N}\).  With the \(1/\sqrt N\) of the transmitted
+block \(\mathbf F^{H}\mathbf X\) and the \(1/\sqrt N\) of bin \(k\), the
+coefficient \(H_{k,q}\) of the general operator reduces to
 \begin{align}
-  H_{k,\ell}
+  H_{k,q}
   &=
   \frac{1}{N}\sum_{n=0}^{N-1}
-  e^{j2\pi\Delta_{k,\ell}n/N},
+  e^{\mathrm j2\pi\Delta_{k,q}n/N},
   \label{eq:ici-coefficient}\\
-  \Delta_{k,\ell}
+  \Delta_{k,q}
   &=
-  (\ell-k)+\theta+a\ell,
+  (q-k)+\theta+aq,
   \label{eq:leftover-turns}
 \end{align}
-where \(\Delta_{k,\ell}\) is the number of turns carrier \(\ell\) makes
-relative to bin \(k\) over one block.  When \(a\) and \(\theta\) are zero
-the turn count is an integer, the loop closes, and the coefficient vanishes
-for every \(\ell\neq k\); this is subcarrier orthogonality
+where \(\Delta_{k,q}\) is the number of turns carrier \(q\) makes
+relative to bin \(k\) over one block.  When \(a\) and \(\theta\) are zero,
+this special case with unit gain has \(H_{k,k}=1\), while the loop closes and the
+coefficient vanishes for every \(q\neq k\); this is subcarrier orthogonality
 (Fig.~\ref{fig:loops}, left).  A nonzero \(a\) or \(\theta\) makes the
 turn count fractional.  The loop misses closure, and the leftover arrow ---
 the average of the unfinished loop --- is the ICI coefficient
@@ -557,7 +557,7 @@ the average of the unfinished loop --- is the ICI coefficient
   \draw[black!75,thick,-{Stealth}] (0.95,0) arc (0:70:0.95);
   \fill[black] (0,0) circle (1.2pt);
   \node[font=\scriptsize, align=center] at (0,-1.75)
-    {\(\Delta_{k,\ell}\) integer\\loop closes, average zero};
+    {\(\Delta_{k,q}\) integer\\loop closes, average zero};
   % right: unfinished loop with leftover arrow
   \begin{scope}[shift={(4.6,0)}]
     \draw[black!45] (-1.2,0) -- (1.2,0);
@@ -568,7 +568,7 @@ the average of the unfinished loop --- is the ICI coefficient
       arc (437:445:0.95);
     \draw[black,very thick,-{Stealth}] (0,0) -- (0.42,0.27);
     \node[font=\scriptsize, align=center] at (0,-1.75)
-      {\(\Delta_{k,\ell}\) fractional\\leftover arrow \(=H_{k,\ell}\)};
+      {\(\Delta_{k,q}\) fractional\\leftover arrow \(=H_{k,q}\)};
   \end{scope}
 \end{tikzpicture}
 \caption{One carrier seen from bin \(k\) over one block.  Left: an integer
@@ -584,16 +584,16 @@ the unfinished loop, is the ICI coefficient of
   =
   H_{k,k}X_k
   +
-  \sum_{\ell\in\Kset\setminus\{k\}}
-  H_{k,\ell}X_\ell
+  \sum_{q\in\Kset\setminus\{k\}}
+  H_{k,q}X_q
   +
   \nu_k,
   \label{eq:ici-row}
 \end{equation}
 where the first term carries the wanted symbol and the sum is the ICI.  The
-magnitude of \eqref{eq:ici-coefficient} is a Dirichlet kernel in
-\(\Delta_{k,\ell}\), so for small \(a\) and \(\theta\) the coefficients stay
-near the diagonal and the operator is banded.
+magnitude in this single-path illustration is a Dirichlet kernel in
+\(\Delta_{k,q}\), so for small \(a\) and \(\theta\) the coefficients stay near
+the diagonal and motivate a banded operator.
 
 Hence we use the banded approximation shown in
 Fig.~\ref{fig:hfd-band}:
@@ -623,14 +623,16 @@ increases the number of coefficients a receiver must estimate.
 \subsection{Partial-FFT Views}
 
 Partial-FFT demodulation divides the useful interval into \(M\) segments.
-Let \(g_m[n]\), \(m=1,\ldots,M\), be deterministic non-overlapping segment
-windows, and define
+Let \(\omega_m[n]\), \(m=1,\ldots,M\), be deterministic non-overlapping
+segment windows, and define
 \begin{equation}
   \mathbf S_m
   =
-  \operatorname{diag}\!\left(g_m[0],\ldots,g_m[N-1]\right).
+  \operatorname{diag}\!\left(\omega_m[0],\ldots,\omega_m[N-1]\right).
   \label{eq:segment}
 \end{equation}
+where \(m\) is the view index and \(n\) is the sample index.  The matrix
+\(\mathbf S_m\) applies the window \(\omega_m[n]\) to the received block.
 Partial-FFT view \(m\) on carrier \(k\) is
 \begin{equation}
   Y_{k,m}
@@ -648,13 +650,13 @@ Equivalently, in sample notation,
   Y_{k,m}
   =
   \frac{1}{\sqrt N}\sum_{n=0}^{N-1}
-  g_m[n]\,r[n]\,e^{-j2\pi kn/N},
+  \omega_m[n]\,r[n]\,e^{-\mathrm j2\pi kn/N},
   \label{eq:view-sample}
 \end{equation}
 where \(r[n]\) is sample \(n\) of the received block.  Each view is the
 FFT of one windowed piece of the block, taken at bin \(k\).  When the
-windows form a partition of unity, \(\sum_{m=1}^{M}g_m[n]=1\), the views sum
-to the full-FFT bin:
+windows form a partition of unity, \(\sum_{m=1}^{M}\omega_m[n]=1\), the
+views sum to the full-FFT bin:
 \begin{equation}
   \sum_{m=1}^{M}Y_{k,m}
   =
@@ -664,6 +666,8 @@ to the full-FFT bin:
   Y_k^{\mathrm{full}}.
   \label{eq:view-identity}
 \end{equation}
+where \(m\) is the index of the \(M\) views of carrier \(k\).  The identity shows
+that their sum is the full-FFT bin.
 Partial-FFT demodulation therefore creates no new information; it keeps
 temporally localized components of the same full-interval statistic, which a
 single full-interval FFT would collapse.
@@ -674,15 +678,15 @@ What each view keeps has a shape.  For the channel of
 \begin{equation}
   Y_{k,m}
   =
-  \sum_{\ell\in\Kset}
-  X_\ell\,
+  \sum_{q\in\Kset}
+  X_q\,
   \frac{1}{N}\sum_{n\in\mathcal T_m}
-  e^{j2\pi\Delta_{k,\ell}n/N}
+  e^{\mathrm j2\pi\Delta_{k,q}n/N}
   +\nu_{k,m},
   \label{eq:view-row}
 \end{equation}
 where \(\mathcal T_m\) is the index set of segment \(m\), on which
-\(g_m[n]=1\), and \(\nu_{k,m}\) is the noise in view \(m\).  The inner
+\(\omega_m[n]=1\), and \(\nu_{k,m}\) is the noise in view \(m\).  The inner
 sum is one arc
 of the loop of Fig.~\ref{fig:loops}.  The ICI coefficient
 \eqref{eq:ici-coefficient} is the average of the whole loop, and the views
@@ -694,7 +698,7 @@ and \(\theta=0.20\).  The wanted carrier of bin \(4\) makes
 the magnitude \(0.249\) and carry the phases \(10.2^\circ\),
 \(30.7^\circ\), \(51.3^\circ\), \(71.8^\circ\): equal parts, fanned
 by the residual Doppler.  Their plain sum is the channel gain,
-\(H_{4,4}=0.692+0.601j\), with magnitude \(0.917\).  Weights that undo
+\(H_{4,4}=0.692+0.601\mathrm j\), with magnitude \(0.917\).  Weights that undo
 the four phases recover magnitude \(0.995\).  The full-FFT scalar has
 already lost what the views still hold, and the same fan, read for a
 neighbouring carrier, is what a combiner can cancel instead of align.
@@ -717,7 +721,7 @@ length:
 \begin{equation}
   r[n]
   \approx
-  e^{j\phi_m}
+  e^{\mathrm j\phi_m}
   \sum_{\ell=0}^{L-1}h_\ell\,x[(n-\ell)\bmod N]+\nu[n],
   \qquad n\in\mathcal T_m,
   \label{eq:piecewise-phase}
@@ -727,7 +731,7 @@ transmitted block.  Each view then obeys
 \begin{equation}
   Y_{k,m}
   \approx
-  \frac{e^{j\phi_m}}{M}H_{k,k}X_k + I_{k,m}+\nu_{k,m},
+  \frac{e^{\mathrm j\phi_m}}{M}H_{k,k}X_k + I_{k,m}+\nu_{k,m},
   \label{eq:view-phase-model}
 \end{equation}
 where \(I_{k,m}\) collects the local ICI the approximation neglects and
@@ -764,44 +768,47 @@ when the pilots are few.  With
 \begin{equation}
   \mathbf R_k=\sum_{p\in\Pset(k)}\mathbf Y_p\mathbf Y_p^{H}+\delta\mathbf I,
   \qquad
-  \mathbf r_k=\sum_{p\in\Pset(k)}\mathbf Y_pX_p^{*},
+  \mathbf p_k=\sum_{p\in\Pset(k)}\mathbf Y_pX_p^{*},
   \label{eq:pilot-correlations}
 \end{equation}
 where \(\mathbf R_k\) is the pilot correlation matrix and
-\(\mathbf r_k\) the pilot cross-correlation vector, the minimizer of
+\(\mathbf p_k\) the pilot cross-correlation vector, the minimizer of
 \eqref{eq:ridge-criterion} solves the normal equations
 \begin{equation}
-  \mathbf R_k\widehat{\mathbf W}_k=\mathbf r_k,
+  \mathbf R_k\widehat{\mathbf W}_k=\mathbf p_k,
   \qquad
-  \widehat{\mathbf W}_k=\mathbf R_k^{-1}\mathbf r_k.
+  \widehat{\mathbf W}_k=\mathbf R_k^{-1}\mathbf p_k.
   \label{eq:batch-solution}
 \end{equation}
+where \(\widehat{\mathbf W}_k\) is the fitted combiner of carrier \(k\).
+The equation shows the ridge fit as one linear system.
 One small linear system per carrier recovers the \(M\) weights.
 
 The same criterion admits a recursive update as pilots arrive.  For pilot
 regressors \(\mathbf u_t=\mathbf Y_{p_t}\), pilot symbols
-\(d_t=X_{p_t}\), and forgetting factor \(\beta\in(0,1]\),
+\(X_{p_t}\), and forgetting factor \(\beta\in(0,1]\),
 \begin{align}
-  \mathbf g_t
+  \boldsymbol\kappa_t
   &=
   \frac{\mathbf Q_{t-1}\mathbf u_t}
   {\beta+\mathbf u_t^{H}\mathbf Q_{t-1}\mathbf u_t},
   \label{eq:rls-gain}\\
   e_t
   &=
-  d_t-\mathbf W_{k,t-1}^{H}\mathbf u_t,
+  X_{p_t}-\mathbf W_{k,t-1}^{H}\mathbf u_t,
   \label{eq:rls-error}\\
   \mathbf W_{k,t}
   &=
-  \mathbf W_{k,t-1}+\mathbf g_t e_t^{*},
+  \mathbf W_{k,t-1}+\boldsymbol\kappa_t e_t^{*},
   \label{eq:rls-update}\\
   \mathbf Q_t
   &=
   \beta^{-1}
-  \left(\mathbf Q_{t-1}-\mathbf g_t\mathbf u_t^{H}\mathbf Q_{t-1}\right),
+  \left(\mathbf Q_{t-1}
+  -\boldsymbol\kappa_t\mathbf u_t^{H}\mathbf Q_{t-1}\right),
   \label{eq:rls-inverse}
 \end{align}
-where \(\mathbf g_t\) is the gain, \(e_t\) the prediction error, and
+where \(\boldsymbol\kappa_t\) is the gain, \(e_t\) the prediction error, and
 \(\mathbf Q_t\) the inverse correlation matrix.  Recursive least squares
 is the sequential implementation of \eqref{eq:batch-solution}: it updates
 the inverse correlation matrix as pilot rows arrive rather than rebuilding
@@ -834,7 +841,7 @@ relaxed symbol is
   \left[
   \xi_{i_1(k)}(\mathbf z)
   +
-  j\,\xi_{i_2(k)}(\mathbf z)
+  \mathrm j\,\xi_{i_2(k)}(\mathbf z)
   \right],
   \label{eq:qpsk-relaxed}
 \end{equation}
@@ -845,31 +852,67 @@ span.
 
 The Partial-FFT response collects vectors \(\mathbf c_{k,q}\in\C^M\): the
 coupling from transmitted carrier \(q\) into the \(M\) views of carrier
-\(k\).  With the banded support of \eqref{eq:banded}, the views of carrier
-\(k\) obey
+\(k\).  Its operator origin follows from
+\(\mathbf r=\mathbf G\mathbf F^H\mathbf X+\mathbf n\).  For each view, define
+\begin{align}
+  c_{k,q,m}
+  &\triangleq
+  \mathbf e_k^T\mathbf F\mathbf S_m
+  \mathbf G\mathbf F^H\mathbf e_q,
+  \label{eq:view-response-operator}\\
+  \nu_{k,m}
+  &\triangleq
+  \mathbf e_k^T\mathbf F\mathbf S_m\mathbf n .
+  \label{eq:view-noise}
+\end{align}
+where \(c_{k,q,m}\) is the response from carrier \(q\) to view \(m\) of
+carrier \(k\), and \(\nu_{k,m}\) is the noise in that view.  The same
+windowed FFT acts on the channel output and its noise.
+Using this received block in \eqref{eq:view} gives
+\begin{equation}
+  Y_{k,m}
+  =
+  \sum_{q\in\Kset}c_{k,q,m}X_q+\nu_{k,m}.
+  \label{eq:view-forward-component}
+\end{equation}
+where the sum covers the active transmitted carriers \(q\).  Each view is
+therefore a linear combination of their symbols plus its windowed noise.
+With
+\(\mathbf c_{k,q}=[c_{k,q,1},\ldots,c_{k,q,M}]^T\) and
+\(\bm\nu_k=[\nu_{k,1},\ldots,\nu_{k,M}]^T\), stacking the views, retaining the
+banded support of \eqref{eq:banded}, and replacing the unknown data symbols by
+their relaxed values gives
 \begin{equation}
   \mathbf Y_k
   =
   \sum_{q\in\mathcal B_K(k)}
   \mathbf c_{k,q}\,s_q(\mathbf z)
-  +\mathbf n_k,
+  +\bm\nu_k,
   \label{eq:view-forward}
 \end{equation}
-where \(\mathbf n_k\) is the noise in the views of carrier \(k\).  This is
+where \(\bm\nu_k\) is the noise vector in the views of carrier \(k\).  This is
 \eqref{eq:general-forward} made concrete: the forward map is linear in the
 response, and the symbols enter through the relaxed bits.  Setting
 \(K_{\mathrm{ICI}}=0\) recovers a per-carrier model, and a larger
 \(K_{\mathrm{ICI}}\) admits stronger local mixing.
 
 The response is tied to the ICI coefficients of \eqref{eq:ici-row}.  When
-the windows form a partition of unity, summing \eqref{eq:view-forward} over
-the views and comparing with \eqref{eq:banded} matches the coefficients:
+the windows form a partition of unity, \(\sum_m\mathbf S_m=\mathbf I\), so
+the definition \eqref{eq:view-response-operator} proves
 \begin{equation}
-  H_{k,q}
-  =
-  \mathbf 1^{T}\mathbf c_{k,q}
-  =
-  \sum_{m=1}^{M}c_{k,q,m},
+  \begin{aligned}
+    \mathbf 1^{T}\mathbf c_{k,q}
+    &=
+    \sum_{m=1}^{M}c_{k,q,m}\\
+    &=
+    \mathbf e_k^T\mathbf F
+    \left(\sum_{m=1}^{M}\mathbf S_m\right)
+    \mathbf G\mathbf F^H\mathbf e_q\\
+    &=
+    \mathbf e_k^T\mathbf F\mathbf G\mathbf F^H\mathbf e_q
+    =
+    H_{k,q},
+  \end{aligned}
   \label{eq:gain-decomposition}
 \end{equation}
 where \(c_{k,q,m}\) is component \(m\) of \(\mathbf c_{k,q}\) and
@@ -879,9 +922,13 @@ per-view parts, exactly as the views split the full-FFT bin in
 component \(m\) is the inner sum of \eqref{eq:view-row}: one arc of
 the loop of Fig.~\ref{fig:loops}.  The response collects, carrier by
 carrier, the arcs the views keep, and the numeric example of
-Section~\ref{sec:ofdm} is its wanted-carrier case.  Without residual
-Doppler the parts add in phase.  Residual Doppler spreads their phases, and
-a weighted combination can realign what a plain sum would cancel.
+Section~\ref{sec:ofdm} is its wanted-carrier case.  The executable receiver
+estimates the entries of \(\mathbf C\) shared within each band; it does not evaluate
+\(\mathbf G\).  Without residual Doppler the wanted-carrier parts,
+\(q=k\), add in phase, while the off-diagonal parts, \(q\neq k\), cancel
+when summed.  Residual Doppler prevents this cancellation and spreads the
+wanted-carrier phases.  A weighted combination can realign the wanted parts
+while suppressing the off-diagonal parts.
 
 The combiner uses the linear map
 \(g_k(\mathbf Y_k)=\mathbf W_k^H\mathbf Y_k\).  Under Gaussian noise and a
@@ -938,56 +985,357 @@ and no term forces the combiner weights to invert the response.  The
 response exposes the coupled-carrier structure, and the pilots and parity
 constraints select among the triples that fit.
 
-The two receiver update rules use these terms, but they do not both minimize
-one fixed objective.  In the first receiver, the combiner weights are not
-independent variables.  Their per-carrier form is
+The executable updates do not treat a relaxed QPSK symbol as certain.  Let
+\(\mu_q=s_q(\mathbf z)\) and \(v_q=1-|\mu_q|^2\) on a data carrier; on a
+pilot or another fixed carrier, let \(\mu_q=X_q\) and \(v_q=0\).  The
+implementation bounds \(v_q\) between zero and one.  Writing
+\(X_q=\mu_q+\varepsilon_q\), with independent zero-mean errors satisfying
+\(\E|\varepsilon_q|^2=v_q\), gives the expected signal term
 \begin{equation}
-  \mathbf W_k
+  \begin{aligned}
+    \overline{\mathcal J}_{\mathrm{sig}}
+    =\lambda_{\mathrm d}\sum_{k\in\Kset}
+    \Bigg[
+    &\Big\|\mathbf Y_k-\sum_{q\in\mathcal B_K(k)}
+      \mathbf c_{k,q}\mu_q\Big\|_2^2\\
+    &+\sum_{q\in\mathcal B_K(k)}
+      v_q\norm{\mathbf c_{k,q}}_2^2
+    \Bigg].
+  \end{aligned}
+  \label{eq:expected-signal}
+\end{equation}
+where \(\overline{\mathcal J}_{\mathrm{sig}}\) is the expected signal loss,
+\(\mu_q\) is the symbol mean, and \(v_q\) is its variance.  The first term
+fits the means, while the second retains their uncertainty.
+The cross terms vanish under the assumption that the errors are independent.  The
+normalization of this term is absorbed into \(\lambda_{\mathrm d}\) here.
+Let \(\overline{\mathcal J}\) denote \(\mathcal J\) with its signal term
+replaced by \eqref{eq:expected-signal}.  The joint \(C,W,z\) and C,z
+refinement updates use this expected signal term and differentiate \(v_q\)
+through \(\mathbf z\).
+
+The joint \(C,W,z\) receiver moves the response and bits in every proposal,
+and its weights begin to move after a fixed iteration.  Equation
+\eqref{eq:joint-objective} shows its common terms, not its executable
+acceptance criterion.  At each decoder checkpoint, the executable proposal
+criterion is
+\begin{equation}
+  \begin{aligned}
+    \mathcal J_{\mathrm{prop}}(\mathbf C,\mathbf W,\mathbf z)
+    ={}&\overline{\mathcal J}(\mathbf C,\mathbf W,\mathbf z)\\
+    &+\tau_C\norm{\mathbf C-\mathbf C_{\mathrm{ref}}}_F^2\\
+    &+\tau_W\norm{\mathbf W-\mathbf W_{\mathrm{ref}}}_F^2\\
+    &+\tau_T\sum_{\iota}
+      \norm{\mathbf C_{\iota+1}-\mathbf C_{\iota}}_F^2,
+  \end{aligned}
+  \label{eq:proposal-objective}
+\end{equation}
+where \(\mathbf C_{\mathrm{ref}}\) and \(\mathbf W_{\mathrm{ref}}\) are
+the response and weight references, \(\tau_C,\tau_W,\tau_T\) are nonnegative
+weights, and \(\mathbf C_{\iota}\) is the response in OFDM symbol \(\iota\).
+The weight \(\tau_T=0\) when response smoothness across adjacent OFDM symbols
+is not used.  The response reference is set before the proposals and remains
+fixed.  The weight reference is computed from the wanted response by
+\eqref{eq:derived-weights}, held fixed within a proposal, and refreshed
+between decoder checkpoints.  A step is kept only when
+\(\mathcal J_{\mathrm{prop}}\) does not increase and its pilot term stays
+within a fixed tolerance.  A rejected step is halved and tried again, up to a
+fixed number of times.  Thus the joint form moves \(\mathbf C\), \(\mathbf W\),
+and \(\mathbf z\), while the two reductions below remove independent
+quantities from this update.
+
+\section{C,z Refinement and JUNA-Lite}
+\label{sec:reduced-receivers}
+
+This section reduces the calculation in two stages.  C,z refinement retains
+the response and relaxed bits, but computes the combiner weights from the
+wanted response.  JUNA-Lite forms no response and uses belief-propagation
+posterior means as conditional targets for the combiner.  These are two
+receiver update rules, not two exact minimizations of one fixed objective.
+At the frame level, the compared configurations first form the JUNA-Lite
+candidate described below.  A valid parity check or cyclic redundancy check
+(CRC) can stop the refinement before a \(C,z\) or joint proposal.  When
+refinement runs, the final candidate comparison can still retain the
+JUNA-Lite candidate.  These decisions remain outside the displayed costs.
+
+\subsection{C,z Refinement}
+
+Let \(\widehat{\mathbf W}(\mathbf C)\) collect the response-derived combiner
+weights.  Substitution in the expected joint objective defines the restricted
+cost
+\begin{equation}
+  \mathcal J_{Cz}(\mathbf C,\mathbf z)
+  \triangleq
+  \overline{\mathcal J}
+  \left(\mathbf C,\widehat{\mathbf W}(\mathbf C),\mathbf z\right),
+  \label{eq:cz-restriction}
+\end{equation}
+where \(\mathcal J_{Cz}\) is the restricted cost over the response and relaxed
+bits, \(\overline{\mathcal J}\) is the expected objective defined after
+\eqref{eq:expected-signal}, and \(\widehat{\mathbf W}(\mathbf C)\) is given by
+\eqref{eq:derived-weights}.  The restriction removes \(\mathbf W\) as an
+independent quantity.  It is not an exact minimization over the complete
+\(\mathbf W\) block: the response-derived weights minimize
+\eqref{eq:response-combiner-criterion}, not every weight term in
+\eqref{eq:joint-objective}.
+
+The executable receiver does not minimize \eqref{eq:cz-restriction} directly.
+It first solves an anchored response problem conditional on the current
+\(\mathbf z\), then computes \(\widehat{\mathbf W}\) from the wanted response,
+and finally takes a bit gradient with \(\mathbf C\) and \(\mathbf W\) fixed.
+In particular, it does not differentiate the dependence of
+\(\widehat{\mathbf W}\) on \(\mathbf C\).  The executable comparison shares
+one response within each frequency band.  If \(\Kset_b\) is band \(b\), it
+sets
+\begin{equation}
+  c_{k,k+d,m}=C_{m,d,b},
+  \qquad
+  k\in\Kset_b,\quad d\in\{-1,0,1\},
+  \label{eq:band-tied-response}
+\end{equation}
+where \(b\) is the index of a frequency band, \(\Kset_b\) is the carrier set in band
+\(b\), \(d\) is the relative carrier offset, and \(C_{m,d,b}\) is the
+shared response.  The equation gives every carrier in one band the same
+three response entries.
+The symbol and its variance are zero when \(k+d\notin\Kset\).  Define the
+band design matrix, view observations, response vector, and variance matrix by
+\begin{align}
+  [\mathbf A_b]_{k,d}
+  &=\mu_{k+d},
+  \qquad k\in\Kset_b,\ d\in\{-1,0,1\},
+  \label{eq:band-design}\\
+  \mathbf Y_{m,b}
+  &=[Y_{k,m}]_{k\in\Kset_b},
+  \label{eq:band-observations}\\
+  \mathbf c_{m,b}
+  &=[C_{m,-1,b},C_{m,0,b},C_{m,1,b}]^T,
+  \label{eq:band-vectors}\\
+  \mathbf V_b
+  &=\sum_{k\in\Kset_b}
+  \operatorname{diag}(v_{k-1},v_k,v_{k+1}).
+  \label{eq:band-variance}
+\end{align}
+where \(\mathbf A_b\) is the band design matrix, \(\mathbf Y_{m,b}\) contains
+the observations of view \(m\), \(\mathbf c_{m,b}\) is the response vector,
+and \(\mathbf V_b\) contains the symbol variance values.  These quantities put the
+response fit for one view and band into matrix form.
+Absorbing the executable normalization of each term into the displayed weights,
+the response subproblem at the current relaxed bits is
+\begin{equation}
+  \begin{aligned}
+  \widetilde{\mathbf c}_{m,b}
+  =\arg\min_{\mathbf c}\quad
+  &\lambda_{\mathrm d}
+  \left(
+  \norm{\mathbf Y_{m,b}-\mathbf A_b\mathbf c}_2^2
+  +\mathbf c^H\mathbf V_b\mathbf c
+  \right)\\
+  &+\gamma_C\norm{\mathbf c}_2^2
+  +\tau_C\norm{\mathbf c-\mathbf c_{m,b}^{\mathrm{ref}}}_2^2 .
+  \end{aligned}
+  \label{eq:response-subproblem}
+\end{equation}
+where \(\widetilde{\mathbf c}_{m,b}\) is the minimizing conditional response,
+\(\mathbf c\) is a trial response, and \(\mathbf c_{m,b}^{\mathrm{ref}}\) is
+the matching part of the fixed response reference.  The first two terms fit
+the observations and bound response energy; the last term keeps the response
+near its reference.
+For the C,z posterior-moment update used in the comparison, the fixed
+reference is found once with zero means and unit variance for unknown coded
+bits.  The pilots and other fixed symbols retain their known values in this
+initial response solve.
+The normal equations of this subproblem are
+\begin{equation}
+  \begin{aligned}
+  \Big[
+  \lambda_{\mathrm d}(\mathbf A_b^H\mathbf A_b+\mathbf V_b)
+  +(\gamma_C+\tau_C)\mathbf I
+  \Big]\widetilde{\mathbf c}_{m,b}
+  ={}&
+  \lambda_{\mathrm d}\mathbf A_b^H\mathbf Y_{m,b}\\
+  &+\tau_C\mathbf c_{m,b}^{\mathrm{ref}} .
+  \end{aligned}
+  \label{eq:response-normal}
+\end{equation}
+where \(\mathbf I\) is the identity matrix for the three response entries.
+This linear system gives the conditional response at the current relaxed
+bits.
+The retained response update is
+\begin{equation}
+  \mathbf c_{m,b}^{\mathrm{new}}
+  =
+  (1-\alpha_C)\mathbf c_{m,b}^{\mathrm{old}}
+  +\alpha_C\widetilde{\mathbf c}_{m,b},
+  \qquad 0<\alpha_C\leq1.
+  \label{eq:response-update}
+\end{equation}
+where \(\alpha_C\) is the response update fraction, and the labels identify
+the old and new response.  A unit fraction keeps the conditional solution;
+a smaller fraction reduces the update.
+The ridge equation with no symbol variance is the special case
+\(\mathbf V_b=\mathbf0\), \(\tau_C=0\), and \(\alpha_C=1\).  In the
+comparison, the response used at the bit gradient has \(\alpha_C=1\);
+the response retained after the bit step uses \(\alpha_C=1/2\).
+
+The combiner follows from a second ridge problem:
+\begin{equation}
+  \widehat{\mathbf W}_k
+  =
+  \arg\min_{\mathbf W}
+  \left|\mathbf W^H\mathbf c_{k,k}-1\right|^2
+  +\delta\norm{\mathbf W}_2^2 .
+  \label{eq:response-combiner-criterion}
+\end{equation}
+where \(\mathbf W\) is a trial combiner, \(\mathbf c_{k,k}\) is the wanted
+response, and \(\delta\) is the ridge parameter.  The criterion asks the
+combiner for unit wanted response while bounding its energy.
+The normal equations of this criterion are
+\begin{equation}
+  \left(
+  \mathbf c_{k,k}\mathbf c_{k,k}^H+\delta\mathbf I
+  \right)\widehat{\mathbf W}_k
+  =
+  \mathbf c_{k,k},
+  \qquad
+  \widehat{\mathbf W}_k
   =
   \frac{\mathbf c_{k,k}}
   {\norm{\mathbf c_{k,k}}_2^2+\delta},
   \label{eq:derived-weights}
 \end{equation}
-where \(\delta>0\) plays the same ridge role as in
-\eqref{eq:ridge-criterion}.  The executable receiver ties carriers in the
-same frequency band and applies \eqref{eq:derived-weights} to the response
-shared within each band.  The response is updated from the current bits, and
-the weights are then computed from that response.  The bit gradient is
-evaluated with the updated response and computed weights fixed.
+where \(\widehat{\mathbf W}_k\) is the minimizing combiner and \(\mathbf I\)
+is the identity matrix for its \(M\) weights.  The closed form aligns the
+weights with the wanted response and scales them by response energy plus the
+ridge parameter.
+The parameter \(\delta>0\) plays the same ridge role as in
+\eqref{eq:ridge-criterion}.  The executable receiver applies
+\eqref{eq:derived-weights} to the response shared within each band.  The bit
+gradient takes the derivative of \(\overline{\mathcal J}\), including the
+variance in \eqref{eq:expected-signal}, with the updated response and computed
+weights fixed.  An Adam step then moves \(\mathbf z\), after which the receiver
+restores fixed bit positions and resolves the conditional response and
+response-derived weights at the updated \(\mathbf z\).  Belief propagation
+uses those weights at the decoder checkpoint.  In the compared configuration,
+the clipped negative returned decoder posterior metric is blended into
+\(\mathbf z\) with weight \(1/2\) before the next refinement iteration.
 
-In the second receiver, the response and bits move in every proposal, and
-the weights begin to move after a fixed iteration.  Equation
-\eqref{eq:joint-objective} shows the common terms, not the executable
-acceptance criterion.  Let \(\overline{\mathcal J}\) denote \(\mathcal J\)
-with its signal term replaced by its expected value under the relaxed symbols.
-This expected squared error includes their variance.  At decoder checkpoint
-\(t\), the executable proposal criterion is
+\subsection{JUNA-Lite}
+
+JUNA-Lite makes a further conditional approximation of the read-out terms.
+It does not form \(\mathbf C\), and its decoder outputs are not free
+\(\mathbf z\) variables in a gradient calculation.  The decoder posterior
+log-likelihood ratio \(\Lambda_i^{\mathrm{post},(t)}\) is positive for bit
+zero, while the implementation returns the opposite metric,
+\(L_i^{\mathrm{post},(t)}=-\Lambda_i^{\mathrm{post},(t)}\).  JUNA-Lite maps
+this returned metric directly to a QPSK posterior mean and a confidence value:
+\begin{align}
+  \xi_i^{(t)}
+  &=-\tanh\!\left(\frac{L_i^{\mathrm{post},(t)}}{2}\right),
+  \label{eq:lite-posterior-bit}\\
+  \mu_k^{(t)}
+  &=\frac{1}{\sqrt 2}
+    \left[\xi_{i_1(k)}^{(t)}
+    +\mathrm j\,\xi_{i_2(k)}^{(t)}\right],
+  \label{eq:lite-posterior-mean}\\
+  \zeta_k^{(t)}
+  &=\min\!\left(
+    \left|\xi_{i_1(k)}^{(t)}\right|,
+    \left|\xi_{i_2(k)}^{(t)}\right|
+    \right),
+  \qquad 0\leq\zeta_k^{(t)}\leq1.
+  \label{eq:lite-confidence}
+\end{align}
+where \(L_i^{\mathrm{post},(t)}\) is the returned posterior metric for coded
+bit \(i\) at refinement iteration \(t\).  Here \(\xi_i^{(t)}\) is its
+bipolar mean, \(\mu_k^{(t)}\) is the QPSK posterior mean, and
+\(\zeta_k^{(t)}\) is the smaller bipolar magnitude of the two coded bits.
+A value of \(\zeta_k^{(t)}\) near one gives the decoded symbol more influence
+in the next combiner fit; a value near zero gives it little influence.  This
+direct mapping uses the returned metric and does not require the scale of the
+free variable \(\mathbf z\) in the continuous relaxation.
+
+Let \(\tau\geq0\) be a confidence threshold and \(K_{\max}\) the maximum
+number of data anchors.  The eligible data anchors are
+\begin{equation}
+  \mathcal Q^{(t)}
+  =\left\{k\in\Dset:\zeta_k^{(t)}\geq\tau\right\}.
+  \label{eq:lite-anchor-set}
+\end{equation}
+where \(\mathcal Q^{(t)}\) is the selected data-carrier set and \(\Dset\) is
+the data-carrier set.  If \(|\mathcal Q^{(t)}|>K_{\max}\), the receiver
+retains the \(K_{\max}\) carriers with the largest confidence values.  The
+deployed receiver has \(\tau=0\) and \(K_{\max}\) does not bind, so the
+confidence weights, rather than the set selection, limit unreliable decoder
+feedback.  After any retention, \(\mathcal Q^{(t)}\) denotes the retained set
+used below.
+
+For band \(b\), let \(\Pset_b=\Pset\cap\Kset_b\) and
+\(\mathcal Q_b^{(t)}=\mathcal Q^{(t)}\cap\Kset_b\).  If these band sets contain
+fewer than \(M\) targets together, the executable uses the complete
+\(\Pset\) and \(\mathcal Q^{(t)}\) sets instead.  With either choice, the
+JUNA-Lite update solves
 \begin{equation}
   \begin{aligned}
-    \mathcal J_{\mathrm{prop}}^{(t)}(\mathbf C,\mathbf W,\mathbf z)
-    ={}&\overline{\mathcal J}(\mathbf C,\mathbf W,\mathbf z)\\
-    &+\tau_C\norm{\mathbf C-\mathbf C_{\mathrm{ref}}}_F^2\\
-    &+\tau_W\norm{\mathbf W-\mathbf W_{\mathrm{ref}}^{(t)}}_F^2\\
-    &+\tau_T\sum_s\norm{\mathbf C_{s+1}-\mathbf C_s}_F^2,
+  \widehat{\mathbf W}_b^{(t+1)}
+  =\arg\min_{\mathbf W_b\in\C^M}\quad
+  &\sum_{p\in\Pset_b}
+    \left|\mathbf W_b^H\mathbf Y_p-X_p\right|^2\\
+  &+\sum_{k\in\mathcal Q_b^{(t)}}\zeta_k^{(t)}
+    \left|\mathbf W_b^H\mathbf Y_k-\mu_k^{(t)}\right|^2\\
+  &+\delta\norm{\mathbf W_b}_2^2 .
   \end{aligned}
-  \label{eq:proposal-objective}
+  \label{eq:lite-band-cost}
 \end{equation}
-where \(\mathbf C_{\mathrm{ref}}\) and \(\mathbf W_{\mathrm{ref}}^{(t)}\) are
-the response and weight references, \(\tau_C,\tau_W,\tau_T\) are nonnegative
-weights, and \(\mathbf C_s\) is the response in OFDM symbol \(s\).
-The weight \(\tau_T=0\) when response smoothness across adjacent OFDM symbols
-is not used.  The response reference is set before the proposals and remains
-fixed.  The weight reference is computed from
-\eqref{eq:derived-weights}, held fixed within a proposal, and refreshed
-between decoder checkpoints.  A step is kept only when
-\(\mathcal J_{\mathrm{prop}}^{(t)}\) does not increase and its pilot term stays
-within a fixed tolerance.  A rejected step is halved and tried again, up to a
-fixed number of times.  We compare the two on equal terms: they share every
-setting outside these update rules, so their decoded bit error rates measure
-the difference between the rules.
+where \(\mathbf W_b\) is a trial combiner shared by band \(b\),
+\(\widehat{\mathbf W}_b^{(t+1)}\) is its fitted value, pilots have unit weight,
+data anchors have confidence weight \(\zeta_k^{(t)}\), and \(\delta\) is the
+ridge parameter.  The first sum preserves the known pilot targets, the second
+adds decoder posterior means, and the last bounds combiner energy.
+When the complete target sets are required, they replace
+\(\Pset_b\) and \(\mathcal Q_b^{(t)}\) in this equation and the equations
+below.
 
-The last section states what the comparison measures and the regime in
-which the difference between the two receivers should appear.
+The normal equations are
+\begin{align}
+  \mathbf R_b^{(t)}
+  &=\sum_{p\in\Pset_b}\mathbf Y_p\mathbf Y_p^H
+    +\sum_{k\in\mathcal Q_b^{(t)}}\zeta_k^{(t)}
+      \mathbf Y_k\mathbf Y_k^H
+    +\delta\mathbf I,
+  \label{eq:lite-band-correlation}\\
+  \mathbf p_b^{(t)}
+  &=\sum_{p\in\Pset_b}\mathbf Y_pX_p^*
+    +\sum_{k\in\mathcal Q_b^{(t)}}\zeta_k^{(t)}
+      \mathbf Y_k\left(\mu_k^{(t)}\right)^*,
+  \label{eq:lite-band-cross}\\
+  \mathbf R_b^{(t)}\widehat{\mathbf W}_b^{(t+1)}
+  &=\mathbf p_b^{(t)}.
+  \label{eq:lite-band-normal}
+\end{align}
+where \(\mathbf R_b^{(t)}\) is the weighted correlation matrix,
+\(\mathbf p_b^{(t)}\) is the weighted pilot and anchor cross-correlation
+vector, and \(\mathbf I\) is the identity matrix for the \(M\) combiner
+weights.  The linear system is the conditional ridge optimum for the current
+decoder posterior metrics.
+
+The new weights produce the next soft symbols.  Residual pilot equalization,
+metric formation, and belief propagation then produce the next posterior
+metrics.  Belief propagation, parity checks, and candidate selection remain
+outside \eqref{eq:lite-band-cost}.  A valid initial candidate is returned
+without refinement.  Otherwise improvement is an ordered executable
+comparison: parity validity, lower syndrome weight, a lower decoder score by
+its fixed margin, and larger mean posterior magnitude.  The decoder score
+combines pilot error, posterior tie error, normalized syndrome weight, and
+mean posterior magnitude.  The receiver stops after a valid candidate, a step
+that does not improve this comparison, or the iteration limit, and returns the
+best retained candidate.  This comparison is not a descent step for
+\eqref{eq:lite-band-cost}.  JUNA-Lite is therefore not the result of setting
+\(\mathbf C\) to zero in \eqref{eq:joint-objective}; it is a conditional
+combiner update that uses decoder posterior means as additional targets.
+
+The proposed comparison will follow as Section~VI.  It must hold the
+received signal, the decoder, and every setting outside these update rules
+fixed if the difference is to be attributed to the receiver update.
 
 \begin{thebibliography}{00}
 
