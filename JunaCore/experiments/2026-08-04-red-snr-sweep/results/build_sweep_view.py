@@ -53,6 +53,8 @@ def panels(rows):
         entry["geometry"] = {k: row[k] for k in (
             "nfft", "cp", "code_rate", "outer_spacing", "inner_spacing",
             "check_degree", "horizon")}
+        if "partial_fft_parts" in row:
+            entry["geometry"]["partial_fft_parts"] = row["partial_fft_parts"]
         entry["series"].setdefault(row["algorithm_id"], []).append((
             float(row["snr_db"]), float(row["ber"]), int(row["payload_bits"]),
             float(row["psr"])))
@@ -203,6 +205,8 @@ def render(rows, configuration_only=False):
         geometry = (f"N={g['nfft']} · CP={g['cp']} · rate={g['code_rate']} · "
                     f"pilots={g['outer_spacing']}/{g['inner_spacing']} · "
                     f"dc={g['check_degree']} · K={horizon}")
+        if "partial_fft_parts" in g:
+            geometry += f" · PFFT parts={g['partial_fft_parts']}"
         objective = key[2]
         aim = ("held at the printed configuration" if configuration_only else
                "held at the configuration with the lowest 20 dB BER"

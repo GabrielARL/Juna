@@ -37,21 +37,35 @@ const CHANNEL_IDS = (:red1, :red2, :red3, :red4)
 const LANES = (1, 2, 3)
 const CHANNEL_FILES = (red1="red_1.mat", red2="red_2.mat",
                        red3="red_3.mat", red4="red_4.mat")
-const SEARCH = "/home/gabiel/Documents/GitHub/Juna/JunaCore/experiments/2026-08-01-red-lite-search"
+const SEARCH = normpath(joinpath(
+    @__DIR__, "..", "2026-08-01-red-lite-search"))
 const NOISE_MAT = joinpath(SEARCH, "data", "red_noise.mat")
 const OBJECTIVE_LABEL = Ref("min-BER")
-const CZ_RESULTS = "/home/gabiel/Documents/GitHub/Juna-worktrees/profiled-cz-restore/JunaCore/experiments/2026-08-01-red-lite-search"
+const CZ_RESULTS = SEARCH
+
+const PARTIAL_FFT_PARTS = let
+    raw = get(ENV, "SWEEP_PARTIAL_FFT_PARTS", "4")
+    value = tryparse(Int, raw)
+    value === nothing && error("SWEEP_PARTIAL_FFT_PARTS must be an integer")
+    value > 0 || error("SWEEP_PARTIAL_FFT_PARTS must be positive")
+    value
+end
 
 const ALGORITHMS = (
-    (id=:ofdm_fec, name="OFDM + FEC", profile=:ofdm_fec),
-    (id=:pfft, name="Partial-FFT + FEC", profile=:pfft),
-    (id=:lite, name="JUNA-Lite", profile=:lite),
+    (id=:ofdm_fec, name="OFDM + FEC", profile=:ofdm_fec,
+     partial_fft_parts=PARTIAL_FFT_PARTS),
+    (id=:pfft, name="Partial-FFT + FEC", profile=:pfft,
+     partial_fft_parts=PARTIAL_FFT_PARTS),
+    (id=:lite, name="JUNA-Lite", profile=:lite,
+     partial_fft_parts=PARTIAL_FFT_PARTS),
     (id=:profiled_cz, name="JUNA (C,z) Joint gradient", profile=:profiled_cz,
-     cz_crc_gate=false, cz_gradient_only=true),
+     cz_crc_gate=false, cz_gradient_only=true,
+     partial_fft_parts=PARTIAL_FFT_PARTS),
     (id=:cwz_joint, name="Juna joint (C,W,z)", profile=:profiled_cz,
      cz_em_enabled=true, cz_independent_w=false, cz_bp_feedback=0.5,
      cz_vp_gradient=true, cz_conditioned_joint=true,
-     cz_crc_gate=false, cz_gradient_only=true),
+     cz_crc_gate=false, cz_gradient_only=true,
+     partial_fft_parts=PARTIAL_FFT_PARTS),
 )
 
 # SWEEP_ARMS=cwz_joint runs a subset, so one arm can be measured without
@@ -177,6 +191,8 @@ function _evaluate(capture, channel_id, lane, config, snr_db;
       nfft=config.nfft, cp=config.cp, code_rate=config.code_rate,
       outer_spacing=config.outer_spacing, inner_spacing=config.inner_spacing,
       check_degree=config.check_degree, horizon=config.horizon,
+      partial_fft_parts=Int(row.partial_fft_parts),
+      partial_fft_bands=Int(row.partial_fft_bands),
       payload_bits_per_frame=Int(row.payload_bits_per_frame),
       successful_frames=Int(row.successful_frames), psr=Float64(row.psr),
       payload_bits=Int(row.payload_bits), bit_errors=Int(row.bit_errors),
@@ -297,6 +313,8 @@ function run(channel::Symbol=:red1, lane::Integer=1,
                     accepted_update=row.accepted_update,
                     selection_reason=row.selection_reason,
                     selected_iteration=row.selected_iteration,
+                    partial_fft_parts=row.partial_fft_parts,
+                    partial_fft_bands=row.partial_fft_bands,
                     lite_syndrome=row.lite_syndrome,
                     gradient_syndrome=row.gradient_syndrome,
                     lite_score=row.lite_score,
