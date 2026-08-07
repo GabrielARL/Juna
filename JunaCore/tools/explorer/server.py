@@ -1504,8 +1504,9 @@ def _sweep_parameter_row(available, experiment_id, single_url,
                          initial_path=""):
     """One dropdown per sweep parameter, above the experiment dropdown.
 
-    Each dropdown lists only the values that exist among the experiments
-    compatible with the other selections. Choosing a channel/hydrophone shows
+    Each dropdown lists every value that exists across the sweep
+    experiments; values incompatible with the other selections stay visible
+    but disabled, so an existing configuration is never hidden. Choosing a channel/hydrophone shows
     that BER-SNR panel from every compatible fixed-geometry experiment.
     Experiments whose names carry no parameters stay reachable through the
     experiment dropdown but do not enter the comparison grid.
@@ -1633,12 +1634,17 @@ window.addEventListener("DOMContentLoaded", function () {
     fields.forEach(function (field) {
       var name = field.name;
       var values = [];
-      matching(name).forEach(function (entry) {
+      experiments.forEach(function (entry) {
         if (values.indexOf(entry.parameters[name]) < 0)
           values.push(entry.parameters[name]);
       });
       if (chosen[name] && values.indexOf(chosen[name]) < 0)
         values.push(chosen[name]);
+      var compatible = [];
+      matching(name).forEach(function (entry) {
+        if (compatible.indexOf(entry.parameters[name]) < 0)
+          compatible.push(entry.parameters[name]);
+      });
       values.sort(function (a, b) {
         var x = parseFloat(a), y = parseFloat(b);
         if (isNaN(x) || isNaN(y)) return a < b ? -1 : 1;
@@ -1655,6 +1661,10 @@ window.addEventListener("DOMContentLoaded", function () {
         var option = document.createElement("option");
         option.value = value;
         option.textContent = value;
+        if (compatible.indexOf(value) < 0 && value !== chosen[name]) {
+          option.disabled = true;
+          option.textContent = value + " (no match with other selections)";
+        }
         if (value === chosen[name]) option.selected = true;
         select.appendChild(option);
       });
