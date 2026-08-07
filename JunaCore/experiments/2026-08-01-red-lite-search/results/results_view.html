@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Red configuration search</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif; }
+  button, select { font: inherit; }
+  .viz-root {
+    color-scheme: light;
+    --surface-1: #fcfcfb; --surface-2: #f3f2ef; --surface-3: #e9e8e3;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #73716d;
+    --grid: #dcdad4; --ring: #fcfcfb; --focus: #805500;
+    --recv-ofdm-fec: #226fca; --recv-lite: #d95b28; --recv-pfft: #65645f;
+    min-height: 100vh; background: var(--surface-1); color: var(--text-primary);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1: #191918; --surface-2: #242422; --surface-3: #30302d;
+      --text-primary: #fff; --text-secondary: #c6c5bc; --text-muted: #aaa99f;
+      --grid: #41413d; --ring: #191918; --focus: #ffd166;
+      --recv-ofdm-fec: #4b97ec; --recv-lite: #ef7542; --recv-pfft: #b3b2aa;
+    }
+  }
+  a { color: inherit; }
+  button, select {
+    color: var(--text-primary); background: var(--surface-1);
+    border: 1px solid var(--grid); border-radius: 6px; padding: 6px 9px;
+  }
+  button { cursor: pointer; }
+  button:hover, select:hover { border-color: var(--text-muted); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  .provenance {
+    padding: 9px clamp(16px, 4vw, 48px); background: var(--surface-2);
+    border-bottom: 1px solid var(--grid); color: var(--text-secondary);
+    font-size: 12.5px;
+  }
+  .provenance strong { color: var(--text-primary); }
+  .provenance code { color: var(--text-primary); }
+  .top { max-width: 96rem; margin: 0 auto; padding: 20px clamp(16px, 4vw, 48px) 0; }
+  h1 { font-size: 21px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 0 0 8px; }
+  h3 { font-size: 14px; margin: 18px 0 5px; }
+  .sub { color: var(--text-secondary); margin: 0; max-width: 84ch; }
+
+  .results-nav {
+    position: sticky; top: 0; z-index: 10; display: flex; gap: 5px;
+    overflow-x: auto; margin: 18px calc(-1 * clamp(16px, 4vw, 48px)) 0;
+    padding: 8px clamp(16px, 4vw, 48px); background: var(--surface-1);
+    border-top: 1px solid var(--grid); border-bottom: 1px solid var(--grid);
+  }
+  .results-nav a {
+    flex: 0 0 auto; padding: 7px 11px; border-radius: 7px;
+    color: var(--text-secondary); text-decoration: none;
+  }
+  .results-nav a:hover { background: var(--surface-2); color: var(--text-primary); }
+  .results-nav a[aria-current="page"] {
+    color: var(--text-primary); background: var(--surface-3); font-weight: 650;
+  }
+  .scope { min-height: 24px; padding: 6px 0 0; color: var(--text-muted); font-size: 12.5px; }
+
+  .filters {
+    display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: end;
+    max-width: 96rem; margin: 12px auto 0; padding: 12px 16px;
+    background: var(--surface-2); border-radius: 8px;
+  }
+  .filters label { display: grid; gap: 3px; color: var(--text-secondary); font-size: 12px; }
+  .filters select { min-width: 145px; }
+  .filters .count { margin-left: auto; align-self: center; color: var(--text-secondary); }
+
+  main { max-width: 96rem; margin: 0 auto; padding: 24px clamp(16px, 4vw, 48px) 52px; }
+  .page > .lead { color: var(--text-secondary); margin: 0 0 18px; max-width: 84ch; }
+  .tiles { display: grid; grid-template-columns: repeat(4, minmax(145px, 1fr)); gap: 10px; margin: 16px 0 24px; }
+  .tile { background: var(--surface-2); border-radius: 8px; padding: 12px 15px; }
+  .tile .v { font-size: 25px; font-weight: 680; letter-spacing: -.02em; }
+  .tile .l { color: var(--text-secondary); font-size: 12px; }
+  .card { background: var(--surface-2); border: 1px solid var(--grid); border-radius: 9px; padding: 14px 16px; }
+  .summary-layout { display: grid; grid-template-columns: minmax(0, 2.25fr) minmax(290px, .9fr); gap: 18px; align-items: start; }
+  .legend { display: flex; gap: 14px; align-items: center; margin: 0 0 10px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 12.5px; }
+  .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .diasw { width: 9px; height: 9px; border: 2px solid var(--text-secondary); transform: rotate(45deg); display: inline-block; margin: 0 3px; }
+  .dotsw { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--text-muted); display: inline-block; }
+  .note { color: var(--text-muted); font-size: 12.5px; max-width: 88ch; margin: 8px 0 20px; }
+  .chartwrap { overflow-x: auto; border-radius: 7px; }
+  svg { display: block; }
+  .axis text { fill: var(--text-muted); font-size: 11px; }
+  .axis line { stroke: var(--grid); stroke-width: 1; }
+  .row-label { fill: var(--text-primary); font-size: 13px; }
+  .chan-label { fill: var(--text-secondary); font-size: 12px; font-weight: 680; letter-spacing: .04em; }
+  .val-label { fill: var(--text-secondary); font-size: 12px; }
+  .winner-row { cursor: pointer; }
+  .winner-row .selection { fill: transparent; stroke: transparent; }
+  .winner-row.selected .selection { fill: var(--surface-2); stroke: var(--grid); }
+
+  #path-dossier { position: sticky; top: 62px; }
+  #path-dossier label { display: grid; gap: 4px; color: var(--text-secondary); font-size: 12px; }
+  #path-dossier select { width: 100%; }
+  .dossier-grid { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 12px 0; }
+  .dossier-grid dt { color: var(--text-secondary); }
+  .dossier-grid dd { margin: 0; }
+  .compact-list { margin: 8px 0 14px; padding-left: 18px; }
+
+  .section-stack { display: grid; gap: 26px; }
+  .detail-card { margin-top: 12px; min-height: 68px; }
+  .detail-card dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 14px; }
+  .detail-card dt { color: var(--text-muted); font-size: 11px; }
+  .detail-card dd { margin: 1px 0 0; }
+
+  .holds { display: flex; flex-wrap: wrap; gap: 9px 12px; align-items: end; padding: 12px 14px; background: var(--surface-2); border-radius: 8px; margin: 12px 0; }
+  .holds label { display: grid; gap: 3px; color: var(--text-secondary); font-size: 11.5px; }
+  .holds select { min-width: 82px; padding: 4px 6px; }
+  .factors { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(335px, 1fr)); }
+  .factor { background: var(--surface-2); border: 1px solid var(--grid); border-radius: 8px; padding: 11px 12px; scroll-margin-top: 66px; }
+  .factor h3 { margin: 0 0 2px; }
+  .factor .n { color: var(--text-muted); font-size: 11px; margin: 0 0 6px; }
+  .rank-row { display: grid; grid-template-columns: 106px minmax(90px, 1fr) 52px; gap: 8px; align-items: center; width: 100%; border: 0; padding: 4px; background: transparent; text-align: left; }
+  .rank-track { height: 12px; background: var(--surface-1); border-radius: 99px; overflow: hidden; }
+  .rank-bar { display: block; height: 100%; min-width: 2px; border-radius: 99px; }
+
+  .table-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+  .table-actions .count { color: var(--text-secondary); margin-left: auto; }
+  .tablewrap { overflow: auto; border: 1px solid var(--grid); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  caption { text-align: left; font-weight: 650; padding: 11px 10px 7px; }
+  th, td { padding: 6px 9px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th { color: var(--text-secondary); font-weight: 600; background: var(--surface-1); position: sticky; top: 0; z-index: 1; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th button { border: 0; background: transparent; padding: 2px; color: inherit; font-weight: inherit; }
+  tbody tr:hover, tbody tr:focus-within { background: var(--surface-2); }
+  .rmark { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
+  .zero { color: var(--text-muted); }
+  .pagination { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 10px; }
+  .pagination span { color: var(--text-secondary); }
+
+  .guide-grid { display: grid; grid-template-columns: minmax(155px, max-content) minmax(0, 1fr); gap: 5px 18px; }
+  .guide-grid dt { font-weight: 650; }
+  .guide-grid dd { margin: 0 0 7px; color: var(--text-secondary); }
+  .guide-grid code { color: var(--text-primary); }
+  details.guide { border-top: 1px solid var(--grid); padding: 11px 0; max-width: 90ch; }
+  details.guide summary { cursor: pointer; font-weight: 650; }
+  details.guide p { color: var(--text-secondary); }
+
+  #tip { position: fixed; pointer-events: none; background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--grid); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; box-shadow: 0 4px 14px rgb(0 0 0 / .18); opacity: 0; max-width: 340px; z-index: 20; }
+  #tip .t { font-weight: 650; }
+  #tip .s { color: var(--text-secondary); }
+  dialog { color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--grid); border-radius: 10px; width: min(760px, calc(100vw - 30px)); max-height: 80vh; }
+  dialog::backdrop { background: rgb(0 0 0 / .45); }
+  dialog .dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  dialog .dialog-head h2 { margin: 0; }
+  dialog dl { display: grid; grid-template-columns: minmax(150px, max-content) 1fr; gap: 4px 14px; }
+  dialog dt { color: var(--text-secondary); }
+  dialog dd { margin: 0; overflow-wrap: anywhere; }
+
+  @media (max-width: 860px) {
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .summary-layout { grid-template-columns: 1fr; }
+    #path-dossier { position: static; }
+    .filters .count { flex-basis: 100%; margin-left: 0; }
+  }
+  @media (max-width: 520px) {
+    .top { padding-top: 14px; }
+    .results-nav { margin-top: 13px; flex-wrap: wrap; overflow-x: visible; justify-content: center; }
+    .results-nav a { padding: 6px 8px; font-size: 12.5px; }
+    .filters { margin: 10px 12px 0; display: grid; grid-template-columns: 1fr 1fr; }
+    .filters label, .filters select { min-width: 0; width: 100%; }
+    .filters .count { grid-column: 1 / -1; }
+    main { padding-top: 18px; }
+    .tile { padding: 10px; }
+    .tile .v { font-size: 21px; }
+    .factors { grid-template-columns: 1fr; }
+    .guide-grid, dialog dl { grid-template-columns: 1fr; gap: 2px; }
+  }
+</style>
+</head>
+<body>
+<div class="viz-root" data-results-view="red-configuration-search">
+  <header class="top">
+    <h1>Red configuration search</h1>
+    <p class="sub">Four measured red channels &times; three hydrophones at 20&nbsp;dB.
+      Confirmation only: every retained configuration ran 60 frames on seeds 6 and 7.
+      LFM-sync harness &mdash; rates are not comparable with the earlier sonique table.</p>
+    <nav class="results-nav" aria-label="Results views">
+      <a href="?page=summary" data-page-link="summary">Summary</a>
+      <a href="?page=landscape" data-page-link="landscape">Search landscape</a>
+      <a href="?page=factors" data-page-link="factors">Factor analysis</a>
+      <a href="?page=configurations" data-page-link="configurations">Configurations</a>
+      <a href="?page=guide" data-page-link="guide">Reading guide</a>
+    </nav>
+    <div class="scope" id="scope-status" aria-live="polite"></div>
+  </header>
+
+  <div class="filters" id="filters" aria-label="Result filters">
+    <label>Channel
+      <select id="f-channel"><option value="">All four</option></select>
+    </label>
+    <label>Hydrophone
+      <select id="f-lane"><option value="">All three</option></select>
+    </label>
+    <label id="f-recv-wrap">Receiver
+      <select id="f-recv">
+        <option value="">All receivers</option>
+        <option value="ofdm_fec">OFDM+FEC</option>
+        <option value="lite">JUNA-Lite</option>
+        <option value="pfft">Partial FFT+FEC</option>
+      </select>
+    </label>
+    <button id="f-reset" type="button">Reset</button>
+    <span class="count" id="f-count" aria-live="polite"></span>
+  </div>
+
+  <main>
+    <section class="page" data-page="summary" aria-labelledby="summary-title">
+      <h2 id="summary-title" tabindex="-1">Confirmed results</h2>
+      <p class="lead">The chart and table show the confirmed winner for every selected
+        channel and hydrophone. Receiver does not filter this view.</p>
+      <div class="tiles">
+        <div class="tile"><div class="v">12 / 12</div><div class="l">channel–hydrophone results confirmed, zero decode failures</div></div>
+        <div class="tile"><div class="v">10 · 2 · 0</div><div class="l">OFDM+FEC · JUNA-Lite · Partial FFT+FEC wins</div></div>
+        <div class="tile"><div class="v">3,625</div><div class="l">best rate, bit/s</div></div>
+        <div class="tile"><div class="v" id="tile-configs">—</div><div class="l">confirmed configurations, 60 frames each</div></div>
+      </div>
+      <div class="summary-layout">
+        <div>
+          <div class="legend">
+            <span><i class="sw" style="background:var(--recv-ofdm-fec)"></i>OFDM+FEC</span>
+            <span><i class="sw" style="background:var(--recv-lite)"></i>JUNA-Lite</span>
+            <span><i class="dotsw"></i>best finalist of another receiver</span>
+            <span><i class="diasw"></i>Partial FFT+FEC best, own search</span>
+          </div>
+          <div class="chartwrap"><svg id="chart" role="img"
+            aria-label="Confirmed winner effective rate for each channel and hydrophone"></svg></div>
+          <p class="note">A ring near a bar end means another receiver was close. A missing
+            ring means none of that receiver's finalists completed confirmation on both seeds.
+            Partial FFT+FEC used its own search, so its diamond is a separate comparison.</p>
+        </div>
+        <aside class="card" id="path-dossier" aria-labelledby="dossier-title">
+          <h2 id="dossier-title">Selected channel and hydrophone</h2>
+          <label>Channel and hydrophone <select id="dossier-path"></select></label>
+          <div id="dossier-body"></div>
+        </aside>
+      </div>
+      <div class="tablewrap">
+        <table id="winner-table">
+          <caption>Winner geometry by channel and hydrophone</caption>
+          <thead><tr>
+            <th>Channel and hydrophone</th><th>Receiver</th><th>N</th><th>CP</th><th>Rate</th>
+            <th>Pilots</th><th>dc</th><th>K</th><th>bit/s</th><th>min bit/s</th>
+            <th>PSR</th><th>BER</th><th>Partial FFT+FEC bit/s</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="page" data-page="landscape" aria-labelledby="landscape-title" hidden>
+      <h2 id="landscape-title" tabindex="-1">Search landscape</h2>
+      <p class="lead">Each point is one confirmed configuration. Select or focus a point
+        to keep its exact values below the charts.</p>
+      <div class="section-stack">
+        <div>
+          <h3>Effective rate</h3>
+          <p class="note">Points at zero delivered no frame. Effective rate includes time
+            spent on failed frames.</p>
+          <div class="chartwrap"><svg id="strip" role="img"
+            aria-label="Effective rate of every selected configuration by receiver"></svg></div>
+        </div>
+        <div>
+          <h3>Bit error rate</h3>
+          <p class="note">The same configurations appear on a logarithmic axis. Error-free
+            configurations sit in the separate zero column. Low BER does not imply nonzero
+            effective rate.</p>
+          <div class="chartwrap"><svg id="stripber" role="img"
+            aria-label="Bit error rate of every selected configuration by receiver"></svg></div>
+        </div>
+      </div>
+      <aside class="card detail-card" id="point-detail" tabindex="-1" aria-live="polite">
+        Select or focus a point to inspect its values.
+      </aside>
+    </section>
+
+    <section class="page" data-page="factors" aria-labelledby="factors-title" hidden>
+      <h2 id="factors-title" tabindex="-1">Factor analysis</h2>
+      <p class="lead">The ranking shows where median BER changes most. It does not establish
+        cause because the retained finalists are not a balanced sweep.</p>
+      <h3>Factors ranked by median BER span</h3>
+      <div class="factors" id="ranks"></div>
+      <h3>Bit error rate by factor</h3>
+      <p class="note">Hold other factors fixed, then read the panel that remains varied.
+        Counts under each level show when too few configurations remain.</p>
+      <div class="holds" id="holds" aria-label="Factor holds"></div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--recv-ofdm-fec)"></i>OFDM+FEC</span>
+        <span><i class="sw" style="background:var(--recv-lite)"></i>JUNA-Lite</span>
+        <span><i class="sw" style="background:var(--recv-pfft)"></i>Partial FFT+FEC</span>
+      </div>
+      <div class="factors" id="factor-panels"></div>
+    </section>
+
+    <section class="page" data-page="configurations" aria-labelledby="configurations-title" hidden>
+      <h2 id="configurations-title" tabindex="-1">Configurations</h2>
+      <p class="lead">Every retained source row is available here. Open Details or download
+        the shown rows for every source column. Sorting uses unrounded numeric values;
+        download preserves the source cell text.</p>
+      <div class="table-actions">
+        <button id="download-configurations" type="button">Download shown rows</button>
+        <span class="count" id="configuration-count" aria-live="polite"></span>
+      </div>
+      <div class="tablewrap">
+        <table id="configuration-table">
+          <caption>Confirmed configuration rows</caption>
+          <thead><tr id="configuration-head"></tr></thead>
+          <tbody id="configuration-body"></tbody>
+        </table>
+      </div>
+      <div class="pagination" aria-label="Configuration pages">
+        <button id="page-prev" type="button">Previous</button>
+        <span id="page-label" aria-live="polite"></span>
+        <button id="page-next" type="button">Next</button>
+      </div>
+      <p class="note" id="coverage-note"></p>
+    </section>
+
+    <section class="page" data-page="guide" aria-labelledby="guide-title" hidden>
+      <h2 id="guide-title" tabindex="-1">Reading guide</h2>
+      <p class="lead">Definitions, limits, and source coverage for every view.</p>
+
+      <details class="guide" open><summary>What does BER count?</summary>
+        <p><code>ber = bit_errors / attempted_bits</code> over all frames, including failed
+          frames. All 69 rows with a packet success ratio of zero still report BER between
+          0.12 and 0.31. Neither measure implies the other.</p></details>
+      <details class="guide"><summary>What is effective rate divided by?</summary>
+        <p><code>effective_rate_bps = successful_frames × payload_bits_per_frame /
+          (frames × frame_duration)</code>. Failed-frame time remains in the denominator.
+          It is delivered throughput, not link rate, and it is what the search maximised.</p></details>
+      <details class="guide"><summary>Which configurations are retained?</summary>
+        <p>Only finalists rerun over 60 frames on seeds 6 and 7: four configurations per
+          receiver for each channel and hydrophone, twice, giving 288 rows. The 20-frame screening CSVs remain in
+          the results directory as the search record but are not loaded into this page.</p></details>
+      <details class="guide"><summary>Was every combination tried?</summary>
+        <p>No. The driver descends one dimension at a time and only finalists reached
+          confirmation. Factor levels are therefore unbalanced, and some levels contain
+          only one configuration.</p></details>
+      <details class="guide"><summary>How should the factor ranking be read?</summary>
+        <p>Bar length is the number of decades between the highest and lowest positive
+          median BER for that receiver. An open marker means at least one level reached a
+          median of zero; zero is reported but excluded from the logarithmic span. A long
+          bar identifies a place to inspect, not a cause.</p></details>
+      <details class="guide"><summary>How should the factor panels be read?</summary>
+        <p>Each point is a median BER at one factor level. A hollow point on the floor is
+          an exact zero. A factor's own hold is ignored in its panel so that factor can
+          still vary. Medians are used because BER spans several decades and is skewed.</p></details>
+
+      <h3>Source columns</h3>
+      <dl class="guide-grid">
+        <dt><code>channel</code></dt><dd>Measured red channel.</dd>
+        <dt><code>lane</code></dt><dd>Hydrophone number, 1 to 3.</dd>
+        <dt><code>phase</code></dt><dd>Recorded search phase; every retained row is confirmation.</dd>
+        <dt><code>start_index</code></dt><dd>Recorded starting sample index.</dd>
+        <dt><code>algorithm_id</code></dt><dd><code>standard</code>, displayed as OFDM+FEC;
+          <code>lite</code>, displayed as JUNA-Lite; or <code>pfft</code>, displayed as Partial FFT+FEC.</dd>
+        <dt><code>nfft</code></dt><dd>FFT size N.</dd>
+        <dt><code>cp</code></dt><dd>Cyclic prefix length in samples.</dd>
+        <dt><code>code_rate</code></dt><dd>LDPC code rate.</dd>
+        <dt><code>outer_spacing</code></dt><dd>Outer pilot ratio.</dd>
+        <dt><code>inner_spacing</code></dt><dd>Inner pilot ratio.</dd>
+        <dt><code>check_degree</code></dt><dd>LDPC check node degree.</dd>
+        <dt><code>horizon</code></dt><dd>K. Zero means fill with the largest whole-symbol block count that fits.</dd>
+        <dt><code>seed</code></dt><dd>Confirmation seed, 6 or 7.</dd>
+        <dt><code>frames</code></dt><dd>Attempted frames; every retained row has 60.</dd>
+        <dt><code>frame_blocks</code></dt><dd>Blocks in each frame.</dd>
+        <dt><code>payload_bits_per_frame</code></dt><dd>Payload bits carried by one frame.</dd>
+        <dt><code>successful_frames</code></dt><dd>Frames that delivered their payload.</dd>
+        <dt><code>psr</code></dt><dd>Packet success ratio: successful frames divided by attempted frames.</dd>
+        <dt><code>payload_bits</code></dt><dd>Total attempted payload bits.</dd>
+        <dt><code>bit_errors</code></dt><dd>Bit errors over attempted payload bits.</dd>
+        <dt><code>ber</code></dt><dd>Bit error rate over attempted payload bits.</dd>
+        <dt><code>decode_failures</code></dt><dd>Recorded decoder failures; zero in every retained row.</dd>
+        <dt><code>decode_seconds</code></dt><dd>Recorded decoding time in seconds.</dd>
+        <dt><code>effective_rate_bps</code></dt><dd>Delivered payload bits per whole elapsed second.</dd>
+        <dt><code>run</code></dt><dd>Source search: <code>3arm</code> or <code>pfft</code>.</dd>
+      </dl>
+      <h3>Completeness</h3>
+      <p class="lead" id="manifest-summary"></p>
+      <p><a id="manifest-link" href="#">Completeness manifest</a></p>
+    </section>
+  </main>
+
+  <div id="tip" role="status" aria-live="polite"></div>
+  <dialog id="configuration-dialog" aria-labelledby="dialog-title">
+    <div class="dialog-head"><h2 id="dialog-title">Configuration details</h2>
+      <button id="dialog-close" type="button">Close</button></div>
+    <dl id="dialog-body"></dl>
+  </dialog>
+</div>
+
+<script>
+window.addEventListener('error', function (event) {
+  document.documentElement.setAttribute('data-results-error',
+    event.message + ' at line ' + event.lineno);
+});
+</script>
+<script>
+const DATA = {"paths":[{"label":"red1 lane 1","channel":"red1","winner":{"algorithm_id":"ofdm_fec","nfft":512,"cp":16,"code_rate":0.5,"outer_spacing":3,"inner_spacing":4,"check_degree":10,"horizon":0,"mean_effective_rate_bps":1922.8668941979522,"min_effective_rate_bps":1880.136518771331,"mean_psr":0.75,"ber":0.004452875399361023},"others":[{"algorithm_id":"lite","mean_effective_rate_bps":1833.203125,"mean_psr":0.6499999999999999,"ber":0.001793628808864266}],"pfft":{"algorithm_id":"pfft","nfft":2048,"cp":32,"code_rate":0.25,"outer_spacing":3,"inner_spacing":10,"check_degree":10,"horizon":4,"mean_effective_rate_bps":1143.9175257731958,"min_effective_rate_bps":1096.9072164948454,"mean_psr":0.6083333333333334,"ber":0.0003769188596491228}},{"label":"red1 lane 2","channel":"red1","winner":{"algorithm_id":"lite","nfft":2048,"cp":64,"code_rate":0.5,"outer_spacing":3,"inner_spacing":4,"check_degree":8,"horizon":4,"mean_effective_rate_bps":1995.7142857142853,"min_effective_rate_bps":1917.9591836734692,"mean_psr":0.6416666666666666,"ber":0.006477608267716536},"others":[{"algorithm_id":"ofdm_fec","mean_effective_rate_bps":188.77796901893288,"mean_psr":0.05,"ber":0.15938183807439826}],"pfft":{"algorithm_id":"pfft","nfft":2048,"cp":32,"code_rate":0.25,"outer_spacing":3,"inner_spacing":8,"check_degree":10,"horizon":4,"mean_effective_rate_bps":1081.4690721649486,"min_effective_rate_bps":1005.3092783505156,"mean_psr":0.5916666666666667,"ber":0.0002820078962210942}},{"label":"red1 lane 3","channel":"red1","winner":{"algorithm_id":"lite","nfft":2048,"cp":128,"code_rate":0.5,"outer_spacing":5,"inner_spacing":10,"check_degree":8,"horizon":4,"mean_effective_rate_bps":3625.25625,"min_effective_rate_bps":3588.6375,"mean_psr":0.825,"ber":0.0037677077999658643},"others":[{"algorithm_id":"ofdm_fec","mean_effective_rate_bps":3465.838926174497,"mean_psr":0.9416666666666667,"ber":1.823486506199854e-05}],"pfft":{"algorithm_id":"pfft","nfft":2048,"cp":128,"code_rate":0.5,"outer_spacing":5,"inner_spacing":5,"check_degree":10,"horizon":4,"mean_effective_rate_bps":2472.8500000000004,"min_effective_rate_bps":2407.775,"mean_psr":0.6333333333333333,"ber":0.028143808426174928}},{"label":"red2 lane 1","channel":"red2","winner":{"algorithm_id":"ofdm_fec","nfft":512,"cp":32,"code_rate":0.25,"outer_spacing":3,"inner_spacing":10,"check_degree":10,"horizon":0,"mean_effective_rate_bps":1280.1342281879195,"min_effective_rate_bps":1204.8322147651006,"mean_psr":0.8500000000000001,"ber":0.00015597147950089128},"others":[{"algorithm_id":"lite","mean_effective_rate_bps":1240.816326530612,"mean_psr":0.6666666666666667,"ber":0.0008257949561403508}],"pfft":{"algorithm_id":"pfft","nfft":2048,"cp":0,"code_rate":0.25,"outer_spacing":3,"inner_spacing":5,"check_degree":10,"horizon":2,"mean_effective_rate_bps":282.65625,"min_effective_rate_bps":272.1875,"mean_psr":0.225,"ber":0.020949937810945275}},{"label":"red2 lane 2","channel":"red2","winner":{"algorithm_id":"ofdm_fec","nfft":512,"cp":32,"code_rate":0.5,"outer_spacing":3,"inner_spacing":5,"check_degree":10,"horizon":0,"mean_effective_rate_bps":2062.281879194631,"min_effective_rate_bps":2017.4496644295302,"mean_psr":0.7666666666666666,"ber":0.01967003493013972},"others":[{"algorithm_id":"lite","mean_effective_rate_bps":67.24832214765101,"mean_psr":0.025,"ber":0.19624189121756486}],"pfft":{"algorithm_id":"pfft","nfft":1024,"cp":32,"code_rate":0.25,"outer_spacing":3,"inner_spacing":10,"check_degree":10,"horizon":2,"mean_effective_rate_bps":468.5051546391753,"min_effective_rate_bps":430.1030927835052,"mean_psr":0.5083333333333333,"ber":0.006026286353467561}},{"label":"red2 lane 3","channel":"red2","winner":{"algorithm_id":"ofdm_fec","nfft":512,"cp":32,"code_rate":0.5,"outer_spacing":3,"inner_spacing":10,"check_degree":10,"horizon":0,"mean_effective_rate_bps":2422.5503355704695,"min_effective_rate_bps":2321.6107382550335,"mean_psr":0.8,"ber":0.014924091312056737},"others":[{"algorithm_id":"lite","mean_effective_rate_bps":75.70469798657719,"mean_psr":0.025,"ber":0.17791722074468086}],"pfft":{"algorithm_id":"pfft","nfft":2048,"cp":0,"code_rate":0.25,"outer_spacing":5,"inner_spacing":5,"check_degree":10,"horizon":4,"mean_effective_rate_bps":658.88671875,"min_effective_rate_bps":540.625,"mean_psr":0.325,"ber":0.0010468850353243418}},{"label":"red3 lane 1","channel":"red3","winner":{"algorithm_id":"ofdm_fec","nfft":512,"cp":32,"code_rate":0.5,"outer_spacing":3,"inner_spacing":10,"check_degree":10,"horizon":0,"mean_effective_rate_bps":2498.2550335570468,"min_effective_rate_bps":2473.020134228188,"mean_psr":0.825,"ber":0.010123005319148936},"others":[{"algorithm_id":"lite","mean_effective_rate_bps":0.0,"mean_psr":0.0,"ber":0.20271471553610504}],"pfft":{"algorithm_id":"pfft","nfft":2048,"cp":32,"code_rate":0.125,"outer_spacing":5,"inner_spacing":8,"check_degree":10,"horizon":0,"mean_effective_rate_bps":297.5968992248062,"min_effective_rate_bps":270.5426356589147,"mean_psr":0.3666666666666667,"ber":0.0025549188156638015}},{"label":"red3 lane 2","channel":"red3","winner":{"algorithm_id":"ofdm_fec","nfft":512,"cp":16,"code_rate":0.5,"outer_spacing":5,"inner_spacing":10,"check_degree":10,"horizon":0,"mean_effective_rate_bps":2994.6757679180887,"min_effective_rate_bps":2994.6757679180887,"mean_psr":0.8,"ber":0.013145058351568198},"others":[{"algorithm_id":"lite","mean_effective_rate_bps":61.34228187919463,"mean_psr":0.016666666666666666,"ber":0.1605055616338439}],"pfft":{"algorithm_id":"pfft","nfft":2048,"cp":128,"code_rate":0.25,"outer_spacing":5,"inner_spacing":10,"check_degree":10,"horizon":0,"mean_effective_rate_bps":935.0,"min_effective_rate_bps":907.5,"mean_psr":0.5666666666666667,"ber":0.0009240128558310376}},{"label":"red3 lane 3","channel":"red3","winner":{"algorithm_id":"ofdm_fec","nfft":512,"cp":16,"code_rate":0.5,"outer_spacing":5,"inner_spacing":10,"check_degree":8,"horizon":0,"mean_effective_rate_bps":3119.4539249146756,"min_effective_rate_bps":2994.6757679180887,"mean_psr":0.8333333333333334,"ber":0.0053359773887673234},"others":[{"algorithm_id":"lite","mean_effective_rate_bps":61.34228187919463,"mean_psr":0.016666666666666666,"ber":0.17424325309992705}],"pfft":{"algorithm_id":"pfft","nfft":2048,"cp":16,"code_rate":0.25,"outer_spacing":5,"inner_spacing":8,"check_degree":10,"horizon":0,"mean_effective_rate_bps":796.6536964980545,"min_effective_rate_bps":714.2412451361868,"mean_psr":0.48333333333333334,"ber":0.0011744570349386213}},{"label":"red4 lane 1","channel":"red4","winner":{"algorithm_id":"ofdm_fec","nfft":512,"cp":16,"code_rate":0.5,"outer_spacing":5,"inner_spacing":10,"check_degree":10,"horizon":0,"mean_effective_rate_bps":3618.566552901024,"min_effective_rate_bps":3556.1774744027302,"mean_psr":0.9666666666666666,"ber":0.0013584974471188914},"others":[{"algorithm_id":"lite","mean_effective_rate_bps":566.3339070567986,"mean_psr":0.15,"ber":0.12168809263311452}],"pfft":{"algorithm_id":"pfft","nfft":2048,"cp":32,"code_rate":0.25,"outer_spacing":5,"inner_spacing":10,"check_degree":10,"horizon":4,"mean_effective_rate_bps":1637.416237113402,"min_effective_rate_bps":1505.6701030927836,"mean_psr":0.725,"ber":0.00015120392559625698}},{"label":"red4 lane 2","channel":"red4","winner":{"algorithm_id":"ofdm_fec","nfft":512,"cp":0,"code_rate":0.5,"outer_spacing":5,"inner_spacing":10,"check_degree":10,"horizon":0,"mean_effective_rate_bps":3173.6111111111113,"min_effective_rate_bps":3046.6666666666665,"mean_psr":0.8333333333333334,"ber":0.00837208242159008},"others":[{"algorithm_id":"lite","mean_effective_rate_bps":629.2598967297763,"mean_psr":0.16666666666666669,"ber":0.11894602479941649}],"pfft":{"algorithm_id":"pfft","nfft":2048,"cp":16,"code_rate":0.25,"outer_spacing":5,"inner_spacing":5,"check_degree":10,"horizon":4,"mean_effective_rate_bps":1378.1735751295337,"min_effective_rate_bps":1344.5595854922278,"mean_psr":0.6833333333333333,"ber":0.0001798330122029544}},{"label":"red4 lane 3","channel":"red4","winner":{"algorithm_id":"ofdm_fec","nfft":512,"cp":16,"code_rate":0.5,"outer_spacing":5,"inner_spacing":10,"check_degree":10,"horizon":0,"mean_effective_rate_bps":3587.372013651877,"min_effective_rate_bps":3493.7883959044366,"mean_psr":0.9583333333333333,"ber":0.0017824580598103574},"others":[{"algorithm_id":"lite","mean_effective_rate_bps":1038.2788296041308,"mean_psr":0.275,"ber":0.1068494711889132}],"pfft":{"algorithm_id":"pfft","nfft":2048,"cp":128,"code_rate":0.5,"outer_spacing":5,"inner_spacing":10,"check_degree":10,"horizon":2,"mean_effective_rate_bps":1106.439393939394,"min_effective_rate_bps":1051.1174242424242,"mean_psr":0.3333333333333333,"ber":0.10048499372361064}}]};
+const CFG = {"cols":["channel","lane","phase","start_index","algorithm_id","nfft","cp","code_rate","outer_spacing","inner_spacing","check_degree","horizon","seed","frames","frame_blocks","payload_bits_per_frame","successful_frames","psr","payload_bits","bit_errors","ber","decode_failures","decode_seconds","effective_rate_bps","run"],"display_cols":["psr","ber","channel","lane","algorithm_id","nfft","cp","code_rate","outer_spacing","inner_spacing","check_degree","payload_bits_per_frame","successful_frames","decode_failures","decode_seconds","effective_rate_bps","run"],"rows":[["red1",1,"confirm",0,"ofdm_fec",2048,0,0.5,3,3,8,4,6,60,4,3610,0,0.0,216600,64214,0.2964635272391505,0,0.11875945404999998,0.0,"3arm"],["red1",1,"confirm",0,"lite",2048,0,0.5,3,3,8,4,6,60,4,3610,38,0.6333333333333333,216600,743,0.003430286241920591,0,0.19480142836666664,1786.1979166666667,"3arm"],["red1",1,"confirm",0,"ofdm_fec",2048,0,0.5,3,3,8,4,7,60,4,3610,0,0.0,216600,64361,0.2971421975992613,0,0.14188796043333332,0.0,"3arm"],["red1",1,"confirm",0,"lite",2048,0,0.5,3,3,8,4,7,60,4,3610,40,0.6666666666666666,216600,34,0.00015697137580794092,0,0.19425033291666663,1880.2083333333335,"3arm"],["red1",1,"confirm",0,"ofdm_fec",2048,0,0.5,3,4,8,4,6,60,4,4064,1,0.016666666666666666,243840,69089,0.2833374343832021,0,0.13563385774999998,52.91666666666667,"3arm"],["red1",1,"confirm",0,"lite",2048,0,0.5,3,4,8,4,6,60,4,4064,36,0.6,243840,2284,0.009366797900262467,0,0.20409273813333337,1905.0,"3arm"],["red1",1,"confirm",0,"ofdm_fec",2048,0,0.5,3,4,8,4,7,60,4,4064,1,0.016666666666666666,243840,69431,0.2847399934383202,0,0.12955162011666665,52.91666666666667,"3arm"],["red1",1,"confirm",0,"lite",2048,0,0.5,3,4,8,4,7,60,4,4064,31,0.5166666666666667,243840,1743,0.007148129921259842,0,0.21279618986666665,1640.4166666666667,"3arm"],["red1",1,"confirm",0,"ofdm_fec",512,16,0.5,3,4,10,0,6,60,10,2504,46,0.7666666666666667,150240,1001,0.006662673056443025,0,0.09486528218333333,1965.5972696245733,"3arm"],["red1",1,"confirm",0,"lite",512,16,0.5,3,4,10,0,6,60,10,2504,13,0.21666666666666667,150240,21323,0.1419262513312034,0,0.163305858,555.494880546075,"3arm"],["red1",1,"confirm",0,"ofdm_fec",512,16,0.5,3,4,10,0,7,60,10,2504,44,0.7333333333333333,150240,337,0.0022430777422790204,0,0.08758903401666666,1880.136518771331,"3arm"],["red1",1,"confirm",0,"lite",512,16,0.5,3,4,10,0,7,60,10,2504,13,0.21666666666666667,150240,21807,0.14514776357827475,0,0.14584604446666669,555.494880546075,"3arm"],["red1",1,"confirm",0,"ofdm_fec",1024,16,0.5,5,10,10,0,6,60,5,3656,3,0.05,219360,34550,0.1575036469730124,0,0.09123668735000003,188.77796901893288,"3arm"],["red1",1,"confirm",0,"lite",1024,16,0.5,5,10,10,0,6,60,5,3656,5,0.08333333333333333,219360,33617,0.15325036469730124,0,0.16770858959999999,314.6299483648881,"3arm"],["red1",1,"confirm",0,"ofdm_fec",1024,16,0.5,5,10,10,0,7,60,5,3656,5,0.08333333333333333,219360,34026,0.1551148796498906,0,0.09041217225,314.6299483648881,"3arm"],["red1",1,"confirm",0,"lite",1024,16,0.5,5,10,10,0,7,60,5,3656,8,0.13333333333333333,219360,34392,0.15678336980306345,0,0.16062319908333336,503.407917383821,"3arm"],["red1",2,"confirm",0,"ofdm_fec",2048,64,0.5,3,5,8,4,6,60,4,4336,0,0.0,260160,78771,0.3027790590405904,0,0.13080072964999995,0.0,"3arm"],["red1",2,"confirm",0,"lite",2048,64,0.5,3,5,8,4,6,60,4,4336,35,0.5833333333333334,260160,2534,0.009740159901599016,0,0.20391669221666667,1935.7142857142856,"3arm"],["red1",2,"confirm",0,"ofdm_fec",2048,64,0.5,3,5,8,4,7,60,4,4336,0,0.0,260160,78275,0.30087253997539976,0,0.1310113547,0.0,"3arm"],["red1",2,"confirm",0,"lite",2048,64,0.5,3,5,8,4,7,60,4,4336,28,0.4666666666666667,260160,3112,0.011961869618696186,0,0.20754559521666663,1548.5714285714284,"3arm"],["red1",2,"confirm",0,"ofdm_fec",2048,64,0.5,3,4,8,4,6,60,4,4064,0,0.0,243840,67700,0.27764107611548555,0,0.13755321271666668,0.0,"3arm"],["red1",2,"confirm",0,"lite",2048,64,0.5,3,4,8,4,6,60,4,4064,37,0.6166666666666667,243840,2050,0.008407152230971129,0,0.19965586650000003,1917.9591836734692,"3arm"],["red1",2,"confirm",0,"ofdm_fec",2048,64,0.5,3,4,8,4,7,60,4,4064,0,0.0,243840,67554,0.2770423228346457,0,0.13270310266666668,0.0,"3arm"],["red1",2,"confirm",0,"lite",2048,64,0.5,3,4,8,4,7,60,4,4064,40,0.6666666666666666,243840,1109,0.004548064304461942,0,0.2001231723666667,2073.4693877551017,"3arm"],["red1",2,"confirm",0,"ofdm_fec",2048,0,0.5,3,4,8,4,6,60,4,4064,0,0.0,243840,67428,0.2765255905511811,0,0.12994439266666666,0.0,"3arm"],["red1",2,"confirm",0,"lite",2048,0,0.5,3,4,8,4,6,60,4,4064,37,0.6166666666666667,243840,2653,0.01088008530183727,0,0.19049898758333328,1957.9166666666667,"3arm"],["red1",2,"confirm",0,"ofdm_fec",2048,0,0.5,3,4,8,4,7,60,4,4064,0,0.0,243840,67357,0.2762344160104987,0,0.12013335001666667,0.0,"3arm"],["red1",2,"confirm",0,"lite",2048,0,0.5,3,4,8,4,7,60,4,4064,36,0.6,243840,1973,0.008091371391076116,0,0.18846476943333326,1905.0,"3arm"],["red1",2,"confirm",0,"ofdm_fec",1024,16,0.5,5,10,10,0,6,60,5,3656,3,0.05,219360,35049,0.15977844638949673,0,0.09135940793333333,188.77796901893288,"3arm"],["red1",2,"confirm",0,"lite",1024,16,0.5,5,10,10,0,6,60,5,3656,1,0.016666666666666666,219360,36280,0.16539022611232676,0,0.16573771906666668,62.92598967297762,"3arm"],["red1",2,"confirm",0,"ofdm_fec",1024,16,0.5,5,10,10,0,7,60,5,3656,3,0.05,219360,34875,0.15898522975929977,0,0.09477592430000001,188.77796901893288,"3arm"],["red1",2,"confirm",0,"lite",1024,16,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,36340,0.16566374908825673,0,0.1650532838833333,0.0,"3arm"],["red1",3,"confirm",0,"ofdm_fec",2048,128,0.5,5,10,8,4,6,60,4,5859,0,0.0,351540,109880,0.31256755987938784,0,0.055649942966666685,0.0,"3arm"],["red1",3,"confirm",0,"lite",2048,128,0.5,5,10,8,4,6,60,4,5859,50,0.8333333333333334,351540,1118,0.0031802924276042558,0,0.08127097981666667,3661.875,"3arm"],["red1",3,"confirm",0,"ofdm_fec",2048,128,0.5,5,10,8,4,7,60,4,5859,0,0.0,351540,109843,0.3124623086988678,0,0.05636075606666666,0.0,"3arm"],["red1",3,"confirm",0,"lite",2048,128,0.5,5,10,8,4,7,60,4,5859,49,0.8166666666666667,351540,1531,0.004355123172327473,0,0.08014498521666666,3588.6375,"3arm"],["red1",3,"confirm",0,"ofdm_fec",512,32,0.5,5,10,10,0,6,60,10,3656,56,0.9333333333333333,219360,5,2.2793581327498177e-05,0,0.03343557685000001,3435.1677852348994,"3arm"],["red1",3,"confirm",0,"lite",512,32,0.5,5,10,10,0,6,60,10,3656,0,0.0,219360,41608,0.18967906637490883,0,0.07359066304999999,0.0,"3arm"],["red1",3,"confirm",0,"ofdm_fec",512,32,0.5,5,10,10,0,7,60,10,3656,57,0.95,219360,3,1.3676148796498906e-05,0,0.03408825359999999,3496.510067114094,"3arm"],["red1",3,"confirm",0,"lite",512,32,0.5,5,10,10,0,7,60,10,3656,0,0.0,219360,41803,0.19056801604668125,0,0.07340712468333331,0.0,"3arm"],["red1",3,"confirm",0,"ofdm_fec",512,32,0.5,8,8,10,0,6,60,10,3834,44,0.7333333333333333,230040,4233,0.01840114762649974,0,0.03844550755000001,2830.469798657718,"3arm"],["red1",3,"confirm",0,"lite",512,32,0.5,8,8,10,0,6,60,10,3834,0,0.0,230040,72171,0.3137323943661972,0,0.07236229591666667,0.0,"3arm"],["red1",3,"confirm",0,"ofdm_fec",512,32,0.5,8,8,10,0,7,60,10,3834,47,0.7833333333333333,230040,4390,0.019083637628238566,0,0.037173412966666666,3023.4563758389263,"3arm"],["red1",3,"confirm",0,"lite",512,32,0.5,8,8,10,0,7,60,10,3834,0,0.0,230040,68299,0.2969005390366893,0,0.07367989215000001,0.0,"3arm"],["red1",3,"confirm",0,"ofdm_fec",1024,16,0.5,5,10,10,0,6,60,5,3656,18,0.3,219360,22406,0.10214259664478482,0,0.037813076516666676,1132.6678141135972,"3arm"],["red1",3,"confirm",0,"lite",1024,16,0.5,5,10,10,0,6,60,5,3656,44,0.7333333333333333,219360,3094,0.014104668125455872,0,0.06928936056666667,2768.7435456110156,"3arm"],["red1",3,"confirm",0,"ofdm_fec",1024,16,0.5,5,10,10,0,7,60,5,3656,16,0.26666666666666666,219360,22068,0.10060175054704595,0,0.03687256003333332,1006.815834767642,"3arm"],["red1",3,"confirm",0,"lite",1024,16,0.5,5,10,10,0,7,60,5,3656,44,0.7333333333333333,219360,4497,0.02050054704595186,0,0.06489991395,2768.7435456110156,"3arm"],["red2",1,"confirm",0,"ofdm_fec",512,16,0.25,3,10,10,0,6,60,10,1496,46,0.7666666666666667,89760,20,0.0002228163992869875,0,0.07203681691666668,1174.334470989761,"3arm"],["red2",1,"confirm",0,"lite",512,16,0.25,3,10,10,0,6,60,10,1496,26,0.43333333333333335,89760,416,0.004634581105169341,0,0.12527422963333334,663.7542662116041,"3arm"],["red2",1,"confirm",0,"ofdm_fec",512,16,0.25,3,10,10,0,7,60,10,1496,48,0.8,89760,20,0.0002228163992869875,0,0.07092639323333334,1225.3924914675767,"3arm"],["red2",1,"confirm",0,"lite",512,16,0.25,3,10,10,0,7,60,10,1496,24,0.4,89760,305,0.0033979500891265597,0,0.11690580173333334,612.6962457337884,"3arm"],["red2",1,"confirm",0,"ofdm_fec",2048,64,0.25,3,10,10,4,6,60,4,2432,2,0.03333333333333333,145920,32146,0.22029879385964912,0,0.13671033305,62.04081632653061,"3arm"],["red2",1,"confirm",0,"lite",2048,64,0.25,3,10,10,4,6,60,4,2432,39,0.65,145920,85,0.0005825109649122807,0,0.22893888776666665,1209.7959183673468,"3arm"],["red2",1,"confirm",0,"ofdm_fec",2048,64,0.25,3,10,10,4,7,60,4,2432,5,0.08333333333333333,145920,32271,0.22115542763157894,0,0.12698572958333332,155.1020408163265,"3arm"],["red2",1,"confirm",0,"lite",2048,64,0.25,3,10,10,4,7,60,4,2432,41,0.6833333333333333,145920,156,0.0010690789473684211,0,0.22171889344999998,1271.8367346938774,"3arm"],["red2",1,"confirm",0,"ofdm_fec",512,32,0.25,3,10,10,0,6,60,10,1496,54,0.9,89760,8,8.9126559714795e-05,0,0.08246976178333333,1355.4362416107383,"3arm"],["red2",1,"confirm",0,"lite",512,32,0.25,3,10,10,0,6,60,10,1496,31,0.5166666666666667,89760,229,0.002551247771836007,0,0.11877542704999997,778.1208053691275,"3arm"],["red2",1,"confirm",0,"ofdm_fec",512,32,0.25,3,10,10,0,7,60,10,1496,48,0.8,89760,20,0.0002228163992869875,0,0.08859262218333333,1204.8322147651006,"3arm"],["red2",1,"confirm",0,"lite",512,32,0.25,3,10,10,0,7,60,10,1496,29,0.48333333333333334,89760,246,0.0027406417112299467,0,0.12270371114999998,727.9194630872483,"3arm"],["red2",1,"confirm",0,"ofdm_fec",1024,64,0.5,5,10,10,0,6,60,5,3656,0,0.0,219360,38259,0.17441192560175053,0,0.09401335185000001,0.0,"3arm"],["red2",1,"confirm",0,"lite",1024,64,0.5,5,10,10,0,6,60,5,3656,1,0.016666666666666666,219360,47274,0.21550875273522976,0,0.15775031161666667,61.34228187919463,"3arm"],["red2",1,"confirm",0,"ofdm_fec",1024,64,0.5,5,10,10,0,7,60,5,3656,1,0.016666666666666666,219360,38220,0.17423413566739607,0,0.10531192019999999,61.34228187919463,"3arm"],["red2",1,"confirm",0,"lite",1024,64,0.5,5,10,10,0,7,60,5,3656,1,0.016666666666666666,219360,46342,0.2112600291757841,0,0.16370955719999997,61.34228187919463,"3arm"],["red2",2,"confirm",0,"ofdm_fec",512,32,0.5,3,8,10,0,6,60,10,2924,36,0.6,175440,6899,0.039323985408116734,0,0.10276296675,1766.1744966442952,"3arm"],["red2",2,"confirm",0,"lite",512,32,0.5,3,8,10,0,6,60,10,2924,0,0.0,175440,39010,0.22235522115823073,0,0.12493184445000001,0.0,"3arm"],["red2",2,"confirm",0,"ofdm_fec",512,32,0.5,3,8,10,0,7,60,10,2924,38,0.6333333333333333,175440,6558,0.03738030095759234,0,0.08372588419999998,1864.2953020134228,"3arm"],["red2",2,"confirm",0,"lite",512,32,0.5,3,8,10,0,7,60,10,2924,0,0.0,175440,38664,0.22038303693570452,0,0.14312839168333336,0.0,"3arm"],["red2",2,"confirm",0,"ofdm_fec",512,32,0.5,3,5,10,0,6,60,10,2672,47,0.7833333333333333,160320,3020,0.0188373253493014,0,0.07696522583333333,2107.1140939597317,"3arm"],["red2",2,"confirm",0,"lite",512,32,0.5,3,5,10,0,6,60,10,2672,1,0.016666666666666666,160320,31927,0.19914545908183634,0,0.14569000518333333,44.83221476510067,"3arm"],["red2",2,"confirm",0,"ofdm_fec",512,32,0.5,3,5,10,0,7,60,10,2672,45,0.75,160320,3287,0.020502744510978044,0,0.08376480168333335,2017.4496644295302,"3arm"],["red2",2,"confirm",0,"lite",512,32,0.5,3,5,10,0,7,60,10,2672,2,0.03333333333333333,160320,30996,0.1933383233532934,0,0.15421410601666666,89.66442953020135,"3arm"],["red2",2,"confirm",0,"ofdm_fec",512,32,0.5,3,10,10,0,6,60,10,3008,37,0.6166666666666667,180480,7837,0.04342309397163121,0,0.08159871929999998,1867.3825503355704,"3arm"],["red2",2,"confirm",0,"lite",512,32,0.5,3,10,10,0,6,60,10,3008,0,0.0,180480,37793,0.20940270390070923,0,0.13104689523333332,0.0,"3arm"],["red2",2,"confirm",0,"ofdm_fec",512,32,0.5,3,10,10,0,7,60,10,3008,37,0.6166666666666667,180480,6745,0.03737256205673759,0,0.08300400176666667,1867.3825503355704,"3arm"],["red2",2,"confirm",0,"lite",512,32,0.5,3,10,10,0,7,60,10,3008,0,0.0,180480,38263,0.21200687056737588,0,0.14242378493333335,0.0,"3arm"],["red2",2,"confirm",0,"ofdm_fec",1024,64,0.5,5,10,10,0,6,60,5,3656,1,0.016666666666666666,219360,37127,0.16925145878920497,0,0.09323324680000002,61.34228187919463,"3arm"],["red2",2,"confirm",0,"lite",1024,64,0.5,5,10,10,0,6,60,5,3656,0,0.0,219360,39325,0.17927151714077316,0,0.15797460330000002,0.0,"3arm"],["red2",2,"confirm",0,"ofdm_fec",1024,64,0.5,5,10,10,0,7,60,5,3656,1,0.016666666666666666,219360,37503,0.17096553610503282,0,0.09919388683333336,61.34228187919463,"3arm"],["red2",2,"confirm",0,"lite",1024,64,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,40531,0.1847693289569657,0,0.18093732813333338,0.0,"3arm"],["red2",3,"confirm",0,"ofdm_fec",512,32,0.5,3,8,10,0,6,60,10,2924,51,0.85,175440,2294,0.013075695394436844,0,0.08577699528333334,2502.0805369127515,"3arm"],["red2",3,"confirm",0,"lite",512,32,0.5,3,8,10,0,6,60,10,2924,1,0.016666666666666666,175440,33780,0.19254445964432285,0,0.1720728885166666,49.060402684563755,"3arm"],["red2",3,"confirm",0,"ofdm_fec",512,32,0.5,3,8,10,0,7,60,10,2924,47,0.7833333333333333,175440,2813,0.016033971728226175,0,0.07716105453333336,2305.8389261744965,"3arm"],["red2",3,"confirm",0,"lite",512,32,0.5,3,8,10,0,7,60,10,2924,0,0.0,175440,33751,0.19237916096671226,0,0.14916148125,0.0,"3arm"],["red2",3,"confirm",0,"ofdm_fec",512,32,0.5,5,5,10,0,6,60,10,3248,45,0.75,194880,4407,0.022613916256157635,0,0.09548177913333335,2452.3489932885905,"3arm"],["red2",3,"confirm",0,"lite",512,32,0.5,5,5,10,0,6,60,10,3248,1,0.016666666666666666,194880,40555,0.20810242200328408,0,0.15118207178333337,54.49664429530201,"3arm"],["red2",3,"confirm",0,"ofdm_fec",512,32,0.5,5,5,10,0,7,60,10,3248,43,0.7166666666666667,194880,4546,0.023327175697865354,0,0.09769859634999996,2343.3557046979863,"3arm"],["red2",3,"confirm",0,"lite",512,32,0.5,5,5,10,0,7,60,10,3248,1,0.016666666666666666,194880,39507,0.2027247536945813,0,0.16668679948333337,54.49664429530201,"3arm"],["red2",3,"confirm",0,"ofdm_fec",512,32,0.5,3,10,10,0,6,60,10,3008,46,0.7666666666666667,180480,2836,0.015713652482269504,0,0.08930403368333334,2321.6107382550335,"3arm"],["red2",3,"confirm",0,"lite",512,32,0.5,3,10,10,0,6,60,10,3008,1,0.016666666666666666,180480,31327,0.1735760195035461,0,0.15024910445,50.46979865771812,"3arm"],["red2",3,"confirm",0,"ofdm_fec",512,32,0.5,3,10,10,0,7,60,10,3008,50,0.8333333333333334,180480,2551,0.014134530141843972,0,0.07956516815000002,2523.489932885906,"3arm"],["red2",3,"confirm",0,"lite",512,32,0.5,3,10,10,0,7,60,10,3008,2,0.03333333333333333,180480,32894,0.1822584219858156,0,0.14766295736666668,100.93959731543625,"3arm"],["red2",3,"confirm",0,"ofdm_fec",1024,64,0.5,5,10,10,0,6,60,5,3656,10,0.16666666666666666,219360,30689,0.1399024434719183,0,0.10941801118333332,613.4228187919463,"3arm"],["red2",3,"confirm",0,"lite",1024,64,0.5,5,10,10,0,6,60,5,3656,2,0.03333333333333333,219360,33822,0.15418490153172867,0,0.17814290891666665,122.68456375838926,"3arm"],["red2",3,"confirm",0,"ofdm_fec",1024,64,0.5,5,10,10,0,7,60,5,3656,12,0.2,219360,30851,0.14064095550692926,0,0.09896644735000001,736.1073825503355,"3arm"],["red2",3,"confirm",0,"lite",1024,64,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,34166,0.15575309992706055,0,0.16502162806666668,0.0,"3arm"],["red3",1,"confirm",0,"ofdm_fec",512,32,0.5,3,10,8,0,6,60,10,3008,42,0.7,180480,99,0.0005485372340425532,0,0.08384469391666667,2119.731543624161,"3arm"],["red3",1,"confirm",0,"lite",512,32,0.5,3,10,8,0,6,60,10,3008,0,0.0,180480,39513,0.21893284574468086,0,0.14239988583333332,0.0,"3arm"],["red3",1,"confirm",0,"ofdm_fec",512,32,0.5,3,10,8,0,7,60,10,3008,41,0.6833333333333333,180480,64,0.0003546099290780142,0,0.07495581498333333,2069.261744966443,"3arm"],["red3",1,"confirm",0,"lite",512,32,0.5,3,10,8,0,7,60,10,3008,0,0.0,180480,39923,0.22120456560283688,0,0.13448902731666665,0.0,"3arm"],["red3",1,"confirm",0,"ofdm_fec",512,32,0.5,3,10,10,0,6,60,10,3008,50,0.8333333333333334,180480,2010,0.011136968085106383,0,0.0859922915,2523.489932885906,"3arm"],["red3",1,"confirm",0,"lite",512,32,0.5,3,10,10,0,6,60,10,3008,0,0.0,180480,41702,0.2310616134751773,0,0.13699464440000003,0.0,"3arm"],["red3",1,"confirm",0,"ofdm_fec",512,32,0.5,3,10,10,0,7,60,10,3008,49,0.8166666666666667,180480,1644,0.009109042553191489,0,0.08916120254999998,2473.020134228188,"3arm"],["red3",1,"confirm",0,"lite",512,32,0.5,3,10,10,0,7,60,10,3008,0,0.0,180480,41795,0.2315769060283688,0,0.13911368651666667,0.0,"3arm"],["red3",1,"confirm",0,"ofdm_fec",512,32,0.5,3,8,8,0,6,60,10,2924,41,0.6833333333333333,175440,94,0.0005357957136342909,0,0.08849614188333331,2011.476510067114,"3arm"],["red3",1,"confirm",0,"lite",512,32,0.5,3,8,8,0,6,60,10,2924,0,0.0,175440,40765,0.23235864113087096,0,0.12342533398333332,0.0,"3arm"],["red3",1,"confirm",0,"ofdm_fec",512,32,0.5,3,8,8,0,7,60,10,2924,39,0.65,175440,137,0.0007808937528499772,0,0.0920968035,1913.3557046979865,"3arm"],["red3",1,"confirm",0,"lite",512,32,0.5,3,8,8,0,7,60,10,2924,0,0.0,175440,41054,0.23400592795257638,0,0.12338215468333336,0.0,"3arm"],["red3",1,"confirm",0,"ofdm_fec",1024,64,0.5,5,10,10,0,6,60,5,3656,4,0.06666666666666667,219360,24167,0.11017049598832969,0,0.10249256411666668,245.36912751677852,"3arm"],["red3",1,"confirm",0,"lite",1024,64,0.5,5,10,10,0,6,60,5,3656,0,0.0,219360,44237,0.20166393143690736,0,0.15494641515000002,0.0,"3arm"],["red3",1,"confirm",0,"ofdm_fec",1024,64,0.5,5,10,10,0,7,60,5,3656,7,0.11666666666666667,219360,24096,0.10984682713347921,0,0.10171991715,429.3959731543624,"3arm"],["red3",1,"confirm",0,"lite",1024,64,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,44698,0.2037654996353027,0,0.1863282612,0.0,"3arm"],["red3",2,"confirm",0,"ofdm_fec",512,16,0.5,5,10,10,0,6,60,10,3656,48,0.8,219360,2853,0.013006017505470459,0,0.08844633365000001,2994.6757679180887,"3arm"],["red3",2,"confirm",0,"lite",512,16,0.5,5,10,10,0,6,60,10,3656,0,0.0,219360,48838,0.2226385849744712,0,0.16305057439999998,0.0,"3arm"],["red3",2,"confirm",0,"ofdm_fec",512,16,0.5,5,10,10,0,7,60,10,3656,48,0.8,219360,2914,0.013284099197665938,0,0.10563633221666668,2994.6757679180887,"3arm"],["red3",2,"confirm",0,"lite",512,16,0.5,5,10,10,0,7,60,10,3656,0,0.0,219360,49806,0.22705142231947484,0,0.1821938951,0.0,"3arm"],["red3",2,"confirm",0,"ofdm_fec",512,32,0.5,5,10,10,0,6,60,10,3656,48,0.8,219360,2693,0.012276622902990518,0,0.08962730278333333,2944.429530201342,"3arm"],["red3",2,"confirm",0,"lite",512,32,0.5,5,10,10,0,6,60,10,3656,0,0.0,219360,49111,0.2238831145149526,0,0.18821972774999998,0.0,"3arm"],["red3",2,"confirm",0,"ofdm_fec",512,32,0.5,5,10,10,0,7,60,10,3656,48,0.8,219360,2557,0.011656637490882568,0,0.09052481071666668,2944.429530201342,"3arm"],["red3",2,"confirm",0,"lite",512,32,0.5,5,10,10,0,7,60,10,3656,0,0.0,219360,49157,0.22409281546316556,0,0.1861527198666667,0.0,"3arm"],["red3",2,"confirm",0,"ofdm_fec",512,16,0.5,5,8,10,0,6,60,10,3554,48,0.8,213240,2967,0.013913899831176139,0,0.08944390146666667,2911.126279863481,"3arm"],["red3",2,"confirm",0,"lite",512,16,0.5,5,8,10,0,6,60,10,3554,0,0.0,213240,47480,0.2226599137122491,0,0.16835123475000005,0.0,"3arm"],["red3",2,"confirm",0,"ofdm_fec",512,16,0.5,5,8,10,0,7,60,10,3554,50,0.8333333333333334,213240,2514,0.011789532920652785,0,0.09572193321666665,3032.4232081911264,"3arm"],["red3",2,"confirm",0,"lite",512,16,0.5,5,8,10,0,7,60,10,3554,0,0.0,213240,47779,0.2240620896642281,0,0.16766172991666667,0.0,"3arm"],["red3",2,"confirm",0,"ofdm_fec",1024,64,0.5,5,10,10,0,6,60,5,3656,18,0.3,219360,17444,0.07952224653537564,0,0.1037769543,1104.1610738255033,"3arm"],["red3",2,"confirm",0,"lite",1024,64,0.5,5,10,10,0,6,60,5,3656,1,0.016666666666666666,219360,35746,0.16295587162654995,0,0.17819712425000003,61.34228187919463,"3arm"],["red3",2,"confirm",0,"ofdm_fec",1024,64,0.5,5,10,10,0,7,60,5,3656,18,0.3,219360,17598,0.08022428884026259,0,0.10280050621666664,1104.1610738255033,"3arm"],["red3",2,"confirm",0,"lite",1024,64,0.5,5,10,10,0,7,60,5,3656,1,0.016666666666666666,219360,34671,0.15805525164113784,0,0.1701485160833333,61.34228187919463,"3arm"],["red3",3,"confirm",0,"ofdm_fec",512,16,0.5,5,10,8,0,6,60,10,3656,52,0.8666666666666667,219360,1060,0.004832239241429614,0,0.03814015486666667,3244.232081911263,"3arm"],["red3",3,"confirm",0,"lite",512,16,0.5,5,10,8,0,6,60,10,3656,0,0.0,219360,46236,0.21077680525164114,0,0.07452196155,0.0,"3arm"],["red3",3,"confirm",0,"ofdm_fec",512,16,0.5,5,10,8,0,7,60,10,3656,48,0.8,219360,1281,0.005839715536105032,0,0.04250898846666668,2994.6757679180887,"3arm"],["red3",3,"confirm",0,"lite",512,16,0.5,5,10,8,0,7,60,10,3656,0,0.0,219360,45460,0.20723924142961342,0,0.0841236179,0.0,"3arm"],["red3",3,"confirm",0,"ofdm_fec",512,16,0.5,5,10,10,0,6,60,10,3656,51,0.85,219360,2149,0.009796681254558716,0,0.04394674213333332,3181.843003412969,"3arm"],["red3",3,"confirm",0,"lite",512,16,0.5,5,10,10,0,6,60,10,3656,0,0.0,219360,51169,0.23326495258935084,0,0.08775710519999999,0.0,"3arm"],["red3",3,"confirm",0,"ofdm_fec",512,16,0.5,5,10,10,0,7,60,10,3656,47,0.7833333333333333,219360,2896,0.013202042304886944,0,0.044139950933333325,2932.286689419795,"3arm"],["red3",3,"confirm",0,"lite",512,16,0.5,5,10,10,0,7,60,10,3656,0,0.0,219360,51478,0.23467359591539022,0,0.08910642773333334,0.0,"3arm"],["red3",3,"confirm",0,"ofdm_fec",512,0,0.5,5,10,10,0,6,60,10,3656,47,0.7833333333333333,219360,4927,0.022460795040116704,0,0.040825268233333344,2983.1944444444443,"3arm"],["red3",3,"confirm",0,"lite",512,0,0.5,5,10,10,0,6,60,10,3656,0,0.0,219360,52344,0.2386214442013129,0,0.07840775663333334,0.0,"3arm"],["red3",3,"confirm",0,"ofdm_fec",512,0,0.5,5,10,10,0,7,60,10,3656,47,0.7833333333333333,219360,4199,0.019142049598832967,0,0.0451945954,2983.1944444444443,"3arm"],["red3",3,"confirm",0,"lite",512,0,0.5,5,10,10,0,7,60,10,3656,0,0.0,219360,54218,0.24716447848285922,0,0.07976192768333336,0.0,"3arm"],["red3",3,"confirm",0,"ofdm_fec",1024,64,0.5,5,10,10,0,6,60,5,3656,31,0.5166666666666667,219360,12387,0.05646881838074398,0,0.04242632736666666,1901.6107382550335,"3arm"],["red3",3,"confirm",0,"lite",1024,64,0.5,5,10,10,0,6,60,5,3656,2,0.03333333333333333,219360,38681,0.1763357038657914,0,0.08623119193333334,122.68456375838926,"3arm"],["red3",3,"confirm",0,"ofdm_fec",1024,64,0.5,5,10,10,0,7,60,5,3656,29,0.48333333333333334,219360,12521,0.05707968636032093,0,0.0451887083,1778.9261744966443,"3arm"],["red3",3,"confirm",0,"lite",1024,64,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,37763,0.17215080233406274,0,0.08458661153333333,0.0,"3arm"],["red4",1,"confirm",0,"ofdm_fec",512,16,0.5,5,10,10,0,6,60,10,3656,59,0.9833333333333333,219360,1,4.558716265499635e-06,0,0.09364070980000003,3680.955631399317,"3arm"],["red4",1,"confirm",0,"lite",512,16,0.5,5,10,10,0,6,60,10,3656,2,0.03333333333333333,219360,39644,0.18072574762946755,0,0.16262486416666663,124.77815699658703,"3arm"],["red4",1,"confirm",0,"ofdm_fec",512,16,0.5,5,10,10,0,7,60,10,3656,57,0.95,219360,595,0.002712436177972283,0,0.08583428181666666,3556.1774744027302,"3arm"],["red4",1,"confirm",0,"lite",512,16,0.5,5,10,10,0,7,60,10,3656,2,0.03333333333333333,219360,38529,0.17564277899343544,0,0.17925687480000002,124.77815699658703,"3arm"],["red4",1,"confirm",0,"ofdm_fec",512,32,0.5,5,8,10,0,6,60,10,3554,58,0.9666666666666667,213240,161,0.0007550178202963796,0,0.08906643839999999,3458.5906040268455,"3arm"],["red4",1,"confirm",0,"lite",512,32,0.5,5,8,10,0,6,60,10,3554,2,0.03333333333333333,213240,36330,0.17037141249296567,0,0.19194257223333336,119.26174496644295,"3arm"],["red4",1,"confirm",0,"ofdm_fec",512,32,0.5,5,8,10,0,7,60,10,3554,58,0.9666666666666667,213240,2,9.379103357719001e-06,0,0.08907094398333336,3458.5906040268455,"3arm"],["red4",1,"confirm",0,"lite",512,32,0.5,5,8,10,0,7,60,10,3554,3,0.05,213240,34544,0.1619958731945226,0,0.18361185463333338,178.8926174496644,"3arm"],["red4",1,"confirm",0,"ofdm_fec",512,16,0.5,5,10,8,0,6,60,10,3656,55,0.9166666666666666,219360,5,2.2793581327498177e-05,0,0.08193512153333332,3431.3993174061434,"3arm"],["red4",1,"confirm",0,"lite",512,16,0.5,5,10,8,0,6,60,10,3656,4,0.06666666666666667,219360,24476,0.11157913931436908,0,0.17210133921666665,249.55631399317406,"3arm"],["red4",1,"confirm",0,"ofdm_fec",512,16,0.5,5,10,8,0,7,60,10,3656,55,0.9166666666666666,219360,8,3.646973012399708e-05,0,0.07668372230000002,3431.3993174061434,"3arm"],["red4",1,"confirm",0,"lite",512,16,0.5,5,10,8,0,7,60,10,3656,6,0.1,219360,26001,0.11853118161925602,0,0.14946097428333333,374.3344709897611,"3arm"],["red4",1,"confirm",0,"ofdm_fec",1024,16,0.5,5,10,10,0,6,60,5,3656,37,0.6166666666666667,219360,8515,0.038817469000729396,0,0.08958231239999999,2328.261617900172,"3arm"],["red4",1,"confirm",0,"lite",1024,16,0.5,5,10,10,0,6,60,5,3656,9,0.15,219360,26591,0.1212208242159008,0,0.16149079159999996,566.3339070567986,"3arm"],["red4",1,"confirm",0,"ofdm_fec",1024,16,0.5,5,10,10,0,7,60,5,3656,35,0.5833333333333334,219360,8694,0.03963347921225383,0,0.07779619703333332,2202.4096385542166,"3arm"],["red4",1,"confirm",0,"lite",1024,16,0.5,5,10,10,0,7,60,5,3656,9,0.15,219360,26796,0.12215536105032823,0,0.16209881011666663,566.3339070567986,"3arm"],["red4",2,"confirm",0,"ofdm_fec",512,0,0.5,5,10,10,0,6,60,10,3656,52,0.8666666666666667,219360,2143,0.00976932895696572,0,0.07997938628333333,3300.5555555555557,"3arm"],["red4",2,"confirm",0,"lite",512,0,0.5,5,10,10,0,6,60,10,3656,0,0.0,219360,44477,0.20275802334062729,0,0.19652121013333337,0.0,"3arm"],["red4",2,"confirm",0,"ofdm_fec",512,0,0.5,5,10,10,0,7,60,10,3656,48,0.8,219360,1530,0.006974835886214442,0,0.09916623791666666,3046.6666666666665,"3arm"],["red4",2,"confirm",0,"lite",512,0,0.5,5,10,10,0,7,60,10,3656,1,0.016666666666666666,219360,42354,0.19307986870897156,0,0.18432801980000002,63.47222222222222,"3arm"],["red4",2,"confirm",0,"ofdm_fec",512,0,0.5,5,10,8,0,6,60,10,3656,44,0.7333333333333333,219360,27,0.00012308533916849016,0,0.08579761076666667,2792.777777777778,"3arm"],["red4",2,"confirm",0,"lite",512,0,0.5,5,10,8,0,6,60,10,3656,2,0.03333333333333333,219360,33604,0.15319110138584974,0,0.15579175668333337,126.94444444444444,"3arm"],["red4",2,"confirm",0,"ofdm_fec",512,0,0.5,5,10,8,0,7,60,10,3656,43,0.7166666666666667,219360,62,0.0002826404084609774,0,0.07704568603333331,2729.3055555555557,"3arm"],["red4",2,"confirm",0,"lite",512,0,0.5,5,10,8,0,7,60,10,3656,2,0.03333333333333333,219360,34415,0.15688822027716995,0,0.14600903480000005,126.94444444444444,"3arm"],["red4",2,"confirm",0,"ofdm_fec",512,64,0.5,5,10,10,0,6,60,9,3288,53,0.8833333333333333,197280,566,0.0028690186536901867,0,0.08517105548333335,3004.551724137931,"3arm"],["red4",2,"confirm",0,"lite",512,64,0.5,5,10,10,0,6,60,9,3288,1,0.016666666666666666,197280,37774,0.19147404703974047,0,0.16045503334999997,56.689655172413794,"3arm"],["red4",2,"confirm",0,"ofdm_fec",512,64,0.5,5,10,10,0,7,60,9,3288,56,0.9333333333333333,197280,508,0.002575020275750203,0,0.08136011198333333,3174.6206896551726,"3arm"],["red4",2,"confirm",0,"lite",512,64,0.5,5,10,10,0,7,60,9,3288,1,0.016666666666666666,197280,37900,0.19211273317112734,0,0.14483084106666666,56.689655172413794,"3arm"],["red4",2,"confirm",0,"ofdm_fec",1024,16,0.5,5,10,10,0,6,60,5,3656,34,0.5666666666666667,219360,9838,0.044848650619985414,0,0.08353741816666667,2139.4836488812393,"3arm"],["red4",2,"confirm",0,"lite",1024,16,0.5,5,10,10,0,6,60,5,3656,8,0.13333333333333333,219360,25840,0.11779722830051058,0,0.17890218475,503.407917383821,"3arm"],["red4",2,"confirm",0,"ofdm_fec",1024,16,0.5,5,10,10,0,7,60,5,3656,35,0.5833333333333334,219360,9648,0.043982494529540485,0,0.07986479216666667,2202.4096385542166,"3arm"],["red4",2,"confirm",0,"lite",1024,16,0.5,5,10,10,0,7,60,5,3656,12,0.2,219360,26344,0.1200948212983224,0,0.15131860691666665,755.1118760757315,"3arm"],["red4",3,"confirm",0,"ofdm_fec",512,0,0.5,5,10,10,0,6,60,10,3656,54,0.9,219360,957,0.004362691466083151,0,0.06573616053333332,3427.5,"3arm"],["red4",3,"confirm",0,"lite",512,0,0.5,5,10,10,0,6,60,10,3656,0,0.0,219360,42116,0.19199489423778265,0,0.12714461738333335,0.0,"3arm"],["red4",3,"confirm",0,"ofdm_fec",512,0,0.5,5,10,10,0,7,60,10,3656,58,0.9666666666666667,219360,256,0.0011670313639679066,0,0.06275662708333335,3681.3888888888887,"3arm"],["red4",3,"confirm",0,"lite",512,0,0.5,5,10,10,0,7,60,10,3656,0,0.0,219360,41104,0.187381473377097,0,0.12685797938333335,0.0,"3arm"],["red4",3,"confirm",0,"ofdm_fec",512,16,0.5,5,10,10,0,6,60,10,3656,59,0.9833333333333333,219360,502,0.002288475565280817,0,0.06729329803333334,3680.955631399317,"3arm"],["red4",3,"confirm",0,"lite",512,16,0.5,5,10,10,0,6,60,10,3656,0,0.0,219360,37193,0.16955233406272793,0,0.13160958255,0.0,"3arm"],["red4",3,"confirm",0,"ofdm_fec",512,16,0.5,5,10,10,0,7,60,10,3656,56,0.9333333333333333,219360,280,0.001276440554339898,0,0.05343296656666666,3493.7883959044366,"3arm"],["red4",3,"confirm",0,"lite",512,16,0.5,5,10,10,0,7,60,10,3656,0,0.0,219360,39479,0.1799735594456601,0,0.1179407720833333,0.0,"3arm"],["red4",3,"confirm",0,"ofdm_fec",512,0,0.5,5,8,10,0,6,60,10,3554,54,0.9,213240,1199,0.005622772462952542,0,0.060710796750000004,3331.875,"3arm"],["red4",3,"confirm",0,"lite",512,0,0.5,5,8,10,0,6,60,10,3554,1,0.016666666666666666,213240,38576,0.18090414556368412,0,0.1302003876666667,61.701388888888886,"3arm"],["red4",3,"confirm",0,"ofdm_fec",512,0,0.5,5,8,10,0,7,60,10,3554,56,0.9333333333333333,213240,8,3.7516413430876005e-05,0,0.060490440083333326,3455.277777777778,"3arm"],["red4",3,"confirm",0,"lite",512,0,0.5,5,8,10,0,7,60,10,3554,2,0.03333333333333333,213240,38866,0.18226411555055336,0,0.11906265884999997,123.40277777777777,"3arm"],["red4",3,"confirm",0,"ofdm_fec",1024,16,0.5,5,10,10,0,6,60,5,3656,30,0.5,219360,13946,0.06357585703865791,0,0.05915263298333333,1887.7796901893287,"3arm"],["red4",3,"confirm",0,"lite",1024,16,0.5,5,10,10,0,6,60,5,3656,17,0.2833333333333333,219360,23967,0.10925875273522975,0,0.10941508623333333,1069.7418244406197,"3arm"],["red4",3,"confirm",0,"ofdm_fec",1024,16,0.5,5,10,10,0,7,60,5,3656,32,0.5333333333333333,219360,13611,0.06204868708971554,0,0.07283220740000002,2013.631669535284,"3arm"],["red4",3,"confirm",0,"lite",1024,16,0.5,5,10,10,0,7,60,5,3656,16,0.26666666666666666,219360,22910,0.10444018964259665,0,0.14475402663333334,1006.815834767642,"3arm"],["red1",1,"confirm",0,"pfft",2048,32,0.25,3,10,10,4,6,60,4,2432,35,0.5833333333333334,145920,58,0.0003974780701754386,0,0.11274686011666665,1096.9072164948454,"pfft"],["red1",1,"confirm",0,"pfft",2048,32,0.25,3,10,10,4,7,60,4,2432,38,0.6333333333333333,145920,52,0.00035635964912280704,0,0.11150408870000002,1190.9278350515465,"pfft"],["red1",1,"confirm",0,"pfft",2048,128,0.25,5,10,10,4,6,60,4,2921,22,0.36666666666666664,175260,124,0.0007075202556202214,0,0.13332121783333334,803.275,"pfft"],["red1",1,"confirm",0,"pfft",2048,128,0.25,5,10,10,4,7,60,4,2921,23,0.38333333333333336,175260,117,0.0006675795960287572,0,0.12848181186666668,839.7875,"pfft"],["red1",1,"confirm",0,"pfft",2048,32,0.25,3,8,10,4,6,60,4,2364,30,0.5,141840,62,0.000437112239142696,0,0.11356705291666666,913.917525773196,"pfft"],["red1",1,"confirm",0,"pfft",2048,32,0.25,3,8,10,4,7,60,4,2364,30,0.5,141840,61,0.0004300620417371686,0,0.11620030113333334,913.917525773196,"pfft"],["red1",1,"confirm",0,"pfft",1024,16,0.5,5,10,10,0,6,60,5,3656,0,0.0,219360,41502,0.18919584245076587,0,0.10199437103333334,0.0,"pfft"],["red1",1,"confirm",0,"pfft",1024,16,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,41525,0.18930069292487237,0,0.09918040515,0.0,"pfft"],["red1",2,"confirm",0,"pfft",2048,32,0.25,3,4,10,4,6,60,4,2024,39,0.65,121440,39,0.0003211462450592885,0,0.11380151793333333,1017.2164948453609,"pfft"],["red1",2,"confirm",0,"pfft",2048,32,0.25,3,4,10,4,7,60,4,2024,41,0.6833333333333333,121440,39,0.0003211462450592885,0,0.11753437276666666,1069.381443298969,"pfft"],["red1",2,"confirm",0,"pfft",2048,32,0.25,5,5,10,4,6,60,4,2595,30,0.5,155700,72,0.00046242774566473987,0,0.12641527201666664,1003.2216494845361,"pfft"],["red1",2,"confirm",0,"pfft",2048,32,0.25,5,5,10,4,7,60,4,2595,30,0.5,155700,97,0.0006229929351316635,0,0.12815626601666666,1003.2216494845361,"pfft"],["red1",2,"confirm",0,"pfft",2048,32,0.25,3,8,10,4,6,60,4,2364,33,0.55,141840,43,0.00030315848843767625,0,0.12643115373333333,1005.3092783505156,"pfft"],["red1",2,"confirm",0,"pfft",2048,32,0.25,3,8,10,4,7,60,4,2364,38,0.6333333333333333,141840,37,0.00026085730400451213,0,0.11785557488333333,1157.6288659793815,"pfft"],["red1",2,"confirm",0,"pfft",1024,16,0.5,5,10,10,0,6,60,5,3656,0,0.0,219360,41413,0.1887901167031364,0,0.10578052816666667,0.0,"pfft"],["red1",2,"confirm",0,"pfft",1024,16,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,41270,0.18813822027716995,0,0.09125624555000003,0.0,"pfft"],["red1",3,"confirm",0,"pfft",2048,128,0.5,5,5,10,4,6,60,4,5206,37,0.6166666666666667,312360,8905,0.02850877192982456,0,0.07119107330000002,2407.775,"pfft"],["red1",3,"confirm",0,"pfft",2048,128,0.5,5,5,10,4,7,60,4,5206,39,0.65,312360,8677,0.027778844922525293,0,0.06984692548333334,2537.925,"pfft"],["red1",3,"confirm",0,"pfft",2048,16,0.5,5,8,10,4,6,60,4,5696,32,0.5333333333333333,341760,15435,0.04516327247191011,0,0.06542272128333333,2361.0362694300516,"pfft"],["red1",3,"confirm",0,"pfft",2048,16,0.5,5,8,10,4,7,60,4,5696,29,0.48333333333333334,341760,13856,0.04054307116104869,0,0.05856590838333333,2139.689119170984,"pfft"],["red1",3,"confirm",0,"pfft",2048,64,0.5,5,5,10,4,6,60,4,5206,37,0.6166666666666667,312360,9083,0.029078627224996798,0,0.057713608150000005,2456.9132653061224,"pfft"],["red1",3,"confirm",0,"pfft",2048,64,0.5,5,5,10,4,7,60,4,5206,33,0.55,312360,9717,0.031108336534767574,0,0.05760484535,2191.301020408163,"pfft"],["red1",3,"confirm",0,"pfft",1024,16,0.5,5,10,10,0,6,60,5,3656,0,0.0,219360,27006,0.12311269146608315,0,0.038737517816666664,0.0,"pfft"],["red1",3,"confirm",0,"pfft",1024,16,0.5,5,10,10,0,7,60,5,3656,1,0.016666666666666666,219360,27004,0.12310357403355215,0,0.03825285726666667,62.92598967297762,"pfft"],["red2",1,"confirm",0,"pfft",2048,0,0.25,3,5,10,0,6,60,2,1072,14,0.23333333333333334,64320,1284,0.01996268656716418,0,0.06565473328333334,293.125,"pfft"],["red2",1,"confirm",0,"pfft",2048,0,0.25,3,5,10,0,7,60,2,1072,13,0.21666666666666667,64320,1411,0.02193718905472637,0,0.07293391403333332,272.1875,"pfft"],["red2",1,"confirm",0,"pfft",2048,0,0.25,3,5,10,2,6,60,2,1072,14,0.23333333333333334,64320,1284,0.01996268656716418,0,0.06587310195,293.125,"pfft"],["red2",1,"confirm",0,"pfft",2048,0,0.25,3,5,10,2,7,60,2,1072,13,0.21666666666666667,64320,1411,0.02193718905472637,0,0.06567874156666667,272.1875,"pfft"],["red2",1,"confirm",0,"pfft",2048,32,0.25,5,8,10,2,6,60,2,1412,7,0.11666666666666667,84720,602,0.00710576015108593,0,0.0655949173,191.5503875968992,"pfft"],["red2",1,"confirm",0,"pfft",2048,32,0.25,5,8,10,2,7,60,2,1412,12,0.2,84720,557,0.006574598677998112,0,0.06689473603333333,328.3720930232558,"pfft"],["red2",1,"confirm",0,"pfft",1024,64,0.5,5,10,10,0,6,60,5,3656,0,0.0,219360,49554,0.22590262582056891,0,0.09395565609999999,0.0,"pfft"],["red2",1,"confirm",0,"pfft",1024,64,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,49868,0.22733406272793583,0,0.09101975721666668,0.0,"pfft"],["red2",2,"confirm",0,"pfft",2048,0,0.25,5,5,10,1,6,60,1,636,23,0.38333333333333336,38160,246,0.006446540880503145,0,0.03865317976666667,380.9375,"pfft"],["red2",2,"confirm",0,"pfft",2048,0,0.25,5,5,10,1,7,60,1,636,28,0.4666666666666667,38160,192,0.005031446540880503,0,0.04214273668333332,463.75,"pfft"],["red2",2,"confirm",0,"pfft",1024,32,0.25,3,10,10,2,6,60,2,596,28,0.4666666666666667,35760,171,0.004781879194630872,0,0.04044938673333332,430.1030927835052,"pfft"],["red2",2,"confirm",0,"pfft",1024,32,0.25,3,10,10,2,7,60,2,596,33,0.55,35760,260,0.00727069351230425,0,0.04810143655,506.9072164948454,"pfft"],["red2",2,"confirm",0,"pfft",2048,0,0.25,3,10,10,2,6,60,2,1208,19,0.31666666666666665,72480,1562,0.02155077262693157,0,0.05822666296666666,448.28125,"pfft"],["red2",2,"confirm",0,"pfft",2048,0,0.25,3,10,10,2,7,60,2,1208,20,0.3333333333333333,72480,1558,0.021495584988962473,0,0.07353730433333333,471.875,"pfft"],["red2",2,"confirm",0,"pfft",1024,64,0.5,5,10,10,0,6,60,5,3656,0,0.0,219360,43723,0.19932075127644056,0,0.08918707168333334,0.0,"pfft"],["red2",2,"confirm",0,"pfft",1024,64,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,43416,0.19792122538293216,0,0.09616488866666666,0.0,"pfft"],["red2",3,"confirm",0,"pfft",2048,128,0.25,5,8,10,2,6,60,2,1412,23,0.38333333333333336,84720,161,0.001900377714825307,0,0.07594731621666667,615.0757575757576,"pfft"],["red2",3,"confirm",0,"pfft",2048,128,0.25,5,8,10,2,7,60,2,1412,25,0.4166666666666667,84720,157,0.0018531633616619453,0,0.06785143538333333,668.5606060606061,"pfft"],["red2",3,"confirm",0,"pfft",2048,128,0.25,5,8,10,0,6,60,2,1412,23,0.38333333333333336,84720,161,0.001900377714825307,0,0.06423795541666666,615.0757575757576,"pfft"],["red2",3,"confirm",0,"pfft",2048,128,0.25,5,8,10,0,7,60,2,1412,25,0.4166666666666667,84720,157,0.0018531633616619453,0,0.0746142064,668.5606060606061,"pfft"],["red2",3,"confirm",0,"pfft",2048,0,0.25,5,5,10,4,6,60,4,2595,16,0.26666666666666666,155700,159,0.001021194605009634,0,0.1287101517833333,540.625,"pfft"],["red2",3,"confirm",0,"pfft",2048,0,0.25,5,5,10,4,7,60,4,2595,23,0.38333333333333336,155700,167,0.0010725754656390495,0,0.09057746075000002,777.1484375,"pfft"],["red2",3,"confirm",0,"pfft",1024,64,0.5,5,10,10,0,6,60,5,3656,0,0.0,219360,39548,0.18028811086797958,0,0.06383930328333333,0.0,"pfft"],["red2",3,"confirm",0,"pfft",1024,64,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,39604,0.18054339897884755,0,0.07040461776666665,0.0,"pfft"],["red3",1,"confirm",0,"pfft",2048,32,0.25,3,5,10,0,6,60,2,1072,14,0.23333333333333334,64320,696,0.01082089552238806,0,0.07800415960000001,290.85271317829455,"pfft"],["red3",1,"confirm",0,"pfft",2048,32,0.25,3,5,10,0,7,60,2,1072,11,0.18333333333333332,64320,586,0.009110696517412935,0,0.08299532158333332,228.52713178294573,"pfft"],["red3",1,"confirm",0,"pfft",2048,32,0.25,3,5,10,2,6,60,2,1072,14,0.23333333333333334,64320,696,0.01082089552238806,0,0.09369491886666667,290.85271317829455,"pfft"],["red3",1,"confirm",0,"pfft",2048,32,0.25,3,5,10,2,7,60,2,1072,11,0.18333333333333332,64320,586,0.009110696517412935,0,0.06546655298333333,228.52713178294573,"pfft"],["red3",1,"confirm",0,"pfft",2048,32,0.125,5,8,10,0,6,60,2,698,20,0.3333333333333333,41880,108,0.0025787965616045844,0,0.05867781475000001,270.5426356589147,"pfft"],["red3",1,"confirm",0,"pfft",2048,32,0.125,5,8,10,0,7,60,2,698,24,0.4,41880,106,0.002531041069723018,0,0.06480618786666668,324.65116279069764,"pfft"],["red3",1,"confirm",0,"pfft",1024,64,0.5,5,10,10,0,6,60,5,3656,0,0.0,219360,46705,0.21291484318016046,0,0.09535451041666666,0.0,"pfft"],["red3",1,"confirm",0,"pfft",1024,64,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,47477,0.21643417213712618,0,0.0914992141,0.0,"pfft"],["red3",2,"confirm",0,"pfft",2048,128,0.25,5,5,10,0,6,60,2,1289,35,0.5833333333333334,77340,69,0.0008921644685802948,0,0.07628685106666669,854.4507575757576,"pfft"],["red3",2,"confirm",0,"pfft",2048,128,0.25,5,5,10,0,7,60,2,1289,32,0.5333333333333333,77340,89,0.0011507628652702353,0,0.07635907859999999,781.2121212121212,"pfft"],["red3",2,"confirm",0,"pfft",2048,128,0.25,5,5,10,2,6,60,2,1289,35,0.5833333333333334,77340,69,0.0008921644685802948,0,0.07297417431666667,854.4507575757576,"pfft"],["red3",2,"confirm",0,"pfft",2048,128,0.25,5,5,10,2,7,60,2,1289,32,0.5333333333333333,77340,89,0.0011507628652702353,0,0.0752501654,781.2121212121212,"pfft"],["red3",2,"confirm",0,"pfft",2048,128,0.25,5,10,10,0,6,60,2,1452,35,0.5833333333333334,87120,85,0.0009756657483930211,0,0.07195909771666667,962.5,"pfft"],["red3",2,"confirm",0,"pfft",2048,128,0.25,5,10,10,0,7,60,2,1452,33,0.55,87120,76,0.0008723599632690542,0,0.06091634203333332,907.5,"pfft"],["red3",2,"confirm",0,"pfft",1024,64,0.5,5,10,10,0,6,60,5,3656,0,0.0,219360,40472,0.18450036469730124,0,0.09932257478333334,0.0,"pfft"],["red3",2,"confirm",0,"pfft",1024,64,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,39226,0.1788202042304887,0,0.09200726125000001,0.0,"pfft"],["red3",3,"confirm",0,"pfft",2048,128,0.25,5,4,10,4,6,60,4,2432,18,0.3,145920,166,0.001137609649122807,0,0.12634197766666666,547.2,"pfft"],["red3",3,"confirm",0,"pfft",2048,128,0.25,5,4,10,4,7,60,4,2432,21,0.35,145920,200,0.0013706140350877192,0,0.14915171265,638.4,"pfft"],["red3",3,"confirm",0,"pfft",2048,16,0.25,5,8,10,2,6,60,2,1412,32,0.5333333333333333,84720,102,0.0012039660056657223,0,0.07187928354999999,879.0661478599222,"pfft"],["red3",3,"confirm",0,"pfft",2048,16,0.25,5,8,10,2,7,60,2,1412,26,0.43333333333333335,84720,97,0.0011449480642115202,0,0.07500566895,714.2412451361868,"pfft"],["red3",3,"confirm",0,"pfft",2048,16,0.25,5,8,10,0,6,60,2,1412,32,0.5333333333333333,84720,102,0.0012039660056657223,0,0.06587828994999999,879.0661478599222,"pfft"],["red3",3,"confirm",0,"pfft",2048,16,0.25,5,8,10,0,7,60,2,1412,26,0.43333333333333335,84720,97,0.0011449480642115202,0,0.07229408108333334,714.2412451361868,"pfft"],["red3",3,"confirm",0,"pfft",1024,64,0.5,5,10,10,0,6,60,5,3656,0,0.0,219360,42667,0.19450674690007294,0,0.10616021718333334,0.0,"pfft"],["red3",3,"confirm",0,"pfft",1024,64,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,42509,0.193786469730124,0,0.10607232788333332,0.0,"pfft"],["red4",1,"confirm",0,"pfft",2048,0,0.25,5,8,10,2,6,60,2,1412,38,0.6333333333333333,84720,35,0.00041312559017941453,0,0.07275503531666666,1047.96875,"pfft"],["red4",1,"confirm",0,"pfft",2048,0,0.25,5,8,10,2,7,60,2,1412,44,0.7333333333333333,84720,23,0.00027148253068932953,0,0.0647454347,1213.4375,"pfft"],["red4",1,"confirm",0,"pfft",2048,0,0.25,5,8,10,0,6,60,2,1412,38,0.6333333333333333,84720,35,0.00041312559017941453,0,0.06936945973333333,1047.96875,"pfft"],["red4",1,"confirm",0,"pfft",2048,0,0.25,5,8,10,0,7,60,2,1412,44,0.7333333333333333,84720,23,0.00027148253068932953,0,0.06797447763333334,1213.4375,"pfft"],["red4",1,"confirm",0,"pfft",2048,32,0.25,5,10,10,4,6,60,4,2921,47,0.7833333333333333,175260,20,0.00011411617026132602,0,0.1358816273166667,1769.1623711340208,"pfft"],["red4",1,"confirm",0,"pfft",2048,32,0.25,5,10,10,4,7,60,4,2921,40,0.6666666666666666,175260,33,0.00018829168093118794,0,0.12844515076666668,1505.6701030927836,"pfft"],["red4",1,"confirm",0,"pfft",1024,16,0.5,5,10,10,0,6,60,5,3656,3,0.05,219360,32869,0.1498404449307075,0,0.10222174138333333,188.77796901893288,"pfft"],["red4",1,"confirm",0,"pfft",1024,16,0.5,5,10,10,0,7,60,5,3656,3,0.05,219360,33251,0.1515818745441284,0,0.08568293673333334,188.77796901893288,"pfft"],["red4",2,"confirm",0,"pfft",2048,16,0.25,5,5,10,4,6,60,4,2595,40,0.6666666666666666,155700,32,0.00020552344251766218,0,0.13020488200000002,1344.5595854922278,"pfft"],["red4",2,"confirm",0,"pfft",2048,16,0.25,5,5,10,4,7,60,4,2595,42,0.7,155700,24,0.00015414258188824664,0,0.13020887779999998,1411.7875647668393,"pfft"],["red4",2,"confirm",0,"pfft",2048,16,0.25,5,10,10,4,6,60,4,2921,29,0.48333333333333334,175260,55,0.0003138194682186466,0,0.13587977088333333,1097.2668393782383,"pfft"],["red4",2,"confirm",0,"pfft",2048,16,0.25,5,10,10,4,7,60,4,2921,36,0.6,175260,46,0.00026246719160104987,0,0.1305700420833333,1362.1243523316061,"pfft"],["red4",2,"confirm",0,"pfft",2048,16,0.25,5,8,10,4,6,60,4,2840,32,0.5333333333333333,170400,48,0.00028169014084507044,0,0.13877464556666666,1177.20207253886,"pfft"],["red4",2,"confirm",0,"pfft",2048,16,0.25,5,8,10,4,7,60,4,2840,34,0.5666666666666667,170400,46,0.0002699530516431925,0,0.12480105128333331,1250.7772020725388,"pfft"],["red4",2,"confirm",0,"pfft",1024,16,0.5,5,10,10,0,6,60,5,3656,0,0.0,219360,35145,0.16021608315098468,0,0.09783786643333332,0.0,"pfft"],["red4",2,"confirm",0,"pfft",1024,16,0.5,5,10,10,0,7,60,5,3656,0,0.0,219360,35182,0.16038475565280816,0,0.09664648565000002,0.0,"pfft"],["red4",3,"confirm",0,"pfft",2048,128,0.5,5,10,10,2,6,60,2,2921,21,0.35,175260,17635,0.10062193312792422,0,0.03364124958333333,1161.7613636363637,"pfft"],["red4",3,"confirm",0,"pfft",2048,128,0.5,5,10,10,2,7,60,2,2921,19,0.31666666666666665,175260,17587,0.10034805431929704,0,0.03527766671666667,1051.1174242424242,"pfft"],["red4",3,"confirm",0,"pfft",2048,128,0.5,5,10,10,0,6,60,2,2921,21,0.35,175260,17635,0.10062193312792422,0,0.035891110566666676,1161.7613636363637,"pfft"],["red4",3,"confirm",0,"pfft",2048,128,0.5,5,10,10,0,7,60,2,2921,19,0.31666666666666665,175260,17587,0.10034805431929704,0,0.03704201888333333,1051.1174242424242,"pfft"],["red4",3,"confirm",0,"pfft",2048,0,0.5,5,5,10,4,6,60,4,5206,14,0.23333333333333334,312360,29460,0.09431425278524778,0,0.08099136383333333,949.0104166666667,"pfft"],["red4",3,"confirm",0,"pfft",2048,0,0.5,5,5,10,4,7,60,4,5206,13,0.21666666666666667,312360,29304,0.09381482904341144,0,0.06841301040000002,881.2239583333334,"pfft"],["red4",3,"confirm",0,"pfft",1024,16,0.5,5,10,10,0,6,60,5,3656,2,0.03333333333333333,219360,32454,0.14794857768052516,0,0.04567471278333333,125.85197934595524,"pfft"],["red4",3,"confirm",0,"pfft",1024,16,0.5,5,10,10,0,7,60,5,3656,4,0.06666666666666667,219360,31106,0.14180342815463165,0,0.04397888973333334,251.7039586919105,"pfft"]],"raw_rows":[["red1","1","confirm","0","standard","2048","0","0.5","3","3","8","4","6","60","4","3610","0","0.0","216600","64214","0.2964635272391505","0","0.11875945404999998","0.0","3arm"],["red1","1","confirm","0","lite","2048","0","0.5","3","3","8","4","6","60","4","3610","38","0.6333333333333333","216600","743","0.003430286241920591","0","0.19480142836666664","1786.1979166666667","3arm"],["red1","1","confirm","0","standard","2048","0","0.5","3","3","8","4","7","60","4","3610","0","0.0","216600","64361","0.2971421975992613","0","0.14188796043333332","0.0","3arm"],["red1","1","confirm","0","lite","2048","0","0.5","3","3","8","4","7","60","4","3610","40","0.6666666666666666","216600","34","0.00015697137580794092","0","0.19425033291666663","1880.2083333333335","3arm"],["red1","1","confirm","0","standard","2048","0","0.5","3","4","8","4","6","60","4","4064","1","0.016666666666666666","243840","69089","0.2833374343832021","0","0.13563385774999998","52.91666666666667","3arm"],["red1","1","confirm","0","lite","2048","0","0.5","3","4","8","4","6","60","4","4064","36","0.6","243840","2284","0.009366797900262467","0","0.20409273813333337","1905.0","3arm"],["red1","1","confirm","0","standard","2048","0","0.5","3","4","8","4","7","60","4","4064","1","0.016666666666666666","243840","69431","0.2847399934383202","0","0.12955162011666665","52.91666666666667","3arm"],["red1","1","confirm","0","lite","2048","0","0.5","3","4","8","4","7","60","4","4064","31","0.5166666666666667","243840","1743","0.007148129921259842","0","0.21279618986666665","1640.4166666666667","3arm"],["red1","1","confirm","0","standard","512","16","0.5","3","4","10","0","6","60","10","2504","46","0.7666666666666667","150240","1001","0.006662673056443025","0","0.09486528218333333","1965.5972696245733","3arm"],["red1","1","confirm","0","lite","512","16","0.5","3","4","10","0","6","60","10","2504","13","0.21666666666666667","150240","21323","0.1419262513312034","0","0.163305858","555.494880546075","3arm"],["red1","1","confirm","0","standard","512","16","0.5","3","4","10","0","7","60","10","2504","44","0.7333333333333333","150240","337","0.0022430777422790204","0","0.08758903401666666","1880.136518771331","3arm"],["red1","1","confirm","0","lite","512","16","0.5","3","4","10","0","7","60","10","2504","13","0.21666666666666667","150240","21807","0.14514776357827475","0","0.14584604446666669","555.494880546075","3arm"],["red1","1","confirm","0","standard","1024","16","0.5","5","10","10","0","6","60","5","3656","3","0.05","219360","34550","0.1575036469730124","0","0.09123668735000003","188.77796901893288","3arm"],["red1","1","confirm","0","lite","1024","16","0.5","5","10","10","0","6","60","5","3656","5","0.08333333333333333","219360","33617","0.15325036469730124","0","0.16770858959999999","314.6299483648881","3arm"],["red1","1","confirm","0","standard","1024","16","0.5","5","10","10","0","7","60","5","3656","5","0.08333333333333333","219360","34026","0.1551148796498906","0","0.09041217225","314.6299483648881","3arm"],["red1","1","confirm","0","lite","1024","16","0.5","5","10","10","0","7","60","5","3656","8","0.13333333333333333","219360","34392","0.15678336980306345","0","0.16062319908333336","503.407917383821","3arm"],["red1","2","confirm","0","standard","2048","64","0.5","3","5","8","4","6","60","4","4336","0","0.0","260160","78771","0.3027790590405904","0","0.13080072964999995","0.0","3arm"],["red1","2","confirm","0","lite","2048","64","0.5","3","5","8","4","6","60","4","4336","35","0.5833333333333334","260160","2534","0.009740159901599016","0","0.20391669221666667","1935.7142857142856","3arm"],["red1","2","confirm","0","standard","2048","64","0.5","3","5","8","4","7","60","4","4336","0","0.0","260160","78275","0.30087253997539976","0","0.1310113547","0.0","3arm"],["red1","2","confirm","0","lite","2048","64","0.5","3","5","8","4","7","60","4","4336","28","0.4666666666666667","260160","3112","0.011961869618696186","0","0.20754559521666663","1548.5714285714284","3arm"],["red1","2","confirm","0","standard","2048","64","0.5","3","4","8","4","6","60","4","4064","0","0.0","243840","67700","0.27764107611548555","0","0.13755321271666668","0.0","3arm"],["red1","2","confirm","0","lite","2048","64","0.5","3","4","8","4","6","60","4","4064","37","0.6166666666666667","243840","2050","0.008407152230971129","0","0.19965586650000003","1917.9591836734692","3arm"],["red1","2","confirm","0","standard","2048","64","0.5","3","4","8","4","7","60","4","4064","0","0.0","243840","67554","0.2770423228346457","0","0.13270310266666668","0.0","3arm"],["red1","2","confirm","0","lite","2048","64","0.5","3","4","8","4","7","60","4","4064","40","0.6666666666666666","243840","1109","0.004548064304461942","0","0.2001231723666667","2073.4693877551017","3arm"],["red1","2","confirm","0","standard","2048","0","0.5","3","4","8","4","6","60","4","4064","0","0.0","243840","67428","0.2765255905511811","0","0.12994439266666666","0.0","3arm"],["red1","2","confirm","0","lite","2048","0","0.5","3","4","8","4","6","60","4","4064","37","0.6166666666666667","243840","2653","0.01088008530183727","0","0.19049898758333328","1957.9166666666667","3arm"],["red1","2","confirm","0","standard","2048","0","0.5","3","4","8","4","7","60","4","4064","0","0.0","243840","67357","0.2762344160104987","0","0.12013335001666667","0.0","3arm"],["red1","2","confirm","0","lite","2048","0","0.5","3","4","8","4","7","60","4","4064","36","0.6","243840","1973","0.008091371391076116","0","0.18846476943333326","1905.0","3arm"],["red1","2","confirm","0","standard","1024","16","0.5","5","10","10","0","6","60","5","3656","3","0.05","219360","35049","0.15977844638949673","0","0.09135940793333333","188.77796901893288","3arm"],["red1","2","confirm","0","lite","1024","16","0.5","5","10","10","0","6","60","5","3656","1","0.016666666666666666","219360","36280","0.16539022611232676","0","0.16573771906666668","62.92598967297762","3arm"],["red1","2","confirm","0","standard","1024","16","0.5","5","10","10","0","7","60","5","3656","3","0.05","219360","34875","0.15898522975929977","0","0.09477592430000001","188.77796901893288","3arm"],["red1","2","confirm","0","lite","1024","16","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","36340","0.16566374908825673","0","0.1650532838833333","0.0","3arm"],["red1","3","confirm","0","standard","2048","128","0.5","5","10","8","4","6","60","4","5859","0","0.0","351540","109880","0.31256755987938784","0","0.055649942966666685","0.0","3arm"],["red1","3","confirm","0","lite","2048","128","0.5","5","10","8","4","6","60","4","5859","50","0.8333333333333334","351540","1118","0.0031802924276042558","0","0.08127097981666667","3661.875","3arm"],["red1","3","confirm","0","standard","2048","128","0.5","5","10","8","4","7","60","4","5859","0","0.0","351540","109843","0.3124623086988678","0","0.05636075606666666","0.0","3arm"],["red1","3","confirm","0","lite","2048","128","0.5","5","10","8","4","7","60","4","5859","49","0.8166666666666667","351540","1531","0.004355123172327473","0","0.08014498521666666","3588.6375","3arm"],["red1","3","confirm","0","standard","512","32","0.5","5","10","10","0","6","60","10","3656","56","0.9333333333333333","219360","5","2.2793581327498177e-5","0","0.03343557685000001","3435.1677852348994","3arm"],["red1","3","confirm","0","lite","512","32","0.5","5","10","10","0","6","60","10","3656","0","0.0","219360","41608","0.18967906637490883","0","0.07359066304999999","0.0","3arm"],["red1","3","confirm","0","standard","512","32","0.5","5","10","10","0","7","60","10","3656","57","0.95","219360","3","1.3676148796498906e-5","0","0.03408825359999999","3496.510067114094","3arm"],["red1","3","confirm","0","lite","512","32","0.5","5","10","10","0","7","60","10","3656","0","0.0","219360","41803","0.19056801604668125","0","0.07340712468333331","0.0","3arm"],["red1","3","confirm","0","standard","512","32","0.5","8","8","10","0","6","60","10","3834","44","0.7333333333333333","230040","4233","0.01840114762649974","0","0.03844550755000001","2830.469798657718","3arm"],["red1","3","confirm","0","lite","512","32","0.5","8","8","10","0","6","60","10","3834","0","0.0","230040","72171","0.3137323943661972","0","0.07236229591666667","0.0","3arm"],["red1","3","confirm","0","standard","512","32","0.5","8","8","10","0","7","60","10","3834","47","0.7833333333333333","230040","4390","0.019083637628238566","0","0.037173412966666666","3023.4563758389263","3arm"],["red1","3","confirm","0","lite","512","32","0.5","8","8","10","0","7","60","10","3834","0","0.0","230040","68299","0.2969005390366893","0","0.07367989215000001","0.0","3arm"],["red1","3","confirm","0","standard","1024","16","0.5","5","10","10","0","6","60","5","3656","18","0.3","219360","22406","0.10214259664478482","0","0.037813076516666676","1132.6678141135972","3arm"],["red1","3","confirm","0","lite","1024","16","0.5","5","10","10","0","6","60","5","3656","44","0.7333333333333333","219360","3094","0.014104668125455872","0","0.06928936056666667","2768.7435456110156","3arm"],["red1","3","confirm","0","standard","1024","16","0.5","5","10","10","0","7","60","5","3656","16","0.26666666666666666","219360","22068","0.10060175054704595","0","0.03687256003333332","1006.815834767642","3arm"],["red1","3","confirm","0","lite","1024","16","0.5","5","10","10","0","7","60","5","3656","44","0.7333333333333333","219360","4497","0.02050054704595186","0","0.06489991395","2768.7435456110156","3arm"],["red2","1","confirm","0","standard","512","16","0.25","3","10","10","0","6","60","10","1496","46","0.7666666666666667","89760","20","0.0002228163992869875","0","0.07203681691666668","1174.334470989761","3arm"],["red2","1","confirm","0","lite","512","16","0.25","3","10","10","0","6","60","10","1496","26","0.43333333333333335","89760","416","0.004634581105169341","0","0.12527422963333334","663.7542662116041","3arm"],["red2","1","confirm","0","standard","512","16","0.25","3","10","10","0","7","60","10","1496","48","0.8","89760","20","0.0002228163992869875","0","0.07092639323333334","1225.3924914675767","3arm"],["red2","1","confirm","0","lite","512","16","0.25","3","10","10","0","7","60","10","1496","24","0.4","89760","305","0.0033979500891265597","0","0.11690580173333334","612.6962457337884","3arm"],["red2","1","confirm","0","standard","2048","64","0.25","3","10","10","4","6","60","4","2432","2","0.03333333333333333","145920","32146","0.22029879385964912","0","0.13671033305","62.04081632653061","3arm"],["red2","1","confirm","0","lite","2048","64","0.25","3","10","10","4","6","60","4","2432","39","0.65","145920","85","0.0005825109649122807","0","0.22893888776666665","1209.7959183673468","3arm"],["red2","1","confirm","0","standard","2048","64","0.25","3","10","10","4","7","60","4","2432","5","0.08333333333333333","145920","32271","0.22115542763157894","0","0.12698572958333332","155.1020408163265","3arm"],["red2","1","confirm","0","lite","2048","64","0.25","3","10","10","4","7","60","4","2432","41","0.6833333333333333","145920","156","0.0010690789473684211","0","0.22171889344999998","1271.8367346938774","3arm"],["red2","1","confirm","0","standard","512","32","0.25","3","10","10","0","6","60","10","1496","54","0.9","89760","8","8.9126559714795e-5","0","0.08246976178333333","1355.4362416107383","3arm"],["red2","1","confirm","0","lite","512","32","0.25","3","10","10","0","6","60","10","1496","31","0.5166666666666667","89760","229","0.002551247771836007","0","0.11877542704999997","778.1208053691275","3arm"],["red2","1","confirm","0","standard","512","32","0.25","3","10","10","0","7","60","10","1496","48","0.8","89760","20","0.0002228163992869875","0","0.08859262218333333","1204.8322147651006","3arm"],["red2","1","confirm","0","lite","512","32","0.25","3","10","10","0","7","60","10","1496","29","0.48333333333333334","89760","246","0.0027406417112299467","0","0.12270371114999998","727.9194630872483","3arm"],["red2","1","confirm","0","standard","1024","64","0.5","5","10","10","0","6","60","5","3656","0","0.0","219360","38259","0.17441192560175053","0","0.09401335185000001","0.0","3arm"],["red2","1","confirm","0","lite","1024","64","0.5","5","10","10","0","6","60","5","3656","1","0.016666666666666666","219360","47274","0.21550875273522976","0","0.15775031161666667","61.34228187919463","3arm"],["red2","1","confirm","0","standard","1024","64","0.5","5","10","10","0","7","60","5","3656","1","0.016666666666666666","219360","38220","0.17423413566739607","0","0.10531192019999999","61.34228187919463","3arm"],["red2","1","confirm","0","lite","1024","64","0.5","5","10","10","0","7","60","5","3656","1","0.016666666666666666","219360","46342","0.2112600291757841","0","0.16370955719999997","61.34228187919463","3arm"],["red2","2","confirm","0","standard","512","32","0.5","3","8","10","0","6","60","10","2924","36","0.6","175440","6899","0.039323985408116734","0","0.10276296675","1766.1744966442952","3arm"],["red2","2","confirm","0","lite","512","32","0.5","3","8","10","0","6","60","10","2924","0","0.0","175440","39010","0.22235522115823073","0","0.12493184445000001","0.0","3arm"],["red2","2","confirm","0","standard","512","32","0.5","3","8","10","0","7","60","10","2924","38","0.6333333333333333","175440","6558","0.03738030095759234","0","0.08372588419999998","1864.2953020134228","3arm"],["red2","2","confirm","0","lite","512","32","0.5","3","8","10","0","7","60","10","2924","0","0.0","175440","38664","0.22038303693570452","0","0.14312839168333336","0.0","3arm"],["red2","2","confirm","0","standard","512","32","0.5","3","5","10","0","6","60","10","2672","47","0.7833333333333333","160320","3020","0.0188373253493014","0","0.07696522583333333","2107.1140939597317","3arm"],["red2","2","confirm","0","lite","512","32","0.5","3","5","10","0","6","60","10","2672","1","0.016666666666666666","160320","31927","0.19914545908183634","0","0.14569000518333333","44.83221476510067","3arm"],["red2","2","confirm","0","standard","512","32","0.5","3","5","10","0","7","60","10","2672","45","0.75","160320","3287","0.020502744510978044","0","0.08376480168333335","2017.4496644295302","3arm"],["red2","2","confirm","0","lite","512","32","0.5","3","5","10","0","7","60","10","2672","2","0.03333333333333333","160320","30996","0.1933383233532934","0","0.15421410601666666","89.66442953020135","3arm"],["red2","2","confirm","0","standard","512","32","0.5","3","10","10","0","6","60","10","3008","37","0.6166666666666667","180480","7837","0.04342309397163121","0","0.08159871929999998","1867.3825503355704","3arm"],["red2","2","confirm","0","lite","512","32","0.5","3","10","10","0","6","60","10","3008","0","0.0","180480","37793","0.20940270390070923","0","0.13104689523333332","0.0","3arm"],["red2","2","confirm","0","standard","512","32","0.5","3","10","10","0","7","60","10","3008","37","0.6166666666666667","180480","6745","0.03737256205673759","0","0.08300400176666667","1867.3825503355704","3arm"],["red2","2","confirm","0","lite","512","32","0.5","3","10","10","0","7","60","10","3008","0","0.0","180480","38263","0.21200687056737588","0","0.14242378493333335","0.0","3arm"],["red2","2","confirm","0","standard","1024","64","0.5","5","10","10","0","6","60","5","3656","1","0.016666666666666666","219360","37127","0.16925145878920497","0","0.09323324680000002","61.34228187919463","3arm"],["red2","2","confirm","0","lite","1024","64","0.5","5","10","10","0","6","60","5","3656","0","0.0","219360","39325","0.17927151714077316","0","0.15797460330000002","0.0","3arm"],["red2","2","confirm","0","standard","1024","64","0.5","5","10","10","0","7","60","5","3656","1","0.016666666666666666","219360","37503","0.17096553610503282","0","0.09919388683333336","61.34228187919463","3arm"],["red2","2","confirm","0","lite","1024","64","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","40531","0.1847693289569657","0","0.18093732813333338","0.0","3arm"],["red2","3","confirm","0","standard","512","32","0.5","3","8","10","0","6","60","10","2924","51","0.85","175440","2294","0.013075695394436844","0","0.08577699528333334","2502.0805369127515","3arm"],["red2","3","confirm","0","lite","512","32","0.5","3","8","10","0","6","60","10","2924","1","0.016666666666666666","175440","33780","0.19254445964432285","0","0.1720728885166666","49.060402684563755","3arm"],["red2","3","confirm","0","standard","512","32","0.5","3","8","10","0","7","60","10","2924","47","0.7833333333333333","175440","2813","0.016033971728226175","0","0.07716105453333336","2305.8389261744965","3arm"],["red2","3","confirm","0","lite","512","32","0.5","3","8","10","0","7","60","10","2924","0","0.0","175440","33751","0.19237916096671226","0","0.14916148125","0.0","3arm"],["red2","3","confirm","0","standard","512","32","0.5","5","5","10","0","6","60","10","3248","45","0.75","194880","4407","0.022613916256157635","0","0.09548177913333335","2452.3489932885905","3arm"],["red2","3","confirm","0","lite","512","32","0.5","5","5","10","0","6","60","10","3248","1","0.016666666666666666","194880","40555","0.20810242200328408","0","0.15118207178333337","54.49664429530201","3arm"],["red2","3","confirm","0","standard","512","32","0.5","5","5","10","0","7","60","10","3248","43","0.7166666666666667","194880","4546","0.023327175697865354","0","0.09769859634999996","2343.3557046979863","3arm"],["red2","3","confirm","0","lite","512","32","0.5","5","5","10","0","7","60","10","3248","1","0.016666666666666666","194880","39507","0.2027247536945813","0","0.16668679948333337","54.49664429530201","3arm"],["red2","3","confirm","0","standard","512","32","0.5","3","10","10","0","6","60","10","3008","46","0.7666666666666667","180480","2836","0.015713652482269504","0","0.08930403368333334","2321.6107382550335","3arm"],["red2","3","confirm","0","lite","512","32","0.5","3","10","10","0","6","60","10","3008","1","0.016666666666666666","180480","31327","0.1735760195035461","0","0.15024910445","50.46979865771812","3arm"],["red2","3","confirm","0","standard","512","32","0.5","3","10","10","0","7","60","10","3008","50","0.8333333333333334","180480","2551","0.014134530141843972","0","0.07956516815000002","2523.489932885906","3arm"],["red2","3","confirm","0","lite","512","32","0.5","3","10","10","0","7","60","10","3008","2","0.03333333333333333","180480","32894","0.1822584219858156","0","0.14766295736666668","100.93959731543625","3arm"],["red2","3","confirm","0","standard","1024","64","0.5","5","10","10","0","6","60","5","3656","10","0.16666666666666666","219360","30689","0.1399024434719183","0","0.10941801118333332","613.4228187919463","3arm"],["red2","3","confirm","0","lite","1024","64","0.5","5","10","10","0","6","60","5","3656","2","0.03333333333333333","219360","33822","0.15418490153172867","0","0.17814290891666665","122.68456375838926","3arm"],["red2","3","confirm","0","standard","1024","64","0.5","5","10","10","0","7","60","5","3656","12","0.2","219360","30851","0.14064095550692926","0","0.09896644735000001","736.1073825503355","3arm"],["red2","3","confirm","0","lite","1024","64","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","34166","0.15575309992706055","0","0.16502162806666668","0.0","3arm"],["red3","1","confirm","0","standard","512","32","0.5","3","10","8","0","6","60","10","3008","42","0.7","180480","99","0.0005485372340425532","0","0.08384469391666667","2119.731543624161","3arm"],["red3","1","confirm","0","lite","512","32","0.5","3","10","8","0","6","60","10","3008","0","0.0","180480","39513","0.21893284574468086","0","0.14239988583333332","0.0","3arm"],["red3","1","confirm","0","standard","512","32","0.5","3","10","8","0","7","60","10","3008","41","0.6833333333333333","180480","64","0.0003546099290780142","0","0.07495581498333333","2069.261744966443","3arm"],["red3","1","confirm","0","lite","512","32","0.5","3","10","8","0","7","60","10","3008","0","0.0","180480","39923","0.22120456560283688","0","0.13448902731666665","0.0","3arm"],["red3","1","confirm","0","standard","512","32","0.5","3","10","10","0","6","60","10","3008","50","0.8333333333333334","180480","2010","0.011136968085106383","0","0.0859922915","2523.489932885906","3arm"],["red3","1","confirm","0","lite","512","32","0.5","3","10","10","0","6","60","10","3008","0","0.0","180480","41702","0.2310616134751773","0","0.13699464440000003","0.0","3arm"],["red3","1","confirm","0","standard","512","32","0.5","3","10","10","0","7","60","10","3008","49","0.8166666666666667","180480","1644","0.009109042553191489","0","0.08916120254999998","2473.020134228188","3arm"],["red3","1","confirm","0","lite","512","32","0.5","3","10","10","0","7","60","10","3008","0","0.0","180480","41795","0.2315769060283688","0","0.13911368651666667","0.0","3arm"],["red3","1","confirm","0","standard","512","32","0.5","3","8","8","0","6","60","10","2924","41","0.6833333333333333","175440","94","0.0005357957136342909","0","0.08849614188333331","2011.476510067114","3arm"],["red3","1","confirm","0","lite","512","32","0.5","3","8","8","0","6","60","10","2924","0","0.0","175440","40765","0.23235864113087096","0","0.12342533398333332","0.0","3arm"],["red3","1","confirm","0","standard","512","32","0.5","3","8","8","0","7","60","10","2924","39","0.65","175440","137","0.0007808937528499772","0","0.0920968035","1913.3557046979865","3arm"],["red3","1","confirm","0","lite","512","32","0.5","3","8","8","0","7","60","10","2924","0","0.0","175440","41054","0.23400592795257638","0","0.12338215468333336","0.0","3arm"],["red3","1","confirm","0","standard","1024","64","0.5","5","10","10","0","6","60","5","3656","4","0.06666666666666667","219360","24167","0.11017049598832969","0","0.10249256411666668","245.36912751677852","3arm"],["red3","1","confirm","0","lite","1024","64","0.5","5","10","10","0","6","60","5","3656","0","0.0","219360","44237","0.20166393143690736","0","0.15494641515000002","0.0","3arm"],["red3","1","confirm","0","standard","1024","64","0.5","5","10","10","0","7","60","5","3656","7","0.11666666666666667","219360","24096","0.10984682713347921","0","0.10171991715","429.3959731543624","3arm"],["red3","1","confirm","0","lite","1024","64","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","44698","0.2037654996353027","0","0.1863282612","0.0","3arm"],["red3","2","confirm","0","standard","512","16","0.5","5","10","10","0","6","60","10","3656","48","0.8","219360","2853","0.013006017505470459","0","0.08844633365000001","2994.6757679180887","3arm"],["red3","2","confirm","0","lite","512","16","0.5","5","10","10","0","6","60","10","3656","0","0.0","219360","48838","0.2226385849744712","0","0.16305057439999998","0.0","3arm"],["red3","2","confirm","0","standard","512","16","0.5","5","10","10","0","7","60","10","3656","48","0.8","219360","2914","0.013284099197665938","0","0.10563633221666668","2994.6757679180887","3arm"],["red3","2","confirm","0","lite","512","16","0.5","5","10","10","0","7","60","10","3656","0","0.0","219360","49806","0.22705142231947484","0","0.1821938951","0.0","3arm"],["red3","2","confirm","0","standard","512","32","0.5","5","10","10","0","6","60","10","3656","48","0.8","219360","2693","0.012276622902990518","0","0.08962730278333333","2944.429530201342","3arm"],["red3","2","confirm","0","lite","512","32","0.5","5","10","10","0","6","60","10","3656","0","0.0","219360","49111","0.2238831145149526","0","0.18821972774999998","0.0","3arm"],["red3","2","confirm","0","standard","512","32","0.5","5","10","10","0","7","60","10","3656","48","0.8","219360","2557","0.011656637490882568","0","0.09052481071666668","2944.429530201342","3arm"],["red3","2","confirm","0","lite","512","32","0.5","5","10","10","0","7","60","10","3656","0","0.0","219360","49157","0.22409281546316556","0","0.1861527198666667","0.0","3arm"],["red3","2","confirm","0","standard","512","16","0.5","5","8","10","0","6","60","10","3554","48","0.8","213240","2967","0.013913899831176139","0","0.08944390146666667","2911.126279863481","3arm"],["red3","2","confirm","0","lite","512","16","0.5","5","8","10","0","6","60","10","3554","0","0.0","213240","47480","0.2226599137122491","0","0.16835123475000005","0.0","3arm"],["red3","2","confirm","0","standard","512","16","0.5","5","8","10","0","7","60","10","3554","50","0.8333333333333334","213240","2514","0.011789532920652785","0","0.09572193321666665","3032.4232081911264","3arm"],["red3","2","confirm","0","lite","512","16","0.5","5","8","10","0","7","60","10","3554","0","0.0","213240","47779","0.2240620896642281","0","0.16766172991666667","0.0","3arm"],["red3","2","confirm","0","standard","1024","64","0.5","5","10","10","0","6","60","5","3656","18","0.3","219360","17444","0.07952224653537564","0","0.1037769543","1104.1610738255033","3arm"],["red3","2","confirm","0","lite","1024","64","0.5","5","10","10","0","6","60","5","3656","1","0.016666666666666666","219360","35746","0.16295587162654995","0","0.17819712425000003","61.34228187919463","3arm"],["red3","2","confirm","0","standard","1024","64","0.5","5","10","10","0","7","60","5","3656","18","0.3","219360","17598","0.08022428884026259","0","0.10280050621666664","1104.1610738255033","3arm"],["red3","2","confirm","0","lite","1024","64","0.5","5","10","10","0","7","60","5","3656","1","0.016666666666666666","219360","34671","0.15805525164113784","0","0.1701485160833333","61.34228187919463","3arm"],["red3","3","confirm","0","standard","512","16","0.5","5","10","8","0","6","60","10","3656","52","0.8666666666666667","219360","1060","0.004832239241429614","0","0.03814015486666667","3244.232081911263","3arm"],["red3","3","confirm","0","lite","512","16","0.5","5","10","8","0","6","60","10","3656","0","0.0","219360","46236","0.21077680525164114","0","0.07452196155","0.0","3arm"],["red3","3","confirm","0","standard","512","16","0.5","5","10","8","0","7","60","10","3656","48","0.8","219360","1281","0.005839715536105032","0","0.04250898846666668","2994.6757679180887","3arm"],["red3","3","confirm","0","lite","512","16","0.5","5","10","8","0","7","60","10","3656","0","0.0","219360","45460","0.20723924142961342","0","0.0841236179","0.0","3arm"],["red3","3","confirm","0","standard","512","16","0.5","5","10","10","0","6","60","10","3656","51","0.85","219360","2149","0.009796681254558716","0","0.04394674213333332","3181.843003412969","3arm"],["red3","3","confirm","0","lite","512","16","0.5","5","10","10","0","6","60","10","3656","0","0.0","219360","51169","0.23326495258935084","0","0.08775710519999999","0.0","3arm"],["red3","3","confirm","0","standard","512","16","0.5","5","10","10","0","7","60","10","3656","47","0.7833333333333333","219360","2896","0.013202042304886944","0","0.044139950933333325","2932.286689419795","3arm"],["red3","3","confirm","0","lite","512","16","0.5","5","10","10","0","7","60","10","3656","0","0.0","219360","51478","0.23467359591539022","0","0.08910642773333334","0.0","3arm"],["red3","3","confirm","0","standard","512","0","0.5","5","10","10","0","6","60","10","3656","47","0.7833333333333333","219360","4927","0.022460795040116704","0","0.040825268233333344","2983.1944444444443","3arm"],["red3","3","confirm","0","lite","512","0","0.5","5","10","10","0","6","60","10","3656","0","0.0","219360","52344","0.2386214442013129","0","0.07840775663333334","0.0","3arm"],["red3","3","confirm","0","standard","512","0","0.5","5","10","10","0","7","60","10","3656","47","0.7833333333333333","219360","4199","0.019142049598832967","0","0.0451945954","2983.1944444444443","3arm"],["red3","3","confirm","0","lite","512","0","0.5","5","10","10","0","7","60","10","3656","0","0.0","219360","54218","0.24716447848285922","0","0.07976192768333336","0.0","3arm"],["red3","3","confirm","0","standard","1024","64","0.5","5","10","10","0","6","60","5","3656","31","0.5166666666666667","219360","12387","0.05646881838074398","0","0.04242632736666666","1901.6107382550335","3arm"],["red3","3","confirm","0","lite","1024","64","0.5","5","10","10","0","6","60","5","3656","2","0.03333333333333333","219360","38681","0.1763357038657914","0","0.08623119193333334","122.68456375838926","3arm"],["red3","3","confirm","0","standard","1024","64","0.5","5","10","10","0","7","60","5","3656","29","0.48333333333333334","219360","12521","0.05707968636032093","0","0.0451887083","1778.9261744966443","3arm"],["red3","3","confirm","0","lite","1024","64","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","37763","0.17215080233406274","0","0.08458661153333333","0.0","3arm"],["red4","1","confirm","0","standard","512","16","0.5","5","10","10","0","6","60","10","3656","59","0.9833333333333333","219360","1","4.558716265499635e-6","0","0.09364070980000003","3680.955631399317","3arm"],["red4","1","confirm","0","lite","512","16","0.5","5","10","10","0","6","60","10","3656","2","0.03333333333333333","219360","39644","0.18072574762946755","0","0.16262486416666663","124.77815699658703","3arm"],["red4","1","confirm","0","standard","512","16","0.5","5","10","10","0","7","60","10","3656","57","0.95","219360","595","0.002712436177972283","0","0.08583428181666666","3556.1774744027302","3arm"],["red4","1","confirm","0","lite","512","16","0.5","5","10","10","0","7","60","10","3656","2","0.03333333333333333","219360","38529","0.17564277899343544","0","0.17925687480000002","124.77815699658703","3arm"],["red4","1","confirm","0","standard","512","32","0.5","5","8","10","0","6","60","10","3554","58","0.9666666666666667","213240","161","0.0007550178202963796","0","0.08906643839999999","3458.5906040268455","3arm"],["red4","1","confirm","0","lite","512","32","0.5","5","8","10","0","6","60","10","3554","2","0.03333333333333333","213240","36330","0.17037141249296567","0","0.19194257223333336","119.26174496644295","3arm"],["red4","1","confirm","0","standard","512","32","0.5","5","8","10","0","7","60","10","3554","58","0.9666666666666667","213240","2","9.379103357719001e-6","0","0.08907094398333336","3458.5906040268455","3arm"],["red4","1","confirm","0","lite","512","32","0.5","5","8","10","0","7","60","10","3554","3","0.05","213240","34544","0.1619958731945226","0","0.18361185463333338","178.8926174496644","3arm"],["red4","1","confirm","0","standard","512","16","0.5","5","10","8","0","6","60","10","3656","55","0.9166666666666666","219360","5","2.2793581327498177e-5","0","0.08193512153333332","3431.3993174061434","3arm"],["red4","1","confirm","0","lite","512","16","0.5","5","10","8","0","6","60","10","3656","4","0.06666666666666667","219360","24476","0.11157913931436908","0","0.17210133921666665","249.55631399317406","3arm"],["red4","1","confirm","0","standard","512","16","0.5","5","10","8","0","7","60","10","3656","55","0.9166666666666666","219360","8","3.646973012399708e-5","0","0.07668372230000002","3431.3993174061434","3arm"],["red4","1","confirm","0","lite","512","16","0.5","5","10","8","0","7","60","10","3656","6","0.1","219360","26001","0.11853118161925602","0","0.14946097428333333","374.3344709897611","3arm"],["red4","1","confirm","0","standard","1024","16","0.5","5","10","10","0","6","60","5","3656","37","0.6166666666666667","219360","8515","0.038817469000729396","0","0.08958231239999999","2328.261617900172","3arm"],["red4","1","confirm","0","lite","1024","16","0.5","5","10","10","0","6","60","5","3656","9","0.15","219360","26591","0.1212208242159008","0","0.16149079159999996","566.3339070567986","3arm"],["red4","1","confirm","0","standard","1024","16","0.5","5","10","10","0","7","60","5","3656","35","0.5833333333333334","219360","8694","0.03963347921225383","0","0.07779619703333332","2202.4096385542166","3arm"],["red4","1","confirm","0","lite","1024","16","0.5","5","10","10","0","7","60","5","3656","9","0.15","219360","26796","0.12215536105032823","0","0.16209881011666663","566.3339070567986","3arm"],["red4","2","confirm","0","standard","512","0","0.5","5","10","10","0","6","60","10","3656","52","0.8666666666666667","219360","2143","0.00976932895696572","0","0.07997938628333333","3300.5555555555557","3arm"],["red4","2","confirm","0","lite","512","0","0.5","5","10","10","0","6","60","10","3656","0","0.0","219360","44477","0.20275802334062729","0","0.19652121013333337","0.0","3arm"],["red4","2","confirm","0","standard","512","0","0.5","5","10","10","0","7","60","10","3656","48","0.8","219360","1530","0.006974835886214442","0","0.09916623791666666","3046.6666666666665","3arm"],["red4","2","confirm","0","lite","512","0","0.5","5","10","10","0","7","60","10","3656","1","0.016666666666666666","219360","42354","0.19307986870897156","0","0.18432801980000002","63.47222222222222","3arm"],["red4","2","confirm","0","standard","512","0","0.5","5","10","8","0","6","60","10","3656","44","0.7333333333333333","219360","27","0.00012308533916849016","0","0.08579761076666667","2792.777777777778","3arm"],["red4","2","confirm","0","lite","512","0","0.5","5","10","8","0","6","60","10","3656","2","0.03333333333333333","219360","33604","0.15319110138584974","0","0.15579175668333337","126.94444444444444","3arm"],["red4","2","confirm","0","standard","512","0","0.5","5","10","8","0","7","60","10","3656","43","0.7166666666666667","219360","62","0.0002826404084609774","0","0.07704568603333331","2729.3055555555557","3arm"],["red4","2","confirm","0","lite","512","0","0.5","5","10","8","0","7","60","10","3656","2","0.03333333333333333","219360","34415","0.15688822027716995","0","0.14600903480000005","126.94444444444444","3arm"],["red4","2","confirm","0","standard","512","64","0.5","5","10","10","0","6","60","9","3288","53","0.8833333333333333","197280","566","0.0028690186536901867","0","0.08517105548333335","3004.551724137931","3arm"],["red4","2","confirm","0","lite","512","64","0.5","5","10","10","0","6","60","9","3288","1","0.016666666666666666","197280","37774","0.19147404703974047","0","0.16045503334999997","56.689655172413794","3arm"],["red4","2","confirm","0","standard","512","64","0.5","5","10","10","0","7","60","9","3288","56","0.9333333333333333","197280","508","0.002575020275750203","0","0.08136011198333333","3174.6206896551726","3arm"],["red4","2","confirm","0","lite","512","64","0.5","5","10","10","0","7","60","9","3288","1","0.016666666666666666","197280","37900","0.19211273317112734","0","0.14483084106666666","56.689655172413794","3arm"],["red4","2","confirm","0","standard","1024","16","0.5","5","10","10","0","6","60","5","3656","34","0.5666666666666667","219360","9838","0.044848650619985414","0","0.08353741816666667","2139.4836488812393","3arm"],["red4","2","confirm","0","lite","1024","16","0.5","5","10","10","0","6","60","5","3656","8","0.13333333333333333","219360","25840","0.11779722830051058","0","0.17890218475","503.407917383821","3arm"],["red4","2","confirm","0","standard","1024","16","0.5","5","10","10","0","7","60","5","3656","35","0.5833333333333334","219360","9648","0.043982494529540485","0","0.07986479216666667","2202.4096385542166","3arm"],["red4","2","confirm","0","lite","1024","16","0.5","5","10","10","0","7","60","5","3656","12","0.2","219360","26344","0.1200948212983224","0","0.15131860691666665","755.1118760757315","3arm"],["red4","3","confirm","0","standard","512","0","0.5","5","10","10","0","6","60","10","3656","54","0.9","219360","957","0.004362691466083151","0","0.06573616053333332","3427.5","3arm"],["red4","3","confirm","0","lite","512","0","0.5","5","10","10","0","6","60","10","3656","0","0.0","219360","42116","0.19199489423778265","0","0.12714461738333335","0.0","3arm"],["red4","3","confirm","0","standard","512","0","0.5","5","10","10","0","7","60","10","3656","58","0.9666666666666667","219360","256","0.0011670313639679066","0","0.06275662708333335","3681.3888888888887","3arm"],["red4","3","confirm","0","lite","512","0","0.5","5","10","10","0","7","60","10","3656","0","0.0","219360","41104","0.187381473377097","0","0.12685797938333335","0.0","3arm"],["red4","3","confirm","0","standard","512","16","0.5","5","10","10","0","6","60","10","3656","59","0.9833333333333333","219360","502","0.002288475565280817","0","0.06729329803333334","3680.955631399317","3arm"],["red4","3","confirm","0","lite","512","16","0.5","5","10","10","0","6","60","10","3656","0","0.0","219360","37193","0.16955233406272793","0","0.13160958255","0.0","3arm"],["red4","3","confirm","0","standard","512","16","0.5","5","10","10","0","7","60","10","3656","56","0.9333333333333333","219360","280","0.001276440554339898","0","0.05343296656666666","3493.7883959044366","3arm"],["red4","3","confirm","0","lite","512","16","0.5","5","10","10","0","7","60","10","3656","0","0.0","219360","39479","0.1799735594456601","0","0.1179407720833333","0.0","3arm"],["red4","3","confirm","0","standard","512","0","0.5","5","8","10","0","6","60","10","3554","54","0.9","213240","1199","0.005622772462952542","0","0.060710796750000004","3331.875","3arm"],["red4","3","confirm","0","lite","512","0","0.5","5","8","10","0","6","60","10","3554","1","0.016666666666666666","213240","38576","0.18090414556368412","0","0.1302003876666667","61.701388888888886","3arm"],["red4","3","confirm","0","standard","512","0","0.5","5","8","10","0","7","60","10","3554","56","0.9333333333333333","213240","8","3.7516413430876005e-5","0","0.060490440083333326","3455.277777777778","3arm"],["red4","3","confirm","0","lite","512","0","0.5","5","8","10","0","7","60","10","3554","2","0.03333333333333333","213240","38866","0.18226411555055336","0","0.11906265884999997","123.40277777777777","3arm"],["red4","3","confirm","0","standard","1024","16","0.5","5","10","10","0","6","60","5","3656","30","0.5","219360","13946","0.06357585703865791","0","0.05915263298333333","1887.7796901893287","3arm"],["red4","3","confirm","0","lite","1024","16","0.5","5","10","10","0","6","60","5","3656","17","0.2833333333333333","219360","23967","0.10925875273522975","0","0.10941508623333333","1069.7418244406197","3arm"],["red4","3","confirm","0","standard","1024","16","0.5","5","10","10","0","7","60","5","3656","32","0.5333333333333333","219360","13611","0.06204868708971554","0","0.07283220740000002","2013.631669535284","3arm"],["red4","3","confirm","0","lite","1024","16","0.5","5","10","10","0","7","60","5","3656","16","0.26666666666666666","219360","22910","0.10444018964259665","0","0.14475402663333334","1006.815834767642","3arm"],["red1","1","confirm","0","pfft","2048","32","0.25","3","10","10","4","6","60","4","2432","35","0.5833333333333334","145920","58","0.0003974780701754386","0","0.11274686011666665","1096.9072164948454","pfft"],["red1","1","confirm","0","pfft","2048","32","0.25","3","10","10","4","7","60","4","2432","38","0.6333333333333333","145920","52","0.00035635964912280704","0","0.11150408870000002","1190.9278350515465","pfft"],["red1","1","confirm","0","pfft","2048","128","0.25","5","10","10","4","6","60","4","2921","22","0.36666666666666664","175260","124","0.0007075202556202214","0","0.13332121783333334","803.275","pfft"],["red1","1","confirm","0","pfft","2048","128","0.25","5","10","10","4","7","60","4","2921","23","0.38333333333333336","175260","117","0.0006675795960287572","0","0.12848181186666668","839.7875","pfft"],["red1","1","confirm","0","pfft","2048","32","0.25","3","8","10","4","6","60","4","2364","30","0.5","141840","62","0.000437112239142696","0","0.11356705291666666","913.917525773196","pfft"],["red1","1","confirm","0","pfft","2048","32","0.25","3","8","10","4","7","60","4","2364","30","0.5","141840","61","0.0004300620417371686","0","0.11620030113333334","913.917525773196","pfft"],["red1","1","confirm","0","pfft","1024","16","0.5","5","10","10","0","6","60","5","3656","0","0.0","219360","41502","0.18919584245076587","0","0.10199437103333334","0.0","pfft"],["red1","1","confirm","0","pfft","1024","16","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","41525","0.18930069292487237","0","0.09918040515","0.0","pfft"],["red1","2","confirm","0","pfft","2048","32","0.25","3","4","10","4","6","60","4","2024","39","0.65","121440","39","0.0003211462450592885","0","0.11380151793333333","1017.2164948453609","pfft"],["red1","2","confirm","0","pfft","2048","32","0.25","3","4","10","4","7","60","4","2024","41","0.6833333333333333","121440","39","0.0003211462450592885","0","0.11753437276666666","1069.381443298969","pfft"],["red1","2","confirm","0","pfft","2048","32","0.25","5","5","10","4","6","60","4","2595","30","0.5","155700","72","0.00046242774566473987","0","0.12641527201666664","1003.2216494845361","pfft"],["red1","2","confirm","0","pfft","2048","32","0.25","5","5","10","4","7","60","4","2595","30","0.5","155700","97","0.0006229929351316635","0","0.12815626601666666","1003.2216494845361","pfft"],["red1","2","confirm","0","pfft","2048","32","0.25","3","8","10","4","6","60","4","2364","33","0.55","141840","43","0.00030315848843767625","0","0.12643115373333333","1005.3092783505156","pfft"],["red1","2","confirm","0","pfft","2048","32","0.25","3","8","10","4","7","60","4","2364","38","0.6333333333333333","141840","37","0.00026085730400451213","0","0.11785557488333333","1157.6288659793815","pfft"],["red1","2","confirm","0","pfft","1024","16","0.5","5","10","10","0","6","60","5","3656","0","0.0","219360","41413","0.1887901167031364","0","0.10578052816666667","0.0","pfft"],["red1","2","confirm","0","pfft","1024","16","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","41270","0.18813822027716995","0","0.09125624555000003","0.0","pfft"],["red1","3","confirm","0","pfft","2048","128","0.5","5","5","10","4","6","60","4","5206","37","0.6166666666666667","312360","8905","0.02850877192982456","0","0.07119107330000002","2407.775","pfft"],["red1","3","confirm","0","pfft","2048","128","0.5","5","5","10","4","7","60","4","5206","39","0.65","312360","8677","0.027778844922525293","0","0.06984692548333334","2537.925","pfft"],["red1","3","confirm","0","pfft","2048","16","0.5","5","8","10","4","6","60","4","5696","32","0.5333333333333333","341760","15435","0.04516327247191011","0","0.06542272128333333","2361.0362694300516","pfft"],["red1","3","confirm","0","pfft","2048","16","0.5","5","8","10","4","7","60","4","5696","29","0.48333333333333334","341760","13856","0.04054307116104869","0","0.05856590838333333","2139.689119170984","pfft"],["red1","3","confirm","0","pfft","2048","64","0.5","5","5","10","4","6","60","4","5206","37","0.6166666666666667","312360","9083","0.029078627224996798","0","0.057713608150000005","2456.9132653061224","pfft"],["red1","3","confirm","0","pfft","2048","64","0.5","5","5","10","4","7","60","4","5206","33","0.55","312360","9717","0.031108336534767574","0","0.05760484535","2191.301020408163","pfft"],["red1","3","confirm","0","pfft","1024","16","0.5","5","10","10","0","6","60","5","3656","0","0.0","219360","27006","0.12311269146608315","0","0.038737517816666664","0.0","pfft"],["red1","3","confirm","0","pfft","1024","16","0.5","5","10","10","0","7","60","5","3656","1","0.016666666666666666","219360","27004","0.12310357403355215","0","0.03825285726666667","62.92598967297762","pfft"],["red2","1","confirm","0","pfft","2048","0","0.25","3","5","10","0","6","60","2","1072","14","0.23333333333333334","64320","1284","0.01996268656716418","0","0.06565473328333334","293.125","pfft"],["red2","1","confirm","0","pfft","2048","0","0.25","3","5","10","0","7","60","2","1072","13","0.21666666666666667","64320","1411","0.02193718905472637","0","0.07293391403333332","272.1875","pfft"],["red2","1","confirm","0","pfft","2048","0","0.25","3","5","10","2","6","60","2","1072","14","0.23333333333333334","64320","1284","0.01996268656716418","0","0.06587310195","293.125","pfft"],["red2","1","confirm","0","pfft","2048","0","0.25","3","5","10","2","7","60","2","1072","13","0.21666666666666667","64320","1411","0.02193718905472637","0","0.06567874156666667","272.1875","pfft"],["red2","1","confirm","0","pfft","2048","32","0.25","5","8","10","2","6","60","2","1412","7","0.11666666666666667","84720","602","0.00710576015108593","0","0.0655949173","191.5503875968992","pfft"],["red2","1","confirm","0","pfft","2048","32","0.25","5","8","10","2","7","60","2","1412","12","0.2","84720","557","0.006574598677998112","0","0.06689473603333333","328.3720930232558","pfft"],["red2","1","confirm","0","pfft","1024","64","0.5","5","10","10","0","6","60","5","3656","0","0.0","219360","49554","0.22590262582056891","0","0.09395565609999999","0.0","pfft"],["red2","1","confirm","0","pfft","1024","64","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","49868","0.22733406272793583","0","0.09101975721666668","0.0","pfft"],["red2","2","confirm","0","pfft","2048","0","0.25","5","5","10","1","6","60","1","636","23","0.38333333333333336","38160","246","0.006446540880503145","0","0.03865317976666667","380.9375","pfft"],["red2","2","confirm","0","pfft","2048","0","0.25","5","5","10","1","7","60","1","636","28","0.4666666666666667","38160","192","0.005031446540880503","0","0.04214273668333332","463.75","pfft"],["red2","2","confirm","0","pfft","1024","32","0.25","3","10","10","2","6","60","2","596","28","0.4666666666666667","35760","171","0.004781879194630872","0","0.04044938673333332","430.1030927835052","pfft"],["red2","2","confirm","0","pfft","1024","32","0.25","3","10","10","2","7","60","2","596","33","0.55","35760","260","0.00727069351230425","0","0.04810143655","506.9072164948454","pfft"],["red2","2","confirm","0","pfft","2048","0","0.25","3","10","10","2","6","60","2","1208","19","0.31666666666666665","72480","1562","0.02155077262693157","0","0.05822666296666666","448.28125","pfft"],["red2","2","confirm","0","pfft","2048","0","0.25","3","10","10","2","7","60","2","1208","20","0.3333333333333333","72480","1558","0.021495584988962473","0","0.07353730433333333","471.875","pfft"],["red2","2","confirm","0","pfft","1024","64","0.5","5","10","10","0","6","60","5","3656","0","0.0","219360","43723","0.19932075127644056","0","0.08918707168333334","0.0","pfft"],["red2","2","confirm","0","pfft","1024","64","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","43416","0.19792122538293216","0","0.09616488866666666","0.0","pfft"],["red2","3","confirm","0","pfft","2048","128","0.25","5","8","10","2","6","60","2","1412","23","0.38333333333333336","84720","161","0.001900377714825307","0","0.07594731621666667","615.0757575757576","pfft"],["red2","3","confirm","0","pfft","2048","128","0.25","5","8","10","2","7","60","2","1412","25","0.4166666666666667","84720","157","0.0018531633616619453","0","0.06785143538333333","668.5606060606061","pfft"],["red2","3","confirm","0","pfft","2048","128","0.25","5","8","10","0","6","60","2","1412","23","0.38333333333333336","84720","161","0.001900377714825307","0","0.06423795541666666","615.0757575757576","pfft"],["red2","3","confirm","0","pfft","2048","128","0.25","5","8","10","0","7","60","2","1412","25","0.4166666666666667","84720","157","0.0018531633616619453","0","0.0746142064","668.5606060606061","pfft"],["red2","3","confirm","0","pfft","2048","0","0.25","5","5","10","4","6","60","4","2595","16","0.26666666666666666","155700","159","0.001021194605009634","0","0.1287101517833333","540.625","pfft"],["red2","3","confirm","0","pfft","2048","0","0.25","5","5","10","4","7","60","4","2595","23","0.38333333333333336","155700","167","0.0010725754656390495","0","0.09057746075000002","777.1484375","pfft"],["red2","3","confirm","0","pfft","1024","64","0.5","5","10","10","0","6","60","5","3656","0","0.0","219360","39548","0.18028811086797958","0","0.06383930328333333","0.0","pfft"],["red2","3","confirm","0","pfft","1024","64","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","39604","0.18054339897884755","0","0.07040461776666665","0.0","pfft"],["red3","1","confirm","0","pfft","2048","32","0.25","3","5","10","0","6","60","2","1072","14","0.23333333333333334","64320","696","0.01082089552238806","0","0.07800415960000001","290.85271317829455","pfft"],["red3","1","confirm","0","pfft","2048","32","0.25","3","5","10","0","7","60","2","1072","11","0.18333333333333332","64320","586","0.009110696517412935","0","0.08299532158333332","228.52713178294573","pfft"],["red3","1","confirm","0","pfft","2048","32","0.25","3","5","10","2","6","60","2","1072","14","0.23333333333333334","64320","696","0.01082089552238806","0","0.09369491886666667","290.85271317829455","pfft"],["red3","1","confirm","0","pfft","2048","32","0.25","3","5","10","2","7","60","2","1072","11","0.18333333333333332","64320","586","0.009110696517412935","0","0.06546655298333333","228.52713178294573","pfft"],["red3","1","confirm","0","pfft","2048","32","0.125","5","8","10","0","6","60","2","698","20","0.3333333333333333","41880","108","0.0025787965616045844","0","0.05867781475000001","270.5426356589147","pfft"],["red3","1","confirm","0","pfft","2048","32","0.125","5","8","10","0","7","60","2","698","24","0.4","41880","106","0.002531041069723018","0","0.06480618786666668","324.65116279069764","pfft"],["red3","1","confirm","0","pfft","1024","64","0.5","5","10","10","0","6","60","5","3656","0","0.0","219360","46705","0.21291484318016046","0","0.09535451041666666","0.0","pfft"],["red3","1","confirm","0","pfft","1024","64","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","47477","0.21643417213712618","0","0.0914992141","0.0","pfft"],["red3","2","confirm","0","pfft","2048","128","0.25","5","5","10","0","6","60","2","1289","35","0.5833333333333334","77340","69","0.0008921644685802948","0","0.07628685106666669","854.4507575757576","pfft"],["red3","2","confirm","0","pfft","2048","128","0.25","5","5","10","0","7","60","2","1289","32","0.5333333333333333","77340","89","0.0011507628652702353","0","0.07635907859999999","781.2121212121212","pfft"],["red3","2","confirm","0","pfft","2048","128","0.25","5","5","10","2","6","60","2","1289","35","0.5833333333333334","77340","69","0.0008921644685802948","0","0.07297417431666667","854.4507575757576","pfft"],["red3","2","confirm","0","pfft","2048","128","0.25","5","5","10","2","7","60","2","1289","32","0.5333333333333333","77340","89","0.0011507628652702353","0","0.0752501654","781.2121212121212","pfft"],["red3","2","confirm","0","pfft","2048","128","0.25","5","10","10","0","6","60","2","1452","35","0.5833333333333334","87120","85","0.0009756657483930211","0","0.07195909771666667","962.5","pfft"],["red3","2","confirm","0","pfft","2048","128","0.25","5","10","10","0","7","60","2","1452","33","0.55","87120","76","0.0008723599632690542","0","0.06091634203333332","907.5","pfft"],["red3","2","confirm","0","pfft","1024","64","0.5","5","10","10","0","6","60","5","3656","0","0.0","219360","40472","0.18450036469730124","0","0.09932257478333334","0.0","pfft"],["red3","2","confirm","0","pfft","1024","64","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","39226","0.1788202042304887","0","0.09200726125000001","0.0","pfft"],["red3","3","confirm","0","pfft","2048","128","0.25","5","4","10","4","6","60","4","2432","18","0.3","145920","166","0.001137609649122807","0","0.12634197766666666","547.2","pfft"],["red3","3","confirm","0","pfft","2048","128","0.25","5","4","10","4","7","60","4","2432","21","0.35","145920","200","0.0013706140350877192","0","0.14915171265","638.4","pfft"],["red3","3","confirm","0","pfft","2048","16","0.25","5","8","10","2","6","60","2","1412","32","0.5333333333333333","84720","102","0.0012039660056657223","0","0.07187928354999999","879.0661478599222","pfft"],["red3","3","confirm","0","pfft","2048","16","0.25","5","8","10","2","7","60","2","1412","26","0.43333333333333335","84720","97","0.0011449480642115202","0","0.07500566895","714.2412451361868","pfft"],["red3","3","confirm","0","pfft","2048","16","0.25","5","8","10","0","6","60","2","1412","32","0.5333333333333333","84720","102","0.0012039660056657223","0","0.06587828994999999","879.0661478599222","pfft"],["red3","3","confirm","0","pfft","2048","16","0.25","5","8","10","0","7","60","2","1412","26","0.43333333333333335","84720","97","0.0011449480642115202","0","0.07229408108333334","714.2412451361868","pfft"],["red3","3","confirm","0","pfft","1024","64","0.5","5","10","10","0","6","60","5","3656","0","0.0","219360","42667","0.19450674690007294","0","0.10616021718333334","0.0","pfft"],["red3","3","confirm","0","pfft","1024","64","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","42509","0.193786469730124","0","0.10607232788333332","0.0","pfft"],["red4","1","confirm","0","pfft","2048","0","0.25","5","8","10","2","6","60","2","1412","38","0.6333333333333333","84720","35","0.00041312559017941453","0","0.07275503531666666","1047.96875","pfft"],["red4","1","confirm","0","pfft","2048","0","0.25","5","8","10","2","7","60","2","1412","44","0.7333333333333333","84720","23","0.00027148253068932953","0","0.0647454347","1213.4375","pfft"],["red4","1","confirm","0","pfft","2048","0","0.25","5","8","10","0","6","60","2","1412","38","0.6333333333333333","84720","35","0.00041312559017941453","0","0.06936945973333333","1047.96875","pfft"],["red4","1","confirm","0","pfft","2048","0","0.25","5","8","10","0","7","60","2","1412","44","0.7333333333333333","84720","23","0.00027148253068932953","0","0.06797447763333334","1213.4375","pfft"],["red4","1","confirm","0","pfft","2048","32","0.25","5","10","10","4","6","60","4","2921","47","0.7833333333333333","175260","20","0.00011411617026132602","0","0.1358816273166667","1769.1623711340208","pfft"],["red4","1","confirm","0","pfft","2048","32","0.25","5","10","10","4","7","60","4","2921","40","0.6666666666666666","175260","33","0.00018829168093118794","0","0.12844515076666668","1505.6701030927836","pfft"],["red4","1","confirm","0","pfft","1024","16","0.5","5","10","10","0","6","60","5","3656","3","0.05","219360","32869","0.1498404449307075","0","0.10222174138333333","188.77796901893288","pfft"],["red4","1","confirm","0","pfft","1024","16","0.5","5","10","10","0","7","60","5","3656","3","0.05","219360","33251","0.1515818745441284","0","0.08568293673333334","188.77796901893288","pfft"],["red4","2","confirm","0","pfft","2048","16","0.25","5","5","10","4","6","60","4","2595","40","0.6666666666666666","155700","32","0.00020552344251766218","0","0.13020488200000002","1344.5595854922278","pfft"],["red4","2","confirm","0","pfft","2048","16","0.25","5","5","10","4","7","60","4","2595","42","0.7","155700","24","0.00015414258188824664","0","0.13020887779999998","1411.7875647668393","pfft"],["red4","2","confirm","0","pfft","2048","16","0.25","5","10","10","4","6","60","4","2921","29","0.48333333333333334","175260","55","0.0003138194682186466","0","0.13587977088333333","1097.2668393782383","pfft"],["red4","2","confirm","0","pfft","2048","16","0.25","5","10","10","4","7","60","4","2921","36","0.6","175260","46","0.00026246719160104987","0","0.1305700420833333","1362.1243523316061","pfft"],["red4","2","confirm","0","pfft","2048","16","0.25","5","8","10","4","6","60","4","2840","32","0.5333333333333333","170400","48","0.00028169014084507044","0","0.13877464556666666","1177.20207253886","pfft"],["red4","2","confirm","0","pfft","2048","16","0.25","5","8","10","4","7","60","4","2840","34","0.5666666666666667","170400","46","0.0002699530516431925","0","0.12480105128333331","1250.7772020725388","pfft"],["red4","2","confirm","0","pfft","1024","16","0.5","5","10","10","0","6","60","5","3656","0","0.0","219360","35145","0.16021608315098468","0","0.09783786643333332","0.0","pfft"],["red4","2","confirm","0","pfft","1024","16","0.5","5","10","10","0","7","60","5","3656","0","0.0","219360","35182","0.16038475565280816","0","0.09664648565000002","0.0","pfft"],["red4","3","confirm","0","pfft","2048","128","0.5","5","10","10","2","6","60","2","2921","21","0.35","175260","17635","0.10062193312792422","0","0.03364124958333333","1161.7613636363637","pfft"],["red4","3","confirm","0","pfft","2048","128","0.5","5","10","10","2","7","60","2","2921","19","0.31666666666666665","175260","17587","0.10034805431929704","0","0.03527766671666667","1051.1174242424242","pfft"],["red4","3","confirm","0","pfft","2048","128","0.5","5","10","10","0","6","60","2","2921","21","0.35","175260","17635","0.10062193312792422","0","0.035891110566666676","1161.7613636363637","pfft"],["red4","3","confirm","0","pfft","2048","128","0.5","5","10","10","0","7","60","2","2921","19","0.31666666666666665","175260","17587","0.10034805431929704","0","0.03704201888333333","1051.1174242424242","pfft"],["red4","3","confirm","0","pfft","2048","0","0.5","5","5","10","4","6","60","4","5206","14","0.23333333333333334","312360","29460","0.09431425278524778","0","0.08099136383333333","949.0104166666667","pfft"],["red4","3","confirm","0","pfft","2048","0","0.5","5","5","10","4","7","60","4","5206","13","0.21666666666666667","312360","29304","0.09381482904341144","0","0.06841301040000002","881.2239583333334","pfft"],["red4","3","confirm","0","pfft","1024","16","0.5","5","10","10","0","6","60","5","3656","2","0.03333333333333333","219360","32454","0.14794857768052516","0","0.04567471278333333","125.85197934595524","pfft"],["red4","3","confirm","0","pfft","1024","16","0.5","5","10","10","0","7","60","5","3656","4","0.06666666666666667","219360","31106","0.14180342815463165","0","0.04397888973333334","251.7039586919105","pfft"]],"row_ids":["73641c1b41e54153afd23719d5da9de3e3a0d304f37a4cd546655c7ecb879dce","dca7f522f2e9fc9a121a40c1c29b41cc15c6373975647b2dd76c43df7a8b38a3","912a8ce6db6b6af13f0f46f1d9ee2996218eae25f787562bef9a63c5bad3f0a6","4b102051d06d986d9bf3bc39af85493fd5e0de9bade16ef2c630ca2768d8c265","a67535abd83467eccfa49b939b4a38a1f4f11a0b1c30622e4dc8f798eb2b1d7d","6fefbac4a563f7fcdf01b79af2cee3c57eb278c85c89362473309d690f35741f","75f995462a28da7e489c2308152ef66c69f3d04a65dbf286f9640012035a1251","a1181564c82be795fc2425d6d0e6cbfc6b8566e431939a0e9e81d695872cbdae","71f058116fc63aa36c4c6ddde41054bab92d452dc6c23dc1195a214e293e6159","f92efcda685563373f7a7185c9659dcfe1c47469828be20c33e9c69d43a2a6ba","7b33ee393efe6cc242bc0eebc11fc7e3d8d14c0b6afc2ed4d11035a60a0001e2","8245c2acfa4bed80a417cde562063ddf2b9b2c3ecf0abb959a54c00b71c901f1","62d6931048bb21d30afa650b8adc8a335fd36810d4f79f9c9895b2ed09a1bbfa","2fe9b404c5dde0f524da94d344f2a686ec31883c193ecd1c691b4dd3cd8ab904","3264601ea2317fba03441499655f6b473ea56a26e5ea579d39ee5a2fc6cfee93","73e9629463ac56324dd10aff297f777f4c1302f9c88ceb720892e32dcb61d389","554a6db2f29541f4c431a7b05789f6a8ff576b1e84b36eda038f0c30c6f811f9","25d0bd3395c2c8e0edde0700765de21b837466983e9a8cc49ccbcd17832ea531","38b9212e6617a3cdc79b6033bd53864f934d29ffd97108773d34a23747b14143","df0e1f265ef2d23f5790d5cdee6a48e11b38bfec6845bce77afabe943db6199d","be44fa84d36648aa5f71a5317f9fd7edfe542c7048be47efdb5c41cf5d77a9d6","76bef2a95f5dceedbbea78ecb734aff9d49a4eac291b53d9628d0e5072292a21","9edb169594af52b8fc0dd2b6dd3cb4fd45bf09e338620ab343ed5abb233e88e9","dcc8c4093f087b47b215c42811b574d8fc0ddf1ebfc57ff7fcbdf2f6320f19b2","3f0e49951acb472e6bded7445dc54e09e5deb484cb0efaaa74978aa1a45a93c9","fb665aa180866eaccc2184b2ec88ca98ff2d921b48cbf7e4dacd7f6e6c862914","2c620c37f8fb09463adbcf69ef19fcba55e5a381903daf3edbee80549e5e98fc","959ce1387f5223c2d828c0339445c2732b329bae78e3022f7b70cc63dd370642","a897d7dde47b1ba4f69ec4828b152136a711c67622a4c65e677ced72580cbe35","e42e4b4db76b6b17055409e061d3801eb3417a0984b675af4c947522b082273a","d026eb6f4ce4fb0b9ef90194ee29de286b97599e135eec16281c3553c7c0063d","6edabb6b92471311e1a7a6f3a386ec44cf0c95c6b575f0983694accb17760f48","1e9973316287d66ff4d74b224cd970fd83c1d7a047172d98629937030d6e5201","1a98b384aa8e38bdbeb2f153acbdeac33c36c63a128d9f2fc0c558602f147ac8","916379065bdb492c085f68c8db257f7d0377009a16c7cd8af01b717f0846522f","a815b84dac2fc40f21f38c15f205a313401da1b4a1b6e0f9c5551ecbc2226d12","72446ad0131663daedb6bf6dfaa3dac16220ae06284abf38bcfa65f8016f01ae","17b0656a6d69f15f78cf8f805aa549ebfddbef4b4af64b8d622c3801fcaa724f","2cd03ee9be51d4717749b7131edf107c69ff68d82ffcc950747e12362dd7a8eb","978c18de542de828c7f36cac9b62bd736be0ca312a17b4b1f4f22b8c2ce3b2cd","a8bf653ab2ccf32f4929e9f7c5d8fb8d5cc18d200df8ab0d461fbe62a20acdc1","eb1f8ea167cd266ba6a881df55e5cce307d1fecbead69420afd8129422a00075","236e073e0f3909cca49f28fca25cb704a514fae9de367ec4e34690797a093e3e","5c8cede176ec5034b854530e567ed0d4b2ba7a8502b3b05e9b66af858845f4b1","f096f0c350d640f2a03853bb171a5782958a8ce82d1e75d65a64b23480ea8e2d","bf42d4d28615ba9f28d45071764ded22fb60714b13528bacac7e0a40057dc2ec","b6f7129be6a55afe2aab26469e7cf681936487b6b9e5dff334ccde96724eb8e0","7403d3f12fb55a00535ac6709ae07916befb91643d56bcd96a6b95eefd9d1f7d","0bc20d4b1d26c2cc9ca6381457b14583b378a56cc7239ac7c952d73fedf5f77e","9bfffecfa402328226d54e5c9457a34205572fd5acb52c4d4c22616f7687cc74","ed5af896234dd22f778038176d8c0f67f3b5e9306965980d0b8ae15f70a718ea","22ac21d442bca07e87c0bc4a8392526940444031e64e58111f1da239dd988465","88088d358eac481df89c6d2688343a63222dce1ec3c7cc72ec52f6b2c01d3bfa","febffd62c65daa71876bb1d054edca2a65cb2cfb5e02ded1a99bd50483879d46","57dadd677efbb42bcd23eafdc57248b3f723a0450ad53a751d909ad5f12f0f1b","00e6fb1ec887fdeb8ebf97a3de395fd66506baed75831186726a9d0e102ee2d2","1597f184c6c3a9a3f312da245307c3f589b7da5452c63d7c3041f4151f4fb137","08a2551d1b33c8d8aa81eb1708c8092bceb61e23002739a2a136187b39e34114","d2703cf6b19edc4fae53e7b5858e612edda8c09470196348f4a6c5ddf1973b71","2a7ecaef04d831cef1bee39ce12108cef0bd557970c78e221b4457af4f056530","c65fc9aa7169ca6adb37912c356f68ad900fd7ed9a38cbab0d999772b23aed3d","e764f4d8a022edb0ffb3d1a905838a3cc619cd1a4575778d254fe20618b5139c","a79b93ec27e52855ee6a01b30d2e6555ff72c7625cbbe64b97b798ae27372675","7f246921c9200e6fa1be811007d8f3f3bcfe75c82604d427923225c6ef552829","a61bfdecafbd4534d38b981d53f687eb53e68b52a39274d67da045e63c8174d9","113c6fe373743fd753060b64685ed05458b22bd389a9e13bb3787e78add5076a","8ff57b11ef6b8cb95bb708240c0b3e3fc474b8185b173ebadf3f7af4b961174e","7c1360c6ac5af44cfaae7c370c16077eefcf0a417d58a58dd1ff11ee51690ff8","5aa01ce9b1158eb9f9fe4f15e181dab44d9872a88b1565e6cc4cc6c7c14cdbef","09735de6a9ccb3d345d03f207b85d5e69c61b08e1c3d81f3071b1ed7ca326792","d17131c127e87c36626c8b57b938af58de112e27d459a76304b13d5ec2d0158e","7417aa46e65716145b4c0e5e92dcd9205b789248aa0d683f829ef4414586323e","f6074887095d572562f5946a2dbb78ce6072e779c4db3ff6a260f7ff69244af4","5f3c9039b7153e84f10331d87d2849eb72d428a511695f0a5940391b02375b39","8a9f12a4529ba6a853b54802e41520fb9a8f11a429dceba0265424e3270dae2b","7998cc331a7fa7ed2e02266ed657a86ab65cce4821beb760e4a72518af15eec2","05b626f5c4adf6e00e1fc9f8b4d3bb69615d642f04cb02d4d9e92f4c4a85da54","966b039e478bc69348565a17634eeff505fa1905bb645361dbf4d20176018aad","c71ec935f81ddd9c31c5b2a158b9131f84ed3ce9b4fe877c08dd137a956ca5fd","d346e2b290f7fcfe51dd6769a6b050fff1c8a80f2dbccf14eef131abee18405b","e9970077d3908a032bd784b821d23bfe15c31be6d55283e56f91fdf8d8d91cfd","ed04b1830f97600af6f0ea600cb41639a97b7452cbecc9ad69cbe9a91f711d8b","40a88852e1b3a53c27ea95ae570b3871d84ee42fae8940dc6b98406c56a63ef7","aff415326064d92479d0a020299fb7172e3f719b7f363c457cc8174bba4a2ad4","4ba418b707ba7f9dfc7860d71d50f223123ee357b467b7137a13eb2a4d06f404","d9831c229bbe69d7d06528f35fe5d412d7c3e1bbd6d56f4bb4a86f53cc695271","13560b87740ed19a0a1290deabcad11fef2d2e70a18cbf51ed91abbdc6c88791","b3f177e24170159f9efb500664aa2f0d12653c5cb9a7b53c405be5633a20befe","585c6ee4ac134b84ac1b3473b5257a3a0399434c44d694b4f0ba2d97b43b4d33","4d7f2dd0eab038891b7c9e75ffa606bc6f58d9b99f21e240187e34a7ce576d9e","eaebb3625bfc90b6b03a6b0c0c70831b935aa95cd9d0d6d6e48581a5b1e2d0cc","4025fb038522993c148265312464f4b415ca91e4ee2a7e74ccae33770e8041c8","f5428e2c0545734d7415ee60a89053ac840f6552d1a4651dd4f565285065d941","e11bf11c6b7525c11eb37ef31369f12ed8a2d0a6a1dc568da998bb9c7ab820f9","39b61368cb995845aea53db1b37a81657112dcd03609ff8c067c73e090da209c","4a14dbc962d2b56807ed97c43ae9b68b6a2e23e339b8a4d6606f51a4a54dca83","8767b7d863750f364247d9c9c7b01f8d35834fe9fee86cea87353f6815928ede","bfedf1d6af6d342f8ff8a6f60383eb3a7ad2eeea679c8f5ef0b9bc27c0be09e5","154c912728c54f96acc8840d88316afda3180ef6bcba8a8b6c465488bee9dd4d","7675aba8c1101b69e90daa08c15238307f55efa4360c7ac95bf24a7bafab3228","275f26104064f6000119b79ca7f32646d7133350d7d3bb30f9978d2156d31a7b","60719d0e88c133874c60d7ef742f11e45a58dd0cba3b10ffd5ad21c38ba9f52d","fa4078c87b748968baaef79247348de8370eafd9ca047448250ed4004b7a866d","c7ac9348a820615a36516d999b18640bb598d2378ef7f8895d019c61c28d8fdf","cd338754c629f7204ab10c709a2dfa7810c6d06366f07d4a0aa77606d0da09d9","8c919948f550aa65c4c949ae5005bda49ca5d4af02b38847df5459b4ab4daf80","a48fe4315588ccc2f7bf79f3e898fe09a3e063717c94161025924f50e5aae857","f60ecc89066bed9f856f00ba64a5a204335cd7a30ffea815ee98eb1cca5cf570","fca5a871fde8165abfa3e04431a41e0bf139c52bda9b842bb025f28a4fc3834b","4202a1765ab2add85cd6eb1823fe8d4396918a9ae0bb0d2d7835e75893b6fca5","810164e79a897c50598965f1c2d4fce20c4b2cc0451ae6b11762fbbc957a66a3","9e5fd3b12b7bacd2d8de4509066ad462ed62b71c0198f52a26ae95a2b9c354ef","80b46889d69f91b264eb8463ca2bddf9d4e2d4395fdfeea5fdab95f8d953ca26","7d32f086923ef63e98110e6233c409dec420acc5b2d65f607d1e5130283d8040","82d4c4d44338119aa8dcec3c6f02b33e6b073e1f163bb4b056effd48e45a707a","d5da3e5f98db0a18d0e5d44677be330df6da8ec363179502ca14258a5961e6a5","2f293885302fd01389dfe4debeba3043b727e83d73556fe70041b220f2e61870","4d73d9bfa5e597b142785abb16229defa8bfb069d5c2b219ab959110e942938a","0a4abdd22711c709bb4bffc5effa08754d4d12a5d0a99f40b194c3ce6713b133","b2ec2dad9b0496c9ee0d8162bdcf3ab51766d68c588f1979408beb8727eecc1d","36f92af209c3587c10e17583a2a93a78c3aa81d11a862ccf14de4bcbc90164ba","edcf00d92bcb83705632429ed96d54a789cbe45ce3304596d6681508833f162d","4313546673c080e94a9cf10248032245c7d76e9e9d79bb152bb7866349e0210a","86f2dcaa978179c6bb5eacb6c48d3f29a7c5d9a4cf6ad3b1f689f7acd8774fad","d1dc19acfa31fedd5040e0465fa39fd03852bc3d7473c0580acf60669dd8f797","966adb85d1a9236bdeea6e7336a055ef107460888cc9f9db387a02acb32485c2","40b2f5fcf97c546a289dc144b54725e04257b8e6f88cf75225b79ddd61612d0d","114f7738432c74f9715b54376d5378e31d31e9ea193150ad1ab73824fdc3b18a","141776cf139036e082e2c01f09bf4cd2744e97dccfdbb4d9e00ef384789fe1ce","1f9d862fa15c64756ac61d0195c7422057a3ca30860b18a9fcbaa8a8d1277952","1b13e1d5b85c02c85508895fe50a3fd23a8340a6d234e5498341b8759073d85a","dd4f6693a375ba25a7175886cefe36fa8fa28b8dafc9c7d1389a211c7709bf6b","4cfcd467f8f3933f5af18a4e62a0310479c948e24b70a41740e52f1b77a770af","6f41c35a24cb21dd2ed1d47f067e2da1db6ca78df225a313d50b2373c19dd463","bb7ee9ed9d89f1c623ea3927b59dc5dd96ae1af21a1e381f90a23bf4aa1f6921","5c2bfc148514aae585daf00fafe5f4582161263a69db57c3fe96b50387dfea35","0c7e7ff59fefdd3a2d5899ebbfd29656cc0f26b056147efcb972c17ae733176b","dead0fd78d44aabd978bb264645d8cbb8390c9abfa7690bd6b0ef21b9f576689","c57ab92808bf914ed7a2ea720bf3b83912c3f9541f28fca96e6603080f218e02","8cd2a0b8c34db7292f6bf332bb397365ad0f5dda8439e660791677cf4bf4c157","143450e774861769417bac34d9c1edc85a8a32d8b50de45865e56b3cb1201ddc","41067dfb02e27042915ea674cf7098140cc70e879ceacdbb0b5dc388655a53da","d17f56525480fbcee7949194a95f1d22ee9c739c343c1f37600c8a2871b84505","d6e181c750080f509eaad9cff065257c90d269e480b8c9df11793e443281fa76","cf84505fb7247c165ddaa9c482550a5ac38b51b88e17e5bc9c41b153ebe89bbc","7f26c030593dae78778d9a7bd0d7eb6ae613d0e06e13d078450ce37a5fdb4ed0","27b970edd3734d5890dbc03c8cc10ccb39410c44a8a8080a767d08e4af5d54b4","ce309fc043e16c8a906b4d523fcf1cc8f8b1f028956680547f57fbe31c98699d","e348abe1502c7f3cc97c1cec8a9158e704cfb759a281fcd0f083166f9aef79a7","d10628b3cc115d9e8c6da195f4a3767dff8eb3d367b63655df43ca5d82ee7072","d4fa766bfe4561bf132e43b52f2804dce923a897f877ec02fce7be618cc99f0f","d1a4c3341a46e929f930992616becf57d6503d652eef637fb57951d93d654948","beee65112649604b507b6ff1487e996db9c57288427fa7a77350465a1806f99a","af22f4b8bd3859f0ea737b51bf02b19cec1ce66ab4de69dc8e573b0e553da7b8","90da1e082897c550f0f75901c5fc4353bef6f74808cae42054301fabfa4a40dc","6c122952cc9ab2369f7601fd9c2cf4bcffb52d3030f3139ccfc5516af8152405","552fbdfc66700c5e50696fe5492fc451a017cf6ea560b6490b5b73d403e27433","ae3b48e2a857a465abe2b03a81a32894e6cfefcb54e9e89075f50e8eb1cfb3c7","87a0752f74447768708875f9c11c74f4d3e0630153dec9909a71726aed7e7637","36e8b523b57e559f60639477847bd58a06b75ee74858e871ab71239d71bd97c1","36da6c58084530fee624c3906308c0419ff55e637a6878838f7a0650db0e83ce","95784066cea9e175abe81cb0d35a207f547f6a820606f8c3499d5d1e9ade4f64","d8010c6cb0102b78749086d87edf9938cfd4bd51b31e9fc190f88d1e8b3c38e1","45bb037a2b09779b44e3edaf9b615005ccaa47b715754622fcf6880adf5de3ed","ff0be597e77c49428723c0b0174815cb754ce324e1064f8604a6c3f5a3f31b28","02b35348d3b1125da87d61102a2448bd26f93b61aac3bf2227906d7e858b86f6","18ac4b4eb0b6f73e9995d596c3293024b0889c929cba10d11672e3cd9f2435ab","648dcb8e185a112c3381048e1facdd9d8a30f8250e8631fcdf3d56741debe8d1","286c459aefb9c2d6bd1b919138ee8bf00100e6c6d94ef240ee9838a0a86c430a","7613a7f9a6a9a25a6c48b99a8dc0a851641cb3f5f9adbd946145ab89afa0b251","e22e3f2b9c48439f091930a39e651b500df3a3f7efdf3ca49efca06f3a20eea5","36cffb50e8dfdbfbd95103c52ea8566d396f23dfb92b04e0bdc67ee7c5826e11","c6b995c99584a7f7f3f057eb3c84a234d2eefcf9c200065eb51598bb05208c2f","25c7ad4869b89856432750ea85fb48950e19c802c3920242a411c41c5daa45fd","553941a02c4b241f27474c05508ffa075595dfb7946b87e3a921c23deaefe2c8","ccd428354b5f41e2b3120b4abcfe2e77fd67a6d29a3c7ac45767cb01a57f31f6","79d27d222ddbeb8a7d068965f2c39b6376d283bfe50f4599bf629dbfec2dd7d1","08e5e317a96bdc77a2fb0cac1f215ec2fdf6b7cdd7eb239c089e62cd7460ad6a","47fae9c5fe753006b9700dbc0ae9a9619e24114dda35cd0a5c3c1a6c7d9c8154","2272ffed2261cb95f34d5e0bd7d0ca6e3b432301378f0cd6de73a3a88ab09eec","4be69b108ae45970e0bd6a022e84eb91e368376dd29ecfc0fada45134f39c105","4ad809c49ad8a7ead07023f4e32e1b791446d9b1315c3976c8239a14ef0003c8","6ce3147a05abd39a83fe4f2df3a7e3e0684670311d060fc9884ca5348bc7ba66","ac279edc4151474f121d506189fd0f100051a5b3c95b02d76946cefd519a77c9","ce60b9a9293764b70761ef32f97e225cdb1e279a1f525a611a0bc2513e905b4c","c6c23349b8492f6be2f0a73c91928c5c84d369bbd2f217e96c2b805583f2b391","33222c61cdebbf913a96b45a7b251d8e0926059bfa2d60624a34d6a3a5269048","ecb1d5f93807849ce6a60c6f5aa13c2f443e3a53befae0df2f0f7f8a71667c09","74225ad16f5bb50c6a556ee0824c0981191933c0c36bf13efef63666b2913259","aab2d3b994a66ad23493b384043be1fd4708a6b1dd3341969ec48e4ceedb8c7a","0df2920e6ddd7ea647cc9e4926461395866fd04f03299e44a4bfa64ab113dbf9","8f09da7b1334ab644fc1dc40209f1db88ed4a3542900dbe19de5f697c285f729","3e330e09e21981b7f111f7a7d4c33a3d76f976a3d7f972362b11f671cc5b59b7","f67f00130b762f2c8c396c27bd4f503622a91f69220f30ebf376fd8de6ed1c72","1dc816ec7758c3b674919e3dfff2378727538e904edbbc64dbfe078f442be54d","0397cfbbe63ff4d79862cf405adfea6dca333d6fdea1ea726dca80430842eedf","de007fc0e1b698c72352998a28ef9d3d25b80ccf1c34300fda9ee9cd5fc19cd2","12d28495076250d5acd8e4fe67026cb902eb133735a7bee668c5a6de9e118627","5eae989f666dcdfa0001f5ca01496a9d5caddb18f994f10083db01a2b04698b7","0ca4d9a1247a0acfb1ab3be98275db105152d6b8c45eebe1ca48d618c91fbbeb","4090cbd047ce2701ca28fba5eba3280c8cf87730dbd319ba76d8ca1d70918761","c8f05837627c47d667b74b959e77d31118447138ddfd95bb97a25dda4d62a32a","e5138da5c156ac9dd9f19c676a5c9dccdd35187e21d50281df89e4ddbc7732d6","3d52a337723d6113fe3783b57d08651e8b8ebefc577b6d75ee768b2e196a51ca","abc88d12ba6b2adf0681d9ce4f811cb87764c3fd05fb0b0977aaeee774e978c4","eea4de7b5281f562a442c9166f634bbb1f677530fbadc044ae2d36215bc88ca9","30860e5e20e14b24d86bcd92d6a2b7e538961ff37f3ab8e825aba56710e8d8ca","87782f513ba30c32865a0e0bf8c00e6d0310c508a6f9d49f25f192f6c5f9ecad","38bfbd44d4fc0e92dd2c2f13d6e08fd2fe91749a9e8fa29f0fe5ea971e4cfb5e","fa5c3e080edaa192bb3ddc47e038f59f751d5b5cbb322ab2331535e85c42589c","938fbb0c4eb6b339c595dcba0941d7ab65f69739cafca5a1fbcd72d3a5b74f9e","4bf4997f89b0e21e801e9df299e44cc33f7722d766dc85ecaa580188f0e79e92","e26594634a27cba4dbd101cb2e7734917daede1c6cfef3c6f04ee70e36bd64c7","1cc13aad702eee458c0c52782f82fec3fbeed0321f974d69f2346e2b6d0c46d6","c48ed693ee41048d0392959f6f4593ef1f48541253c36bb004edecfdc29cfeb5","eaa53d4be333e09d91e5bd363a7b51661512ff2e38b0ad45a740c3a9c73682a2","60088d2ab518925aab495025d8bdc441df974aefafdc65399546dda6c2252458","4572e76f5719389ab7c3b882b1f5b430c20350cc1950e88c7546a1fd6dcee303","ca16b97ab0cbe5662d6d4db6cb09ca3d16381af0e7b7850c0bcf9ee0c95467f2","5ab46f8fffb268f5c9c688c2688c2bd1477411df9d9026df54dc48ca5a9f2740","52beb3f14e02aafacb68fb53e6d40d9815066e661c5c836a5a511c3770fc5f34","21d8038bc1c653ba9205f585730f705b40e45fae1344414a919174920e48eb7b","8f1664d175f19ef2828bf69ec59e10b3ec57cce4e7c25bf67ba16d22ab7bb7d4","02c697d65ecaf16ae0330de04edb73634b3ca02f80f285c3647019d435ad86b0","0eb677827ff279762b14a67866550e103f726e79369cc8089b216e85f1ab1d09","ecce9e735ccc3718d9fb2acae7cdaa8b0f338b5221e1da07d48ae3905c3aee7c","840cab74fabf069c680021326292d2e682682cbe31488e571a4ef148de077eba","dcf9ea8f87ef4844973a92f35c46229e162d1102b66c719bd8ed041042c46a61","26923d26df5c61b03b0f844d2e2142f93f50fe41940fe3f2be8b3891dd98df55","a1d525c120019f4032c9fc7fabfc0117813583db6e0601606fb7fe582d015872","5bf2d488022e117a78cfc61a32ea2ad5bbb87ab91ec6286c3e122a8b5b2efe9c","27eb937f4938836a7b08515274c846282a2d888da39fb29e659a14156cb05e61","fe6a527a5f4f4dc47de15ca582b8389bf96b04802f8eed5136ab21cfc64a691b","7a394d6f67915c38a09e414bacbb64a2e983f3c34f75fb5ed49c20b658164a5e","ce8b21c25ed2799844021f59cbd1061cf7e2c9f922814ac1372c8ab46389c8ee","bf689297a7aab3c47bb2598742fd78154e9db43b0ec5a5db18c46c81657a6882","9b6344b6e633b00c9b85b3f422480ebebbf2922af13a5086cc8dc3c16bb1b6a9","284b218fc4c85661087560aa17bcd3c19acb8d1c5c88aeb04af9e78ce2c06c5e","2c7fb72b736b8dc11e00769de130ecb4e75abbcd69c69f0c3a550c885a97c73c","c7f32f377a9d98042b1bc95af8c9cbbf02acaa1aab80eac8df308fc483362cf0","caf2a4870ad78889841d17d0ba30e700354a7012c81c8fa8e47437833ca34bb3","672655a80d4959a1c654301d125a1070aa094e8c6e44552f3837379bda43ecc4","aaa0178053be334a376be955d4cf8738a4e08c86009649d9ac4c1c09213cf10b","3547cabc8b5a97f3e9e8ff93a670e2155136f58083e29d38841c16b50ee788bf","141b0a1ce93a6802d87a3ad97076face9628c9859fc7df50bdf6e34c31cd05e8","f9d6ab9b2cd87d114f815b57dbfce446130967cc23bb4eec788e1fb3b1e4868f","b4e96b519ef944dde9f4bdc477e15ee9ee9fd7ea58fb4ab1eddea50337bee24a","9577e7471fea561abba0c5fc274ac14a8437f1060c2d359a1530391b53470135","67c5d65b5cb304da5558383f34827bb5918ebf834f0bfdac947e40c38127bedb","c55e0d58703af4e3dac9cac29247f871967430cabf224f7d52dad9321f0f6dd3","fd65b0c1e6a30baa98bef0543f09830dc13dfdbc6dcde457a51d61d2e77e1789","8aa3726b0eaa93807d0c4e0a0ee76c59f7b3badef9e7561bd83ef705b8643c27","21e0fd4e69f592ebff13f149a911d88a37d2d84039a27701da6dd6648eb412b0","f659026f1ab2820d0cc31fd695cc3675c44c8baa25335fe730d5eebf8a5fee9f","5bae73a6112e2620adb1428ee90c5d4310f661ecfb312a2e5cca84b848f264ca","3ec0390c7693e64dee68faeb654b841de537144d6f710dd9c888a644ebbaa306","8dbf6285eadbb60825c5293d08168db357d3e6b3ba055deb7846367804661f06","93d8b437f6d6e267313ff32e5c7786336397824ee62467d76e613c7aba7078df","fd3488c9cb9375fa92b368021a45c9f305aaae80324ca24bbf818742c79ffde7","580bbf5df6b705ff28025661dacea2beba08371975d5ce71a070416b74527ac6","19f61b9e35641d279a5ebbccc57badc06d5abfa0a6b714853d1cf462a07626d5","60c49d3664bce0bd2c0fac46e47e3a7e160fe8dff7f01fd3b7302b1dc1bb7f7a","3440872e3aef028662e62da403e5d38808557b6b8baf03e794301032743d4367","ae66b05609a5db758281ff65298e68b989d15500423184f27099ed2d84ee6501","d370d2d6984849f2306aecb5710534c167d0bdd5b3129fd14e8e1e5db4841e23","4db633acf8554bdf8dd58005014ed91000e0bdda3c937949291eb32bb602e0ec","257d7df5f8db98e658bb2e48465e3ad94e7e6fa2fe25621dbe7f55267f529e3d","7c52de16b33fcdabf36cfe1b57320d3babdc56ac7d00d569409062416a385470","b18b3cafc5d7c16e0cd0fe51ba2ea97591998d3a2642e2e2740d1497f24601a7","156d1fd41a42e2502e6d7ad73a57bab953f174c74348573d0bda9b61c4031d89","a23ec9af5d7ee45a284ed1be012ae295492a3a0f538ca9ea63a88d5f3ea6bd21","149fcbb2e39b8d7ab38142699b71058cc81b0558c9d88a8367e0e7f92e0e97b7","7dfbfcf71a5fa3d3c02137bf3a41f618ef63c0ef3f4474dbe35d987a334f245a","3785bd59ba1a6498df533efb57f0526745ae7de2b316623326b2834560ee7332","cacd31cb4db33bdd57c73e90e4d1c43256e78cfec24c23d1b17b0fb7b25ab3b9","4db4248f46b6d0348fccb14dfd7705eb9cdf58442c3093f1fdbe63552a7ae90c","29054fbd1e5f85d7706dc6f48ce2759ea0eb8249a522bd2849c6f09342672935","3e472917e36928bc3a81330fefb981f97462f909ecf8a054cee2aa22ad424e3d","8a0df1cf80afc50db1e238d17528166e6b50b7446ece541978e525300050d62e","43f708e0e51911579f5a4f69e28f715ba48272e032fc8619b8889b40295299a7","115c7516fe8f78dd1df84cff747bc904b996ca9d4fb377e67c64e78f6b3b2287","09785334ae6e45ee45d8953199691bf80f22da4a8e64a597d5e0e8ba62aa4847","b2615e167d1dc21dd6478302f1670a2bbf03ed453bd0c8ba61ed3273902dab27","a6a7420baceafeb0275c8ea39b5b264dc30cc5c30467e738e48a8af738fce428","d97aa902a601590fab007d3140349b5d8b9ae18ab46714b56b97daf8929fc0bf","182a13d8a9c8fff48a38b1e274f43bfd420d501474cab8e50e895ec9fc83a9de","94ee57cd080ee89c6e0a9303db790ed9ad154567ac7110f03db021dd2cd9d211","4adb5ac166eeb965930442fa27057f525ec00406890424d329541e176002679e"],"coverage":{"3arm":["red1 1","red1 2","red1 3","red2 1","red2 2","red2 3","red3 1","red3 2","red3 3","red4 1","red4 2","red4 3"],"pfft":["red1 1","red1 2","red1 3","red2 1","red2 2","red2 3","red3 1","red3 2","red3 3","red4 1","red4 2","red4 3"]},"channels":["red1","red2","red3","red4"],"hydrophones":[1,2,3]};
+const MANIFEST = {"schema_version":1,"experiment_id":"2026-08-01-red-lite-search","result_scope":"60-frame confirmation","row_count":288,"columns":["channel","lane","phase","start_index","algorithm_id","nfft","cp","code_rate","outer_spacing","inner_spacing","check_degree","horizon","seed","frames","frame_blocks","payload_bits_per_frame","successful_frames","psr","payload_bits","bit_errors","ber","decode_failures","decode_seconds","effective_rate_bps","run"],"display_columns":["psr","ber","channel","lane","algorithm_id","nfft","cp","code_rate","outer_spacing","inner_spacing","check_degree","payload_bits_per_frame","successful_frames","decode_failures","decode_seconds","effective_rate_bps","run"],"coverage":{"3arm":["red1 1","red1 2","red1 3","red2 1","red2 2","red2 3","red3 1","red3 2","red3 3","red4 1","red4 2","red4 3"],"pfft":["red1 1","red1 2","red1 3","red2 1","red2 2","red2 3","red3 1","red3 2","red3 3","red4 1","red4 2","red4 3"]},"sources":[{"path":"results/red_config_finalists_20db_seeds6to7.csv","sha256":"ca75f40c86898a12e299bd2d3e735208fe06f8fca1ca286144a67bc518f67f4a","source_rows":288,"included_rows":192,"excluded_rows":{"adaptive_lite":96}},{"path":"results_pfft/red_config_finalists_20db_seeds6to7.csv","sha256":"e943fb200868d3c53a8878c51f6c5b83382039fdad6c22afec6ff89fbc9158ae","source_rows":96,"included_rows":96,"excluded_rows":{}}],"numeric_policy":"raw_rows preserves every source cell exactly; rows contains unrounded numeric values for sorting and plotting"};
+
+const PAGES = ['summary', 'landscape', 'factors', 'configurations', 'guide'];
+const PAGE_TITLES = {
+  summary: 'Summary', landscape: 'Search landscape', factors: 'Factor analysis',
+  configurations: 'Configurations', guide: 'Reading guide',
+};
+const RECEIVERS = ['ofdm_fec', 'lite', 'pfft'];
+const FACTORS = [
+  { key: 'nfft', label: 'N — FFT size' },
+  { key: 'cp', label: 'CP — cyclic prefix' },
+  { key: 'code_rate', label: 'rate — LDPC code rate' },
+  { key: 'outer_spacing', label: 'outer pilot ratio' },
+  { key: 'inner_spacing', label: 'inner pilot ratio' },
+  { key: 'check_degree', label: 'dc — LDPC check degree' },
+  { key: 'horizon', label: 'K — horizon' },
+];
+const C = Object.fromEntries(CFG.cols.map((name, index) => [name, index]));
+const CSS = getComputedStyle(document.querySelector('.viz-root'));
+const color = id => id === 'ofdm_fec' ? CSS.getPropertyValue('--recv-ofdm-fec')
+  : id === 'lite' ? CSS.getPropertyValue('--recv-lite')
+  : CSS.getPropertyValue('--recv-pfft');
+const rname = id => id === 'lite' ? 'JUNA-Lite'
+  : id === 'pfft' ? 'Partial FFT+FEC' : 'OFDM+FEC';
+const canonicalReceiver = id => id === 'standard' ? 'ofdm_fec' : id;
+const fmt = number => Math.round(number).toLocaleString('en-US');
+const esc = value => String(value).replace(/[&<>"']/g, char => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+})[char]);
+const pathKey = path => `${path.channel}-${path.label.slice(-1)}`;
+const entryAt = index => ({
+  row: CFG.rows[index], raw: CFG.raw_rows[index], id: CFG.row_ids[index], index,
+});
+
+const fChannel = document.getElementById('f-channel');
+const fLane = document.getElementById('f-lane');
+const fRecv = document.getElementById('f-recv');
+const receiverWrap = document.getElementById('f-recv-wrap');
+const filtersBox = document.getElementById('filters');
+for (const channel of CFG.channels) fChannel.add(new Option(channel, channel));
+for (const lane of CFG.hydrophones) fLane.add(new Option('hydrophone ' + lane, lane));
+
+let currentPage = 'summary';
+let selectedPath = '';
+let sortKey = 'effective_rate_bps';
+let sortAsc = false;
+let configurationPage = 0;
+const PAGE_SIZE = 48;
+const holdEl = {};
+
+const filterValues = () => ({
+  channel: fChannel.value, lane: fLane.value, receiver: fRecv.value,
+});
+function filteredPaths() {
+  const filter = filterValues();
+  return DATA.paths.filter(path =>
+    (!filter.channel || path.channel === filter.channel) &&
+    (!filter.lane || path.label.slice(-1) === filter.lane));
+}
+function filteredEntries() {
+  const filter = filterValues();
+  return CFG.rows.map((row, index) => entryAt(index)).filter(entry => {
+    const row = entry.row;
+    return (!filter.channel || row[C.channel] === filter.channel) &&
+      (!filter.lane || String(row[C.lane]) === filter.lane) &&
+      (!filter.receiver || row[C.algorithm_id] === filter.receiver);
+  });
+}
+const levelsOf = key => [...new Set(CFG.rows.map(row => row[C[key]]))].sort((a, b) => a - b);
+function heldRows(except) {
+  return filteredEntries().map(entry => entry.row).filter(row => FACTORS.every(factor =>
+    factor.key === except || !holdEl[factor.key].value ||
+    String(row[C[factor.key]]) === holdEl[factor.key].value));
+}
+
+const holdsBox = document.getElementById('holds');
+for (const factor of FACTORS) {
+  const label = document.createElement('label');
+  label.textContent = factor.key === 'horizon' ? 'K' : factor.key;
+  const select = document.createElement('select');
+  select.setAttribute('aria-label', `Hold ${factor.label}`);
+  select.add(new Option('any', ''));
+  for (const value of levelsOf(factor.key)) {
+    select.add(new Option(factor.key === 'horizon' && value === 0 ? 'fill' : value, value));
+  }
+  label.appendChild(select); holdsBox.appendChild(label); holdEl[factor.key] = select;
+}
+const holdReset = document.createElement('button');
+holdReset.type = 'button'; holdReset.textContent = 'Release all';
+holdsBox.appendChild(holdReset);
+
+function queryValue(name) { return new URLSearchParams(location.search).get(name) || ''; }
+function applyQuery() {
+  const requested = queryValue('page');
+  currentPage = PAGES.includes(requested) ? requested : 'summary';
+  fChannel.value = queryValue('channel');
+  fLane.value = queryValue('hydrophone');
+  fRecv.value = canonicalReceiver(queryValue('receiver'));
+  for (const factor of FACTORS) holdEl[factor.key].value = queryValue('hold_' + factor.key);
+  sortKey = CFG.cols.includes(queryValue('sort')) ? queryValue('sort') : 'effective_rate_bps';
+  sortAsc = queryValue('direction') === 'asc';
+  configurationPage = Math.max(0, Number.parseInt(queryValue('config_page') || '1', 10) - 1 || 0);
+  selectedPath = queryValue('path');
+}
+function writeQuery(push = false) {
+  const url = new URL(location.href);
+  const set = (name, value) => value ? url.searchParams.set(name, value) : url.searchParams.delete(name);
+  set('page', currentPage);
+  set('channel', fChannel.value); set('hydrophone', fLane.value); set('receiver', fRecv.value);
+  for (const factor of FACTORS) set('hold_' + factor.key, holdEl[factor.key].value);
+  set('sort', sortKey); set('direction', sortAsc ? 'asc' : 'desc');
+  set('config_page', String(configurationPage + 1)); set('path', selectedPath);
+  history[push ? 'pushState' : 'replaceState']({}, '', url.pathname + '?' + url.searchParams + location.hash);
+  updateLinks();
+}
+function updateLinks() {
+  document.querySelectorAll('[data-page-link]').forEach(link => {
+    const url = new URL(location.href);
+    url.searchParams.set('page', link.dataset.pageLink);
+    link.href = url.pathname + '?' + url.searchParams;
+  });
+  const manifest = new URL('/results/manifest', location.origin);
+  manifest.searchParams.set('experiment', MANIFEST.experiment_id);
+  document.getElementById('manifest-link').href = manifest.pathname + '?' + manifest.searchParams;
+}
+
+function activatePage(page, push = false) {
+  currentPage = PAGES.includes(page) ? page : 'summary';
+  document.querySelectorAll('[data-page]').forEach(section => {
+    section.hidden = section.dataset.page !== currentPage;
+  });
+  document.querySelectorAll('[data-page-link]').forEach(link => {
+    if (link.dataset.pageLink === currentPage) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  });
+  const activeLink = document.querySelector('[data-page-link][aria-current="page"]');
+  if (activeLink) requestAnimationFrame(() => activeLink.scrollIntoView({ block: 'nearest', inline: 'center' }));
+  filtersBox.hidden = currentPage === 'guide';
+  receiverWrap.hidden = currentPage === 'summary';
+  document.title = `${PAGE_TITLES[currentPage]} · Red configuration search`;
+  writeQuery(push);
+  refresh();
+}
+
+document.querySelectorAll('[data-page-link]').forEach(link => {
+  link.addEventListener('click', event => {
+    event.preventDefault(); activatePage(link.dataset.pageLink, true);
+    const heading = document.querySelector(`[data-page="${link.dataset.pageLink}"] h2`);
+    if (heading && heading.focus) heading.focus();
+  });
+});
+
+const tip = document.getElementById('tip');
+function showTip(event, html) {
+  tip.innerHTML = html; tip.style.opacity = 1;
+  tip.style.left = Math.min(event.clientX + 14, window.innerWidth - 360) + 'px';
+  tip.style.top = Math.min(event.clientY + 14, window.innerHeight - 150) + 'px';
+}
+function hideTip() { tip.style.opacity = 0; }
+
+const chart = document.getElementById('chart');
+const rowH = 34, channelGap = 25, chartLeft = 118, chartRight = 74,
+  chartTop = 25, chartBottom = 8;
+const maxRate = 4000;
+function chartWidth() {
+  const box = chart.parentElement.getBoundingClientRect().width || 760;
+  return Math.max(600, box);
+}
+function drawWinners() {
+  const paths = filteredPaths();
+  const available = new Set(paths.map(pathKey));
+  if (!available.has(selectedPath)) selectedPath = paths.length ? pathKey(paths[0]) : '';
+  const width = chartWidth(); const plotWidth = width - chartLeft - chartRight;
+  const x = value => chartLeft + value / maxRate * plotWidth;
+  const channels = [...new Set(paths.map(path => path.channel))];
+  const height = Math.max(65, chartTop + paths.length * rowH + channels.length * channelGap + chartBottom);
+  chart.setAttribute('width', width); chart.setAttribute('height', height);
+  chart.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  let svg = '<g class="axis">';
+  for (let value = 0; value <= maxRate; value += 1000) {
+    svg += `<line x1="${x(value)}" y1="${chartTop - 6}" x2="${x(value)}" y2="${height - chartBottom}"/>`;
+    svg += `<text x="${x(value)}" y="${chartTop - 10}" text-anchor="middle">${value === maxRate ? fmt(value) + ' bit/s' : fmt(value)}</text>`;
+  }
+  svg += '</g>';
+  let y = chartTop, lastChannel = '';
+  for (const path of paths) {
+    if (path.channel !== lastChannel) {
+      y += channelGap;
+      svg += `<text class="chan-label" x="${chartLeft - 110}" y="${y - 8}">${esc(path.channel.toUpperCase())}</text>`;
+      lastChannel = path.channel;
+    }
+    const winner = path.winner, center = y + rowH / 2, key = pathKey(path);
+    const barWidth = Math.max(4, x(winner.mean_effective_rate_bps) - x(0));
+    const aria = `${path.label.replace('lane', 'hydrophone')}, ${rname(winner.algorithm_id)} winner, ${fmt(winner.mean_effective_rate_bps)} bit per second`;
+    svg += `<g class="winner-row${key === selectedPath ? ' selected' : ''}" data-path="${esc(key)}" tabindex="0" role="button" aria-label="${esc(aria)}">`;
+    svg += `<rect class="selection" x="2" y="${center - rowH / 2}" width="${width - 4}" height="${rowH}" rx="5"/>`;
+    svg += `<text class="row-label" x="${chartLeft - 12}" y="${center + 4}" text-anchor="end">hydrophone ${path.label.slice(-1)}</text>`;
+    svg += `<path d="M ${x(0)} ${center - 9} H ${x(0) + barWidth - 4} q 4 0 4 4 v 10 q 0 4 -4 4 H ${x(0)} Z" fill="${color(winner.algorithm_id)}"/>`;
+    svg += `<line x1="${x(winner.min_effective_rate_bps)}" y1="${center - 12}" x2="${x(winner.min_effective_rate_bps)}" y2="${center + 12}" stroke="var(--text-muted)"/>`;
+    svg += `<text class="val-label" x="${x(0) + barWidth + 8}" y="${center + 4}">${fmt(winner.mean_effective_rate_bps)}</text>`;
+    for (const other of path.others) svg += `<circle cx="${x(other.mean_effective_rate_bps)}" cy="${center}" r="6" fill="none" stroke="${color(other.algorithm_id)}" stroke-width="2.5"/>`;
+    if (path.pfft) {
+      const px = x(path.pfft.mean_effective_rate_bps);
+      svg += `<path d="M ${px} ${center - 7} L ${px + 7} ${center} L ${px} ${center + 7} L ${px - 7} ${center} Z" fill="none" stroke="var(--text-secondary)" stroke-width="2"/>`;
+    }
+    svg += '</g>'; y += rowH;
+  }
+  chart.innerHTML = svg;
+  chart.querySelectorAll('.winner-row').forEach(row => {
+    const choose = () => {
+      selectedPath = row.dataset.path; writeQuery();
+      chart.querySelectorAll('.winner-row').forEach(item =>
+        item.classList.toggle('selected', item.dataset.path === selectedPath));
+      drawDossier();
+    };
+    row.addEventListener('click', choose);
+    row.addEventListener('focus', choose);
+    row.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(); }
+    });
+  });
+}
+
+const dossierSelect = document.getElementById('dossier-path');
+function dossierSensitivity(rows, receiver) {
+  const spans = FACTORS.map(factor => {
+    const mine = rows.filter(row => row[C.algorithm_id] === receiver);
+    const medians = [...new Set(mine.map(row => row[C[factor.key]]))].map(value => {
+      const values = mine.filter(row => row[C[factor.key]] === value)
+        .map(row => row[C.ber]).sort((a, b) => a - b);
+      if (values.length < 2) return null;
+      const middle = values.length >> 1;
+      return values.length % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2;
+    }).filter(value => value !== null && value > 0);
+    if (medians.length < 2) return null;
+    return { factor, span: Math.log10(Math.max(...medians)) - Math.log10(Math.min(...medians)) };
+  }).filter(Boolean).sort((a, b) => b.span - a.span);
+  return spans[0] || null;
+}
+function drawDossier() {
+  const paths = filteredPaths();
+  dossierSelect.innerHTML = paths.map(path => `<option value="${esc(pathKey(path))}">${esc(path.label.replace('lane', 'hydrophone'))}</option>`).join('');
+  if (!paths.length) {
+    document.getElementById('dossier-body').textContent = 'No channel and hydrophone match the selected filters.';
+    return;
+  }
+  if (!paths.some(path => pathKey(path) === selectedPath)) selectedPath = pathKey(paths[0]);
+  dossierSelect.value = selectedPath;
+  const path = paths.find(item => pathKey(item) === selectedPath);
+  const winner = path.winner;
+  const alternatives = [...path.others];
+  if (path.pfft) alternatives.push({ ...path.pfft, algorithm_id: 'pfft' });
+  const pathRows = CFG.rows.filter(row => row[C.channel] === path.channel && String(row[C.lane]) === path.label.slice(-1));
+  const sensitivity = RECEIVERS.map(receiver => ({ receiver, item: dossierSensitivity(pathRows, receiver) }));
+  document.getElementById('dossier-body').innerHTML = `
+    <dl class="dossier-grid">
+      <dt>Winner</dt><dd><i class="rmark" style="background:${color(winner.algorithm_id)}"></i>${rname(winner.algorithm_id)}</dd>
+      <dt>Mean rate</dt><dd>${fmt(winner.mean_effective_rate_bps)} bit/s</dd>
+      <dt>Minimum rate</dt><dd>${fmt(winner.min_effective_rate_bps)} bit/s</dd>
+      <dt>Geometry</dt><dd>N=${winner.nfft}, CP=${winner.cp}, rate=${winner.code_rate}, pilots=${winner.outer_spacing}/${winner.inner_spacing}, dc=${winner.check_degree}, K=${winner.horizon === 0 ? 'fill' : winner.horizon}</dd>
+      <dt>PSR · BER</dt><dd>${winner.mean_psr.toFixed(3)} · ${winner.ber.toExponential(2)}</dd>
+    </dl>
+    <h3>Other finalists</h3>
+    <ul class="compact-list">${alternatives.map(other => `<li>${rname(other.algorithm_id)}: ${fmt(other.mean_effective_rate_bps)} bit/s, PSR ${other.mean_psr.toFixed(3)}</li>`).join('') || '<li>None completed both confirmation seeds.</li>'}</ul>
+    <h3>Factor sensitivity</h3>
+    <ul class="compact-list">${sensitivity.map(item => `<li>${rname(item.receiver)}: ${item.item ? item.item.factor.label + ', ' + item.item.span.toFixed(2) + ' decades' : 'too few repeated levels'}</li>`).join('')}</ul>
+    <p class="note">Largest median BER span for this channel and hydrophone; it does not establish cause.
+      ${pathRows.length} retained configurations use this channel and hydrophone.</p>
+    <button type="button" id="dossier-configurations">Show configurations</button>`;
+  document.getElementById('dossier-configurations').addEventListener('click', () => {
+    fChannel.value = path.channel; fLane.value = path.label.slice(-1); fRecv.value = '';
+    configurationPage = 0; activatePage('configurations', true);
+  });
+}
+dossierSelect.addEventListener('change', () => { selectedPath = dossierSelect.value; writeQuery(); drawWinners(); drawDossier(); });
+
+function drawWinnerTable() {
+  document.querySelector('#winner-table tbody').innerHTML = filteredPaths().map(path => {
+    const winner = path.winner;
+    return `<tr><td>${esc(path.label.replace('lane', 'hydrophone'))}</td>
+      <td><i class="rmark" style="background:${color(winner.algorithm_id)}"></i>${rname(winner.algorithm_id)}</td>
+      <td>${winner.nfft}</td><td>${winner.cp}</td><td>${winner.code_rate}</td>
+      <td>${winner.outer_spacing}/${winner.inner_spacing}</td><td>${winner.check_degree}</td>
+      <td>${winner.horizon === 0 ? 'fill' : winner.horizon}</td>
+      <td>${fmt(winner.mean_effective_rate_bps)}</td><td>${fmt(winner.min_effective_rate_bps)}</td>
+      <td>${winner.mean_psr.toFixed(3)}</td><td>${winner.ber.toExponential(2)}</td>
+      <td>${path.pfft ? fmt(path.pfft.mean_effective_rate_bps) : '—'}</td></tr>`;
+  }).join('');
+}
+
+const stripRate = document.getElementById('strip');
+const stripBer = document.getElementById('stripber');
+const stripLeft = 170, stripRight = 36, stripTop = 28, stripRow = 62;
+const SUP = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶' };
+const pow10 = exponent => exponent === 0 ? '1' : '10' + String(exponent).split('').map(char => SUP[char]).join('');
+const RATE_OPT = {
+  value: row => row[C.effective_rate_bps],
+  scale: (entries, width) => { const high = Math.max(maxRate, ...entries.map(entry => entry.row[C.effective_rate_bps]), 1); return value => stripLeft + value / high * width; },
+  ticks: (entries, scale) => { const high = Math.max(maxRate, ...entries.map(entry => entry.row[C.effective_rate_bps]), 1); return [0, 1, 2, 3, 4].map(i => ({ x: scale(high * i / 4), label: i === 4 ? fmt(high) + ' bit/s' : fmt(high * i / 4) })); },
+  sub: rows => `${rows.length} configurations, ${rows.filter(row => row[C.effective_rate_bps] === 0).length} at zero`,
+};
+const BER_LOW = -6, BER_HIGH = 0, ZERO_WIDTH = 54, ZERO_GAP = 22;
+const BER_OPT = {
+  value: row => row[C.ber],
+  scale: (entries, width) => { const zero = stripLeft + ZERO_WIDTH / 2, logLeft = stripLeft + ZERO_WIDTH + ZERO_GAP, logWidth = width - ZERO_WIDTH - ZERO_GAP; return value => value <= 0 ? zero : logLeft + (Math.min(BER_HIGH, Math.max(BER_LOW, Math.log10(value))) - BER_LOW) / (BER_HIGH - BER_LOW) * logWidth; },
+  ticks: (entries, scale) => { const ticks = [{ x: scale(0), label: '0' }]; for (let exponent = BER_LOW; exponent <= BER_HIGH; exponent++) ticks.push({ x: scale(10 ** exponent), label: pow10(exponent) }); return ticks; },
+  sub: rows => `${rows.length} configurations, ${rows.filter(row => row[C.ber] === 0).length} error-free`,
+};
+function pointLabel(entry) {
+  const row = entry.row;
+  return `${row[C.channel]} hydrophone ${row[C.lane]}, ${rname(row[C.algorithm_id])}, ${fmt(row[C.effective_rate_bps])} bit per second, BER ${row[C.ber]}`;
+}
+function renderStrip(element, entries, options) {
+  const present = RECEIVERS.filter(receiver => entries.some(entry => entry.row[C.algorithm_id] === receiver));
+  const width = Math.max(640, element.parentElement.getBoundingClientRect().width || 760);
+  const bandWidth = width - stripLeft - stripRight;
+  const height = stripTop + Math.max(1, present.length) * stripRow + 18;
+  const scale = options.scale(entries, bandWidth);
+  element.setAttribute('width', width); element.setAttribute('height', height);
+  element.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  let svg = '<g class="axis">';
+  for (const tick of options.ticks(entries, scale)) {
+    svg += `<line x1="${tick.x}" y1="${stripTop - 6}" x2="${tick.x}" y2="${height - 12}"/>`;
+    svg += `<text x="${tick.x}" y="${stripTop - 10}" text-anchor="middle">${tick.label}</text>`;
+  }
+  svg += '</g>';
+  present.forEach((receiver, receiverIndex) => {
+    const center = stripTop + receiverIndex * stripRow + stripRow / 2;
+    const mine = entries.filter(entry => entry.row[C.algorithm_id] === receiver);
+    svg += `<text class="row-label" x="${stripLeft - 12}" y="${center - 2}" text-anchor="end">${rname(receiver)}</text>`;
+    svg += `<text x="${stripLeft - 12}" y="${center + 14}" text-anchor="end" fill="var(--text-muted)" font-size="11">${options.sub(mine.map(entry => entry.row))}</text>`;
+    svg += `<line x1="${stripLeft}" y1="${center}" x2="${stripLeft + bandWidth}" y2="${center}" stroke="var(--grid)"/>`;
+    mine.forEach((entry, index) => {
+      const y = center + ((index * 7919) % 17 - 8) * .9;
+      svg += `<circle data-row="${entry.index}" tabindex="-1" role="button" aria-label="${esc(pointLabel(entry))}" cx="${scale(options.value(entry.row))}" cy="${y}" r="3" fill="${color(receiver)}" fill-opacity=".6"><title>${esc(pointLabel(entry))}</title></circle>`;
+    });
+  });
+  element.innerHTML = svg;
+  const points = [...element.querySelectorAll('[data-row]')];
+  if (points.length) points[0].tabIndex = 0;
+  points.forEach((point, pointIndex) => {
+    const select = () => showPointDetail(entryAt(Number(point.dataset.row)));
+    point.addEventListener('focus', select); point.addEventListener('click', select);
+    point.addEventListener('keydown', event => {
+      const direction = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+      if (direction) {
+        event.preventDefault();
+        const nextIndex = Math.max(0, Math.min(points.length - 1, pointIndex + direction));
+        point.tabIndex = -1; points[nextIndex].tabIndex = 0; points[nextIndex].focus();
+      } else if (event.key === 'Home' || event.key === 'End') {
+        event.preventDefault();
+        const nextIndex = event.key === 'Home' ? 0 : points.length - 1;
+        point.tabIndex = -1; points[nextIndex].tabIndex = 0; points[nextIndex].focus();
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault(); select();
+      }
+    });
+  });
+}
+function showPointDetail(entry) {
+  const row = entry.row;
+  document.getElementById('point-detail').innerHTML = `<strong>${esc(row[C.channel])} hydrophone ${row[C.lane]} · ${rname(row[C.algorithm_id])}</strong>
+    <dl><div><dt>Effective rate</dt><dd>${fmt(row[C.effective_rate_bps])} bit/s</dd></div>
+    <div><dt>PSR · BER</dt><dd>${row[C.psr].toFixed(3)} · ${row[C.ber] ? row[C.ber].toExponential(2) : '0'}</dd></div>
+    <div><dt>Geometry</dt><dd>N=${row[C.nfft]}, CP=${row[C.cp]}, rate=${row[C.code_rate]}, pilots=${row[C.outer_spacing]}/${row[C.inner_spacing]}, dc=${row[C.check_degree]}, K=${row[C.horizon] === 0 ? 'fill' : row[C.horizon]}</dd></div>
+    <div><dt>Confirmation</dt><dd>seed ${row[C.seed]}, ${row[C.successful_frames]}/${row[C.frames]} successful frames</dd></div></dl>
+    <button type="button" data-open-row="${entry.index}">Open all columns</button>`;
+  document.querySelector('[data-open-row]').addEventListener('click', () => openConfiguration(entry));
+}
+function drawStrips() {
+  const entries = filteredEntries(); renderStrip(stripRate, entries, RATE_OPT); renderStrip(stripBer, entries, BER_OPT);
+}
+
+const median = values => { if (!values.length) return null; const sorted = [...values].sort((a, b) => a - b), middle = sorted.length >> 1; return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2; };
+const MIN_LEVEL_COUNT = 4;
+function factorSpans(receiver) {
+  return FACTORS.map(factor => {
+    const rows = heldRows(factor.key).filter(row => row[C.algorithm_id] === receiver);
+    const medians = levelsOf(factor.key).map(value => {
+      const values = rows.filter(row => row[C[factor.key]] === value).map(row => row[C.ber]);
+      return values.length < MIN_LEVEL_COUNT ? null : { value, median: median(values) };
+    }).filter(Boolean);
+    const positive = medians.filter(item => item.median > 0);
+    const zero = medians.some(item => item.median === 0);
+    if (positive.length < 2) return { factor, span: 0, zero, thin: true, count: rows.length };
+    const high = positive.reduce((a, b) => a.median > b.median ? a : b);
+    const low = positive.reduce((a, b) => a.median < b.median ? a : b);
+    return { factor, span: Math.log10(high.median) - Math.log10(low.median), zero, high, low, count: rows.length };
+  }).sort((a, b) => b.span - a.span);
+}
+function drawRanks() {
+  const rows = filteredEntries().map(entry => entry.row);
+  const present = RECEIVERS.filter(receiver => rows.some(row => row[C.algorithm_id] === receiver));
+  const ranked = present.map(receiver => ({ receiver, items: factorSpans(receiver) }));
+  const maximum = Math.max(1, ...ranked.flatMap(group => group.items.map(item => item.span)));
+  document.getElementById('ranks').innerHTML = ranked.map(group => `<section class="factor"><h3><i class="rmark" style="background:${color(group.receiver)}"></i>${rname(group.receiver)}</h3>
+    <p class="n">decades between lowest and highest positive median · ○ reached zero</p>
+    ${group.items.map(item => `<button type="button" class="rank-row" data-factor="${item.factor.key}">
+      <span>${item.factor.key === 'horizon' ? 'K' : item.factor.key}${item.zero ? ' ○' : ''}</span>
+      <span class="rank-track"><span class="rank-bar" style="width:${Math.max(1, item.span / maximum * 100)}%;background:${color(group.receiver)}"></span></span>
+      <span>${item.thin ? '—' : item.span.toFixed(2)}</span></button>`).join('')}</section>`).join('');
+  document.querySelectorAll('.rank-row').forEach(button => button.addEventListener('click', () => {
+    const panel = document.getElementById('factor-' + button.dataset.factor);
+    if (panel) panel.focus();
+  }));
+}
+
+function drawFactors() {
+  const panels = FACTORS.map(factor => {
+    const rows = heldRows(factor.key);
+    const levels = levelsOf(factor.key).filter(value => rows.some(row => row[C[factor.key]] === value));
+    const present = RECEIVERS.filter(receiver => rows.some(row => row[C.algorithm_id] === receiver));
+    const series = present.map(receiver => ({ receiver, points: levels.map((value, index) => {
+      const values = rows.filter(row => row[C.algorithm_id] === receiver && row[C[factor.key]] === value).map(row => row[C.ber]);
+      if (values.length < MIN_LEVEL_COUNT) return null;
+      const middle = median(values); return { index, value, count: values.length, median: middle, zero: middle === 0 };
+    }).filter(Boolean) })).filter(item => item.points.length);
+    return { factor, rows, levels, series };
+  });
+  const finite = panels.flatMap(panel => panel.series.flatMap(series => series.points.filter(point => !point.zero).map(point => point.median)));
+  let low = finite.length ? Math.floor(Math.log10(Math.min(...finite))) : -6;
+  let high = finite.length ? Math.min(0, Math.ceil(Math.log10(Math.max(...finite)))) : 0;
+  if (high - low < 2) low = high - 2;
+  const hasZero = panels.some(panel => panel.series.some(series => series.points.some(point => point.zero)));
+  if (hasZero) low -= 1;
+  const width = 350, height = 185, marginLeft = 47, marginRight = 88, marginTop = 12, marginBottom = 38;
+  const plotHeight = height - marginTop - marginBottom;
+  const y = value => marginTop + (1 - (value - low) / (high - low)) * plotHeight;
+  document.getElementById('factor-panels').innerHTML = panels.map(panel => {
+    const x = index => marginLeft + (panel.levels.length > 1 ? index * (width - marginLeft - marginRight) / (panel.levels.length - 1) : (width - marginLeft - marginRight) / 2);
+    let svg = '<g class="axis">';
+    for (let exponent = high; exponent >= low; exponent--) {
+      svg += `<line x1="${marginLeft - 5}" y1="${y(exponent)}" x2="${width - marginRight + 5}" y2="${y(exponent)}"/><text x="${marginLeft - 9}" y="${y(exponent) + 3}" text-anchor="end">${exponent === low && hasZero ? '0' : pow10(exponent)}</text>`;
+    }
+    panel.levels.forEach((value, index) => {
+      const count = panel.rows.filter(row => row[C[panel.factor.key]] === value).length;
+      const label = panel.factor.key === 'horizon' && value === 0 ? 'fill' : value;
+      svg += `<text x="${x(index)}" y="${height - marginBottom + 16}" text-anchor="middle">${label}</text><text x="${x(index)}" y="${height - marginBottom + 29}" text-anchor="middle" font-size="9">${count}</text>`;
+    });
+    svg += '</g>';
+    for (const series of panel.series) {
+      const points = series.points.map(point => ({ ...point, x: x(point.index), y: point.zero ? y(low) : y(Math.log10(point.median)) }));
+      svg += `<polyline fill="none" stroke="${color(series.receiver)}" stroke-width="2" points="${points.map(point => point.x + ',' + point.y).join(' ')}"/>`;
+      for (const point of points) {
+        const label = `${rname(series.receiver)}, ${panel.factor.label} ${point.value}, median BER ${point.median}, ${point.count} configurations`;
+        svg += `<circle cx="${point.x}" cy="${point.y}" r="4" fill="${point.zero ? 'none' : color(series.receiver)}" stroke="${color(series.receiver)}" stroke-width="2" role="img" tabindex="0" aria-label="${esc(label)}"><title>${esc(label)}</title></circle>`;
+      }
+      if (points.length) {
+        const last = points[points.length - 1];
+        svg += `<text x="${last.x + 9}" y="${last.y + 3}" font-size="10" fill="var(--text-secondary)">${rname(series.receiver)}</text>`;
+      }
+    }
+    return `<section class="factor" id="factor-${panel.factor.key}" tabindex="-1"><h3>${panel.factor.label}</h3><p class="n">median BER · ${panel.rows.length} configurations · count under each level</p><svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Median bit error rate against ${esc(panel.factor.label)} by receiver">${svg}</svg></section>`;
+  }).join('');
+}
+
+const COLUMN_LABELS = {
+  channel: 'channel', lane: 'hydrophone (lane)', phase: 'phase', start_index: 'start_index',
+  algorithm_id: 'receiver', nfft: 'N (nfft)', cp: 'CP', code_rate: 'code_rate',
+  outer_spacing: 'outer pilot ratio', inner_spacing: 'inner pilot ratio', check_degree: 'check_degree',
+  horizon: 'K (horizon)', seed: 'seed', frames: 'frames', frame_blocks: 'frame_blocks',
+  payload_bits_per_frame: 'payload_bits_per_frame', successful_frames: 'successful_frames',
+  psr: 'PSR', payload_bits: 'payload_bits', bit_errors: 'bit_errors', ber: 'BER',
+  decode_failures: 'decode_failures', decode_seconds: 'decode_seconds',
+  effective_rate_bps: 'effective_rate_bps', run: 'run',
+};
+function sortedEntries() {
+  const entries = filteredEntries(), index = C[sortKey];
+  entries.sort((a, b) => {
+    const av = a.row[index], bv = b.row[index];
+    const order = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv));
+    return (sortAsc ? order : -order) || a.id.localeCompare(b.id);
+  });
+  return entries;
+}
+function displayCell(column, entry, includeSourceId = false) {
+  const raw = entry.raw[C[column]];
+  if (column === 'algorithm_id') return includeSourceId ? `${rname(raw)} (${esc(raw)})` : rname(raw);
+  if (column === 'horizon' && raw === '0') return 'fill (0)';
+  return esc(raw);
+}
+function drawConfigurationTable() {
+  const entries = sortedEntries();
+  const pages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
+  configurationPage = Math.min(configurationPage, pages - 1);
+  const start = configurationPage * PAGE_SIZE;
+  const shown = entries.slice(start, start + PAGE_SIZE);
+  document.getElementById('configuration-head').innerHTML = CFG.display_cols.map(column => {
+    const direction = column === sortKey ? (sortAsc ? 'ascending' : 'descending') : 'none';
+    return `<th scope="col" aria-sort="${direction}"><button type="button" data-sort="${esc(column)}" aria-label="Sort by ${esc(COLUMN_LABELS[column] || column)}">${esc(COLUMN_LABELS[column] || column)}</button></th>`;
+  }).join('') + `<th scope="col">Details</th>`;
+  document.getElementById('configuration-body').innerHTML = shown.length ? shown.map(entry => `<tr id="row-${entry.id}">${CFG.display_cols.map(column => `<td${column === 'effective_rate_bps' && entry.row[C[column]] === 0 ? ' class="zero"' : ''}>${displayCell(column, entry)}</td>`).join('')}<td><button type="button" data-details="${entry.index}">Open</button></td></tr>`).join('') : `<tr><td colspan="${CFG.display_cols.length + 1}" style="text-align:left">No retained configuration matches these filters.</td></tr>`;
+  document.querySelectorAll('[data-sort]').forEach(button => button.addEventListener('click', () => {
+    if (sortKey === button.dataset.sort) sortAsc = !sortAsc;
+    else { sortKey = button.dataset.sort; sortAsc = false; }
+    configurationPage = 0; writeQuery(); drawConfigurationTable();
+  }));
+  document.querySelectorAll('[data-details]').forEach(button => button.addEventListener('click', () => openConfiguration(entryAt(Number(button.dataset.details)))));
+  document.getElementById('configuration-count').textContent = `${entries.length.toLocaleString('en-US')} of ${CFG.rows.length.toLocaleString('en-US')} rows`;
+  document.getElementById('page-label').textContent = `Page ${configurationPage + 1} of ${pages}`;
+  document.getElementById('page-prev').disabled = configurationPage === 0;
+  document.getElementById('page-next').disabled = configurationPage >= pages - 1;
+}
+const dialog = document.getElementById('configuration-dialog');
+function openConfiguration(entry) {
+  document.getElementById('dialog-body').innerHTML = CFG.cols.map(column => `<dt><code>${esc(column)}</code></dt><dd>${displayCell(column, entry, true)}</dd>`).join('') + `<dt>row_id</dt><dd><code>${entry.id}</code></dd>`;
+  dialog.showModal();
+}
+document.getElementById('dialog-close').addEventListener('click', () => dialog.close());
+document.getElementById('page-prev').addEventListener('click', () => { configurationPage--; writeQuery(); drawConfigurationTable(); });
+document.getElementById('page-next').addEventListener('click', () => { configurationPage++; writeQuery(); drawConfigurationTable(); });
+
+function csvCell(value) { const text = String(value); return /[",\r\n]/.test(text) ? '"' + text.replaceAll('"', '""') + '"' : text; }
+document.getElementById('download-configurations').addEventListener('click', () => {
+  const entries = sortedEntries();
+  const csv = [CFG.cols.map(csvCell).join(','), ...entries.map(entry => entry.raw.map(csvCell).join(','))].join('\r\n') + '\r\n';
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  link.download = `${MANIFEST.experiment_id}-configurations.csv`; link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 0);
+});
+
+function coverageNote() {
+  const names = { '3arm': 'OFDM+FEC and JUNA-Lite', pfft: 'Partial FFT+FEC' };
+  document.getElementById('coverage-note').textContent = 'Coverage: ' + Object.entries(CFG.coverage).map(([run, paths]) => `${names[run] || run} includes ${paths.length} of 12 channel–hydrophone results`).join('; ') + '.';
+}
+function updateStatus() {
+  const filter = filterValues();
+  const parts = [filter.channel || 'all channels', filter.lane ? 'hydrophone ' + filter.lane : 'all hydrophones'];
+  if (currentPage !== 'summary' && currentPage !== 'guide') parts.push(filter.receiver ? rname(filter.receiver) : 'all receivers');
+  document.getElementById('scope-status').textContent = PAGE_TITLES[currentPage] + ' · ' + parts.join(' · ') + ' · 60-frame confirmation';
+  const count = currentPage === 'summary' ? filteredPaths().length + ' channel–hydrophone results' : filteredEntries().length.toLocaleString('en-US') + ' configurations';
+  document.getElementById('f-count').textContent = count;
+}
+function refresh() {
+  updateStatus();
+  if (currentPage === 'summary') { drawWinners(); drawDossier(); drawWinnerTable(); }
+  if (currentPage === 'landscape') drawStrips();
+  if (currentPage === 'factors') { drawRanks(); drawFactors(); }
+  if (currentPage === 'configurations') drawConfigurationTable();
+}
+
+for (const element of [fChannel, fLane, fRecv]) element.addEventListener('change', () => {
+  configurationPage = 0; writeQuery(); refresh();
+});
+document.getElementById('f-reset').addEventListener('click', () => {
+  fChannel.value = ''; fLane.value = ''; fRecv.value = ''; configurationPage = 0;
+  for (const factor of FACTORS) holdEl[factor.key].value = '';
+  writeQuery(); refresh();
+});
+for (const factor of FACTORS) holdEl[factor.key].addEventListener('change', () => { writeQuery(); refresh(); });
+holdReset.addEventListener('click', () => { for (const factor of FACTORS) holdEl[factor.key].value = ''; writeQuery(); refresh(); });
+window.addEventListener('popstate', () => { applyQuery(); activatePage(currentPage); });
+let resizeTimer;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(refresh, 120); });
+
+document.getElementById('tile-configs').textContent = CFG.rows.length.toLocaleString('en-US');
+document.getElementById('manifest-summary').textContent = `${MANIFEST.row_count} rows and ${MANIFEST.columns.length} columns. The manifest records each source file hash. ${MANIFEST.numeric_policy}.`;
+coverageNote(); applyQuery(); updateLinks(); activatePage(currentPage);
+</script>
+</body>
+</html>

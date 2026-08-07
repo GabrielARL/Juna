@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Red configuration search</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif; }
+  button, select { font: inherit; }
+  .viz-root {
+    color-scheme: light;
+    --surface-1: #fcfcfb; --surface-2: #f3f2ef; --surface-3: #e9e8e3;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #73716d;
+    --grid: #dcdad4; --ring: #fcfcfb; --focus: #805500;
+    --recv-ofdm-fec: #226fca; --recv-lite: #d95b28; --recv-pfft: #65645f;
+    --recv-profiled-cz: #a6307e;
+    min-height: 100vh; background: var(--surface-1); color: var(--text-primary);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1: #191918; --surface-2: #242422; --surface-3: #30302d;
+      --text-primary: #fff; --text-secondary: #c6c5bc; --text-muted: #aaa99f;
+      --grid: #41413d; --ring: #191918; --focus: #ffd166;
+      --recv-ofdm-fec: #4b97ec; --recv-lite: #ef7542; --recv-pfft: #b3b2aa;
+      --recv-profiled-cz: #d368af;
+    }
+  }
+  a { color: inherit; }
+  button, select {
+    color: var(--text-primary); background: var(--surface-1);
+    border: 1px solid var(--grid); border-radius: 6px; padding: 6px 9px;
+  }
+  button { cursor: pointer; }
+  button:hover, select:hover { border-color: var(--text-muted); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  .provenance {
+    padding: 9px clamp(16px, 4vw, 48px); background: var(--surface-2);
+    border-bottom: 1px solid var(--grid); color: var(--text-secondary);
+    font-size: 12.5px;
+  }
+  .provenance strong { color: var(--text-primary); }
+  .provenance code { color: var(--text-primary); }
+  .top { max-width: 96rem; margin: 0 auto; padding: 20px clamp(16px, 4vw, 48px) 0; }
+  h1 { font-size: 21px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 0 0 8px; }
+  h3 { font-size: 14px; margin: 18px 0 5px; }
+  .sub { color: var(--text-secondary); margin: 0; max-width: 84ch; }
+
+  .results-nav {
+    position: sticky; top: 0; z-index: 10; display: flex; gap: 5px;
+    overflow-x: auto; margin: 18px calc(-1 * clamp(16px, 4vw, 48px)) 0;
+    padding: 8px clamp(16px, 4vw, 48px); background: var(--surface-1);
+    border-top: 1px solid var(--grid); border-bottom: 1px solid var(--grid);
+  }
+  .results-nav a {
+    flex: 0 0 auto; padding: 7px 11px; border-radius: 7px;
+    color: var(--text-secondary); text-decoration: none;
+  }
+  .results-nav a:hover { background: var(--surface-2); color: var(--text-primary); }
+  .results-nav a[aria-current="page"] {
+    color: var(--text-primary); background: var(--surface-3); font-weight: 650;
+  }
+  .scope { min-height: 24px; padding: 6px 0 0; color: var(--text-muted); font-size: 12.5px; }
+
+  .filters {
+    display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: end;
+    max-width: 96rem; margin: 12px auto 0; padding: 12px 16px;
+    background: var(--surface-2); border-radius: 8px;
+  }
+  .filters label { display: grid; gap: 3px; color: var(--text-secondary); font-size: 12px; }
+  .filters select { min-width: 145px; }
+  .filters .count { margin-left: auto; align-self: center; color: var(--text-secondary); }
+
+  main { max-width: 96rem; margin: 0 auto; padding: 24px clamp(16px, 4vw, 48px) 52px; }
+  .page > .lead { color: var(--text-secondary); margin: 0 0 18px; max-width: 84ch; }
+  .tiles { display: grid; grid-template-columns: repeat(3, minmax(145px, 1fr)); gap: 10px; margin: 16px 0 24px; }
+  .tile { background: var(--surface-2); border-radius: 8px; padding: 12px 15px; }
+  .tile .v { font-size: 25px; font-weight: 680; letter-spacing: -.02em; }
+  .tile .l { color: var(--text-secondary); font-size: 12px; }
+  .card { background: var(--surface-2); border: 1px solid var(--grid); border-radius: 9px; padding: 14px 16px; }
+  .summary-layout { display: grid; grid-template-columns: minmax(0, 2.25fr) minmax(290px, .9fr); gap: 18px; align-items: start; }
+  .legend { display: flex; gap: 14px; align-items: center; margin: 0 0 10px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 12.5px; }
+  .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .diasw { width: 9px; height: 9px; border: 2px solid var(--text-secondary); transform: rotate(45deg); display: inline-block; margin: 0 3px; }
+  .dotsw { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--text-muted); display: inline-block; }
+  .note { color: var(--text-muted); font-size: 12.5px; max-width: 88ch; margin: 8px 0 20px; }
+  .chartwrap { overflow-x: auto; border-radius: 7px; }
+  svg { display: block; }
+  .axis text { fill: var(--text-muted); font-size: 11px; }
+  .axis line { stroke: var(--grid); stroke-width: 1; }
+  .row-label { fill: var(--text-primary); font-size: 13px; }
+  .chan-label { fill: var(--text-secondary); font-size: 12px; font-weight: 680; letter-spacing: .04em; }
+  .val-label { fill: var(--text-secondary); font-size: 12px; }
+  .winner-row { cursor: pointer; }
+  .winner-row .selection { fill: transparent; stroke: transparent; }
+  .winner-row.selected .selection { fill: var(--surface-2); stroke: var(--grid); }
+
+  #path-dossier { position: sticky; top: 62px; }
+  #path-dossier label { display: grid; gap: 4px; color: var(--text-secondary); font-size: 12px; }
+  #path-dossier select { width: 100%; }
+  .dossier-grid { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 12px 0; }
+  .dossier-grid dt { color: var(--text-secondary); }
+  .dossier-grid dd { margin: 0; }
+  .compact-list { margin: 8px 0 14px; padding-left: 18px; }
+
+  .section-stack { display: grid; gap: 26px; }
+  .detail-card { margin-top: 12px; min-height: 68px; }
+  .detail-card dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px 14px; }
+  .detail-card dt { color: var(--text-muted); font-size: 11px; }
+  .detail-card dd { margin: 1px 0 0; }
+
+  .holds { display: flex; flex-wrap: wrap; gap: 9px 12px; align-items: end; padding: 12px 14px; background: var(--surface-2); border-radius: 8px; margin: 12px 0; }
+  .holds label { display: grid; gap: 3px; color: var(--text-secondary); font-size: 11.5px; }
+  .holds select { min-width: 82px; padding: 4px 6px; }
+  .factors { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(335px, 1fr)); }
+  .factor { background: var(--surface-2); border: 1px solid var(--grid); border-radius: 8px; padding: 11px 12px; scroll-margin-top: 66px; }
+  .factor h3 { margin: 0 0 2px; }
+  .factor .n { color: var(--text-muted); font-size: 11px; margin: 0 0 6px; }
+  .rank-row { display: grid; grid-template-columns: 106px minmax(90px, 1fr) 52px; gap: 8px; align-items: center; width: 100%; border: 0; padding: 4px; background: transparent; text-align: left; }
+  .rank-track { height: 12px; background: var(--surface-1); border-radius: 99px; overflow: hidden; }
+  .rank-bar { display: block; height: 100%; min-width: 2px; border-radius: 99px; }
+
+  .table-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+  .table-actions .count { color: var(--text-secondary); margin-left: auto; }
+  .tablewrap { overflow: auto; border: 1px solid var(--grid); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  caption { text-align: left; font-weight: 650; padding: 11px 10px 7px; }
+  th, td { padding: 6px 9px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th { color: var(--text-secondary); font-weight: 600; background: var(--surface-1); position: sticky; top: 0; z-index: 1; }
+  th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th button { border: 0; background: transparent; padding: 2px; color: inherit; font-weight: inherit; }
+  tbody tr:hover, tbody tr:focus-within { background: var(--surface-2); }
+  .rmark { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px; }
+  .zero { color: var(--text-muted); }
+  .pagination { display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 10px; }
+  .pagination span { color: var(--text-secondary); }
+
+  .guide-grid { display: grid; grid-template-columns: minmax(155px, max-content) minmax(0, 1fr); gap: 5px 18px; }
+  .guide-grid dt { font-weight: 650; }
+  .guide-grid dd { margin: 0 0 7px; color: var(--text-secondary); }
+  .guide-grid code { color: var(--text-primary); }
+  details.guide { border-top: 1px solid var(--grid); padding: 11px 0; max-width: 90ch; }
+  details.guide summary { cursor: pointer; font-weight: 650; }
+  details.guide p { color: var(--text-secondary); }
+
+  #tip { position: fixed; pointer-events: none; background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--grid); border-radius: 8px; padding: 8px 12px; font-size: 12.5px; box-shadow: 0 4px 14px rgb(0 0 0 / .18); opacity: 0; max-width: 340px; z-index: 20; }
+  #tip .t { font-weight: 650; }
+  #tip .s { color: var(--text-secondary); }
+  dialog { color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--grid); border-radius: 10px; width: min(760px, calc(100vw - 30px)); max-height: 80vh; }
+  dialog::backdrop { background: rgb(0 0 0 / .45); }
+  dialog .dialog-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  dialog .dialog-head h2 { margin: 0; }
+  dialog dl { display: grid; grid-template-columns: minmax(150px, max-content) 1fr; gap: 4px 14px; }
+  dialog dt { color: var(--text-secondary); }
+  dialog dd { margin: 0; overflow-wrap: anywhere; }
+
+  @media (max-width: 860px) {
+    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .summary-layout { grid-template-columns: 1fr; }
+    #path-dossier { position: static; }
+    .filters .count { flex-basis: 100%; margin-left: 0; }
+  }
+  @media (max-width: 520px) {
+    .top { padding-top: 14px; }
+    .results-nav { margin-top: 13px; flex-wrap: wrap; overflow-x: visible; justify-content: center; }
+    .results-nav a { padding: 6px 8px; font-size: 12.5px; }
+    .filters { margin: 10px 12px 0; display: grid; grid-template-columns: 1fr 1fr; }
+    .filters label, .filters select { min-width: 0; width: 100%; }
+    .filters .count { grid-column: 1 / -1; }
+    main { padding-top: 18px; }
+    .tile { padding: 10px; }
+    .tile .v { font-size: 21px; }
+    .factors { grid-template-columns: 1fr; }
+    .guide-grid, dialog dl { grid-template-columns: 1fr; gap: 2px; }
+  }
+</style>
+</head>
+<body>
+<div class="viz-root" data-results-view="red-configuration-search">
+  <header class="top">
+    <h1>Red configuration search</h1>
+    <p class="sub">Four measured red channels &times; three hydrophones at 20&nbsp;dB.
+      Confirmation only: every retained configuration ran 60 frames on seeds 6 and 7.
+      LFM-sync harness &mdash; rates are not comparable with the earlier sonique table.</p>
+    <nav class="results-nav" aria-label="Results views">
+      <a href="?page=summary" data-page-link="summary">Summary</a>
+      <a href="?page=landscape" data-page-link="landscape">Search landscape</a>
+      <a href="?page=factors" data-page-link="factors">Factor analysis</a>
+      <a href="?page=configurations" data-page-link="configurations">Configurations</a>
+      <a href="?page=guide" data-page-link="guide">Reading guide</a>
+    </nav>
+    <div class="scope" id="scope-status" aria-live="polite"></div>
+  </header>
+
+  <div class="filters" id="filters" aria-label="Result filters">
+    <label>Channel
+      <select id="f-channel"><option value="">All four</option></select>
+    </label>
+    <label>Hydrophone
+      <select id="f-lane"><option value="">All three</option></select>
+    </label>
+    <label id="f-recv-wrap">Receiver
+      <select id="f-recv">
+        <option value="">All receivers</option>
+        <option value="ofdm_fec">OFDM+FEC</option>
+        <option value="lite">JUNA-Lite</option>
+        <option value="pfft">Partial FFT+FEC</option>
+        <option value="profiled_cz">Profiled C,z</option>
+      </select>
+    </label>
+    <button id="f-reset" type="button">Reset</button>
+    <span class="count" id="f-count" aria-live="polite"></span>
+  </div>
+
+  <main>
+    <section class="page" data-page="summary" aria-labelledby="summary-title">
+      <h2 id="summary-title" tabindex="-1">Confirmed results</h2>
+      <p class="lead">The chart and table show the confirmed winner for every selected
+        channel and hydrophone. Receiver does not filter this view.</p>
+      <div class="tiles">
+        <div class="tile"><div class="v">12 / 12</div><div class="l">channel–hydrophone results confirmed, zero decode failures</div></div>
+        <div class="tile"><div class="v">3,625</div><div class="l">best rate, bit/s</div></div>
+        <div class="tile"><div class="v" id="tile-configs">—</div><div class="l">confirmed configurations, 60 frames each</div></div>
+      </div>
+      <div class="summary-layout">
+        <div>
+          <div class="legend">
+            <span><i class="sw" style="background:var(--recv-ofdm-fec)"></i>OFDM+FEC</span>
+            <span><i class="sw" style="background:var(--recv-lite)"></i>JUNA-Lite</span>
+            <span><i class="dotsw"></i>best finalist of another receiver</span>
+            <span><i class="diasw"></i>Partial FFT+FEC best, own search</span>
+          </div>
+          <div class="chartwrap"><svg id="chart" role="img"
+            aria-label="Confirmed winner effective rate for each channel and hydrophone"></svg></div>
+          <p class="note">A ring near a bar end means another receiver was close. A missing
+            ring means none of that receiver's finalists completed confirmation on both seeds.
+            Partial FFT+FEC used its own search, so its diamond is a separate comparison.</p>
+        </div>
+        <aside class="card" id="path-dossier" aria-labelledby="dossier-title">
+          <h2 id="dossier-title">Selected channel and hydrophone</h2>
+          <label>Channel and hydrophone <select id="dossier-path"></select></label>
+          <div id="dossier-body"></div>
+        </aside>
+      </div>
+      <div class="tablewrap">
+        <table id="winner-table">
+          <caption>Winner geometry by channel and hydrophone</caption>
+          <thead><tr>
+            <th>Channel and hydrophone</th><th>Receiver</th><th>N</th><th>CP</th><th>Rate</th>
+            <th>Pilots</th><th>dc</th><th>K</th><th>bit/s</th><th>min bit/s</th>
+            <th>PSR</th><th>BER</th><th>Partial FFT+FEC bit/s</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="page" data-page="landscape" aria-labelledby="landscape-title" hidden>
+      <h2 id="landscape-title" tabindex="-1">Search landscape</h2>
+      <p class="lead">Each point is one confirmed configuration. Select or focus a point
+        to keep its exact values below the charts.</p>
+      <div class="section-stack">
+        <div>
+          <h3>Effective rate</h3>
+          <p class="note">Points at zero delivered no frame. Effective rate includes time
+            spent on failed frames.</p>
+          <div class="chartwrap"><svg id="strip" role="img"
+            aria-label="Effective rate of every selected configuration by receiver"></svg></div>
+        </div>
+        <div>
+          <h3>Bit error rate</h3>
+          <p class="note">The same configurations appear on a logarithmic axis. Error-free
+            configurations sit in the separate zero column. Low BER does not imply nonzero
+            effective rate.</p>
+          <div class="chartwrap"><svg id="stripber" role="img"
+            aria-label="Bit error rate of every selected configuration by receiver"></svg></div>
+        </div>
+      </div>
+      <aside class="card detail-card" id="point-detail" tabindex="-1" aria-live="polite">
+        Select or focus a point to inspect its values.
+      </aside>
+    </section>
+
+    <section class="page" data-page="factors" aria-labelledby="factors-title" hidden>
+      <h2 id="factors-title" tabindex="-1">Factor analysis</h2>
+      <p class="lead">The ranking shows where median BER changes most. It does not establish
+        cause because the retained finalists are not a balanced sweep.</p>
+      <h3>Factors ranked by median BER span</h3>
+      <div class="factors" id="ranks"></div>
+      <h3>Bit error rate by factor</h3>
+      <p class="note">Hold other factors fixed, then read the panel that remains varied.
+        Counts under each level show when too few configurations remain.</p>
+      <div class="holds" id="holds" aria-label="Factor holds"></div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--recv-ofdm-fec)"></i>OFDM+FEC</span>
+        <span><i class="sw" style="background:var(--recv-lite)"></i>JUNA-Lite</span>
+        <span><i class="sw" style="background:var(--recv-pfft)"></i>Partial FFT+FEC</span>
+        <span><i class="sw" style="background:var(--recv-profiled-cz)"></i>Profiled C,z</span>
+      </div>
+      <div class="factors" id="factor-panels"></div>
+    </section>
+
+    <section class="page" data-page="configurations" aria-labelledby="configurations-title" hidden>
+      <h2 id="configurations-title" tabindex="-1">Configurations</h2>
+      <p class="lead">Every retained source row is available here. Open Details or download
+        the shown rows for every source column. Sorting uses unrounded numeric values;
+        download preserves the source cell text.</p>
+      <div class="table-actions">
+        <button id="download-configurations" type="button">Download shown rows</button>
+        <span class="count" id="configuration-count" aria-live="polite"></span>
+      </div>
+      <div class="tablewrap">
+        <table id="configuration-table">
+          <caption>Confirmed configuration rows</caption>
+          <thead><tr id="configuration-head"></tr></thead>
+          <tbody id="configuration-body"></tbody>
+        </table>
+      </div>
+      <div class="pagination" aria-label="Configuration pages">
+        <button id="page-prev" type="button">Previous</button>
+        <span id="page-label" aria-live="polite"></span>
+        <button id="page-next" type="button">Next</button>
+      </div>
+      <p class="note" id="coverage-note"></p>
+    </section>
+
+    <section class="page" data-page="guide" aria-labelledby="guide-title" hidden>
+      <h2 id="guide-title" tabindex="-1">Reading guide</h2>
+      <p class="lead">Definitions, limits, and source coverage for every view.</p>
+
+      <details class="guide" open><summary>What does BER count?</summary>
+        <p><code>ber = bit_errors / attempted_bits</code> over all frames, including failed
+          frames. All 69 rows with a packet success ratio of zero still report BER between
+          0.12 and 0.31. Neither measure implies the other.</p></details>
+      <details class="guide"><summary>What is effective rate divided by?</summary>
+        <p><code>effective_rate_bps = successful_frames × payload_bits_per_frame /
+          (frames × frame_duration)</code>. Failed-frame time remains in the denominator.
+          It is delivered throughput, not link rate, and it is what the search maximised.</p></details>
+      <details class="guide"><summary>Which configurations are retained?</summary>
+        <p>Only finalists rerun over 60 frames on seeds 6 and 7: four configurations per
+          receiver for each channel and hydrophone, twice, giving 288 rows. The 20-frame screening CSVs remain in
+          the results directory as the search record but are not loaded into this page.</p></details>
+      <details class="guide"><summary>Was every combination tried?</summary>
+        <p>No. The driver descends one dimension at a time and only finalists reached
+          confirmation. Factor levels are therefore unbalanced, and some levels contain
+          only one configuration.</p></details>
+      <details class="guide"><summary>How should the factor ranking be read?</summary>
+        <p>Bar length is the number of decades between the highest and lowest positive
+          median BER for that receiver. An open marker means at least one level reached a
+          median of zero; zero is reported but excluded from the logarithmic span. A long
+          bar identifies a place to inspect, not a cause.</p></details>
+      <details class="guide"><summary>How should the factor panels be read?</summary>
+        <p>Each point is a median BER at one factor level. A hollow point on the floor is
+          an exact zero. A factor's own hold is ignored in its panel so that factor can
+          still vary. Medians are used because BER spans several decades and is skewed.</p></details>
+
+      <h3>Source columns</h3>
+      <dl class="guide-grid">
+        <dt><code>channel</code></dt><dd>Measured red channel.</dd>
+        <dt><code>lane</code></dt><dd>Hydrophone number, 1 to 3.</dd>
+        <dt><code>phase</code></dt><dd>Recorded search phase; every retained row is confirmation.</dd>
+        <dt><code>start_index</code></dt><dd>Recorded starting sample index.</dd>
+        <dt><code>algorithm_id</code></dt><dd><code>standard</code>, displayed as OFDM+FEC;
+          <code>lite</code>, displayed as JUNA-Lite; or <code>pfft</code>, displayed as Partial FFT+FEC.</dd>
+        <dt><code>nfft</code></dt><dd>FFT size N.</dd>
+        <dt><code>cp</code></dt><dd>Cyclic prefix length in samples.</dd>
+        <dt><code>code_rate</code></dt><dd>LDPC code rate.</dd>
+        <dt><code>outer_spacing</code></dt><dd>Outer pilot ratio.</dd>
+        <dt><code>inner_spacing</code></dt><dd>Inner pilot ratio.</dd>
+        <dt><code>check_degree</code></dt><dd>LDPC check node degree.</dd>
+        <dt><code>horizon</code></dt><dd>K. Zero means fill with the largest whole-symbol block count that fits.</dd>
+        <dt><code>seed</code></dt><dd>Confirmation seed, 6 or 7.</dd>
+        <dt><code>frames</code></dt><dd>Attempted frames; every retained row has 60.</dd>
+        <dt><code>frame_blocks</code></dt><dd>Blocks in each frame.</dd>
+        <dt><code>payload_bits_per_frame</code></dt><dd>Payload bits carried by one frame.</dd>
+        <dt><code>successful_frames</code></dt><dd>Frames that delivered their payload.</dd>
+        <dt><code>psr</code></dt><dd>Packet success ratio: successful frames divided by attempted frames.</dd>
+        <dt><code>payload_bits</code></dt><dd>Total attempted payload bits.</dd>
+        <dt><code>bit_errors</code></dt><dd>Bit errors over attempted payload bits.</dd>
+        <dt><code>ber</code></dt><dd>Bit error rate over attempted payload bits.</dd>
+        <dt><code>decode_failures</code></dt><dd>Recorded decoder failures; zero in every retained row.</dd>
+        <dt><code>decode_seconds</code></dt><dd>Recorded decoding time in seconds.</dd>
+        <dt><code>effective_rate_bps</code></dt><dd>Delivered payload bits per whole elapsed second.</dd>
+        <dt><code>run</code></dt><dd>Source search: <code>3arm</code> or <code>pfft</code>.</dd>
+      </dl>
+      <h3>Completeness</h3>
+      <p class="lead" id="manifest-summary"></p>
+      <p><a id="manifest-link" href="#">Completeness manifest</a></p>
+    </section>
+  </main>
+
+  <div id="tip" role="status" aria-live="polite"></div>
+  <dialog id="configuration-dialog" aria-labelledby="dialog-title">
+    <div class="dialog-head"><h2 id="dialog-title">Configuration details</h2>
+      <button id="dialog-close" type="button">Close</button></div>
+    <dl id="dialog-body"></dl>
+  </dialog>
+</div>
+
+<script>
+window.addEventListener('error', function (event) {
+  document.documentElement.setAttribute('data-results-error',
+    event.message + ' at line ' + event.lineno);
+});
+</script>
+<script>
+const DATA = /*__WINNERS__*/;
+const CFG = /*__CONFIGS__*/;
+const MANIFEST = /*__MANIFEST__*/;
+
+const PAGES = ['summary', 'landscape', 'factors', 'configurations', 'guide'];
+const PAGE_TITLES = {
+  summary: 'Summary', landscape: 'Search landscape', factors: 'Factor analysis',
+  configurations: 'Configurations', guide: 'Reading guide',
+};
+const RECEIVERS = ['ofdm_fec', 'lite', 'pfft', 'profiled_cz'];
+const FACTORS = [
+  { key: 'nfft', label: 'N — FFT size' },
+  { key: 'cp', label: 'CP — cyclic prefix' },
+  { key: 'code_rate', label: 'rate — LDPC code rate' },
+  { key: 'outer_spacing', label: 'outer pilot ratio' },
+  { key: 'inner_spacing', label: 'inner pilot ratio' },
+  { key: 'check_degree', label: 'dc — LDPC check degree' },
+  { key: 'horizon', label: 'K — horizon' },
+];
+const C = Object.fromEntries(CFG.cols.map((name, index) => [name, index]));
+const CSS = getComputedStyle(document.querySelector('.viz-root'));
+const color = id => id === 'ofdm_fec' ? CSS.getPropertyValue('--recv-ofdm-fec')
+  : id === 'lite' ? CSS.getPropertyValue('--recv-lite')
+  : id === 'profiled_cz' ? CSS.getPropertyValue('--recv-profiled-cz')
+  : CSS.getPropertyValue('--recv-pfft');
+// Reader-visible names come from tools/explorer/receivers.json, verbatim.
+const rname = id => id === 'lite' ? 'JUNA-Lite'
+  : id === 'pfft' ? 'Partial FFT+FEC'
+  : id === 'profiled_cz' ? 'Profiled C,z' : 'OFDM+FEC';
+const canonicalReceiver = id => id === 'standard' ? 'ofdm_fec' : id;
+const fmt = number => Math.round(number).toLocaleString('en-US');
+const esc = value => String(value).replace(/[&<>"']/g, char => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+})[char]);
+const pathKey = path => `${path.channel}-${path.label.slice(-1)}`;
+const entryAt = index => ({
+  row: CFG.rows[index], raw: CFG.raw_rows[index], id: CFG.row_ids[index], index,
+});
+
+const fChannel = document.getElementById('f-channel');
+const fLane = document.getElementById('f-lane');
+const fRecv = document.getElementById('f-recv');
+const receiverWrap = document.getElementById('f-recv-wrap');
+const filtersBox = document.getElementById('filters');
+for (const channel of CFG.channels) fChannel.add(new Option(channel, channel));
+for (const lane of CFG.hydrophones) fLane.add(new Option('hydrophone ' + lane, lane));
+
+let currentPage = 'summary';
+let selectedPath = '';
+let sortKey = 'effective_rate_bps';
+let sortAsc = false;
+let configurationPage = 0;
+const PAGE_SIZE = 48;
+const holdEl = {};
+
+const filterValues = () => ({
+  channel: fChannel.value, lane: fLane.value, receiver: fRecv.value,
+});
+function filteredPaths() {
+  const filter = filterValues();
+  return DATA.paths.filter(path =>
+    (!filter.channel || path.channel === filter.channel) &&
+    (!filter.lane || path.label.slice(-1) === filter.lane));
+}
+function filteredEntries() {
+  const filter = filterValues();
+  return CFG.rows.map((row, index) => entryAt(index)).filter(entry => {
+    const row = entry.row;
+    return (!filter.channel || row[C.channel] === filter.channel) &&
+      (!filter.lane || String(row[C.lane]) === filter.lane) &&
+      (!filter.receiver || row[C.algorithm_id] === filter.receiver);
+  });
+}
+const levelsOf = key => [...new Set(CFG.rows.map(row => row[C[key]]))].sort((a, b) => a - b);
+function heldRows(except) {
+  return filteredEntries().map(entry => entry.row).filter(row => FACTORS.every(factor =>
+    factor.key === except || !holdEl[factor.key].value ||
+    String(row[C[factor.key]]) === holdEl[factor.key].value));
+}
+
+const holdsBox = document.getElementById('holds');
+for (const factor of FACTORS) {
+  const label = document.createElement('label');
+  label.textContent = factor.key === 'horizon' ? 'K' : factor.key;
+  const select = document.createElement('select');
+  select.setAttribute('aria-label', `Hold ${factor.label}`);
+  select.add(new Option('any', ''));
+  for (const value of levelsOf(factor.key)) {
+    select.add(new Option(factor.key === 'horizon' && value === 0 ? 'fill' : value, value));
+  }
+  label.appendChild(select); holdsBox.appendChild(label); holdEl[factor.key] = select;
+}
+const holdReset = document.createElement('button');
+holdReset.type = 'button'; holdReset.textContent = 'Release all';
+holdsBox.appendChild(holdReset);
+
+function queryValue(name) { return new URLSearchParams(location.search).get(name) || ''; }
+function applyQuery() {
+  const requested = queryValue('page');
+  currentPage = PAGES.includes(requested) ? requested : 'summary';
+  fChannel.value = queryValue('channel');
+  fLane.value = queryValue('hydrophone');
+  fRecv.value = canonicalReceiver(queryValue('receiver'));
+  for (const factor of FACTORS) holdEl[factor.key].value = queryValue('hold_' + factor.key);
+  sortKey = CFG.cols.includes(queryValue('sort')) ? queryValue('sort') : 'effective_rate_bps';
+  sortAsc = queryValue('direction') === 'asc';
+  configurationPage = Math.max(0, Number.parseInt(queryValue('config_page') || '1', 10) - 1 || 0);
+  selectedPath = queryValue('path');
+}
+function writeQuery(push = false) {
+  const url = new URL(location.href);
+  const set = (name, value) => value ? url.searchParams.set(name, value) : url.searchParams.delete(name);
+  set('page', currentPage);
+  set('channel', fChannel.value); set('hydrophone', fLane.value); set('receiver', fRecv.value);
+  for (const factor of FACTORS) set('hold_' + factor.key, holdEl[factor.key].value);
+  set('sort', sortKey); set('direction', sortAsc ? 'asc' : 'desc');
+  set('config_page', String(configurationPage + 1)); set('path', selectedPath);
+  history[push ? 'pushState' : 'replaceState']({}, '', url.pathname + '?' + url.searchParams + location.hash);
+  updateLinks();
+}
+function updateLinks() {
+  document.querySelectorAll('[data-page-link]').forEach(link => {
+    const url = new URL(location.href);
+    url.searchParams.set('page', link.dataset.pageLink);
+    link.href = url.pathname + '?' + url.searchParams;
+  });
+  const manifest = new URL('/results/manifest', location.origin);
+  manifest.searchParams.set('experiment', MANIFEST.experiment_id);
+  document.getElementById('manifest-link').href = manifest.pathname + '?' + manifest.searchParams;
+}
+
+function activatePage(page, push = false) {
+  currentPage = PAGES.includes(page) ? page : 'summary';
+  document.querySelectorAll('[data-page]').forEach(section => {
+    section.hidden = section.dataset.page !== currentPage;
+  });
+  document.querySelectorAll('[data-page-link]').forEach(link => {
+    if (link.dataset.pageLink === currentPage) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  });
+  const activeLink = document.querySelector('[data-page-link][aria-current="page"]');
+  if (activeLink) requestAnimationFrame(() => activeLink.scrollIntoView({ block: 'nearest', inline: 'center' }));
+  filtersBox.hidden = currentPage === 'guide';
+  receiverWrap.hidden = currentPage === 'summary';
+  document.title = `${PAGE_TITLES[currentPage]} · Red configuration search`;
+  writeQuery(push);
+  refresh();
+}
+
+document.querySelectorAll('[data-page-link]').forEach(link => {
+  link.addEventListener('click', event => {
+    event.preventDefault(); activatePage(link.dataset.pageLink, true);
+    const heading = document.querySelector(`[data-page="${link.dataset.pageLink}"] h2`);
+    if (heading && heading.focus) heading.focus();
+  });
+});
+
+const tip = document.getElementById('tip');
+function showTip(event, html) {
+  tip.innerHTML = html; tip.style.opacity = 1;
+  tip.style.left = Math.min(event.clientX + 14, window.innerWidth - 360) + 'px';
+  tip.style.top = Math.min(event.clientY + 14, window.innerHeight - 150) + 'px';
+}
+function hideTip() { tip.style.opacity = 0; }
+
+const chart = document.getElementById('chart');
+const rowH = 34, channelGap = 25, chartLeft = 118, chartRight = 74,
+  chartTop = 25, chartBottom = 8;
+const maxRate = 4000;
+function chartWidth() {
+  const box = chart.parentElement.getBoundingClientRect().width || 760;
+  return Math.max(600, box);
+}
+function drawWinners() {
+  const paths = filteredPaths();
+  const available = new Set(paths.map(pathKey));
+  if (!available.has(selectedPath)) selectedPath = paths.length ? pathKey(paths[0]) : '';
+  const width = chartWidth(); const plotWidth = width - chartLeft - chartRight;
+  const x = value => chartLeft + value / maxRate * plotWidth;
+  const channels = [...new Set(paths.map(path => path.channel))];
+  const height = Math.max(65, chartTop + paths.length * rowH + channels.length * channelGap + chartBottom);
+  chart.setAttribute('width', width); chart.setAttribute('height', height);
+  chart.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  let svg = '<g class="axis">';
+  for (let value = 0; value <= maxRate; value += 1000) {
+    svg += `<line x1="${x(value)}" y1="${chartTop - 6}" x2="${x(value)}" y2="${height - chartBottom}"/>`;
+    svg += `<text x="${x(value)}" y="${chartTop - 10}" text-anchor="middle">${value === maxRate ? fmt(value) + ' bit/s' : fmt(value)}</text>`;
+  }
+  svg += '</g>';
+  let y = chartTop, lastChannel = '';
+  for (const path of paths) {
+    if (path.channel !== lastChannel) {
+      y += channelGap;
+      svg += `<text class="chan-label" x="${chartLeft - 110}" y="${y - 8}">${esc(path.channel.toUpperCase())}</text>`;
+      lastChannel = path.channel;
+    }
+    const winner = path.winner, center = y + rowH / 2, key = pathKey(path);
+    const barWidth = Math.max(4, x(winner.mean_effective_rate_bps) - x(0));
+    const aria = `${path.label.replace('lane', 'hydrophone')}, ${rname(winner.algorithm_id)} winner, ${fmt(winner.mean_effective_rate_bps)} bit per second`;
+    svg += `<g class="winner-row${key === selectedPath ? ' selected' : ''}" data-path="${esc(key)}" tabindex="0" role="button" aria-label="${esc(aria)}">`;
+    svg += `<rect class="selection" x="2" y="${center - rowH / 2}" width="${width - 4}" height="${rowH}" rx="5"/>`;
+    svg += `<text class="row-label" x="${chartLeft - 12}" y="${center + 4}" text-anchor="end">hydrophone ${path.label.slice(-1)}</text>`;
+    svg += `<path d="M ${x(0)} ${center - 9} H ${x(0) + barWidth - 4} q 4 0 4 4 v 10 q 0 4 -4 4 H ${x(0)} Z" fill="${color(winner.algorithm_id)}"/>`;
+    svg += `<line x1="${x(winner.min_effective_rate_bps)}" y1="${center - 12}" x2="${x(winner.min_effective_rate_bps)}" y2="${center + 12}" stroke="var(--text-muted)"/>`;
+    svg += `<text class="val-label" x="${x(0) + barWidth + 8}" y="${center + 4}">${fmt(winner.mean_effective_rate_bps)}</text>`;
+    for (const other of path.others) svg += `<circle cx="${x(other.mean_effective_rate_bps)}" cy="${center}" r="6" fill="none" stroke="${color(other.algorithm_id)}" stroke-width="2.5"/>`;
+    if (path.pfft) {
+      const px = x(path.pfft.mean_effective_rate_bps);
+      svg += `<path d="M ${px} ${center - 7} L ${px + 7} ${center} L ${px} ${center + 7} L ${px - 7} ${center} Z" fill="none" stroke="var(--text-secondary)" stroke-width="2"/>`;
+    }
+    svg += '</g>'; y += rowH;
+  }
+  chart.innerHTML = svg;
+  chart.querySelectorAll('.winner-row').forEach(row => {
+    const choose = () => {
+      selectedPath = row.dataset.path; writeQuery();
+      chart.querySelectorAll('.winner-row').forEach(item =>
+        item.classList.toggle('selected', item.dataset.path === selectedPath));
+      drawDossier();
+    };
+    row.addEventListener('click', choose);
+    row.addEventListener('focus', choose);
+    row.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); choose(); }
+    });
+  });
+}
+
+const dossierSelect = document.getElementById('dossier-path');
+function dossierSensitivity(rows, receiver) {
+  const spans = FACTORS.map(factor => {
+    const mine = rows.filter(row => row[C.algorithm_id] === receiver);
+    const medians = [...new Set(mine.map(row => row[C[factor.key]]))].map(value => {
+      const values = mine.filter(row => row[C[factor.key]] === value)
+        .map(row => row[C.ber]).sort((a, b) => a - b);
+      if (values.length < 2) return null;
+      const middle = values.length >> 1;
+      return values.length % 2 ? values[middle] : (values[middle - 1] + values[middle]) / 2;
+    }).filter(value => value !== null && value > 0);
+    if (medians.length < 2) return null;
+    return { factor, span: Math.log10(Math.max(...medians)) - Math.log10(Math.min(...medians)) };
+  }).filter(Boolean).sort((a, b) => b.span - a.span);
+  return spans[0] || null;
+}
+function drawDossier() {
+  const paths = filteredPaths();
+  dossierSelect.innerHTML = paths.map(path => `<option value="${esc(pathKey(path))}">${esc(path.label.replace('lane', 'hydrophone'))}</option>`).join('');
+  if (!paths.length) {
+    document.getElementById('dossier-body').textContent = 'No channel and hydrophone match the selected filters.';
+    return;
+  }
+  if (!paths.some(path => pathKey(path) === selectedPath)) selectedPath = pathKey(paths[0]);
+  dossierSelect.value = selectedPath;
+  const path = paths.find(item => pathKey(item) === selectedPath);
+  const winner = path.winner;
+  const alternatives = [...path.others];
+  if (path.pfft) alternatives.push({ ...path.pfft, algorithm_id: 'pfft' });
+  const pathRows = CFG.rows.filter(row => row[C.channel] === path.channel && String(row[C.lane]) === path.label.slice(-1));
+  const sensitivity = RECEIVERS.map(receiver => ({ receiver, item: dossierSensitivity(pathRows, receiver) }));
+  document.getElementById('dossier-body').innerHTML = `
+    <dl class="dossier-grid">
+      <dt>Winner</dt><dd><i class="rmark" style="background:${color(winner.algorithm_id)}"></i>${rname(winner.algorithm_id)}</dd>
+      <dt>Mean rate</dt><dd>${fmt(winner.mean_effective_rate_bps)} bit/s</dd>
+      <dt>Minimum rate</dt><dd>${fmt(winner.min_effective_rate_bps)} bit/s</dd>
+      <dt>Geometry</dt><dd>N=${winner.nfft}, CP=${winner.cp}, rate=${winner.code_rate}, pilots=${winner.outer_spacing}/${winner.inner_spacing}, dc=${winner.check_degree}, K=${winner.horizon === 0 ? 'fill' : winner.horizon}</dd>
+      <dt>PSR · BER</dt><dd>${winner.mean_psr.toFixed(3)} · ${winner.ber.toExponential(2)}</dd>
+    </dl>
+    <h3>Other finalists</h3>
+    <ul class="compact-list">${alternatives.map(other => `<li>${rname(other.algorithm_id)}: ${fmt(other.mean_effective_rate_bps)} bit/s, PSR ${other.mean_psr.toFixed(3)}</li>`).join('') || '<li>None completed both confirmation seeds.</li>'}</ul>
+    <h3>Factor sensitivity</h3>
+    <ul class="compact-list">${sensitivity.map(item => `<li>${rname(item.receiver)}: ${item.item ? item.item.factor.label + ', ' + item.item.span.toFixed(2) + ' decades' : 'too few repeated levels'}</li>`).join('')}</ul>
+    <p class="note">Largest median BER span for this channel and hydrophone; it does not establish cause.
+      ${pathRows.length} retained configurations use this channel and hydrophone.</p>
+    <button type="button" id="dossier-configurations">Show configurations</button>`;
+  document.getElementById('dossier-configurations').addEventListener('click', () => {
+    fChannel.value = path.channel; fLane.value = path.label.slice(-1); fRecv.value = '';
+    configurationPage = 0; activatePage('configurations', true);
+  });
+}
+dossierSelect.addEventListener('change', () => { selectedPath = dossierSelect.value; writeQuery(); drawWinners(); drawDossier(); });
+
+function drawWinnerTable() {
+  document.querySelector('#winner-table tbody').innerHTML = filteredPaths().map(path => {
+    const winner = path.winner;
+    return `<tr><td>${esc(path.label.replace('lane', 'hydrophone'))}</td>
+      <td><i class="rmark" style="background:${color(winner.algorithm_id)}"></i>${rname(winner.algorithm_id)}</td>
+      <td>${winner.nfft}</td><td>${winner.cp}</td><td>${winner.code_rate}</td>
+      <td>${winner.outer_spacing}/${winner.inner_spacing}</td><td>${winner.check_degree}</td>
+      <td>${winner.horizon === 0 ? 'fill' : winner.horizon}</td>
+      <td>${fmt(winner.mean_effective_rate_bps)}</td><td>${fmt(winner.min_effective_rate_bps)}</td>
+      <td>${winner.mean_psr.toFixed(3)}</td><td>${winner.ber.toExponential(2)}</td>
+      <td>${path.pfft ? fmt(path.pfft.mean_effective_rate_bps) : '—'}</td></tr>`;
+  }).join('');
+}
+
+const stripRate = document.getElementById('strip');
+const stripBer = document.getElementById('stripber');
+const stripLeft = 170, stripRight = 36, stripTop = 28, stripRow = 62;
+const SUP = { '-': '⁻', 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶' };
+const pow10 = exponent => exponent === 0 ? '1' : '10' + String(exponent).split('').map(char => SUP[char]).join('');
+const RATE_OPT = {
+  value: row => row[C.effective_rate_bps],
+  scale: (entries, width) => { const high = Math.max(maxRate, ...entries.map(entry => entry.row[C.effective_rate_bps]), 1); return value => stripLeft + value / high * width; },
+  ticks: (entries, scale) => { const high = Math.max(maxRate, ...entries.map(entry => entry.row[C.effective_rate_bps]), 1); return [0, 1, 2, 3, 4].map(i => ({ x: scale(high * i / 4), label: i === 4 ? fmt(high) + ' bit/s' : fmt(high * i / 4) })); },
+  sub: rows => `${rows.length} configurations, ${rows.filter(row => row[C.effective_rate_bps] === 0).length} at zero`,
+};
+const BER_LOW = -6, BER_HIGH = 0, ZERO_WIDTH = 54, ZERO_GAP = 22;
+const BER_OPT = {
+  value: row => row[C.ber],
+  scale: (entries, width) => { const zero = stripLeft + ZERO_WIDTH / 2, logLeft = stripLeft + ZERO_WIDTH + ZERO_GAP, logWidth = width - ZERO_WIDTH - ZERO_GAP; return value => value <= 0 ? zero : logLeft + (Math.min(BER_HIGH, Math.max(BER_LOW, Math.log10(value))) - BER_LOW) / (BER_HIGH - BER_LOW) * logWidth; },
+  ticks: (entries, scale) => { const ticks = [{ x: scale(0), label: '0' }]; for (let exponent = BER_LOW; exponent <= BER_HIGH; exponent++) ticks.push({ x: scale(10 ** exponent), label: pow10(exponent) }); return ticks; },
+  sub: rows => `${rows.length} configurations, ${rows.filter(row => row[C.ber] === 0).length} error-free`,
+};
+function pointLabel(entry) {
+  const row = entry.row;
+  return `${row[C.channel]} hydrophone ${row[C.lane]}, ${rname(row[C.algorithm_id])}, ${fmt(row[C.effective_rate_bps])} bit per second, BER ${row[C.ber]}`;
+}
+function renderStrip(element, entries, options) {
+  const present = RECEIVERS.filter(receiver => entries.some(entry => entry.row[C.algorithm_id] === receiver));
+  const width = Math.max(640, element.parentElement.getBoundingClientRect().width || 760);
+  const bandWidth = width - stripLeft - stripRight;
+  const height = stripTop + Math.max(1, present.length) * stripRow + 18;
+  const scale = options.scale(entries, bandWidth);
+  element.setAttribute('width', width); element.setAttribute('height', height);
+  element.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  let svg = '<g class="axis">';
+  for (const tick of options.ticks(entries, scale)) {
+    svg += `<line x1="${tick.x}" y1="${stripTop - 6}" x2="${tick.x}" y2="${height - 12}"/>`;
+    svg += `<text x="${tick.x}" y="${stripTop - 10}" text-anchor="middle">${tick.label}</text>`;
+  }
+  svg += '</g>';
+  present.forEach((receiver, receiverIndex) => {
+    const center = stripTop + receiverIndex * stripRow + stripRow / 2;
+    const mine = entries.filter(entry => entry.row[C.algorithm_id] === receiver);
+    svg += `<text class="row-label" x="${stripLeft - 12}" y="${center - 2}" text-anchor="end">${rname(receiver)}</text>`;
+    svg += `<text x="${stripLeft - 12}" y="${center + 14}" text-anchor="end" fill="var(--text-muted)" font-size="11">${options.sub(mine.map(entry => entry.row))}</text>`;
+    svg += `<line x1="${stripLeft}" y1="${center}" x2="${stripLeft + bandWidth}" y2="${center}" stroke="var(--grid)"/>`;
+    mine.forEach((entry, index) => {
+      const y = center + ((index * 7919) % 17 - 8) * .9;
+      svg += `<circle data-row="${entry.index}" tabindex="-1" role="button" aria-label="${esc(pointLabel(entry))}" cx="${scale(options.value(entry.row))}" cy="${y}" r="3" fill="${color(receiver)}" fill-opacity=".6"><title>${esc(pointLabel(entry))}</title></circle>`;
+    });
+  });
+  element.innerHTML = svg;
+  const points = [...element.querySelectorAll('[data-row]')];
+  if (points.length) points[0].tabIndex = 0;
+  points.forEach((point, pointIndex) => {
+    const select = () => showPointDetail(entryAt(Number(point.dataset.row)));
+    point.addEventListener('focus', select); point.addEventListener('click', select);
+    point.addEventListener('keydown', event => {
+      const direction = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+      if (direction) {
+        event.preventDefault();
+        const nextIndex = Math.max(0, Math.min(points.length - 1, pointIndex + direction));
+        point.tabIndex = -1; points[nextIndex].tabIndex = 0; points[nextIndex].focus();
+      } else if (event.key === 'Home' || event.key === 'End') {
+        event.preventDefault();
+        const nextIndex = event.key === 'Home' ? 0 : points.length - 1;
+        point.tabIndex = -1; points[nextIndex].tabIndex = 0; points[nextIndex].focus();
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault(); select();
+      }
+    });
+  });
+}
+function showPointDetail(entry) {
+  const row = entry.row;
+  document.getElementById('point-detail').innerHTML = `<strong>${esc(row[C.channel])} hydrophone ${row[C.lane]} · ${rname(row[C.algorithm_id])}</strong>
+    <dl><div><dt>Effective rate</dt><dd>${fmt(row[C.effective_rate_bps])} bit/s</dd></div>
+    <div><dt>PSR · BER</dt><dd>${row[C.psr].toFixed(3)} · ${row[C.ber] ? row[C.ber].toExponential(2) : '0'}</dd></div>
+    <div><dt>Geometry</dt><dd>N=${row[C.nfft]}, CP=${row[C.cp]}, rate=${row[C.code_rate]}, pilots=${row[C.outer_spacing]}/${row[C.inner_spacing]}, dc=${row[C.check_degree]}, K=${row[C.horizon] === 0 ? 'fill' : row[C.horizon]}</dd></div>
+    <div><dt>Confirmation</dt><dd>seed ${row[C.seed]}, ${row[C.successful_frames]}/${row[C.frames]} successful frames</dd></div></dl>
+    <button type="button" data-open-row="${entry.index}">Open all columns</button>`;
+  document.querySelector('[data-open-row]').addEventListener('click', () => openConfiguration(entry));
+}
+function drawStrips() {
+  const entries = filteredEntries(); renderStrip(stripRate, entries, RATE_OPT); renderStrip(stripBer, entries, BER_OPT);
+}
+
+const median = values => { if (!values.length) return null; const sorted = [...values].sort((a, b) => a - b), middle = sorted.length >> 1; return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2; };
+const MIN_LEVEL_COUNT = 4;
+function factorSpans(receiver) {
+  return FACTORS.map(factor => {
+    const rows = heldRows(factor.key).filter(row => row[C.algorithm_id] === receiver);
+    const medians = levelsOf(factor.key).map(value => {
+      const values = rows.filter(row => row[C[factor.key]] === value).map(row => row[C.ber]);
+      return values.length < MIN_LEVEL_COUNT ? null : { value, median: median(values) };
+    }).filter(Boolean);
+    const positive = medians.filter(item => item.median > 0);
+    const zero = medians.some(item => item.median === 0);
+    if (positive.length < 2) return { factor, span: 0, zero, thin: true, count: rows.length };
+    const high = positive.reduce((a, b) => a.median > b.median ? a : b);
+    const low = positive.reduce((a, b) => a.median < b.median ? a : b);
+    return { factor, span: Math.log10(high.median) - Math.log10(low.median), zero, high, low, count: rows.length };
+  }).sort((a, b) => b.span - a.span);
+}
+function drawRanks() {
+  const rows = filteredEntries().map(entry => entry.row);
+  const present = RECEIVERS.filter(receiver => rows.some(row => row[C.algorithm_id] === receiver));
+  const ranked = present.map(receiver => ({ receiver, items: factorSpans(receiver) }));
+  const maximum = Math.max(1, ...ranked.flatMap(group => group.items.map(item => item.span)));
+  document.getElementById('ranks').innerHTML = ranked.map(group => `<section class="factor"><h3><i class="rmark" style="background:${color(group.receiver)}"></i>${rname(group.receiver)}</h3>
+    <p class="n">decades between lowest and highest positive median · ○ reached zero</p>
+    ${group.items.map(item => `<button type="button" class="rank-row" data-factor="${item.factor.key}">
+      <span>${item.factor.key === 'horizon' ? 'K' : item.factor.key}${item.zero ? ' ○' : ''}</span>
+      <span class="rank-track"><span class="rank-bar" style="width:${Math.max(1, item.span / maximum * 100)}%;background:${color(group.receiver)}"></span></span>
+      <span>${item.thin ? '—' : item.span.toFixed(2)}</span></button>`).join('')}</section>`).join('');
+  document.querySelectorAll('.rank-row').forEach(button => button.addEventListener('click', () => {
+    const panel = document.getElementById('factor-' + button.dataset.factor);
+    if (panel) panel.focus();
+  }));
+}
+
+function drawFactors() {
+  const panels = FACTORS.map(factor => {
+    const rows = heldRows(factor.key);
+    const levels = levelsOf(factor.key).filter(value => rows.some(row => row[C[factor.key]] === value));
+    const present = RECEIVERS.filter(receiver => rows.some(row => row[C.algorithm_id] === receiver));
+    const series = present.map(receiver => ({ receiver, points: levels.map((value, index) => {
+      const values = rows.filter(row => row[C.algorithm_id] === receiver && row[C[factor.key]] === value).map(row => row[C.ber]);
+      if (values.length < MIN_LEVEL_COUNT) return null;
+      const middle = median(values); return { index, value, count: values.length, median: middle, zero: middle === 0 };
+    }).filter(Boolean) })).filter(item => item.points.length);
+    return { factor, rows, levels, series };
+  });
+  const finite = panels.flatMap(panel => panel.series.flatMap(series => series.points.filter(point => !point.zero).map(point => point.median)));
+  let low = finite.length ? Math.floor(Math.log10(Math.min(...finite))) : -6;
+  let high = finite.length ? Math.min(0, Math.ceil(Math.log10(Math.max(...finite)))) : 0;
+  if (high - low < 2) low = high - 2;
+  const hasZero = panels.some(panel => panel.series.some(series => series.points.some(point => point.zero)));
+  if (hasZero) low -= 1;
+  const width = 350, height = 185, marginLeft = 47, marginRight = 88, marginTop = 12, marginBottom = 38;
+  const plotHeight = height - marginTop - marginBottom;
+  const y = value => marginTop + (1 - (value - low) / (high - low)) * plotHeight;
+  document.getElementById('factor-panels').innerHTML = panels.map(panel => {
+    const x = index => marginLeft + (panel.levels.length > 1 ? index * (width - marginLeft - marginRight) / (panel.levels.length - 1) : (width - marginLeft - marginRight) / 2);
+    let svg = '<g class="axis">';
+    for (let exponent = high; exponent >= low; exponent--) {
+      svg += `<line x1="${marginLeft - 5}" y1="${y(exponent)}" x2="${width - marginRight + 5}" y2="${y(exponent)}"/><text x="${marginLeft - 9}" y="${y(exponent) + 3}" text-anchor="end">${exponent === low && hasZero ? '0' : pow10(exponent)}</text>`;
+    }
+    panel.levels.forEach((value, index) => {
+      const count = panel.rows.filter(row => row[C[panel.factor.key]] === value).length;
+      const label = panel.factor.key === 'horizon' && value === 0 ? 'fill' : value;
+      svg += `<text x="${x(index)}" y="${height - marginBottom + 16}" text-anchor="middle">${label}</text><text x="${x(index)}" y="${height - marginBottom + 29}" text-anchor="middle" font-size="9">${count}</text>`;
+    });
+    svg += '</g>';
+    for (const series of panel.series) {
+      const points = series.points.map(point => ({ ...point, x: x(point.index), y: point.zero ? y(low) : y(Math.log10(point.median)) }));
+      svg += `<polyline fill="none" stroke="${color(series.receiver)}" stroke-width="2" points="${points.map(point => point.x + ',' + point.y).join(' ')}"/>`;
+      for (const point of points) {
+        const label = `${rname(series.receiver)}, ${panel.factor.label} ${point.value}, median BER ${point.median}, ${point.count} configurations`;
+        svg += `<circle cx="${point.x}" cy="${point.y}" r="4" fill="${point.zero ? 'none' : color(series.receiver)}" stroke="${color(series.receiver)}" stroke-width="2" role="img" tabindex="0" aria-label="${esc(label)}"><title>${esc(label)}</title></circle>`;
+      }
+      if (points.length) {
+        const last = points[points.length - 1];
+        svg += `<text x="${last.x + 9}" y="${last.y + 3}" font-size="10" fill="var(--text-secondary)">${rname(series.receiver)}</text>`;
+      }
+    }
+    return `<section class="factor" id="factor-${panel.factor.key}" tabindex="-1"><h3>${panel.factor.label}</h3><p class="n">median BER · ${panel.rows.length} configurations · count under each level</p><svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Median bit error rate against ${esc(panel.factor.label)} by receiver">${svg}</svg></section>`;
+  }).join('');
+}
+
+const COLUMN_LABELS = {
+  channel: 'channel', lane: 'hydrophone (lane)', phase: 'phase', start_index: 'start_index',
+  algorithm_id: 'receiver', nfft: 'N (nfft)', cp: 'CP', code_rate: 'code_rate',
+  outer_spacing: 'outer pilot ratio', inner_spacing: 'inner pilot ratio', check_degree: 'check_degree',
+  horizon: 'K (horizon)', seed: 'seed', frames: 'frames', frame_blocks: 'frame_blocks',
+  payload_bits_per_frame: 'payload_bits_per_frame', successful_frames: 'successful_frames',
+  psr: 'PSR', payload_bits: 'payload_bits', bit_errors: 'bit_errors', ber: 'BER',
+  decode_failures: 'decode_failures', decode_seconds: 'decode_seconds',
+  effective_rate_bps: 'effective_rate_bps', run: 'run',
+};
+function sortedEntries() {
+  const entries = filteredEntries(), index = C[sortKey];
+  entries.sort((a, b) => {
+    const av = a.row[index], bv = b.row[index];
+    const order = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv));
+    return (sortAsc ? order : -order) || a.id.localeCompare(b.id);
+  });
+  return entries;
+}
+function displayCell(column, entry, includeSourceId = false) {
+  const raw = entry.raw[C[column]];
+  if (column === 'algorithm_id') return includeSourceId ? `${rname(raw)} (${esc(raw)})` : rname(raw);
+  if (column === 'horizon' && raw === '0') return 'fill (0)';
+  return esc(raw);
+}
+function drawConfigurationTable() {
+  const entries = sortedEntries();
+  const pages = Math.max(1, Math.ceil(entries.length / PAGE_SIZE));
+  configurationPage = Math.min(configurationPage, pages - 1);
+  const start = configurationPage * PAGE_SIZE;
+  const shown = entries.slice(start, start + PAGE_SIZE);
+  document.getElementById('configuration-head').innerHTML = CFG.display_cols.map(column => {
+    const direction = column === sortKey ? (sortAsc ? 'ascending' : 'descending') : 'none';
+    return `<th scope="col" aria-sort="${direction}"><button type="button" data-sort="${esc(column)}" aria-label="Sort by ${esc(COLUMN_LABELS[column] || column)}">${esc(COLUMN_LABELS[column] || column)}</button></th>`;
+  }).join('') + `<th scope="col">Details</th>`;
+  document.getElementById('configuration-body').innerHTML = shown.length ? shown.map(entry => `<tr id="row-${entry.id}">${CFG.display_cols.map(column => `<td${column === 'effective_rate_bps' && entry.row[C[column]] === 0 ? ' class="zero"' : ''}>${displayCell(column, entry)}</td>`).join('')}<td><button type="button" data-details="${entry.index}">Open</button></td></tr>`).join('') : `<tr><td colspan="${CFG.display_cols.length + 1}" style="text-align:left">No retained configuration matches these filters.</td></tr>`;
+  document.querySelectorAll('[data-sort]').forEach(button => button.addEventListener('click', () => {
+    if (sortKey === button.dataset.sort) sortAsc = !sortAsc;
+    else { sortKey = button.dataset.sort; sortAsc = false; }
+    configurationPage = 0; writeQuery(); drawConfigurationTable();
+  }));
+  document.querySelectorAll('[data-details]').forEach(button => button.addEventListener('click', () => openConfiguration(entryAt(Number(button.dataset.details)))));
+  document.getElementById('configuration-count').textContent = `${entries.length.toLocaleString('en-US')} of ${CFG.rows.length.toLocaleString('en-US')} rows`;
+  document.getElementById('page-label').textContent = `Page ${configurationPage + 1} of ${pages}`;
+  document.getElementById('page-prev').disabled = configurationPage === 0;
+  document.getElementById('page-next').disabled = configurationPage >= pages - 1;
+}
+const dialog = document.getElementById('configuration-dialog');
+function openConfiguration(entry) {
+  document.getElementById('dialog-body').innerHTML = CFG.cols.map(column => `<dt><code>${esc(column)}</code></dt><dd>${displayCell(column, entry, true)}</dd>`).join('') + `<dt>row_id</dt><dd><code>${entry.id}</code></dd>`;
+  dialog.showModal();
+}
+document.getElementById('dialog-close').addEventListener('click', () => dialog.close());
+document.getElementById('page-prev').addEventListener('click', () => { configurationPage--; writeQuery(); drawConfigurationTable(); });
+document.getElementById('page-next').addEventListener('click', () => { configurationPage++; writeQuery(); drawConfigurationTable(); });
+
+function csvCell(value) { const text = String(value); return /[",\r\n]/.test(text) ? '"' + text.replaceAll('"', '""') + '"' : text; }
+document.getElementById('download-configurations').addEventListener('click', () => {
+  const entries = sortedEntries();
+  const csv = [CFG.cols.map(csvCell).join(','), ...entries.map(entry => entry.raw.map(csvCell).join(','))].join('\r\n') + '\r\n';
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  link.download = `${MANIFEST.experiment_id}-configurations.csv`; link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 0);
+});
+
+function coverageNote() {
+  const names = { '3arm': 'OFDM+FEC and JUNA-Lite', pfft: 'Partial FFT+FEC' };
+  document.getElementById('coverage-note').textContent = 'Coverage: ' + Object.entries(CFG.coverage).map(([run, paths]) => `${names[run] || run} includes ${paths.length} of 12 channel–hydrophone results`).join('; ') + '.';
+}
+function updateStatus() {
+  const filter = filterValues();
+  const parts = [filter.channel || 'all channels', filter.lane ? 'hydrophone ' + filter.lane : 'all hydrophones'];
+  if (currentPage !== 'summary' && currentPage !== 'guide') parts.push(filter.receiver ? rname(filter.receiver) : 'all receivers');
+  document.getElementById('scope-status').textContent = PAGE_TITLES[currentPage] + ' · ' + parts.join(' · ') + ' · 60-frame confirmation';
+  const count = currentPage === 'summary' ? filteredPaths().length + ' channel–hydrophone results' : filteredEntries().length.toLocaleString('en-US') + ' configurations';
+  document.getElementById('f-count').textContent = count;
+}
+function refresh() {
+  updateStatus();
+  if (currentPage === 'summary') { drawWinners(); drawDossier(); drawWinnerTable(); }
+  if (currentPage === 'landscape') drawStrips();
+  if (currentPage === 'factors') { drawRanks(); drawFactors(); }
+  if (currentPage === 'configurations') drawConfigurationTable();
+}
+
+for (const element of [fChannel, fLane, fRecv]) element.addEventListener('change', () => {
+  configurationPage = 0; writeQuery(); refresh();
+});
+document.getElementById('f-reset').addEventListener('click', () => {
+  fChannel.value = ''; fLane.value = ''; fRecv.value = ''; configurationPage = 0;
+  for (const factor of FACTORS) holdEl[factor.key].value = '';
+  writeQuery(); refresh();
+});
+for (const factor of FACTORS) holdEl[factor.key].addEventListener('change', () => { writeQuery(); refresh(); });
+holdReset.addEventListener('click', () => { for (const factor of FACTORS) holdEl[factor.key].value = ''; writeQuery(); refresh(); });
+window.addEventListener('popstate', () => { applyQuery(); activatePage(currentPage); });
+let resizeTimer;
+window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(refresh, 120); });
+
+document.getElementById('tile-configs').textContent = CFG.rows.length.toLocaleString('en-US');
+document.getElementById('manifest-summary').textContent = `${MANIFEST.row_count} rows and ${MANIFEST.columns.length} columns. The manifest records each source file hash. ${MANIFEST.numeric_policy}.`;
+coverageNote(); applyQuery(); updateLinks(); activatePage(currentPage);
+</script>
+</body>
+</html>

@@ -1,0 +1,216 @@
+{
+  "decisions": [
+    "CL-29",
+    "CL-30",
+    "CL-33",
+    "CL-36",
+    "CL-37",
+    "CL-38"
+  ],
+  "experiment_id": "2026-08-04-red-snr-sweep-n2048-cp128-rate05-p5-10-dc8-k4",
+  "geometry": {
+    "check_degree": "8",
+    "code_rate": "0.5",
+    "cp": "128",
+    "horizon": "4",
+    "inner_spacing": "10",
+    "nfft": "2048",
+    "outer_spacing": "5"
+  },
+  "geometry_display": {
+    "check_degree": "8",
+    "code_rate": "0.5",
+    "cp": "128",
+    "horizon": "4",
+    "inner_spacing": "10",
+    "nfft": "2048",
+    "outer_spacing": "5"
+  },
+  "noise_model": {
+    "alpha": 1.7,
+    "generator": "uwa-channels/python src/uwa_channels/noisegen.py, mixing path",
+    "note": "impulsive, correlated across three hydrophones",
+    "source": "red_noise.mat, Zenodo record 21287414"
+  },
+  "not_comparable_with": "2026-08-01-red-lite-search: different channel-application path (uwa-channels mixing model, not the harness AWGN)",
+  "paths": [
+    "red1 1",
+    "red1 2",
+    "red1 3",
+    "red2 1",
+    "red2 2",
+    "red2 3",
+    "red3 1",
+    "red3 2",
+    "red3 3",
+    "red4 1",
+    "red4 2",
+    "red4 3"
+  ],
+  "receivers": [
+    "cwz_joint",
+    "lite",
+    "ofdm_fec",
+    "pfft",
+    "profiled_cz"
+  ],
+  "result_group": "configuration",
+  "result_scope": "BER versus added-noise SNR, 60 frames per point, seed 4",
+  "row_count": 960,
+  "schema_version": 2,
+  "snr_db": [
+    0.0,
+    2.0,
+    4.0,
+    6.0,
+    8.0,
+    10.0,
+    12.0,
+    14.0,
+    16.0,
+    18.0,
+    20.0,
+    22.0,
+    24.0,
+    26.0,
+    28.0,
+    30.0
+  ],
+  "snr_definition": "signal power over the alpha-stable pseudo-power 2*delta^2; Mahmood & Chitre, IEEE JOE 42(3) 2017, eq. (35)",
+  "sources": [
+    {
+      "path": "runs/red1_hydrophone1/red_snr_sweep_uwa_noise_configuration.csv",
+      "retained_rows": 80,
+      "rows": 80,
+      "sha256": "f721939d98ed681e15bf1c87bd445ca0ab9fe4cc1050c4f8852b590c87291d6d"
+    },
+    {
+      "path": "runs/red1_hydrophone2/red_snr_sweep_uwa_noise_configuration.csv",
+      "retained_rows": 80,
+      "rows": 80,
+      "sha256": "cc2e9a68d0a45724bd86510ef1744854c2d1e7057a039ae98a17dbaa3ccd3962"
+    },
+    {
+      "path": "runs/red1_hydrophone3/red_snr_sweep_uwa_noise_configuration.csv",
+      "retained_rows": 80,
+      "rows": 80,
+      "sha256": "b1f4fc7c3ef3972641c5ed6423cf5dd55328c05846f992ec9224fea646647471"
+    },
+    {
+      "path": "runs/red2_hydrophone1/red_snr_sweep_uwa_noise_configuration.csv",
+      "retained_rows": 80,
+      "rows": 80,
+      "sha256": "7fffd9619f1755c817a04a99faac727e1b4a6a3e3ddce9e4d73f106a03a1f445"
+    },
+    {
+      "path": "runs/red2_hydrophone2/red_snr_sweep_uwa_noise_configuration.csv",
+      "retained_rows": 80,
+      "rows": 80,
+      "sha256": "4848dca9a2c8e74807adca16945fd325dac76b926d18ae8c91b2b094657ae4f4"
+    },
+    {
+      "path": "runs/red2_hydrophone3/red_snr_sweep_uwa_noise_configuration.csv",
+      "retained_rows": 80,
+      "rows": 80,
+      "sha256": "19db8aba44fac147a4d6c09524a5d477606cf61919b43cf2b104e89586eb6b7f"
+    },
+    {
+      "path": "runs/red3_hydrophone1/red_snr_sweep_uwa_noise_configuration.csv",
+      "retained_rows": 80,
+      "rows": 80,
+      "sha256": "38513c9d15622952e32e2c2a2f18cc908a04c1d5fa54997924f59e0269a53844"
+    },
+    {
+      "path": "runs/red3_hydrophone2/red_snr_sweep_uwa_noise_configuration.csv",
+      "retained_rows": 80,
+      "rows": 80,
+      "sha256": "ebf03019f6f126cdb91bbfac8bb9b922251722890057e400767d66ab2fe5bde9"
+    },
+    {
+      "path": "runs/red3_hydrophone3/red_snr_sweep_uwa_noise_configuration.csv",
+      "retained_rows": 80,
+      "rows": 80,
+      "sha256": "0127ac47e7d76cdfcb3a9685acd5fea42e3a129c48b9a60efb52967e85f081fc"
+    },
+    {
+      "path": "runs/red4_hydrophone1/red_snr_sweep_uwa_noise_configuration.csv",
+      "retained_rows": 80,
+      "rows": 80,
+      "sha256": "d95c7bc27da529daf2f91585a35c8ff308f2b43665ae4e8465a36077916cb99a"
+    },
+    {
+      "path": "runs/red4_hydrophone2/red_snr_sweep_uwa_noise_configuration.csv",
+      "retained_rows": 80,
+      "rows": 80,
+      "sha256": "931488d8d7adb59e36a6e8a8a6e2426018ee6190803d83efc857fcf3a8ae8be0"
+    },
+    {
+      "path": "runs/red4_hydrophone3/red_snr_sweep_uwa_noise_configuration.csv",
+      "retained_rows": 80,
+      "rows": 80,
+      "sha256": "b043b697229feb9607285b840607fde18bf644b597040ed139767c3a0b04fa9c"
+    }
+  ],
+  "trace_sources": [
+    {
+      "path": "runs/red1_hydrophone1/red1_hydrophone1_selection_trace.csv",
+      "rows": 1920,
+      "sha256": "cdd01af328ccf3720257076929141fb3ed69c483cdbfd2128967182da9c11db5"
+    },
+    {
+      "path": "runs/red1_hydrophone2/red1_hydrophone2_selection_trace.csv",
+      "rows": 1920,
+      "sha256": "68d232c46e85ccc7245e6ea7d69b88f5c469b3d18f5c27773141b706455a84a2"
+    },
+    {
+      "path": "runs/red1_hydrophone3/red1_hydrophone3_selection_trace.csv",
+      "rows": 1920,
+      "sha256": "d0561c120ca89748d5a318f4d31775b79e00777d8c2fcffbb42bd4d2782d43c7"
+    },
+    {
+      "path": "runs/red2_hydrophone1/red2_hydrophone1_selection_trace.csv",
+      "rows": 1920,
+      "sha256": "b19c6ec38d2e06ec0af98c0c279bb33c574972230c24ef86bb806e2026248f6e"
+    },
+    {
+      "path": "runs/red2_hydrophone2/red2_hydrophone2_selection_trace.csv",
+      "rows": 1920,
+      "sha256": "8a015edcfcf1d5bb39beff2db5e2683e0deaaf3931a1ca89c506176dc4eba657"
+    },
+    {
+      "path": "runs/red2_hydrophone3/red2_hydrophone3_selection_trace.csv",
+      "rows": 1920,
+      "sha256": "1909b68d85c2597f705e221677c1b21c1ec0ef70f4d18f520b9da33851e777f4"
+    },
+    {
+      "path": "runs/red3_hydrophone1/red3_hydrophone1_selection_trace.csv",
+      "rows": 1920,
+      "sha256": "082a176e52fd7b65dc70046505f63b93989bfb904501ddf51f33839d24750a69"
+    },
+    {
+      "path": "runs/red3_hydrophone2/red3_hydrophone2_selection_trace.csv",
+      "rows": 1920,
+      "sha256": "3c339989b778951c25736b7c6378a4151c6dff583a2991545229a8b5c40aec6d"
+    },
+    {
+      "path": "runs/red3_hydrophone3/red3_hydrophone3_selection_trace.csv",
+      "rows": 1920,
+      "sha256": "3dcb59e8275a245ca659c74a11b24a0c100de8de8d6c1c6487fad36a37664387"
+    },
+    {
+      "path": "runs/red4_hydrophone1/red4_hydrophone1_selection_trace.csv",
+      "rows": 1920,
+      "sha256": "c52174ae4f313ba8455c648ab31ffff517b80dee4766ff54ab58d715288d09ae"
+    },
+    {
+      "path": "runs/red4_hydrophone2/red4_hydrophone2_selection_trace.csv",
+      "rows": 1920,
+      "sha256": "3c43f366d0969f399695bf4585d0a3c68a3b75812a129338bfe00868eb2ae4d0"
+    },
+    {
+      "path": "runs/red4_hydrophone3/red4_hydrophone3_selection_trace.csv",
+      "rows": 1920,
+      "sha256": "9a15757839f9be13dce63001101ca87f30fc57fc2b5eb85b9737b75cdafe3a88"
+    }
+  ]
+}
