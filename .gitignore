@@ -1,2 +1,20 @@
 # Scratch space for builds and comparisons. Never committed.
 temp/
+
+# LaTeX build artifacts. The .tex is the source; these are produced from it.
+*.aux
+*.log
+*.out
+*.toc
+*.nav
+*.snm
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# Papers built from the .tex beside them.
+JunaCore/*.pdf
+reference papers/gab/ici_and_isi_slides.pdf
+
+# Dated backups written before an edit.
+*.bak-*
