@@ -36,6 +36,7 @@ Base.@kwdef mutable struct Modulation <: Modulations.Modulation
   cz_feedback_source::Symbol = :legacy # :legacy preserves deployed path; Experiment-B uses :frozen/:real/:genie
   cz_vp_gradient::Bool = false         # variable-projection z-gradient: expected-variance objective + undamped C/W at the gradient point
   cz_conditioned_joint::Bool = false   # simultaneous hand-gradient C,W,z proposals with pilot/trust gating
+  cz_gradient_only::Bool = false       # report the gradient's own decode, never falling back to Lite; measures the gradient alone and so may be worse than Lite
   cz_joint_c_radius::Float64 = 0.05    # maximum relative C displacement per accepted joint step
   cz_joint_w_radius::Float64 = 0.01    # maximum relative W displacement per accepted joint step
   cz_joint_z_radius::Float64 = 0.5     # maximum absolute logit displacement per accepted joint step

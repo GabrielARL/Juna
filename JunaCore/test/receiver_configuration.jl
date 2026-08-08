@@ -18,12 +18,9 @@
 #                                  a related but differently parameterized knob.
 #   tab:hyperparams (line 2021)    4 partial-FFT temporal views (partial_fft_parts = 4).
 #
-# :coupled and :full remain internal implementation profiles used by numerical
-# audits and retained dependencies. :robust is a legacy alias for :full. Their
-# mode/profile plumbing lives in common.jl, but their solvers
-# (juna/full.jl, juna/coupled.jl) are not part of this migrated package's
-# src/, so only construction, mode selection, and isvalid are exercised below
-# — not their optimizer internals.
+# :coupled and :full remain internal implementation profiles used by the
+# Profiled C,z receiver and numerical audits. :robust is a legacy alias for
+# :full. Their optimizer configuration is part of the restored closure.
 #
 # If this fails: experiments could silently run the wrong receiver or a non-paper
 # frame geometry, invalidating any comparison against the paper's tables.
@@ -45,6 +42,10 @@ const RECEIVER_CONFIG_FS = 24_000.0
     lite = ReceiverConfigJuna.LiteModulation(mode = :full)
     full = ReceiverConfigJuna.FullModulation(mode = :lite)
     coupled = ReceiverConfigJuna.CoupledModulation(mode = :lite)
+    profiled_cz = ReceiverConfigJuna.ProfiledCzFrameModulation()
+    crc_profiled_cz = ReceiverConfigJuna.CrcProfiledCzFrameModulation()
+    conditioned_cwz =
+        ReceiverConfigJuna.CrcConditionedJointCwzFrameModulation()
     legacy = ReceiverConfigJuna.Modulation(mode = :robust)
 
     @testset "constructors force their public or internal implementation profile" begin
@@ -57,9 +58,15 @@ const RECEIVER_CONFIG_FS = 24_000.0
         @test JunaCore.JunaLite.Modulation(mode = :full).mode === :lite
         @test JunaCore.Juna.FullModulation(mode = :lite).mode === :full
         @test JunaCore.Juna.CoupledModulation(mode = :lite).mode === :coupled
-        # FullyCoupledModulation/FrameWideLDPCModulation facade checks dropped:
-        # JunaCore.JunaFullyCoupled and JunaCore.JunaFrameWideLDPC do not exist
-        # in this package (scope narrowed to the migrated facades).
+        @test profiled_cz.frame_receiver === :profiled_cz
+        @test crc_profiled_cz.mode === :crc_profiled_cz_frame
+        @test crc_profiled_cz.frame_crc_bits == 16
+        @test conditioned_cwz.cz_conditioned_joint
+        @test JunaCore.JunaProfiledCzFrame.Modulation().frame_receiver ===
+              :profiled_cz
+        @test JunaCore.JunaCrcProfiledCzFrame.Modulation().frame_crc_bits == 16
+        @test JunaCore.JunaCrcConditionedJointCwzFrame.Modulation().
+              cz_conditioned_joint
     end
 
     @testset "receiver_profile distinguishes public and internal solver profiles" begin
@@ -72,8 +79,10 @@ const RECEIVER_CONFIG_FS = 24_000.0
         @test ReceiverConfigJuna.receiver_profile(full) === :full
         @test ReceiverConfigJuna.receiver_profile(legacy) === :full
         @test ReceiverConfigJuna.receiver_profile(coupled) === :coupled
-        # :fully_coupled profile mapping dropped along with the FullyCoupled
-        # construction above (scope narrowed to the migrated facades).
+        @test ReceiverConfigJuna.receiver_profile(profiled_cz) ===
+              :frame_wide_ldpc
+        @test ReceiverConfigJuna.receiver_profile(crc_profiled_cz) ===
+              :frame_wide_ldpc
     end
 
     @testset "isvalid accepts only the known receiver modes" begin
@@ -82,13 +91,14 @@ const RECEIVER_CONFIG_FS = 24_000.0
         @test isvalid(full, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
         @test isvalid(coupled, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
         @test isvalid(legacy, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
+        @test isvalid(profiled_cz, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
+        @test isvalid(crc_profiled_cz, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
+        @test isvalid(conditioned_cwz, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
         @test !isvalid(ReceiverConfigJuna.Modulation(mode = :unknown),
                        RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
         @test !isvalid(ReceiverConfigJuna.CoupledModulation(
                            bpc = 1, ldpc_k = 170, ldpc_n = 680,
                        ), RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
-        # FullyCoupledModulation invalidity check dropped along with its
-        # construction above (scope narrowed to the migrated facades).
     end
 
     @testset "refinement-step ablations preserve deployed defaults" begin
@@ -101,11 +111,10 @@ const RECEIVER_CONFIG_FS = 24_000.0
         @test ReceiverConfigJuna._wz_refinement_steps(wz_default) == 20
         @test ReceiverConfigJuna._wz_refinement_steps(wz_eight) == 8
         @test wcz_default.refinement_steps == -1
-        # _wcz_optimizer_config/_COUPLED_PUBLIC_CONFIG checks dropped: they are
-        # defined in juna/coupled.jl, which is not part of this migrated
-        # package's src/ (isdefined(Juna, :_wcz_optimizer_config) is false
-        # here), so Coupled's field storage is checked but its optimizer
-        # resolution is not (scope narrowed to the migrated facades).
+        @test ReceiverConfigJuna._wcz_optimizer_config(wcz_default).steps == 8
+        @test ReceiverConfigJuna._wcz_optimizer_config(wcz_twenty).steps == 20
+        @test ReceiverConfigJuna._wcz_optimizer_config(wcz_twenty).alpha_z ==
+              ReceiverConfigJuna._COUPLED_PUBLIC_CONFIG.alpha_z
         @test isvalid(wz_eight, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
         @test isvalid(wcz_twenty, RECEIVER_CONFIG_FC, RECEIVER_CONFIG_FS)
         @test !isvalid(ReceiverConfigJuna.FullModulation(refinement_steps = -2),

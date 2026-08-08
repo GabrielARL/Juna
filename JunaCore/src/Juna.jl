@@ -7,16 +7,16 @@ using Statistics
 using ..LDPC
 using ..Modulations
 
-# Migrated Lite closure: every helper the Lite receiver calls lives in
-# common.jl, and frame_wide_ldpc.jl carries the frame-stateful Lite paths
-# (frame_receiver = :lite / :stateful_lite) that the mechanism suites
-# exercise. The other variant files (full, coupled, profiled, fully coupled,
-# guarded, turbo MAP) stay in the source repository; frame_wide_ldpc.jl's
-# :turbo_map frame path is unreachable here and would error if requested.
-# ForwardDiff and FixedPathChannel served only the pruned variants.
-# Include order matches the source repository.
+# Migrated Lite and Profiled C,z closure. The Profiled C,z receiver uses the
+# shared W,z and C,W,z types and conditional solves from full.jl and coupled.jl.
+# Other variant files (fully coupled, guarded, turbo MAP, and profiled
+# gradient) stay in the source repository. ForwardDiff and FixedPathChannel
+# serve only those pruned variants. Include order matches the source repository.
 include(joinpath(@__DIR__, "juna", "common.jl"))
 include(joinpath(@__DIR__, "juna", "frame_wide_ldpc.jl"))
 include(joinpath(@__DIR__, "juna", "lite.jl"))
+include(joinpath(@__DIR__, "juna", "full.jl"))
+include(joinpath(@__DIR__, "juna", "coupled.jl"))
+include(joinpath(@__DIR__, "juna", "profiled_cz_frame.jl"))
 
 end # module Juna

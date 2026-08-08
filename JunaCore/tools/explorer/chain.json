@@ -8,8 +8,8 @@
     "(exported from test/runtests.jl), so a renamed function or a dropped suite fails",
     "loudly instead of leaving the chain page stale.",
     "kind: shared = infrastructure both baselines also use; initial = runs once to produce",
-    "the initial candidate; iterative = inside the Lite refinement loop;",
-    "deployment = frame-stateful wrapping of the per-block receiver.",
+    "the initial candidate; iterative = inside a receiver refinement loop;",
+    "deployment = frame-stateful wrapping of a receiver.",
     "evidence: direct = at least one declared suite textually names a stage symbol",
     "(contract-enforced against the coverage scan); behavioral = the declared suites",
     "exercise the stage through the public API without naming internals - rendered",
@@ -46,6 +46,25 @@
       ],
       "optional_stages": [
         "frame"
+      ]
+    },
+    {
+      "id": "profiled_cz",
+      "facade": "JunaProfiledCzFrame",
+      "path": [
+        "acquisition",
+        "frame",
+        "profiled_cz"
+      ]
+    },
+    {
+      "id": "conditioned_joint_cwz",
+      "facade": "JunaCrcConditionedJointCwzFrame",
+      "path": [
+        "acquisition",
+        "frame",
+        "profiled_cz",
+        "conditioned_joint_cwz"
       ]
     }
   ],
@@ -108,6 +127,32 @@
       "from": "frame",
       "to": "acquisition",
       "condition": "frame-wide deployment wrapper selected"
+    },
+    {
+      "receiver": "profiled_cz",
+      "from": "acquisition",
+      "to": "frame"
+    },
+    {
+      "receiver": "profiled_cz",
+      "from": "frame",
+      "to": "profiled_cz"
+    },
+    {
+      "receiver": "conditioned_joint_cwz",
+      "from": "acquisition",
+      "to": "frame"
+    },
+    {
+      "receiver": "conditioned_joint_cwz",
+      "from": "frame",
+      "to": "profiled_cz"
+    },
+    {
+      "receiver": "conditioned_joint_cwz",
+      "from": "profiled_cz",
+      "to": "conditioned_joint_cwz",
+      "condition": "conditioned joint proposal enabled"
     }
   ],
   "stages": [
@@ -242,7 +287,7 @@
     {
       "id": "frame",
       "title": "Frame-wide FEC receiver",
-      "detail": "The per-block Lite receiver deployed across a frame-wide LDPC graph (frame_receiver = :lite / :stateful_lite), as the mechanism suites exercise it.",
+      "detail": "One LDPC/BP graph spans the requested frame. The selected frame receiver processes all block observations before payload metrics are returned.",
       "symbols": [
         "FrameWideLDPCModulation",
         "_modulate_frame_wide_ldpc",
@@ -252,6 +297,52 @@
         "feedback-modes"
       ],
       "kind": "deployment",
+      "evidence": "direct"
+    },
+    {
+      "id": "profiled_cz",
+      "title": "Profiled C,z",
+      "detail": "The frame receiver solves C conditional on z and derives W from C. BP checks candidates before frame payload metrics are returned.",
+      "symbols": [
+        "ProfiledCzFrameModulation",
+        "CrcProfiledCzFrameModulation",
+        "_frame_profiled_cz_refine",
+        "_cz_profile_C!",
+        "_cz_update_W!",
+        "_cz_candidate_crc_valid",
+        "_cz_bp_feedback!",
+        "_cz_restart_logits"
+      ],
+      "suites": [
+        "profiled-cz",
+        "profiled-cz-crc",
+        "profiled-cz-check-degree",
+        "wcz-solves",
+        "profiled-cz-full-dependency",
+        "profiled-cz-objective",
+        "profiled-cz-initialization",
+        "profiled-cz-optimizer",
+        "profiled-cz-block-coordinate",
+        "profiled-cz-candidate",
+        "profiled-cz-end-to-end",
+        "contract"
+      ],
+      "kind": "iterative",
+      "evidence": "direct"
+    },
+    {
+      "id": "conditioned_joint_cwz",
+      "title": "Conditioned joint C,W,z",
+      "detail": "The conditioned branch makes guarded simultaneous C,W,z proposals inside the Profiled C,z frame receiver.",
+      "symbols": [
+        "CrcConditionedCwzFrameModulation",
+        "CrcConditionedJointCwzFrameModulation",
+        "_cz_conditioned_joint_step!"
+      ],
+      "suites": [
+        "profiled-cz-crc"
+      ],
+      "kind": "iterative",
       "evidence": "direct"
     }
   ]

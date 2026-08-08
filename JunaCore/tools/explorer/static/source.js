@@ -339,6 +339,9 @@ function buildFacadesSection(data) {
             JunaStandard: "standard",
             JunaPartialFFT: "partial-fft",
             JunaLite: "lite",
+            JunaProfiledCzFrame: "profiled_cz",
+            JunaCrcProfiledCzFrame: "profiled_cz",
+            JunaCrcConditionedJointCwzFrame: "conditioned_joint_cwz",
           }[facade.name] || ""
         ) + "#sym=" + encodeURIComponent(facade.id),
       text: facade.name,

@@ -1,6 +1,6 @@
-# Migrated subset of sonique research/JunaCore @ d49fff0 (juna-dev): the
-# JUNA-Lite receiver and the two paper baselines it is measured against.
-# Facades whose implementation files are not migrated are deliberately absent.
+# Migrated subset of sonique research/JunaCore @ d49fff0 (juna-dev):
+# JUNA-Lite, Profiled C,z, and the two paper baselines. Facades for receiver
+# files outside this closure remain deliberately absent.
 module JunaCore
 
 include(joinpath(@__DIR__, "Modulations.jl"))
@@ -11,6 +11,31 @@ module JunaLite
   using ..Juna
   export Modulation
   const Modulation = Juna.LiteModulation
+end
+
+module JunaProfiledCzFrame
+  # Frame-wide C,z refinement. The physical response C is solved conditional
+  # on the relaxed codeword z, and the partial-FFT combiner W is derived from C.
+  export Modulation
+  const Modulation =
+    getfield(parentmodule(@__MODULE__), :Juna).ProfiledCzFrameModulation
+end
+
+module JunaCrcProfiledCzFrame
+  # CRC-bearing frame-wide C,z receiver. Lite is checkpoint zero and a
+  # gradient checkpoint is accepted only as a CRC-certified rescue.
+  export Modulation
+  const Modulation =
+    getfield(parentmodule(@__MODULE__), :Juna).CrcProfiledCzFrameModulation
+end
+
+module JunaCrcConditionedJointCwzFrame
+  # CRC-bearing frame receiver with simultaneous, block-preconditioned
+  # hand-gradient C,W,z proposals guarded by pilot and trust-region checks.
+  export Modulation
+  const Modulation =
+    getfield(parentmodule(@__MODULE__), :Juna).
+      CrcConditionedJointCwzFrameModulation
 end
 
 module JunaStandard

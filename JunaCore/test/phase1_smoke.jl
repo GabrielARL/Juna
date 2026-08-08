@@ -1,7 +1,6 @@
-# Phase-1 migration smoke gate: each migrated public facade recovers a
-# clean-channel payload bit-exactly using only the migrated closure
-# (Modulations + LDPC + juna/common.jl + juna/lite.jl, with the LDPC helper
-# binaries under tools/ldpc). Mirrors the noiseless-loopback rule of the
+# Package smoke gate: each reader-selectable receiver recovers a
+# clean-channel payload bit-exactly using only the package closure. Mirrors
+# the noiseless-loopback rule of the
 # source repo's interface contract: payload-exact acceptance, alternating
 # bit pattern so polarity/ordering bugs cannot hide.
 #
@@ -19,6 +18,11 @@ const FS = 24_000.0
       ("Standard", () -> JunaCore.JunaStandard.Modulation()),
       ("PartialFFT", () -> JunaCore.JunaPartialFFT.Modulation()),
       ("Lite", () -> JunaCore.JunaLite.Modulation()),
+      ("Profiled C,z", () -> JunaCore.JunaProfiledCzFrame.Modulation(
+          nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+          partial_fft_parts=2, partial_fft_nbands=2,
+          pilot_ratio=1 / 3, inner_pilot_ratio=0.0,
+          refinement_steps=0)),
   )
     @testset "$name" begin
       m = provider()

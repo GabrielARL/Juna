@@ -24,6 +24,12 @@ function _emit(io, receivers)
               "\"facade\": \"", _json_escape(r.facade), "\", ",
               "\"mode\": \"", _json_escape(r.mode), "\", ",
               "\"profile\": \"", _json_escape(r.profile), "\", ",
+              "\"frame_receiver\": \"", _json_escape(r.frame_receiver), "\", ",
+              "\"objective\": \"", _json_escape(r.objective), "\", ",
+              "\"conditioned_joint\": ", r.conditioned_joint, ", ",
+              "\"variant_facades\": ")
+        _strings(io, r.variant_facades)
+        print(io, ", ",
               "\"chain_path\": ")
         _strings(io, r.chain_path)
         print(io, ", \"role\": \"", _json_escape(r.role), "\", ",

@@ -1,14 +1,9 @@
 #!/usr/bin/env julia
 #
-# Migrated source layout and facade pruning — src/ contains exactly the
-# migrated subset (JunaCore.jl, Juna.jl, Modulations.jl, LDPC.jl, and the
-# three juna/ receiver files this package retains: common.jl,
-# frame_wide_ldpc.jl, lite.jl), and only three public facades are exposed:
-# JunaStandard, JunaPartialFFT, JunaLite. The nine-receiver source
-# repository's other receiver implementation files and facades
-# (FullyCoupled, TurboMAP, ProfiledGradient, ProfiledCzFrame,
-# CrcProfiledCzFrame, CrcConditionedJointCwzFrame, FrameWideLDPC, FrameRLS)
-# are deliberately absent from this package.
+# Source layout and public facades — src/ contains the Lite closure plus the
+# approved Profiled C,z closure. The complete C,z receiver uses the shared W,z
+# and C,W,z implementation files, while unrelated receiver files and facades
+# remain absent. Standard remains the baseline facade.
 #
 # If this fails: package composition drifted — a migrated file went missing,
 # the Juna.jl include order/count changed, a pruned receiver file
@@ -32,8 +27,11 @@ const SOURCE_LAYOUT_SRC = joinpath(SOURCE_LAYOUT_ROOT, "src")
     common = joinpath(SOURCE_LAYOUT_SRC, "juna", "common.jl")
     frame_wide_ldpc = joinpath(SOURCE_LAYOUT_SRC, "juna", "frame_wide_ldpc.jl")
     lite = joinpath(SOURCE_LAYOUT_SRC, "juna", "lite.jl")
+    full = joinpath(SOURCE_LAYOUT_SRC, "juna", "full.jl")
+    coupled = joinpath(SOURCE_LAYOUT_SRC, "juna", "coupled.jl")
+    profiled_cz = joinpath(SOURCE_LAYOUT_SRC, "juna", "profiled_cz_frame.jl")
 
-    @testset "migrated files are present" begin
+    @testset "required files are present" begin
         @test isfile(junacore)
         @test isfile(wrapper)
         @test isfile(modulations)
@@ -41,47 +39,71 @@ const SOURCE_LAYOUT_SRC = joinpath(SOURCE_LAYOUT_ROOT, "src")
         @test isfile(common)
         @test isfile(frame_wide_ldpc)
         @test isfile(lite)
+        @test isfile(full)
+        @test isfile(coupled)
+        @test isfile(profiled_cz)
     end
 
-    @testset "wrapper wires exactly common/frame_wide_ldpc/lite, in that order" begin
+    @testset "wrapper wires the complete approved closure in source order" begin
         wrapper_text = read(wrapper, String)
         include_common = "include(joinpath(@__DIR__, \"juna\", \"common.jl\"))"
         include_frame_wide = "include(joinpath(@__DIR__, \"juna\", \"frame_wide_ldpc.jl\"))"
         include_lite = "include(joinpath(@__DIR__, \"juna\", \"lite.jl\"))"
+        include_full = "include(joinpath(@__DIR__, \"juna\", \"full.jl\"))"
+        include_coupled = "include(joinpath(@__DIR__, \"juna\", \"coupled.jl\"))"
+        include_profiled_cz =
+            "include(joinpath(@__DIR__, \"juna\", \"profiled_cz_frame.jl\"))"
 
         @test occursin(include_common, wrapper_text)
         @test occursin(include_frame_wide, wrapper_text)
         @test occursin(include_lite, wrapper_text)
+        @test occursin(include_full, wrapper_text)
+        @test occursin(include_coupled, wrapper_text)
+        @test occursin(include_profiled_cz, wrapper_text)
 
-        # "exactly" also means no other juna/*.jl include crept back in.
-        @test count("include(joinpath(@__DIR__, \"juna\"", wrapper_text) == 3
+        @test count("include(joinpath(@__DIR__, \"juna\"", wrapper_text) == 6
 
         common_at = findfirst(include_common, wrapper_text)
         frame_wide_at = findfirst(include_frame_wide, wrapper_text)
         lite_at = findfirst(include_lite, wrapper_text)
+        full_at = findfirst(include_full, wrapper_text)
+        coupled_at = findfirst(include_coupled, wrapper_text)
+        profiled_cz_at = findfirst(include_profiled_cz, wrapper_text)
         @test common_at !== nothing
         @test frame_wide_at !== nothing
         @test lite_at !== nothing
-        @test first(common_at) < first(frame_wide_at) < first(lite_at)
+        @test full_at !== nothing
+        @test coupled_at !== nothing
+        @test profiled_cz_at !== nothing
+        @test first(common_at) < first(frame_wide_at) < first(lite_at) <
+              first(full_at) < first(coupled_at) < first(profiled_cz_at)
     end
 
-    @testset "pruned receiver files are absent from src/" begin
+    @testset "unrelated receiver files are absent from src/" begin
         @test !isfile(joinpath(SOURCE_LAYOUT_SRC, "FixedPathChannel.jl"))
-        for name in ("full", "coupled", "fully_coupled", "turbo_map",
-                     "guarded_physical", "gradient_guarded",
-                     "profiled_gradient", "profiled_cz_frame")
+        for name in ("fully_coupled", "turbo_map", "guarded_physical",
+                     "gradient_guarded", "profiled_gradient")
             @test !isfile(joinpath(SOURCE_LAYOUT_SRC, "juna", "$(name).jl"))
         end
     end
 
-    @testset "only the three migrated facades are exposed" begin
+    @testset "approved facades are exposed" begin
         @test isdefined(JunaCore, :JunaLite)
         @test isdefined(JunaCore, :JunaStandard)
         @test isdefined(JunaCore, :JunaPartialFFT)
+        @test JunaCore.JunaStandard.Modulation().mode === :standard
+        @test isdefined(JunaCore, :JunaProfiledCzFrame)
+        @test isdefined(JunaCore, :JunaCrcProfiledCzFrame)
+        @test isdefined(JunaCore, :JunaCrcConditionedJointCwzFrame)
+        @test JunaCore.JunaProfiledCzFrame.Modulation().frame_receiver ===
+              :profiled_cz
+        @test JunaCore.JunaCrcProfiledCzFrame.Modulation().mode ===
+              :crc_profiled_cz_frame
+        @test JunaCore.JunaCrcConditionedJointCwzFrame.Modulation().
+              cz_conditioned_joint
 
-        for facade in (:JunaFullyCoupled, :JunaTurboMAP, :JunaProfiledGradient,
-                       :JunaProfiledCzFrame, :JunaCrcProfiledCzFrame,
-                       :JunaCrcConditionedJointCwzFrame, :JunaFrameWideLDPC,
+        for facade in (:JunaFullyCoupled, :JunaTurboMAP,
+                       :JunaProfiledGradient, :JunaFrameWideLDPC,
                        :JunaFrameRLS)
             @test !isdefined(JunaCore, facade)
         end

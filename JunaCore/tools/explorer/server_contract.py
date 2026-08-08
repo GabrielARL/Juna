@@ -464,14 +464,28 @@ def check():
             problems.append("S15: Juna.Modulation field inspector is incomplete")
         if not detail.get("interface_methods"):
             problems.append("S15: type inspector lacks interface implementations")
-        if {f["name"] for f in detail.get("facades", [])} != {
-                "JunaStandard", "JunaPartialFFT", "JunaLite"}:
-            problems.append("S15: type inspector lacks the three public facades")
+        expected_facades = {
+            "JunaStandard", "JunaPartialFFT", "JunaLite",
+            "JunaProfiledCzFrame", "JunaCrcProfiledCzFrame",
+            "JunaCrcConditionedJointCwzFrame",
+        }
+        if {f["name"] for f in detail.get("facades", [])} != expected_facades:
+            problems.append(
+                "S15: type inspector public facades differ from the catalog")
     source_js = open(os.path.join(HERE, "static", "source.js")).read()
     for marker in ("Static call edge", "doubleClick", "Fields (",
                    "Open in original analyzer"):
         if marker not in source_js:
             problems.append(f"S15: source interaction lost '{marker}'")
+    for facade, receiver_id in (
+            ("JunaProfiledCzFrame", "profiled_cz"),
+            ("JunaCrcProfiledCzFrame", "profiled_cz"),
+            ("JunaCrcConditionedJointCwzFrame",
+             "conditioned_joint_cwz")):
+        marker = f'{facade}: "{receiver_id}"'
+        if marker not in source_js:
+            problems.append(
+                f"S15: Source facade link lost {facade} mapping")
 
     # S16
     for path, label in (
@@ -509,6 +523,25 @@ def check():
         problems.append("S18: default Lite graph does not match its declared stage DAG")
     if any(node.get("kind") != "stage" for node in stage_graph.get("nodes", [])):
         problems.append("S18: default receiver graph contains raw symbol nodes")
+
+    for receiver_id, display_name in (
+            ("profiled_cz", "Profiled C,z"),
+            ("conditioned_joint_cwz", "Conditioned joint C,W,z")):
+        code, text = fetch(base, f"/api/graph?receiver={receiver_id}")
+        graph = json.loads(text).get("data", {}) if code == 200 else {}
+        expected = {
+            "stage:" + stage_id
+            for receiver in chain["receivers"]
+            if receiver["id"] == receiver_id
+            for stage_id in receiver["path"] + receiver.get(
+                "optional_stages", [])
+        }
+        if graph.get("view") != "stages":
+            problems.append(
+                f"S18: {display_name} graph does not default to stage view")
+        if {node.get("id") for node in graph.get("nodes", [])} != expected:
+            problems.append(
+                f"S18: {display_name} graph differs from its declared stage DAG")
 
     code, text = fetch(
         base, "/api/graph?receiver=lite&stage=initial-candidate&view=symbols")

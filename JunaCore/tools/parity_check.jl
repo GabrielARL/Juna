@@ -14,11 +14,63 @@ const PC_Modulations = JunaCore.Modulations
 const PC_FC = 24_000.0
 const PC_FS = 24_000.0
 const PC_SCENARIOS = (("clean", 0.0), ("mild_noise", 0.05))
+const PC_PROFILED_CZ_KEY = "profiled_cz.compact"
+const PC_PROFILED_CZ_READER_NAME = "Profiled C,z"
+const PC_CONDITIONED_JOINT_KEY = "conditioned_joint_cwz.compact"
+const PC_CONDITIONED_JOINT_READER_NAME = "Conditioned joint C,W,z"
 const PC_RECEIVERS = (
     ("standard", JunaCore.Juna.StandardModulation),
     ("partial-fft", JunaCore.Juna.PartialFFTModulation),
     ("lite", JunaCore.Juna.LiteModulation),
 )
+
+function frame_refinement_parity_digest(label, modem; conditioned_joint=false)
+    nbits = 2 * PC_Modulations.bitspersymbol(modem) - 3
+    rng = MersenneTwister(20260730)
+    bits = rand(rng, Bool, nbits)
+    waveform = PC_Modulations.modulate(modem, bits, PC_FC, PC_FS)
+    noise = 0.05 .* (
+        randn(rng, length(waveform)) .+ 1im .* randn(rng, length(waveform)))
+    metrics, _ = PC_Modulations.demodulate(
+        modem, nbits, waveform .+ noise, PC_FC, PC_FS)
+    trace = JunaCore.Juna._cz_gradient_last_trace(modem)
+    trace.bp_checkpoints >= 2 || error(
+        "$label parity case did not run refinement")
+    trace.conditioned_joint == conditioned_joint || error(
+        "$label parity case ran the wrong conditioned-joint branch")
+    if conditioned_joint
+        trace.conditioned_accepted_steps + trace.conditioned_rejected_steps > 0 ||
+            error("$label parity case made no conditioned-joint proposal")
+    end
+
+    decisions = vcat(UInt8.(metrics .> 0), UInt8.(bits))
+    println(stderr, "  $label compact case: ",
+            sum((metrics .> 0) .== bits), "/", nbits,
+            " bits correct; ", trace.bp_checkpoints, " BP checkpoints")
+    bytes2hex(PC_SHA.sha256(decisions))
+end
+
+function profiled_cz_parity_digest()
+    modem = JunaCore.JunaProfiledCzFrame.Modulation(
+        nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+        partial_fft_parts=2, partial_fft_nbands=2,
+        pilot_ratio=1/3, inner_pilot_ratio=0.0,
+        refinement_steps=1, cz_gate_selection_only=true,
+    )
+    frame_refinement_parity_digest(PC_PROFILED_CZ_READER_NAME, modem)
+end
+
+function conditioned_joint_parity_digest()
+    modem = JunaCore.JunaCrcConditionedJointCwzFrame.Modulation(
+        nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+        partial_fft_parts=2, partial_fft_nbands=2,
+        pilot_ratio=1/3, inner_pilot_ratio=0.0,
+        refinement_steps=1, cz_gate_selection_only=true,
+        cz_crc_gate=false, cz_gradient_only=true,
+    )
+    frame_refinement_parity_digest(
+        PC_CONDITIONED_JOINT_READER_NAME, modem; conditioned_joint=true)
+end
 
 function parity_digests()
     results = Dict{String,String}()
@@ -45,13 +97,15 @@ function parity_digests()
                 bytes2hex(PC_SHA.sha256(decisions))
         end
     end
+    results[PC_PROFILED_CZ_KEY] = profiled_cz_parity_digest()
+    results[PC_CONDITIONED_JOINT_KEY] = conditioned_joint_parity_digest()
     results
 end
 
 function load_golden(path)
     text = read(path, String)
     Dict(m.captures[1] => m.captures[2]
-         for m in eachmatch(r"\"([a-z-]+\.[a-z_]+)\"\s*:\s*\"([0-9a-f]{64})\"",
+         for m in eachmatch(r"\"([a-z_-]+\.[a-z_]+)\"\s*:\s*\"([0-9a-f]{64})\"",
                             text))
 end
 
@@ -88,7 +142,11 @@ for key in sort(collect(keys(actual)))
     actual[key] == expected[key] ||
         error("parity mismatch for $key: expected $(expected[key]), " *
               "got $(actual[key])")
-    println("parity $key: ", actual[key], " PASS")
+    label = key == PC_PROFILED_CZ_KEY ?
+        "$PC_PROFILED_CZ_READER_NAME compact case" :
+        key == PC_CONDITIONED_JOINT_KEY ?
+        "$PC_CONDITIONED_JOINT_READER_NAME compact case" : key
+    println("parity $label: ", actual[key], " PASS")
 end
 summary_bytes = Vector{UInt8}(codeunits(join(
     ["$key=$(actual[key])" for key in sort(collect(keys(actual)))], "\n")))

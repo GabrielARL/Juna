@@ -2185,9 +2185,8 @@ function artFamilies(cv){const[x,w,h]=hd(cv);
   const groups=[
     {n:'baselines',facades:['JunaStandard','JunaPartialFFT']},
     {n:'packet-local',facades:['JunaLite']},
-    {n:'coherence-window / packet BP',facades:[]},
-    {n:'frame-wide',facades:[]},
-    {n:'CRC frame',facades:[]},
+    {n:'frame-wide',facades:['JunaProfiledCzFrame','JunaCrcProfiledCzFrame']},
+    {n:'conditioned joint',facades:['JunaCrcConditionedJointCwzFrame']},
   ];
   const L=86,rowH=(h-26)/groups.length;
   x.textAlign='center';x.fillStyle=AC.ink;x.font='600 10px system-ui';x.fillText('public receiver facades declared in JunaCore.jl',w/2,12);
