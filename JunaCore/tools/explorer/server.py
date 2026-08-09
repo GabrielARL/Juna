@@ -49,7 +49,7 @@ SCHEMA_VERSION = 1
 NAV = [("/", "Home"), ("/tests", "Tests"), ("/map", "Map"),
        ("/chain", "Chain"), ("/source", "Source"), ("/coverage", "Coverage"),
        ("/health", "Health"), ("/progress", "Progress"),
-       ("/results", "Results")]
+       ("/results", "Results"), ("/awgn-results", "AWGN results")]
 INTERFACE_METHODS = {"init", "modulate", "demodulate", "bitspersymbol",
                      "signallength", "payload_rate", "refinement_objective",
                      "frameblockcount", "framepayloadbits"}
@@ -1574,13 +1574,340 @@ refreshes every 5 s. Terminal equivalent:
     return shell("Progress", "/progress", body)
 
 
-def _latest_experiment_results():
-    """Newest experiments/*/results/results_view.html, or None."""
-    pattern = os.path.join(ROOT, "experiments", "*", "results",
-                           "results_view.html")
-    candidates = glob.glob(pattern)
-    candidates or (_ for _ in ()).throw(FileNotFoundError(pattern))
-    return max(candidates, key=os.path.getmtime)
+_AWGN_PROGRESS_FAMILY = "2026-08-08-red-awgn-first4s-frames4-snr-sweep"
+_AWGN_RATE_HARNESS = (
+    "2026-08-08-red-awgn-first4s-frames4-rates0125-05-075-snr-sweep")
+_AWGN_OUTER_HARNESS = (
+    "2026-08-08-red-awgn-first4s-frames4-outer10-7-3-snr-sweep")
+_AWGN_019_FAMILY = "2026-08-09-red-awgn-crc-no-harm-3receivers"
+_AWGN_020_FAMILY = "2026-08-10-red-awgn-first8s-frames8-crc-no-harm"
+_AWGN_PROGRESS_AGGREGATE = (
+    "red_snr_sweep_awgn_first4s_frames4_configuration.csv")
+_AWGN_020_AGGREGATE = (
+    "red_snr_sweep_awgn_first8s_frames8_configuration.csv")
+_AWGN_015_CONFIGURATIONS = (
+    f"{_AWGN_PROGRESS_FAMILY}-n4096-cp64-"
+    "rate025-p5-5-dc10-kfill-pfft4",
+)
+_AWGN_015_HARNESS = _AWGN_015_CONFIGURATIONS[0]
+_AWGN_016_CONFIGURATIONS = tuple(
+    f"{_AWGN_PROGRESS_FAMILY}-n4096-cp64-"
+    f"rate025-p5-5-dc{check}-kfill-pfft4"
+    for check in (6, 12, 14)
+)
+_AWGN_016_HARNESS = _AWGN_016_CONFIGURATIONS[0]
+_AWGN_017_CONFIGURATIONS = tuple(
+    f"{_AWGN_PROGRESS_FAMILY}-n2048-cp64-"
+    f"rate025-p5-5-dc{check}-kfill-pfft4"
+    for check in (12, 14)
+)
+_AWGN_017_HARNESS = _AWGN_017_CONFIGURATIONS[0]
+_AWGN_018_CONFIGURATIONS = tuple(
+    f"{_AWGN_PROGRESS_FAMILY}-n1024-cp64-"
+    f"rate025-p5-5-dc{check}-kfill-pfft4"
+    for check in (12, 14)
+)
+_AWGN_018_HARNESS = _AWGN_018_CONFIGURATIONS[0]
+_AWGN_019_CONFIGURATIONS = tuple(
+    f"{_AWGN_019_FAMILY}-n{nfft}-cp64-"
+    f"rate025-p5-5-dc{check}-kfill-pfft4"
+    for nfft in (1024, 2048)
+    for check in (10, 12, 14)
+)
+_AWGN_019_HARNESS = _AWGN_019_CONFIGURATIONS[0]
+_AWGN_020_CONFIGURATIONS = (
+    f"{_AWGN_020_FAMILY}-n1024-cp64-"
+    "rate025-p5-5-dc14-kfill-pfft4",
+)
+_AWGN_020_HARNESS = _AWGN_020_CONFIGURATIONS[0]
+_AWGN_PROGRESS_CAMPAIGNS = (
+    {"campaign_id": "AWGN-008", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 5,
+     "harness": _AWGN_PROGRESS_FAMILY, "log": "awgn008_matrix.log"},
+    {"campaign_id": "AWGN-009", "code_rate": "0.125",
+     "rate_token": "0125", "outer_spacing": 5,
+     "harness": _AWGN_RATE_HARNESS, "log": "awgn009_matrix.log"},
+    {"campaign_id": "AWGN-012", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 10,
+     "harness": _AWGN_OUTER_HARNESS, "log": "awgn012_matrix.log"},
+    {"campaign_id": "AWGN-015", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 5,
+     "configurations": _AWGN_015_CONFIGURATIONS,
+     "harness": _AWGN_015_HARNESS, "log": "awgn015_sweep.log"},
+    {"campaign_id": "AWGN-016", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 5,
+     "configurations": _AWGN_016_CONFIGURATIONS,
+     "harness": _AWGN_016_HARNESS, "log": "awgn016_sweep.log"},
+    {"campaign_id": "AWGN-017", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 5,
+     "configurations": _AWGN_017_CONFIGURATIONS,
+     "harness": _AWGN_017_HARNESS, "log": "awgn017_sweep.log"},
+    {"campaign_id": "AWGN-018", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 5,
+     "configurations": _AWGN_018_CONFIGURATIONS,
+     "harness": _AWGN_018_HARNESS, "log": "awgn018_sweep.log"},
+    {"campaign_id": "AWGN-019", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 5,
+     "configurations": _AWGN_019_CONFIGURATIONS,
+     "harness": _AWGN_019_HARNESS, "log": "awgn019_sweep.log",
+     "path_contract": "awgn019_path_contract.txt"},
+    {"campaign_id": "AWGN-020", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 5,
+     "configurations": _AWGN_020_CONFIGURATIONS,
+     "harness": _AWGN_020_HARNESS, "log": "awgn020_sweep.log",
+     "path_contract": "awgn020_path_contract.txt",
+     "aggregate": _AWGN_020_AGGREGATE},
+)
+_AWGN_PROGRESS_PATHS = tuple(
+    (f"red{channel}", hydrophone)
+    for channel in range(1, 5)
+    for hydrophone in range(1, 4))
+
+
+def _awgn_configurations(campaign):
+    explicit = campaign.get("configurations")
+    if explicit is not None:
+        return tuple(explicit)
+    return tuple(
+        f"{_AWGN_PROGRESS_FAMILY}-n{nfft}-cp{cp}-"
+        f"rate{campaign['rate_token']}-p{campaign['outer_spacing']}-"
+        f"{inner}-dc10-kfill-pfft4"
+        for nfft in (1024, 2048)
+        for cp in (64, 128, 256)
+        for inner in (5, 10))
+
+
+def _awgn_paths(campaign):
+    """Return the explicitly approved paths, or the full 12-path matrix."""
+    return tuple(campaign.get("paths", _AWGN_PROGRESS_PATHS))
+
+
+def _awgn_progress_result_pair(campaign, experiment_id, channel, hydrophone):
+    """Fixed final paths promoted only after one sweep path validates."""
+    stem = f"{channel}_hydrophone{hydrophone}"
+    run_dir = os.path.join(ROOT, "experiments", experiment_id, "results",
+                           "runs", stem)
+    aggregate = os.path.join(
+        run_dir, campaign.get("aggregate", _AWGN_PROGRESS_AGGREGATE))
+    trace = os.path.join(run_dir, f"{stem}_selection_trace.csv")
+    return aggregate, trace
+
+
+def _awgn_campaign_progress(campaign):
+    """Count one approved sweep group and read only its fixed runner log."""
+    configurations = _awgn_configurations(campaign)
+    paths = _awgn_paths(campaign)
+    completed = set()
+    completed_configurations = 0
+    for experiment_id in configurations:
+        configuration_paths = set()
+        for channel, hydrophone in paths:
+            aggregate, trace = _awgn_progress_result_pair(
+                campaign, experiment_id, channel, hydrophone)
+            final_files = (aggregate, trace)
+            path_contract = campaign.get("path_contract")
+            if path_contract is not None:
+                final_files += (
+                    os.path.join(os.path.dirname(aggregate), path_contract),)
+            if all(os.path.isfile(path) for path in final_files):
+                key = (experiment_id, channel, hydrophone)
+                completed.add(key)
+                configuration_paths.add(key)
+        if len(configuration_paths) == len(paths):
+            completed_configurations += 1
+
+    log_path = os.path.join(ROOT, "experiments", campaign["harness"],
+                            campaign["log"])
+    try:
+        with open(log_path, encoding="utf-8", errors="replace") as handle:
+            log = handle.read()
+        updated_at = time.strftime(
+            "%Y-%m-%dT%H:%M:%S%z",
+            time.localtime(os.path.getmtime(log_path)))
+    except OSError:
+        log = ""
+        updated_at = None
+
+    marker = campaign["campaign_id"].replace("-", "_")
+    lifecycle_events = list(re.finditer(
+        rf"^{re.escape(marker)}_"
+        r"(QUEUE_START|COMPUTE_START|COMPUTE_COMPLETE)(?:\s|$)",
+        log, flags=re.MULTILINE))
+    lifecycle = (lifecycle_events[-1].group(1)
+                 if lifecycle_events else None)
+    lifecycle_position = (lifecycle_events[-1].start()
+                          if lifecycle_events else -1)
+
+    current = None
+    starts = list(re.finditer(
+        r"^PATH_START\s+(AWGN-[0-9]+)\s+(\S+)\s+"
+        r"(red[1-4])\s+hydrophone\s+([1-3])(?:\s+\S+)?\s*$",
+        log, flags=re.MULTILINE))
+    if starts:
+        (campaign_id, experiment_id, channel,
+         hydrophone_text) = starts[-1].groups()
+        hydrophone = int(hydrophone_text)
+        key = (experiment_id, channel, hydrophone)
+        if (lifecycle == "COMPUTE_START" and
+                starts[-1].start() > lifecycle_position and
+                campaign_id == campaign["campaign_id"] and
+                experiment_id in configurations and
+                (channel, hydrophone) in paths and
+                key not in completed):
+            current = {
+                "experiment_id": experiment_id,
+                "channel": channel,
+                "hydrophone": hydrophone,
+            }
+
+    total_paths = len(configurations) * len(paths)
+    completed_paths = len(completed)
+    matrix_complete = completed_paths == total_paths
+    if lifecycle == "COMPUTE_COMPLETE" and matrix_complete:
+        state = "complete"
+    elif matrix_complete:
+        state = "checking"
+    elif lifecycle == "COMPUTE_START":
+        state = "running"
+    elif lifecycle == "QUEUE_START":
+        state = "queued"
+    else:
+        state = "not-started"
+    return {
+        "campaign_id": campaign["campaign_id"],
+        "code_rate": campaign["code_rate"],
+        "outer_spacing": campaign["outer_spacing"],
+        "completed_paths": completed_paths,
+        "total_paths": total_paths,
+        "completed_configurations": completed_configurations,
+        "total_configurations": len(configurations),
+        "percent": 100 * completed_paths / total_paths,
+        "current": current,
+        "matrix_complete": matrix_complete,
+        "state": state,
+        "updated_at": updated_at,
+    }
+
+
+def _awgn_overall_state(campaigns, matrix_complete):
+    """Summarize only unfinished lifecycle work after completed campaigns."""
+    if all(item["state"] == "complete" for item in campaigns):
+        return "complete"
+    if matrix_complete:
+        return "checking"
+    if any(item["state"] in ("running", "checking")
+           for item in campaigns):
+        return "running"
+    incomplete = [item for item in campaigns if not item["matrix_complete"]]
+    if any(item["state"] == "queued" for item in incomplete):
+        return "queued"
+    if any(item["completed_paths"] for item in incomplete):
+        return "running"
+    return "not-started"
+
+
+def _awgn_progress_data():
+    """Aggregate approved AWGN-008 through AWGN-020 campaigns."""
+    campaigns = [_awgn_campaign_progress(campaign)
+                 for campaign in _AWGN_PROGRESS_CAMPAIGNS]
+    completed_paths = sum(item["completed_paths"] for item in campaigns)
+    total_paths = sum(item["total_paths"] for item in campaigns)
+    completed_configurations = sum(
+        item["completed_configurations"] for item in campaigns)
+    total_configurations = sum(
+        item["total_configurations"] for item in campaigns)
+    active_paths = [dict(item["current"], campaign_id=item["campaign_id"])
+                    for item in campaigns if item["current"] is not None]
+    matrix_complete = completed_paths == total_paths
+    state = _awgn_overall_state(campaigns, matrix_complete)
+    updated = [item["updated_at"] for item in campaigns
+               if item["updated_at"] is not None]
+    return {
+        "campaign_ids": [item["campaign_id"] for item in campaigns],
+        "completed_paths": completed_paths,
+        "total_paths": total_paths,
+        "completed_configurations": completed_configurations,
+        "total_configurations": total_configurations,
+        "percent": 100 * completed_paths / total_paths,
+        "active_paths": active_paths,
+        "campaigns": campaigns,
+        "matrix_complete": matrix_complete,
+        "state": state,
+        "updated_at": max(updated) if updated else None,
+    }
+
+
+def _awgn_progress_card():
+    """Self-contained live bar used only by the AWGN Results page."""
+    return """
+<div id="awgn-live-progress" class="card" role="status" aria-live="polite">
+<div style="display:flex;justify-content:space-between;gap:.8rem">
+<strong>AWGN-008, AWGN-009, AWGN-012, AWGN-015, AWGN-016, AWGN-017, AWGN-018, AWGN-019, and AWGN-020 real-time progress</strong>
+<span id="awgn-progress-state">checking...</span></div>
+<progress id="awgn-progress-bar" max="612" value="0"
+style="display:block;width:100%;height:1.1rem;margin:.55rem 0"></progress>
+<div id="awgn-progress-text">Reading validated result paths...</div>
+<div id="awgn-progress-campaigns" style="white-space:pre-line"></div>
+<div id="awgn-progress-current" style="color:var(--muted);
+overflow-wrap:anywhere"></div>
+</div>
+<script>
+function pollAwgnProgress() {
+  fetch('/api/awgn-results/progress', {cache: 'no-store'})
+    .then(function (response) {
+      if (!response.ok) throw new Error('progress request failed');
+      return response.json();
+    })
+    .then(function (envelope) {
+      var data = envelope.data;
+      var bar = document.getElementById('awgn-progress-bar');
+      bar.max = data.total_paths;
+      bar.value = data.completed_paths;
+      document.getElementById('awgn-progress-text').textContent =
+        data.completed_paths + ' of ' + data.total_paths +
+        ' paths validated (' + data.percent.toFixed(1) + '%); ' +
+        data.completed_configurations + ' of ' + data.total_configurations +
+        ' configurations complete.';
+      var labels = {'not-started': 'not started', queued: 'queued',
+                    running: 'running', checking: 'results complete; checks running',
+                    complete: 'complete'};
+      document.getElementById('awgn-progress-state').textContent =
+        labels[data.state] || data.state;
+      document.getElementById('awgn-progress-campaigns').textContent =
+        data.campaigns.map(function (campaign) {
+          return campaign.campaign_id + ' (rate ' + campaign.code_rate +
+            ', outer spacing ' + campaign.outer_spacing + '): ' +
+            campaign.completed_paths + ' of ' + campaign.total_paths +
+            ' paths; ' + (labels[campaign.state] || campaign.state);
+        }).join(String.fromCharCode(10));
+      document.getElementById('awgn-progress-current').textContent =
+        data.active_paths.length
+        ? 'Current: ' + data.active_paths.map(function (current) {
+            return current.campaign_id + ', ' + current.experiment_id + ', ' +
+              current.channel + ' hydrophone ' + current.hydrophone;
+          }).join(' | ')
+        : '';
+      if (data.state !== 'complete') {
+        setTimeout(pollAwgnProgress, 2000);
+      }
+    })
+    .catch(function () {
+      document.getElementById('awgn-progress-state').textContent =
+        'retrying progress check';
+      setTimeout(pollAwgnProgress, 5000);
+    });
+}
+pollAwgnProgress();
+</script>"""
+
+
+def _latest_experiment_results(awgn=False):
+    """Newest rendered result in one noise-model family."""
+    experiment_ids = _experiment_ids(awgn=awgn)
+    if not experiment_ids:
+        family = "AWGN" if awgn else "non-AWGN"
+        raise FileNotFoundError(f"no {family} experiment results")
+    return _experiment_result_file(experiment_ids[0], "results_view.html")
 
 
 _EXPERIMENT_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
@@ -1626,16 +1953,58 @@ def _experiment_id_from_result(path):
     return os.path.basename(os.path.dirname(os.path.dirname(path)))
 
 
-def _experiment_ids():
-    """Every experiment with a rendered results page, newest first.
+def _experiment_manifest(experiment_id):
+    """Read one self-identifying result manifest, or None when invalid."""
+    try:
+        manifest = _experiment_result_file(experiment_id,
+                                           "results_manifest.json")
+        with open(manifest, encoding="utf-8") as handle:
+            payload = json.load(handle)
+    except (FileNotFoundError, OSError, json.JSONDecodeError):
+        return None
+    if (not isinstance(payload, dict) or
+            payload.get("experiment_id") != experiment_id):
+        return None
+    return payload
+
+
+def _experiment_family(experiment_id):
+    """Return awgn/results for a valid manifest, else None."""
+    manifest = _experiment_manifest(experiment_id)
+    if manifest is None:
+        return None
+    noise_model = manifest.get("noise_model")
+    if isinstance(noise_model, dict):
+        kind = noise_model.get("kind", "")
+    else:
+        kind = noise_model if isinstance(noise_model, str) else ""
+    return "awgn" if str(kind).strip().casefold() == "awgn" else "results"
+
+
+def _family_result_file(experiment_id, filename, awgn=False):
+    """Resolve a result file only when its manifest has the right family."""
+    path = _experiment_result_file(experiment_id, filename)
+    expected = "awgn" if awgn else "results"
+    if _experiment_family(experiment_id) != expected:
+        raise FileNotFoundError("experiment has no valid matching family")
+    return path
+
+
+def _experiment_ids(awgn=False):
+    """Every experiment in one noise-model family, newest first.
 
     Without this the Results tab silently shows whichever experiment was
     written last, and the others are reachable only by typing a query string.
+    AWGN results are deliberately excluded from the original Results page;
+    only an explicit manifest declaration can place them on the AWGN page.
     """
     pattern = os.path.join(ROOT, "experiments", "*", "results",
                            "results_view.html")
     found = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
-    return [_experiment_id_from_result(path) for path in found]
+    experiment_ids = [_experiment_id_from_result(path) for path in found]
+    expected = "awgn" if awgn else "results"
+    return [experiment_id for experiment_id in experiment_ids
+            if _experiment_family(experiment_id) == expected]
 
 
 _SWEEP_NAME_PATTERN = re.compile(
@@ -1695,7 +2064,7 @@ def _experiment_result_paths(experiment_id):
 
 
 def _sweep_parameter_row(available, experiment_id, single_url,
-                         initial_path=""):
+                         initial_path="", route_prefix="/results"):
     """One dropdown per sweep parameter, above the experiment dropdown.
 
     Each dropdown lists every value that exists across the sweep
@@ -1735,6 +2104,8 @@ def _sweep_parameter_row(available, experiment_id, single_url,
     fields = json.dumps([{"name": name, "query": query}
                          for name, query in _SWEEP_FIELDS])
     default_view = json.dumps(single_url).replace("</", "<\\/")
+    comparison_prefix = json.dumps(
+        route_prefix + "/compare?").replace("</", "<\\/")
     return ("""
 <p style="margin:.2rem 0 .4rem;display:flex;align-items:center;gap:.6rem;
 flex-wrap:wrap" id="sweep-parameters">
@@ -1791,7 +2162,7 @@ window.addEventListener("DOMContentLoaded", function () {
       params.append("experiment", entry.id);
     });
     params.set("path", selectedPath);
-    return "/results/compare?" + params.toString();
+    return """ + comparison_prefix + """ + params.toString();
   }
 
   function renderResult(found) {
@@ -1906,8 +2277,8 @@ window.addEventListener("DOMContentLoaded", function () {
 </script>""")
 
 
-def _results_comparison_query(query):
-    """Validated experiment IDs and one channel/hydrophone comparison key."""
+def _results_comparison_query(query, awgn=False):
+    """Validated same-family IDs and one channel/hydrophone comparison key."""
     pairs = urllib.parse.parse_qsl(query or "", keep_blank_values=True)
     experiment_ids = [value for key, value in pairs
                       if key == "experiment"]
@@ -1922,7 +2293,7 @@ def _results_comparison_query(query):
         raise FileNotFoundError("unsafe channel/hydrophone path")
     unique_ids = list(dict.fromkeys(experiment_ids))
     for experiment_id in unique_ids:
-        _experiment_result_file(experiment_id, "results_view.html")
+        _family_result_file(experiment_id, "results_view.html", awgn=awgn)
     return unique_ids, match.group(1), int(match.group(2))
 
 
@@ -1946,12 +2317,14 @@ def _result_panel(document, channel, hydrophone):
     return None
 
 
-def page_results_comparison(query):
-    """One selected BER-SNR panel from each requested experiment."""
-    experiment_ids, channel, hydrophone = _results_comparison_query(query)
+def page_results_comparison(query, awgn=False):
+    """One selected BER-SNR panel from each same-family experiment."""
+    experiment_ids, channel, hydrophone = _results_comparison_query(
+        query, awgn=awgn)
     cards, plot_style, legend = [], "", ""
     for experiment_id in experiment_ids:
-        result = _experiment_result_file(experiment_id, "results_view.html")
+        result = _family_result_file(experiment_id, "results_view.html",
+                                     awgn=awgn)
         with open(result, encoding="utf-8") as handle:
             document = handle.read()
         panel = _result_panel(document, channel, hydrophone)
@@ -1987,7 +2360,7 @@ def page_results_comparison(query):
   overflow-wrap:anywhere;margin:0 0 5px;color:var(--text-secondary); }}
 .experiment-result .panel {{ height:calc(100% - 22px); }}
 </style></head><body><div class="viz-root">
-<h1>{esc(label)}: BER versus added-noise SNR across experiments</h1>
+<h1>{"AWGN — " if awgn else ""}{esc(label)}: BER versus added-noise SNR across experiments</h1>
 <p class="axis-title">{len(cards)} plots from {len(experiment_ids)} matching
 experiments.</p>
 {legend}
@@ -1995,28 +2368,34 @@ experiments.</p>
 </div></body></html>"""
 
 
-def page_results(query=""):
+def page_results(query="", awgn=False):
+    """Render one noise-model result family with shared controls."""
+    route_prefix = "/awgn-results" if awgn else "/results"
+    page_title = "AWGN results" if awgn else "Experiment results"
+    shell_title = "AWGN results" if awgn else "Results"
+    progress_card = _awgn_progress_card() if awgn else ""
     experiment_id, page, other = _results_query(query)
     try:
         if experiment_id is None:
-            path = _latest_experiment_results()
+            path = _latest_experiment_results(awgn=awgn)
             experiment_id = _experiment_id_from_result(path)
         else:
-            path = _experiment_result_file(experiment_id,
-                                           "results_view.html")
+            path = _family_result_file(experiment_id, "results_view.html",
+                                       awgn=awgn)
     except FileNotFoundError:
         if experiment_id is not None:
             raise
-        body = """
-<h1>Experiment results</h1>
+        body = f"""
+<h1>{page_title}</h1>
+{progress_card}
 <div class="card">No experiment results page exists yet. A search writes
 <code>experiments/&lt;name&gt;/results/results_view.html</code>; this tab
 shows the newest one.</div>"""
-        return shell("Results", "/results", body)
+        return shell(shell_title, route_prefix, body)
     stable_query = urllib.parse.urlencode(
         [("experiment", experiment_id), ("page", page)] + other)
-    view_url = "/results/view?" + stable_query
-    available = _experiment_ids()
+    view_url = route_prefix + "/view?" + stable_query
+    available = _experiment_ids(awgn=awgn)
     if len(available) > 1:
         options = "".join(
             f'<option value="{esc(name)}"'
@@ -2033,14 +2412,21 @@ shows the newest one.</div>"""
     path_values = [value for key, value in other if key == "path"]
     initial_path = path_values[0] if len(path_values) == 1 else ""
     parameter_row = _sweep_parameter_row(
-        available, experiment_id, view_url, initial_path)
+        available, experiment_id, view_url, initial_path,
+        route_prefix=route_prefix)
     rel = os.path.relpath(path, ROOT)
+    family_note = ("The added noise is independent complex AWGN. The "
+                   "impulsive red-noise model is not used on this page."
+                   if awgn else
+                   "AWGN SNR sweeps with an explicit AWGN manifest "
+                   "declaration are shown on AWGN results.")
     body = f"""
-<h1>Experiment results</h1>
+<h1>{page_title}</h1>
+{progress_card}
 <div class="card"><strong>Unregistered experiment output.</strong> This page
 renders <code>{esc(rel)}</code> from the gitignored
 <code>experiments/</code> directory. It is not part of the test registry and
-is not package evidence.</div>
+is not package evidence. {family_note}</div>
 {parameter_row}
 <p style="margin:.2rem 0 .6rem;display:flex;align-items:center;gap:.6rem">
 {picker}
@@ -2054,7 +2440,7 @@ border:1px solid var(--line, #ccc);border-radius:6px;background:white">
 style="width:100%;height:calc(100vh - 150px);
 border:1px solid var(--line, #ccc);border-radius:6px;background:white">
 </iframe>"""
-    return shell("Results", "/results", body, wide=True)
+    return shell(shell_title, route_prefix, body, wide=True)
 
 
 def page_run(key):
@@ -2159,6 +2545,8 @@ class Handler(BaseHTTPRequestHandler):
             return envelope(health_data())
         if path == "/api/palette":
             return envelope(palette_index())
+        if path == "/api/awgn-results/progress":
+            return envelope(_awgn_progress_data())
         if path == "/api/health/output":
             frm = 0
             qm = re.search(r"from=(\d+)", query or "")
@@ -2241,10 +2629,11 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/results/view":
                 try:
                     experiment_id, _page, _other = _results_query(query)
-                    result = (_latest_experiment_results()
+                    result = (_latest_experiment_results(awgn=False)
                               if experiment_id is None else
-                              _experiment_result_file(experiment_id,
-                                                      "results_view.html"))
+                              _family_result_file(experiment_id,
+                                                  "results_view.html",
+                                                  awgn=False))
                     with open(result, "rb") as fh:
                         return self._send(fh.read(), ctype="text/html")
                 except FileNotFoundError:
@@ -2253,13 +2642,50 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/results/manifest":
                 try:
                     experiment_id, _page, _other = _results_query(query)
-                    manifest = _experiment_result_file(
-                        experiment_id, "results_manifest.json")
+                    manifest = _family_result_file(
+                        experiment_id, "results_manifest.json", awgn=False)
                     with open(manifest, "rb") as fh:
                         return self._send(fh.read(), ctype="application/json")
                 except FileNotFoundError:
                     return self._send(
                         '{"error": "results manifest not found"}',
+                        404, "application/json")
+            if path == "/awgn-results":
+                try:
+                    return self._send(page_results(query, awgn=True))
+                except FileNotFoundError:
+                    return self._send("AWGN results not found", 404,
+                                      "text/plain")
+            if path == "/awgn-results/compare":
+                try:
+                    return self._send(page_results_comparison(
+                        query, awgn=True))
+                except FileNotFoundError:
+                    return self._send("AWGN comparison results not found", 404,
+                                      "text/plain")
+            if path == "/awgn-results/view":
+                try:
+                    experiment_id, _page, _other = _results_query(query)
+                    result = (_latest_experiment_results(awgn=True)
+                              if experiment_id is None else
+                              _family_result_file(experiment_id,
+                                                  "results_view.html",
+                                                  awgn=True))
+                    with open(result, "rb") as fh:
+                        return self._send(fh.read(), ctype="text/html")
+                except FileNotFoundError:
+                    return self._send("no AWGN results yet", 404,
+                                      "text/plain")
+            if path == "/awgn-results/manifest":
+                try:
+                    experiment_id, _page, _other = _results_query(query)
+                    manifest = _family_result_file(
+                        experiment_id, "results_manifest.json", awgn=True)
+                    with open(manifest, "rb") as fh:
+                        return self._send(fh.read(), ctype="application/json")
+                except FileNotFoundError:
+                    return self._send(
+                        '{"error": "AWGN results manifest not found"}',
                         404, "application/json")
             if path == "/favicon.ico":
                 self.send_response(204)
