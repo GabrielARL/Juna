@@ -1,0 +1,11 @@
+campaign=N1024-CRC-GATED-NO-HARM-FIRST47S
+experiment_id=2026-08-10-red-awgn-first47s-frames32-crc-gated-no-harm-n1024-cp64-rate025-p5-10-dc14-kfill-pfft4
+channel=red4
+hydrophone=1
+aggregate_sha256=87ea2465577ecdaa05fbffcc9f8c04fb4e7e7befdb9f3f203398ea127557385d
+frame_trace_sha256=68cf413b71cf52389e54db90bd56d58404bc614eb2de320768d68fecb8194815
+selection_trace_sha256=9209ef2009102a7583690984e97a70719d1d40ed52cf4a4b81ad1515ea38b289
+aggregate_rows=80
+frame_trace_rows=2560
+selection_trace_rows=1024
+selection_rule=standard_crc_valid|crc_rescue|standard_fallback
