@@ -1653,6 +1653,11 @@ _AWGN_023C_CONFIGURATIONS = (
     "rate025-p5-5-dc14-kfill-pfft4",
 )
 _AWGN_023C_HARNESS = _AWGN_023C_CONFIGURATIONS[0]
+_AWGN_024_CONFIGURATIONS = (
+    f"{_AWGN_022_FAMILY}-n1024-cp64-"
+    "rate05-p5-5-dc14-kfill-pfft4",
+)
+_AWGN_024_HARNESS = _AWGN_024_CONFIGURATIONS[0]
 _AWGN_PROGRESS_CAMPAIGNS = (
     {"campaign_id": "AWGN-008", "code_rate": "0.25",
      "rate_token": "025", "outer_spacing": 5,
@@ -1714,6 +1719,12 @@ _AWGN_PROGRESS_CAMPAIGNS = (
      "harness": _AWGN_023C_HARNESS, "log": "awgn023c_sweep.log",
      "path_contract": "awgn023c_path_contract.txt",
      "aggregate": _AWGN_023C_AGGREGATE},
+    {"campaign_id": "AWGN-024", "code_rate": "0.5",
+     "rate_token": "05", "outer_spacing": 5,
+     "configurations": _AWGN_024_CONFIGURATIONS,
+     "harness": _AWGN_024_HARNESS, "log": "awgn024_sweep.log",
+     "path_contract": "awgn024_path_contract.txt",
+     "aggregate": _AWGN_022_AGGREGATE},
 )
 _AWGN_PROGRESS_PATHS = tuple(
     (f"red{channel}", hydrophone)
@@ -1864,7 +1875,7 @@ def _awgn_overall_state(campaigns, matrix_complete):
 
 
 def _awgn_progress_data():
-    """Aggregate approved AWGN-008 through AWGN-023C campaigns."""
+    """Aggregate approved AWGN-008 through AWGN-024 campaigns."""
     campaigns = [_awgn_campaign_progress(campaign)
                  for campaign in _AWGN_PROGRESS_CAMPAIGNS]
     completed_paths = sum(item["completed_paths"] for item in campaigns)
@@ -1899,9 +1910,9 @@ def _awgn_progress_card():
     return """
 <div id="awgn-live-progress" class="card" role="status" aria-live="polite">
 <div style="display:flex;justify-content:space-between;gap:.8rem">
-<strong>AWGN-008, AWGN-009, AWGN-012, AWGN-015, AWGN-016, AWGN-017, AWGN-018, AWGN-019, AWGN-020, AWGN-021, AWGN-022, AWGN-023B, and AWGN-023C real-time progress</strong>
+<strong>AWGN-008, AWGN-009, AWGN-012, AWGN-015, AWGN-016, AWGN-017, AWGN-018, AWGN-019, AWGN-020, AWGN-021, AWGN-022, AWGN-023B, AWGN-023C, and AWGN-024 real-time progress</strong>
 <span id="awgn-progress-state">checking...</span></div>
-<progress id="awgn-progress-bar" max="660" value="0"
+<progress id="awgn-progress-bar" max="672" value="0"
 style="display:block;width:100%;height:1.1rem;margin:.55rem 0"></progress>
 <div id="awgn-progress-text">Reading validated result paths...</div>
 <div id="awgn-progress-campaigns" style="white-space:pre-line"></div>
