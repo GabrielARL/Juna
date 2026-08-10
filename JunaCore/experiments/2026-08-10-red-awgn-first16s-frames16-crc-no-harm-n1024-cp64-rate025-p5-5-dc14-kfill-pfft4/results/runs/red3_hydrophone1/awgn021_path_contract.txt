@@ -1,0 +1,15 @@
+campaign=AWGN-021
+experiment_id=2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4
+channel=red3
+hydrophone=1
+aggregate_sha256=6aa831e97d240b775b0cea94a2e908c70a5c8541ad072be5d4ab7c76a869c5ad
+frame_trace_sha256=85af134e0a9e17cbaea4b8c1cc1b4887f25e3520990cf4a2c16343f536a75d64
+protected_trace_sha256=553a5caf231e778caccca45801d0f0c93da10d02469e9c7171e24885b758cde3
+source_contract_sha256=2db7361f4a2f8cc563edae5abde68f4a9290163431ec05ba5e9458e8e59a5ecb
+runner_sha256=dd4ab5977c02a9d91543e3f14128c05f17a5c4ee4118cdd7da63eb377acfdddd
+sweep_sha256=289423d6f21a1a130eb324cc79e11760768118a78bfea417663bb8f7d5f8d95b
+aggregate_rows=80
+frame_trace_rows=1280
+protected_trace_rows=512
+capture_seconds=16.0
+snapshot_indices=1,96,190,285,385,480,574,669,769,864,958,1053,1153,1248,1342,1437

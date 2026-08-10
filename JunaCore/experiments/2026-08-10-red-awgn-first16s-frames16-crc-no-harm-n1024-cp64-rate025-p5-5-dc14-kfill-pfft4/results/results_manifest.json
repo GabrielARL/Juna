@@ -1,0 +1,636 @@
+{
+  "awgn020_reference": {
+    "aggregate": {
+      "path": "red_snr_sweep_awgn_first8s_frames8.csv",
+      "rows": 960,
+      "sha256": "aa2d0ffe60b61b63769e82afaf33275748f82bc4106dc0ab564d7853bcbac00f"
+    },
+    "decision": "AWGN-020",
+    "excluded_candidate_fields": [
+      "capture_stop_seconds"
+    ],
+    "experiment_id": "2026-08-10-red-awgn-first8s-frames8-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4",
+    "frame_trace_sources": [
+      {
+        "path": "runs/red1_hydrophone1/red1_hydrophone1_frame_trace.csv",
+        "rows": 640,
+        "sha256": "6040bbe5bba1a648ca9a2c4f744809b47be4496934aa738f77e108ebcb319b29"
+      },
+      {
+        "path": "runs/red1_hydrophone2/red1_hydrophone2_frame_trace.csv",
+        "rows": 640,
+        "sha256": "dba89792423b13c3141a14ebf4f2003213b3e2ea6e1e574742b973aa26e9e6f8"
+      },
+      {
+        "path": "runs/red1_hydrophone3/red1_hydrophone3_frame_trace.csv",
+        "rows": 640,
+        "sha256": "cbfa51ceb8218e9cdfa2e735af9637b1d336c028d10f2383bdc104f7d5808790"
+      },
+      {
+        "path": "runs/red2_hydrophone1/red2_hydrophone1_frame_trace.csv",
+        "rows": 640,
+        "sha256": "bc3f7f98653a43b9e28718ee4d160ea7fccee80945576ced9b29dd1f2fe32033"
+      },
+      {
+        "path": "runs/red2_hydrophone2/red2_hydrophone2_frame_trace.csv",
+        "rows": 640,
+        "sha256": "0c1680496728ea9c4364b2e62fd83401d79685763e639e2731e0527292df8185"
+      },
+      {
+        "path": "runs/red2_hydrophone3/red2_hydrophone3_frame_trace.csv",
+        "rows": 640,
+        "sha256": "fd1efc360a60842f99a117d11dda47f36fafb7dd7bed077a7fc0d8d8d4f413eb"
+      },
+      {
+        "path": "runs/red3_hydrophone1/red3_hydrophone1_frame_trace.csv",
+        "rows": 640,
+        "sha256": "ec4787bf8ace6eeebd528e85c033eec1a142cfe4312c9441b7c8ed34c9bb2fdf"
+      },
+      {
+        "path": "runs/red3_hydrophone2/red3_hydrophone2_frame_trace.csv",
+        "rows": 640,
+        "sha256": "b9799378983318c51ae79d90e660a8abd6422356563dabaeecdc35e792d45e08"
+      },
+      {
+        "path": "runs/red3_hydrophone3/red3_hydrophone3_frame_trace.csv",
+        "rows": 640,
+        "sha256": "be4f78742b9da2841b10038d4a176eeb7283da353b63cc3c9b7892b8dbbf2293"
+      },
+      {
+        "path": "runs/red4_hydrophone1/red4_hydrophone1_frame_trace.csv",
+        "rows": 640,
+        "sha256": "5eb8b485b0afefd662e366fea2c6073d22a4295ee745b02b30b4cb843b5a15ab"
+      },
+      {
+        "path": "runs/red4_hydrophone2/red4_hydrophone2_frame_trace.csv",
+        "rows": 640,
+        "sha256": "dd2a561cc9d44d4f12d284528b0a6b82f80599017b39e2e86f2aa1daacc489a8"
+      },
+      {
+        "path": "runs/red4_hydrophone3/red4_hydrophone3_frame_trace.csv",
+        "rows": 640,
+        "sha256": "34da30e134310321a44f0949d8cabd72e3e8e50b71e5ef7a656da01eb705ab1e"
+      }
+    ],
+    "manifest": {
+      "path": "results_manifest.json",
+      "sha256": "1e634ed721fb00ecd5ad054e1096fbe076cfe527d5d429360cad7f68a74ac1f1"
+    },
+    "matched_frame_rows": 7680,
+    "matched_protected_rows": 3072,
+    "protected_trace_sources": [
+      {
+        "path": "runs/red1_hydrophone1/red1_hydrophone1_selection_trace.csv",
+        "rows": 256,
+        "sha256": "fe581445ba42a6d1d8c2f5bdbda3f5df5f882900722bd7857edd08ea6c4724de"
+      },
+      {
+        "path": "runs/red1_hydrophone2/red1_hydrophone2_selection_trace.csv",
+        "rows": 256,
+        "sha256": "7a7ab047aee76a2745f4f896418cd08979f41c86754439654f54830f674c2549"
+      },
+      {
+        "path": "runs/red1_hydrophone3/red1_hydrophone3_selection_trace.csv",
+        "rows": 256,
+        "sha256": "3abd1ba50892b29559b41fe15ebde1e85050cc11dc84299bbfc0fd62cf910bc9"
+      },
+      {
+        "path": "runs/red2_hydrophone1/red2_hydrophone1_selection_trace.csv",
+        "rows": 256,
+        "sha256": "55e34f970a33b6b41c3f7a2007e3ddb234ae8b4da31f338cdd1c22849463c9e1"
+      },
+      {
+        "path": "runs/red2_hydrophone2/red2_hydrophone2_selection_trace.csv",
+        "rows": 256,
+        "sha256": "89d2fa1639fc3fe0c15ecb0008609cc619e0bf6afe62e756a7f60a688f4f2e8b"
+      },
+      {
+        "path": "runs/red2_hydrophone3/red2_hydrophone3_selection_trace.csv",
+        "rows": 256,
+        "sha256": "fd70d73cd1c4057df7bd480eeb20048a20b91e9d0c6bdbde68c88acbd893eb8d"
+      },
+      {
+        "path": "runs/red3_hydrophone1/red3_hydrophone1_selection_trace.csv",
+        "rows": 256,
+        "sha256": "0cecadaaeea72ebe70f386a07796b6799ebec8acc4fe64c875ae573615065e38"
+      },
+      {
+        "path": "runs/red3_hydrophone2/red3_hydrophone2_selection_trace.csv",
+        "rows": 256,
+        "sha256": "d7f007d342e755b61c74ec1fcecf90253d35cb0d554ccb43d5968fb5639c0f9b"
+      },
+      {
+        "path": "runs/red3_hydrophone3/red3_hydrophone3_selection_trace.csv",
+        "rows": 256,
+        "sha256": "0c5c39f7f7a13a1acb5e19ed62fc35e4d5d0c042549748c17a61e1419e3824f3"
+      },
+      {
+        "path": "runs/red4_hydrophone1/red4_hydrophone1_selection_trace.csv",
+        "rows": 256,
+        "sha256": "cd38811479c92b18a87816196336f1bd1d1a3ffafaeb8d85787e097bca8dba6d"
+      },
+      {
+        "path": "runs/red4_hydrophone2/red4_hydrophone2_selection_trace.csv",
+        "rows": 256,
+        "sha256": "37a4aee76d2ebe18c73d469ef84b226aed0192184ed2a52feb2522e08132de04"
+      },
+      {
+        "path": "runs/red4_hydrophone3/red4_hydrophone3_selection_trace.csv",
+        "rows": 256,
+        "sha256": "e5e6d3a6a8f2dfe14dcb13d8d5a513843a1eeb8e3a7246048e8e12ba3f4bd9d9"
+      }
+    ],
+    "view": {
+      "path": "results_view.html",
+      "sha256": "522d84da9403ef596436b6ea910b712d9efdeaf7c34aa0ae2a3fc0c6e2b347ab"
+    }
+  },
+  "capture_sources": [
+    {
+      "md5": "76ee45172cd0bf5deb4a7bfb04907884",
+      "path": "data/red_1.mat"
+    },
+    {
+      "md5": "cb1b4566f5e9db67b93c072dbce8db06",
+      "path": "data/red_2.mat"
+    },
+    {
+      "md5": "befb441590ddafc4383746cc0526d4b6",
+      "path": "data/red_3.mat"
+    },
+    {
+      "md5": "bbab171a6af14632944d1fee157cde86",
+      "path": "data/red_4.mat"
+    }
+  ],
+  "capture_time_seconds": [
+    0.0,
+    16.0
+  ],
+  "channel_model": "measured red replay capture, one hydrophone per path",
+  "decision": "AWGN-021",
+  "experiment_id": "2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4",
+  "frame_count": 16,
+  "frame_trace_row_count": 15360,
+  "frame_trace_sources": [
+    {
+      "path": "runs/red1_hydrophone1/red1_hydrophone1_frame_trace.csv",
+      "rows": 1280,
+      "sha256": "abbddb903fbd23751e8a74fa2353efde87e910efffafc8988b2edc0cf5f83274"
+    },
+    {
+      "path": "runs/red1_hydrophone2/red1_hydrophone2_frame_trace.csv",
+      "rows": 1280,
+      "sha256": "4f74066253e767a4c764d105fdcb601038df8890ef361d8baff5250a2c919b90"
+    },
+    {
+      "path": "runs/red1_hydrophone3/red1_hydrophone3_frame_trace.csv",
+      "rows": 1280,
+      "sha256": "8addd3a9cd5d3abbf040bb471e0ab1d48a1687f5b30078f847502d5174e7d35b"
+    },
+    {
+      "path": "runs/red2_hydrophone1/red2_hydrophone1_frame_trace.csv",
+      "rows": 1280,
+      "sha256": "f7a81f8e04847d1d553fe87703f329cddbd006c28d73ff79b97b64daa7ad0ca9"
+    },
+    {
+      "path": "runs/red2_hydrophone2/red2_hydrophone2_frame_trace.csv",
+      "rows": 1280,
+      "sha256": "db3705851e13fa1059c103e46b0b523798d7aef6de544cb05d95e77ec83db9e5"
+    },
+    {
+      "path": "runs/red2_hydrophone3/red2_hydrophone3_frame_trace.csv",
+      "rows": 1280,
+      "sha256": "e57f7122af4d0828ee72c2e82ae3d08c8fff01c769b5aa190bc1b63dcc79c541"
+    },
+    {
+      "path": "runs/red3_hydrophone1/red3_hydrophone1_frame_trace.csv",
+      "rows": 1280,
+      "sha256": "85af134e0a9e17cbaea4b8c1cc1b4887f25e3520990cf4a2c16343f536a75d64"
+    },
+    {
+      "path": "runs/red3_hydrophone2/red3_hydrophone2_frame_trace.csv",
+      "rows": 1280,
+      "sha256": "99ac1fb0dacfe7de13bcd52940981cd194f318c31450263e9ffc41823a472065"
+    },
+    {
+      "path": "runs/red3_hydrophone3/red3_hydrophone3_frame_trace.csv",
+      "rows": 1280,
+      "sha256": "c8f928f6ef808862ce89b4bca1aafe54f8bbd794c81db8230e4284ef3c0373d0"
+    },
+    {
+      "path": "runs/red4_hydrophone1/red4_hydrophone1_frame_trace.csv",
+      "rows": 1280,
+      "sha256": "778206cedb57d94ff4cfbc5dbd11f94d1757d25b9ad61ffbe16ba809b6215928"
+    },
+    {
+      "path": "runs/red4_hydrophone2/red4_hydrophone2_frame_trace.csv",
+      "rows": 1280,
+      "sha256": "032112ca55f3c827530da0bc543dca6eec59e522a8268553f12f472ff2c11714"
+    },
+    {
+      "path": "runs/red4_hydrophone3/red4_hydrophone3_frame_trace.csv",
+      "rows": 1280,
+      "sha256": "0af75b096aaeddad3cf10e3436a4a6c78c011e6d88175557fbc1af41b4f78b4b"
+    }
+  ],
+  "frame_window_selection": "sixteen approximately non-overlapping complete replay windows; the first eight are unchanged from the eight-second result",
+  "frames_per_point": 16,
+  "geometry": {
+    "check_degree": "14",
+    "code_rate": "0.25",
+    "cp": "64",
+    "horizon": "0",
+    "inner_spacing": "5",
+    "nfft": "1024",
+    "outer_spacing": "5"
+  },
+  "geometry_display": {
+    "check_degree": "14",
+    "code_rate": "0.25",
+    "cp": "64",
+    "horizon": "0",
+    "inner_spacing": "5",
+    "nfft": "1024",
+    "outer_spacing": "5"
+  },
+  "noise_model": {
+    "generator": "BenchmarkPort._add_awgn",
+    "kind": "awgn",
+    "note": "independent complex Gaussian samples"
+  },
+  "panel_count": 12,
+  "partial_fft_bands": 16,
+  "partial_fft_parts": 4,
+  "path_contracts": [
+    {
+      "path": "runs/red1_hydrophone1/awgn021_path_contract.txt",
+      "sha256": "deac45ebd38bcb271570fdd7fad149bdd6db84691da44e4876e6a66fefb50ab3"
+    },
+    {
+      "path": "runs/red1_hydrophone2/awgn021_path_contract.txt",
+      "sha256": "b6e780b75d33e6fe9e8c234d487da0f56cc878a51e28df57e5ea2465bece4a3f"
+    },
+    {
+      "path": "runs/red1_hydrophone3/awgn021_path_contract.txt",
+      "sha256": "5c66f132f74eb6418d85164f93a90600ca237be7685a343007f136b97379dd44"
+    },
+    {
+      "path": "runs/red2_hydrophone1/awgn021_path_contract.txt",
+      "sha256": "8d73bd0b2bcf6a483dad17018c3a0ad13215ebf491d435668b4b16363032b6ed"
+    },
+    {
+      "path": "runs/red2_hydrophone2/awgn021_path_contract.txt",
+      "sha256": "ae2d876e70e5c3c6f74f9c4f0aa16370f44e05fec8c88a60e1f41199c512884d"
+    },
+    {
+      "path": "runs/red2_hydrophone3/awgn021_path_contract.txt",
+      "sha256": "4c67b7491afd721bab5946a78f417261c5fee10c1036722b2d485f5dba8acd1c"
+    },
+    {
+      "path": "runs/red3_hydrophone1/awgn021_path_contract.txt",
+      "sha256": "9b7a55d0e208715bc03f3343947badfae14c844ec9fb69c234433aabb6036fa8"
+    },
+    {
+      "path": "runs/red3_hydrophone2/awgn021_path_contract.txt",
+      "sha256": "9e4f36be3052d7e24826690b78620874bac5e22a3e44054160e810d23a773d99"
+    },
+    {
+      "path": "runs/red3_hydrophone3/awgn021_path_contract.txt",
+      "sha256": "c81f46a80ae0bc95740a5a7351be9767cc1644d6dedc6adb9a4cd5f546b4b509"
+    },
+    {
+      "path": "runs/red4_hydrophone1/awgn021_path_contract.txt",
+      "sha256": "81e61d1c9358fbbc724f7bb08587af8f9903c392e0f1886d164b863ef533c216"
+    },
+    {
+      "path": "runs/red4_hydrophone2/awgn021_path_contract.txt",
+      "sha256": "b88303a4b0858d869d9fce43980ccbe0f8bfc07f6159a8b8813c85e25a6d4caa"
+    },
+    {
+      "path": "runs/red4_hydrophone3/awgn021_path_contract.txt",
+      "sha256": "bfda0efdd8ee284a5c1c0a8abf345085df69f6bccec369dfdc53ba0b09a31f49"
+    }
+  ],
+  "paths": [
+    "red1 1",
+    "red1 2",
+    "red1 3",
+    "red2 1",
+    "red2 2",
+    "red2 3",
+    "red3 1",
+    "red3 2",
+    "red3 3",
+    "red4 1",
+    "red4 2",
+    "red4 3"
+  ],
+  "payload_bits_per_frame": 1616,
+  "protected_receivers": [
+    "cwz_joint",
+    "profiled_cz"
+  ],
+  "protected_trace_row_count": 6144,
+  "protected_trace_sources": [
+    {
+      "path": "runs/red1_hydrophone1/red1_hydrophone1_selection_trace.csv",
+      "rows": 512,
+      "sha256": "959a7e4b33eb18a43c6bac45bfc43f40270417723f0a617228e91a5e27a804af"
+    },
+    {
+      "path": "runs/red1_hydrophone2/red1_hydrophone2_selection_trace.csv",
+      "rows": 512,
+      "sha256": "cdbc3b51a717bae7753846edfbcfa3e880f359d31deee22f7d96b94c25a06dc5"
+    },
+    {
+      "path": "runs/red1_hydrophone3/red1_hydrophone3_selection_trace.csv",
+      "rows": 512,
+      "sha256": "7f9e2067186f7c81536ea3b074a5ec0dbed114a24d3a02c03240ea8c007e687f"
+    },
+    {
+      "path": "runs/red2_hydrophone1/red2_hydrophone1_selection_trace.csv",
+      "rows": 512,
+      "sha256": "8988c4a2271c3d80cf9560e4079e7ca2c141182ebe46b1dfbbc3fe0e11bfecda"
+    },
+    {
+      "path": "runs/red2_hydrophone2/red2_hydrophone2_selection_trace.csv",
+      "rows": 512,
+      "sha256": "f1c949cf9041a6c4c704da9b0e4a8842a759aefb4e0e3ab2ed7962f73d82a949"
+    },
+    {
+      "path": "runs/red2_hydrophone3/red2_hydrophone3_selection_trace.csv",
+      "rows": 512,
+      "sha256": "16d142e2bc1d8103994ae2117e2664e19505829b476648afd10890bd6cadd786"
+    },
+    {
+      "path": "runs/red3_hydrophone1/red3_hydrophone1_selection_trace.csv",
+      "rows": 512,
+      "sha256": "553a5caf231e778caccca45801d0f0c93da10d02469e9c7171e24885b758cde3"
+    },
+    {
+      "path": "runs/red3_hydrophone2/red3_hydrophone2_selection_trace.csv",
+      "rows": 512,
+      "sha256": "d55f10e42f1059aa2f8972f69b16a816b4ab4b808bfeb56e59c30472249dc510"
+    },
+    {
+      "path": "runs/red3_hydrophone3/red3_hydrophone3_selection_trace.csv",
+      "rows": 512,
+      "sha256": "06c7d00c880f710aa74988c84a68186f3bbe4c7bcf5c55c153fa5a8edb472198"
+    },
+    {
+      "path": "runs/red4_hydrophone1/red4_hydrophone1_selection_trace.csv",
+      "rows": 512,
+      "sha256": "1674737307e524115d3b2f4673c92e382c1a54b82a9c59a4d6d68efe24d1e908"
+    },
+    {
+      "path": "runs/red4_hydrophone2/red4_hydrophone2_selection_trace.csv",
+      "rows": 512,
+      "sha256": "aa077a802a00469a28a09fc90bdd4d8f74db5aa2156434d91b422857efe5678a"
+    },
+    {
+      "path": "runs/red4_hydrophone3/red4_hydrophone3_selection_trace.csv",
+      "rows": 512,
+      "sha256": "8fe017a658933fc101854ddae592189d4a24d70a9949d619725cc23e92d4fdf6"
+    }
+  ],
+  "receiver_policy": {
+    "cwz_joint": "CRC no-harm",
+    "lite": "unchanged",
+    "profiled_cz": "CRC no-harm"
+  },
+  "receivers": [
+    "cwz_joint",
+    "lite",
+    "ofdm_fec",
+    "pfft",
+    "profiled_cz"
+  ],
+  "result_group": "configuration",
+  "result_scope": "BER versus SNR, first 16 s, 16 frames per point, seed 4",
+  "row_count": 960,
+  "runner_sources": {
+    "awgn021_contract_test.jl": "424df3655da7412b0cc2ad3814c251a109bb36bdb48c53167ba7321dffc87e34",
+    "awgn021_sweep.jl": "289423d6f21a1a130eb324cc79e11760768118a78bfea417663bb8f7d5f8d95b",
+    "build_results.py": "55a38f539aee124de7ad258c3700fca02d1c233f0777bda9ccd6c30a46b14c55",
+    "matrix_contract.py": "9e0cce7045d2386d19e1c6222ec6f8bf5805c32f03d5f2cc12e8fefef4f7a6f8",
+    "results_contract_test.py": "016c5010b1a289fced919556b829dc98d1c7500984a5a18011198a86958696a8",
+    "run_awgn021.jl": "dd4ab5977c02a9d91543e3f14128c05f17a5c4ee4118cdd7da63eb377acfdddd",
+    "source_contract.json": "2db7361f4a2f8cc563edae5abde68f4a9290163431ec05ba5e9458e8e59a5ecb",
+    "validate_matrix.py": "35077543520d047722c0ed1c021695adc587a9c0be9d9b1844ebf0219e665dbd",
+    "validate_results.py": "ea083f4e3db20c992a9c4627727454e43468ddcc3e0d6eaf61cdfa291a8cda85"
+  },
+  "schema_version": 1,
+  "seed": 4,
+  "series_count": 60,
+  "snapshot_indices": [
+    1,
+    96,
+    190,
+    285,
+    385,
+    480,
+    574,
+    669,
+    769,
+    864,
+    958,
+    1053,
+    1153,
+    1248,
+    1342,
+    1437
+  ],
+  "snr_db": [
+    0.0,
+    2.0,
+    4.0,
+    6.0,
+    8.0,
+    10.0,
+    12.0,
+    14.0,
+    16.0,
+    18.0,
+    20.0,
+    22.0,
+    24.0,
+    26.0,
+    28.0,
+    30.0
+  ],
+  "snr_definition": "mean replayed-signal power divided by target added complex AWGN power",
+  "source_contract": {
+    "active_project": "/home/gabiel/Documents/GitHub/Juna-worktrees/awgn-results/JunaCore/experiments/2026-08-04-red-snr-sweep/Project.toml",
+    "campaign": "AWGN-021",
+    "family": "2026-08-10-red-awgn-first16s-frames16-crc-no-harm",
+    "measurement": {
+      "capture_seconds": 16.0,
+      "check_degree": 14,
+      "code_rate": 0.25,
+      "cp": 64,
+      "frames": 16,
+      "horizon": 0,
+      "inner_spacing": 5,
+      "nfft": 1024,
+      "outer_spacing": 5,
+      "partial_fft_parts": 4,
+      "paths": 12,
+      "seed": 4,
+      "snapshot_indices": [
+        1,
+        96,
+        190,
+        285,
+        385,
+        480,
+        574,
+        669,
+        769,
+        864,
+        958,
+        1053,
+        1153,
+        1248,
+        1342,
+        1437
+      ],
+      "snr_db": [
+        0,
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20,
+        22,
+        24,
+        26,
+        28,
+        30
+      ]
+    },
+    "optimized_variables": {
+      "cwz_joint": "C+W+z",
+      "profiled_cz": "C+z"
+    },
+    "payload_bits_per_frame": 1616,
+    "per_path": {
+      "aggregate_rows": 80,
+      "frame_trace_rows": 1280,
+      "protected_trace_rows": 512
+    },
+    "receiver_source": {
+      "base_commit": "7fbdec9dd93e7ed5caade4bae4a73ccd030a7d3f",
+      "loaded_modules": [
+        "JunaCore.JunaProfiledCzFrame.Modulation",
+        "JunaCore.JunaCrcConditionedJointCwzFrame.Modulation"
+      ],
+      "repository": "/home/gabiel/Documents/GitHub/Juna-worktrees/crc-no-harm-gradients",
+      "tracked_source_diff_sha256": "4e19b15bea8fd9c96c2721691629ae35deb3538e43b92ccc1ec9a7fe8cdf8821"
+    },
+    "receivers": [
+      {
+        "crc_no_harm": false,
+        "id": "ofdm_fec",
+        "name": "OFDM + FEC"
+      },
+      {
+        "crc_no_harm": false,
+        "id": "pfft",
+        "name": "Partial-FFT + FEC"
+      },
+      {
+        "crc_no_harm": false,
+        "id": "lite",
+        "name": "JUNA-Lite"
+      },
+      {
+        "crc_no_harm": true,
+        "id": "profiled_cz",
+        "name": "JUNA (C,z) Joint gradient"
+      },
+      {
+        "crc_no_harm": true,
+        "id": "cwz_joint",
+        "name": "Juna joint (C,W,z)"
+      }
+    ],
+    "selection_reasons": [
+      "standard_crc_valid",
+      "crc_rescue",
+      "standard_fallback"
+    ]
+  },
+  "source_contract_sha256": "2db7361f4a2f8cc563edae5abde68f4a9290163431ec05ba5e9458e8e59a5ecb",
+  "sources": [
+    {
+      "path": "runs/red1_hydrophone1/red_snr_sweep_awgn_first16s_frames16_configuration.csv",
+      "rows": 80,
+      "sha256": "15315b5184c93ab73a17d8e75e9938b48eae8990d75df229b0dc0ca296754914"
+    },
+    {
+      "path": "runs/red1_hydrophone2/red_snr_sweep_awgn_first16s_frames16_configuration.csv",
+      "rows": 80,
+      "sha256": "7296338153a78d6567b9091627c18a12fffd9b2dc93dda0f6373c2ac5375747b"
+    },
+    {
+      "path": "runs/red1_hydrophone3/red_snr_sweep_awgn_first16s_frames16_configuration.csv",
+      "rows": 80,
+      "sha256": "92de7451d05c38c44f0ac1ff77764d0d03f6295be5923847143f6820ae8f727a"
+    },
+    {
+      "path": "runs/red2_hydrophone1/red_snr_sweep_awgn_first16s_frames16_configuration.csv",
+      "rows": 80,
+      "sha256": "b7360b83be9508bd48ea9efbd736c58e489b7150a882dd0c9fcefff17f93f262"
+    },
+    {
+      "path": "runs/red2_hydrophone2/red_snr_sweep_awgn_first16s_frames16_configuration.csv",
+      "rows": 80,
+      "sha256": "1f8b5c06a3e8ca5367e8ac70b300bb294f969f7445cbe3e837cfe27ac4d206ae"
+    },
+    {
+      "path": "runs/red2_hydrophone3/red_snr_sweep_awgn_first16s_frames16_configuration.csv",
+      "rows": 80,
+      "sha256": "7fe7b928ffd02f325e142eae20c95031b7c9a17a2b7b6f1f83a2159514449027"
+    },
+    {
+      "path": "runs/red3_hydrophone1/red_snr_sweep_awgn_first16s_frames16_configuration.csv",
+      "rows": 80,
+      "sha256": "6aa831e97d240b775b0cea94a2e908c70a5c8541ad072be5d4ab7c76a869c5ad"
+    },
+    {
+      "path": "runs/red3_hydrophone2/red_snr_sweep_awgn_first16s_frames16_configuration.csv",
+      "rows": 80,
+      "sha256": "bb9ed0222c8d45d000b2827265f39511f3b342ec640c045d86de3ca7f3f1817e"
+    },
+    {
+      "path": "runs/red3_hydrophone3/red_snr_sweep_awgn_first16s_frames16_configuration.csv",
+      "rows": 80,
+      "sha256": "19d690ef60f6af30fbe3abe74c65cb4e4341c94b9dd2bbea6816526073c82931"
+    },
+    {
+      "path": "runs/red4_hydrophone1/red_snr_sweep_awgn_first16s_frames16_configuration.csv",
+      "rows": 80,
+      "sha256": "f9a457dcd4bd12b61ec306a68a208999db02c675388dfde991b8235855d6ec10"
+    },
+    {
+      "path": "runs/red4_hydrophone2/red_snr_sweep_awgn_first16s_frames16_configuration.csv",
+      "rows": 80,
+      "sha256": "6d408f4d1c348393d0ab94459a924182b02ddf285b2407189009f46c9ad283e5"
+    },
+    {
+      "path": "runs/red4_hydrophone3/red_snr_sweep_awgn_first16s_frames16_configuration.csv",
+      "rows": 80,
+      "sha256": "f96884505b566dced033c1d87bb8aacde2d97872f4dc32881511f5c9ce2b115a"
+    }
+  ],
+  "time_window_s": [
+    0.0,
+    16.0
+  ]
+}
