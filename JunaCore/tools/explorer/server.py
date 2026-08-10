@@ -1672,7 +1672,8 @@ _AWGN_023C_CONFIGURATIONS = (
 )
 _AWGN_023C_HARNESS = _AWGN_023C_CONFIGURATIONS[0]
 _AWGN_024_CONFIGURATIONS = (
-    f"{_AWGN_022_FAMILY}-n1024-cp64-"
+    "2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-"
+    "n1024-cp64-"
     "rate05-p5-5-dc14-kfill-pfft4",
 )
 _AWGN_024_HARNESS = _AWGN_024_CONFIGURATIONS[0]

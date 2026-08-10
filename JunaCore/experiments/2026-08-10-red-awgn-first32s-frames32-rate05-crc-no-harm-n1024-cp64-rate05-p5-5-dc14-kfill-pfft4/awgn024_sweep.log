@@ -1,0 +1,28 @@
+AWGN_024_QUEUE_START 2026-08-10T17:20:33.633
+AWGN_024_COMPUTE_START 2026-08-10T17:20:39.592
+PATH_START AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red1 hydrophone 1 2026-08-10T17:20:39.593
+PATH_VALID AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red1 hydrophone 1 2026-08-10T17:28:43.576
+PATH_START AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red1 hydrophone 2 2026-08-10T17:28:43.941
+PATH_VALID AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red1 hydrophone 2 2026-08-10T17:34:37.236
+PATH_START AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red1 hydrophone 3 2026-08-10T17:34:37.617
+PATH_VALID AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red1 hydrophone 3 2026-08-10T17:39:50.369
+PATH_START AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red2 hydrophone 1 2026-08-10T17:39:50.724
+PATH_VALID AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red2 hydrophone 1 2026-08-10T17:45:35.445
+PATH_START AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red2 hydrophone 2 2026-08-10T17:45:35.760
+PATH_VALID AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red2 hydrophone 2 2026-08-10T17:51:12.715
+PATH_START AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red2 hydrophone 3 2026-08-10T17:51:13.040
+PATH_VALID AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red2 hydrophone 3 2026-08-10T17:56:45.926
+PATH_START AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red3 hydrophone 1 2026-08-10T17:56:46.270
+PATH_VALID AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red3 hydrophone 1 2026-08-10T18:02:24.037
+PATH_START AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red3 hydrophone 2 2026-08-10T18:02:24.358
+PATH_VALID AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red3 hydrophone 2 2026-08-10T18:07:39.092
+PATH_START AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red3 hydrophone 3 2026-08-10T18:07:39.398
+PATH_VALID AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red3 hydrophone 3 2026-08-10T18:12:50.072
+PATH_START AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red4 hydrophone 1 2026-08-10T18:12:50.502
+PATH_VALID AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red4 hydrophone 1 2026-08-10T18:17:41.259
+PATH_START AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red4 hydrophone 2 2026-08-10T18:17:41.533
+PATH_VALID AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red4 hydrophone 2 2026-08-10T18:22:49.724
+PATH_START AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red4 hydrophone 3 2026-08-10T18:22:50.135
+PATH_VALID AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 red4 hydrophone 3 2026-08-10T18:27:44.731
+CONFIGURATION_COMPLETE AWGN-024 2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4 2026-08-10T18:27:55.034
+AWGN_024_COMPUTE_COMPLETE 2026-08-10T18:28:00.161
