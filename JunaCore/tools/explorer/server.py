@@ -1581,10 +1581,23 @@ _AWGN_OUTER_HARNESS = (
     "2026-08-08-red-awgn-first4s-frames4-outer10-7-3-snr-sweep")
 _AWGN_019_FAMILY = "2026-08-09-red-awgn-crc-no-harm-3receivers"
 _AWGN_020_FAMILY = "2026-08-10-red-awgn-first8s-frames8-crc-no-harm"
+_AWGN_021_FAMILY = "2026-08-10-red-awgn-first16s-frames16-crc-no-harm"
+_AWGN_022_FAMILY = "2026-08-10-red-awgn-first32s-frames32-crc-no-harm"
+_AWGN_023B_FAMILY = "2026-08-10-red-awgn-full-capture-frames47-crc-no-harm"
+_AWGN_023C_FAMILY = (
+    "2026-08-10-red-awgn-repeated-first32s-frames128-crc-no-harm")
 _AWGN_PROGRESS_AGGREGATE = (
     "red_snr_sweep_awgn_first4s_frames4_configuration.csv")
 _AWGN_020_AGGREGATE = (
     "red_snr_sweep_awgn_first8s_frames8_configuration.csv")
+_AWGN_021_AGGREGATE = (
+    "red_snr_sweep_awgn_first16s_frames16_configuration.csv")
+_AWGN_022_AGGREGATE = (
+    "red_snr_sweep_awgn_first32s_frames32_configuration.csv")
+_AWGN_023B_AGGREGATE = (
+    "red_snr_sweep_awgn_full_capture_frames47_configuration.csv")
+_AWGN_023C_AGGREGATE = (
+    "red_snr_sweep_awgn_repeated_first32s_frames128_configuration.csv")
 _AWGN_015_CONFIGURATIONS = (
     f"{_AWGN_PROGRESS_FAMILY}-n4096-cp64-"
     "rate025-p5-5-dc10-kfill-pfft4",
@@ -1620,6 +1633,26 @@ _AWGN_020_CONFIGURATIONS = (
     "rate025-p5-5-dc14-kfill-pfft4",
 )
 _AWGN_020_HARNESS = _AWGN_020_CONFIGURATIONS[0]
+_AWGN_021_CONFIGURATIONS = (
+    f"{_AWGN_021_FAMILY}-n1024-cp64-"
+    "rate025-p5-5-dc14-kfill-pfft4",
+)
+_AWGN_021_HARNESS = _AWGN_021_CONFIGURATIONS[0]
+_AWGN_022_CONFIGURATIONS = (
+    f"{_AWGN_022_FAMILY}-n1024-cp64-"
+    "rate025-p5-5-dc14-kfill-pfft4",
+)
+_AWGN_022_HARNESS = _AWGN_022_CONFIGURATIONS[0]
+_AWGN_023B_CONFIGURATIONS = (
+    f"{_AWGN_023B_FAMILY}-n1024-cp64-"
+    "rate025-p5-5-dc14-kfill-pfft4",
+)
+_AWGN_023B_HARNESS = _AWGN_023B_CONFIGURATIONS[0]
+_AWGN_023C_CONFIGURATIONS = (
+    f"{_AWGN_023C_FAMILY}-n1024-cp64-"
+    "rate025-p5-5-dc14-kfill-pfft4",
+)
+_AWGN_023C_HARNESS = _AWGN_023C_CONFIGURATIONS[0]
 _AWGN_PROGRESS_CAMPAIGNS = (
     {"campaign_id": "AWGN-008", "code_rate": "0.25",
      "rate_token": "025", "outer_spacing": 5,
@@ -1657,6 +1690,30 @@ _AWGN_PROGRESS_CAMPAIGNS = (
      "harness": _AWGN_020_HARNESS, "log": "awgn020_sweep.log",
      "path_contract": "awgn020_path_contract.txt",
      "aggregate": _AWGN_020_AGGREGATE},
+    {"campaign_id": "AWGN-021", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 5,
+     "configurations": _AWGN_021_CONFIGURATIONS,
+     "harness": _AWGN_021_HARNESS, "log": "awgn021_sweep.log",
+     "path_contract": "awgn021_path_contract.txt",
+     "aggregate": _AWGN_021_AGGREGATE},
+    {"campaign_id": "AWGN-022", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 5,
+     "configurations": _AWGN_022_CONFIGURATIONS,
+     "harness": _AWGN_022_HARNESS, "log": "awgn022_sweep.log",
+     "path_contract": "awgn022_path_contract.txt",
+     "aggregate": _AWGN_022_AGGREGATE},
+    {"campaign_id": "AWGN-023B", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 5,
+     "configurations": _AWGN_023B_CONFIGURATIONS,
+     "harness": _AWGN_023B_HARNESS, "log": "awgn023b_sweep.log",
+     "path_contract": "awgn023b_path_contract.txt",
+     "aggregate": _AWGN_023B_AGGREGATE},
+    {"campaign_id": "AWGN-023C", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 5,
+     "configurations": _AWGN_023C_CONFIGURATIONS,
+     "harness": _AWGN_023C_HARNESS, "log": "awgn023c_sweep.log",
+     "path_contract": "awgn023c_path_contract.txt",
+     "aggregate": _AWGN_023C_AGGREGATE},
 )
 _AWGN_PROGRESS_PATHS = tuple(
     (f"red{channel}", hydrophone)
@@ -1740,7 +1797,7 @@ def _awgn_campaign_progress(campaign):
 
     current = None
     starts = list(re.finditer(
-        r"^PATH_START\s+(AWGN-[0-9]+)\s+(\S+)\s+"
+        r"^PATH_START\s+(AWGN-[0-9]+[A-Z]?)\s+(\S+)\s+"
         r"(red[1-4])\s+hydrophone\s+([1-3])(?:\s+\S+)?\s*$",
         log, flags=re.MULTILINE))
     if starts:
@@ -1807,7 +1864,7 @@ def _awgn_overall_state(campaigns, matrix_complete):
 
 
 def _awgn_progress_data():
-    """Aggregate approved AWGN-008 through AWGN-020 campaigns."""
+    """Aggregate approved AWGN-008 through AWGN-023C campaigns."""
     campaigns = [_awgn_campaign_progress(campaign)
                  for campaign in _AWGN_PROGRESS_CAMPAIGNS]
     completed_paths = sum(item["completed_paths"] for item in campaigns)
@@ -1842,9 +1899,9 @@ def _awgn_progress_card():
     return """
 <div id="awgn-live-progress" class="card" role="status" aria-live="polite">
 <div style="display:flex;justify-content:space-between;gap:.8rem">
-<strong>AWGN-008, AWGN-009, AWGN-012, AWGN-015, AWGN-016, AWGN-017, AWGN-018, AWGN-019, and AWGN-020 real-time progress</strong>
+<strong>AWGN-008, AWGN-009, AWGN-012, AWGN-015, AWGN-016, AWGN-017, AWGN-018, AWGN-019, AWGN-020, AWGN-021, AWGN-022, AWGN-023B, and AWGN-023C real-time progress</strong>
 <span id="awgn-progress-state">checking...</span></div>
-<progress id="awgn-progress-bar" max="612" value="0"
+<progress id="awgn-progress-bar" max="660" value="0"
 style="display:block;width:100%;height:1.1rem;margin:.55rem 0"></progress>
 <div id="awgn-progress-text">Reading validated result paths...</div>
 <div id="awgn-progress-campaigns" style="white-space:pre-line"></div>
