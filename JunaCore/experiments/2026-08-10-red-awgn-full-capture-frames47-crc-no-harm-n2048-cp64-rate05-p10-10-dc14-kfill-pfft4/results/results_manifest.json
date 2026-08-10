@@ -1,0 +1,618 @@
+{
+  "capture_sources": [
+    {
+      "md5": "76ee45172cd0bf5deb4a7bfb04907884",
+      "path": "data/red_1.mat"
+    },
+    {
+      "md5": "cb1b4566f5e9db67b93c072dbce8db06",
+      "path": "data/red_2.mat"
+    },
+    {
+      "md5": "befb441590ddafc4383746cc0526d4b6",
+      "path": "data/red_3.mat"
+    },
+    {
+      "md5": "bbab171a6af14632944d1fee157cde86",
+      "path": "data/red_4.mat"
+    }
+  ],
+  "capture_time_seconds": [
+    0.0,
+    47.78125
+  ],
+  "channel_model": "measured red replay capture, one hydrophone per path",
+  "decision": "AWGN-027",
+  "experiment_id": "2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n2048-cp64-rate05-p10-10-dc14-kfill-pfft4",
+  "frame_count": 47,
+  "frame_trace_row_count": 45120,
+  "frame_trace_sources": [
+    {
+      "path": "runs/red1_hydrophone1/red1_hydrophone1_frame_trace.csv",
+      "rows": 3760,
+      "sha256": "0782973b86c07cb4c590cb11b007fa65e6d579357170e4a72c174f161a22c93e"
+    },
+    {
+      "path": "runs/red1_hydrophone2/red1_hydrophone2_frame_trace.csv",
+      "rows": 3760,
+      "sha256": "369f68e3299f4b0cf30793def2094be4f59bfd5dd77f826f26373b899a267261"
+    },
+    {
+      "path": "runs/red1_hydrophone3/red1_hydrophone3_frame_trace.csv",
+      "rows": 3760,
+      "sha256": "2b49d602df1bb8a5f8c0894150e0cbe9294450c2be08ba32088fb2bfa2bef988"
+    },
+    {
+      "path": "runs/red2_hydrophone1/red2_hydrophone1_frame_trace.csv",
+      "rows": 3760,
+      "sha256": "fa40b451dcc5f1db3b17f52446beeca45d3b65dc71cc8d365d42146911e4fc67"
+    },
+    {
+      "path": "runs/red2_hydrophone2/red2_hydrophone2_frame_trace.csv",
+      "rows": 3760,
+      "sha256": "27681d5e37cc6f3d656699ed7ae0ce7f149d0a1d12532fa420f71941fa719a6a"
+    },
+    {
+      "path": "runs/red2_hydrophone3/red2_hydrophone3_frame_trace.csv",
+      "rows": 3760,
+      "sha256": "a2d07059268927dbb50b4601ea5c1067522053dc5ab1b79c1812ed7d192799d2"
+    },
+    {
+      "path": "runs/red3_hydrophone1/red3_hydrophone1_frame_trace.csv",
+      "rows": 3760,
+      "sha256": "cd82eda57cc00842125f549adcbdb4f5a5553937315cd7be21cf1ba63bb2a086"
+    },
+    {
+      "path": "runs/red3_hydrophone2/red3_hydrophone2_frame_trace.csv",
+      "rows": 3760,
+      "sha256": "6cb0d9442d0ced11fcd6bc5abf2f5c897cdfaa06aa533cde12ba1dbeb4ec80c8"
+    },
+    {
+      "path": "runs/red3_hydrophone3/red3_hydrophone3_frame_trace.csv",
+      "rows": 3760,
+      "sha256": "6dcb345dc6a531946f85a0556ad4419e0a0e5acde14655fa144d4200ce986b23"
+    },
+    {
+      "path": "runs/red4_hydrophone1/red4_hydrophone1_frame_trace.csv",
+      "rows": 3760,
+      "sha256": "0b6ccd515143d0a61401164dadb65c66044b4a3be06434053e96b1da768be709"
+    },
+    {
+      "path": "runs/red4_hydrophone2/red4_hydrophone2_frame_trace.csv",
+      "rows": 3760,
+      "sha256": "bac88aa9d1027584a0bdd436f95476de2bd9a1e0349041ab6868d14641c277ac"
+    },
+    {
+      "path": "runs/red4_hydrophone3/red4_hydrophone3_frame_trace.csv",
+      "rows": 3760,
+      "sha256": "51ff932eaa98a8a06af2a43ae3b0bcd3b3c25fe79142f68d0686abb50dd573aa"
+    }
+  ],
+  "frame_window_selection": "forty-seven approximately non-overlapping complete replay windows",
+  "frames_per_point": 47,
+  "geometry": {
+    "check_degree": "14",
+    "code_rate": "0.5",
+    "cp": "64",
+    "horizon": "0",
+    "inner_spacing": "10",
+    "nfft": "2048",
+    "outer_spacing": "10"
+  },
+  "geometry_display": {
+    "check_degree": "14",
+    "code_rate": "0.5",
+    "cp": "64",
+    "horizon": "0",
+    "inner_spacing": "10",
+    "nfft": "2048",
+    "outer_spacing": "10"
+  },
+  "noise_model": {
+    "generator": "BenchmarkPort._add_awgn",
+    "kind": "awgn",
+    "note": "independent complex Gaussian samples"
+  },
+  "panel_count": 12,
+  "partial_fft_bands": 16,
+  "partial_fft_parts": 4,
+  "path_contracts": [
+    {
+      "path": "runs/red1_hydrophone1/awgn027_path_contract.txt",
+      "sha256": "c219fd0f53781fa61adfb7b07032d5e9988cd0bb97b29bff0a0ae8e6a947cc1f"
+    },
+    {
+      "path": "runs/red1_hydrophone2/awgn027_path_contract.txt",
+      "sha256": "275587d0c003ebfa8a4836a226fd75c6eb7c500ee759047aa34300df2ae90aac"
+    },
+    {
+      "path": "runs/red1_hydrophone3/awgn027_path_contract.txt",
+      "sha256": "9663c5120ac57cadccff10390890e539b586c52be781e3baf88833097eec8888"
+    },
+    {
+      "path": "runs/red2_hydrophone1/awgn027_path_contract.txt",
+      "sha256": "8f2b7997012f8ff300eadb89009e266cef0a2dca159232c69f74dc99845e2e07"
+    },
+    {
+      "path": "runs/red2_hydrophone2/awgn027_path_contract.txt",
+      "sha256": "a8536eafd6657fb7b7fd6371c5d84bd194f3162ad6639fe929441454eb0574e1"
+    },
+    {
+      "path": "runs/red2_hydrophone3/awgn027_path_contract.txt",
+      "sha256": "5eb8d06c5a6b41a6b227aac6a7575382bda0583b7828d11b18c1542f908e8af0"
+    },
+    {
+      "path": "runs/red3_hydrophone1/awgn027_path_contract.txt",
+      "sha256": "9a48ca5b184319b14637c4030e1bc931a348c9671389fb5f7b8396d0f526e8e2"
+    },
+    {
+      "path": "runs/red3_hydrophone2/awgn027_path_contract.txt",
+      "sha256": "bb612f9d381211b4206e9ff9137b498600645c32ed5841f0366eacd6dbd902b4"
+    },
+    {
+      "path": "runs/red3_hydrophone3/awgn027_path_contract.txt",
+      "sha256": "9d37251a7321c53bca219f6c18d21b6c9da84b78db2ae043f8723aac01c02d96"
+    },
+    {
+      "path": "runs/red4_hydrophone1/awgn027_path_contract.txt",
+      "sha256": "8ad7fb03fbbec91c63b8050f64f8ee6ab41bc7b69f2eb4c29bf2291a7a33c4da"
+    },
+    {
+      "path": "runs/red4_hydrophone2/awgn027_path_contract.txt",
+      "sha256": "282fe088fcb7a431c5a9effd435a6d84240d8375224d596d936ef8bdca836de0"
+    },
+    {
+      "path": "runs/red4_hydrophone3/awgn027_path_contract.txt",
+      "sha256": "9acdd1dc1acac11fc4174a66132eca9090d3f4e45b77c3f0c68b8b1e1ae447bd"
+    }
+  ],
+  "paths": [
+    "red1 1",
+    "red1 2",
+    "red1 3",
+    "red2 1",
+    "red2 2",
+    "red2 3",
+    "red3 1",
+    "red3 2",
+    "red3 3",
+    "red4 1",
+    "red4 2",
+    "red4 3"
+  ],
+  "payload_bits_per_frame": 3296,
+  "payload_bits_per_point": 154912,
+  "protected_receivers": [
+    "cwz_joint",
+    "profiled_cz"
+  ],
+  "protected_trace_row_count": 18048,
+  "protected_trace_sources": [
+    {
+      "path": "runs/red1_hydrophone1/red1_hydrophone1_selection_trace.csv",
+      "rows": 1504,
+      "sha256": "31ce50f67c9d0f0d977759d4b3c3d9dbe7f7132932e56d842e74ca9f2b9808da"
+    },
+    {
+      "path": "runs/red1_hydrophone2/red1_hydrophone2_selection_trace.csv",
+      "rows": 1504,
+      "sha256": "cfecbe02721461383dfaa85cb1c9ed595ce88fd800605b331535693ee6fa3865"
+    },
+    {
+      "path": "runs/red1_hydrophone3/red1_hydrophone3_selection_trace.csv",
+      "rows": 1504,
+      "sha256": "9c033dbebe416236ece144effb9b117e36957bbdc0307e2c4653083ce26b5864"
+    },
+    {
+      "path": "runs/red2_hydrophone1/red2_hydrophone1_selection_trace.csv",
+      "rows": 1504,
+      "sha256": "3ee2906e0ec796738e026ff5ce2b6f86d73fafb1369606af3a006470440f6d06"
+    },
+    {
+      "path": "runs/red2_hydrophone2/red2_hydrophone2_selection_trace.csv",
+      "rows": 1504,
+      "sha256": "e1a06352bfc3b84950e2604c48cf886609434c3df9571b2a6826b52717fc776b"
+    },
+    {
+      "path": "runs/red2_hydrophone3/red2_hydrophone3_selection_trace.csv",
+      "rows": 1504,
+      "sha256": "4268025e8d0fe527aa0a6c07a418b1f13544e808ee787ef5a6269447b7aef04e"
+    },
+    {
+      "path": "runs/red3_hydrophone1/red3_hydrophone1_selection_trace.csv",
+      "rows": 1504,
+      "sha256": "cd55dbe762803145b6b35d3b00cf5d95c59b4638c7f38f8ccf4fd75509f30047"
+    },
+    {
+      "path": "runs/red3_hydrophone2/red3_hydrophone2_selection_trace.csv",
+      "rows": 1504,
+      "sha256": "b63cbd906676568642e1fea83eef8eccc0447256f9801d3c4fea0df13c270d38"
+    },
+    {
+      "path": "runs/red3_hydrophone3/red3_hydrophone3_selection_trace.csv",
+      "rows": 1504,
+      "sha256": "3597a2d441fc6878752b21510fd779fa29807a587f2504eae613b1d9761b5792"
+    },
+    {
+      "path": "runs/red4_hydrophone1/red4_hydrophone1_selection_trace.csv",
+      "rows": 1504,
+      "sha256": "3c0305491839057945393362fbcb50a4a6cd1aee6124bdb6ff576c858692a405"
+    },
+    {
+      "path": "runs/red4_hydrophone2/red4_hydrophone2_selection_trace.csv",
+      "rows": 1504,
+      "sha256": "480dfd90f71b2285bbbb1af7274ab6671dc8fb91284684b5d2c43af8fd49794d"
+    },
+    {
+      "path": "runs/red4_hydrophone3/red4_hydrophone3_selection_trace.csv",
+      "rows": 1504,
+      "sha256": "1ffdd84f009d3303cddcdb4058009b432849fc92b379f49a32ea5a1c3e076d0c"
+    }
+  ],
+  "receiver_policy": {
+    "cwz_joint": "CRC no-harm",
+    "lite": "unchanged",
+    "profiled_cz": "CRC no-harm"
+  },
+  "receivers": [
+    "cwz_joint",
+    "lite",
+    "ofdm_fec",
+    "pfft",
+    "profiled_cz"
+  ],
+  "result_group": "configuration",
+  "result_scope": "BER versus SNR, complete measured capture, 47 frames per point, seed 4",
+  "row_count": 960,
+  "runner_sources": {
+    "awgn027_contract_test.jl": "8f75b2b87190a5b4db524896c49854971cc7fd02d7f357357d8ba5f15e0c6795",
+    "awgn027_sweep.jl": "058219ed6cd95393fdc7f9cf148870dea251abec1e1ab63f94e0231d21806ee3",
+    "build_results.py": "8b35ffb734b0805fca89206b286ea4625160c5f4a0a5eb500b050a2c27694f47",
+    "matrix_contract.py": "85e739f27954a1e8e77de3122ff0dc63e91c015215da60de03de82c336f9eb9e",
+    "results_contract_test.py": "76af35beab72ab8917de44a5b97800d0836c62f17f7d42429dcea7ca594a9ce2",
+    "run_awgn027.jl": "59ead948e99cddfb921f44036b9cd0abfbc73fdabdbac8a06e24abcf769f5ae8",
+    "source_contract.json": "95ad236c8426abf3d1c5faaddb1a1f2cf7c9799fc27fad650b8e60cd918831b4",
+    "validate_matrix.py": "62b17ef06cbd1717b2c69d062ddbb510de56fd22f127756a7c57852f84b577bb",
+    "validate_results.py": "541852943ff95a7b982ac0c9563fb304ee425bea6269a8e912f4f3beb3341323"
+  },
+  "schedule_provenance": {
+    "noise_seed_range": [
+      4,
+      50
+    ],
+    "optimizer_seed": 4,
+    "outcome_equality_required": false,
+    "payload_seed_range": [
+      4,
+      50
+    ],
+    "replay_seed_range": [
+      4,
+      50
+    ],
+    "schedule_source": "AWGN-023B",
+    "snapshot_schedule_equality_required": false,
+    "source_contract_sha256": "7081e56775f5665d615964dd7230596b0f8afd301ce0889dad5a0e606f510e00",
+    "source_sweep": "/home/gabiel/Documents/GitHub/Juna-worktrees/awgn-results/JunaCore/experiments/2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-sweep/awgn023b_sweep.jl",
+    "source_sweep_sha256": "6a995c62fbd938d69b7aa2c19f76e0bf618769b956fe764f64f19a60cb5d38ca"
+  },
+  "schema_version": 1,
+  "seed": 4,
+  "series_count": 60,
+  "snapshot_indices": [
+    1,
+    99,
+    197,
+    294,
+    392,
+    490,
+    588,
+    686,
+    783,
+    881,
+    979,
+    1077,
+    1175,
+    1272,
+    1370,
+    1468,
+    1566,
+    1664,
+    1761,
+    1859,
+    1957,
+    2055,
+    2153,
+    2250,
+    2348,
+    2446,
+    2544,
+    2642,
+    2740,
+    2837,
+    2935,
+    3033,
+    3131,
+    3229,
+    3326,
+    3424,
+    3522,
+    3620,
+    3718,
+    3815,
+    3913,
+    4011,
+    4109,
+    4207,
+    4304,
+    4402,
+    4500
+  ],
+  "snr_db": [
+    0.0,
+    2.0,
+    4.0,
+    6.0,
+    8.0,
+    10.0,
+    12.0,
+    14.0,
+    16.0,
+    18.0,
+    20.0,
+    22.0,
+    24.0,
+    26.0,
+    28.0,
+    30.0
+  ],
+  "snr_definition": "mean replayed-signal power divided by target added complex AWGN power",
+  "source_contract": {
+    "active_manifest_sha256": "ab8752e8e162a64bcf22441d1b4906dd30ef7c40447b7d8abe5bc22a93226b90",
+    "active_project": "/home/gabiel/Documents/GitHub/Juna-worktrees/src-001a-receiver-source/JunaCore/experiments/2026-08-04-red-snr-sweep/Project.toml",
+    "active_project_sha256": "09dd9b79369735576e21c210c969e16dbf77cc1ea333aecb2e4ee9d3b13a0ef0",
+    "campaign": "AWGN-027",
+    "capture_sources": {
+      "red_1.mat": "09556b49e453a351f72b5c71435aab0048f68a80ab3b926ca4353dab47e89c45",
+      "red_2.mat": "0e42027cd51137e0c4519c7a9c109568ab513a5eece1abfc60b0073fe605f6eb",
+      "red_3.mat": "e3e4e53e96ec361e3df492616ae3f024727f039b5e5b1405dd709c8265798179",
+      "red_4.mat": "115ac3d1ae8b067858192f32a3fcfd073ee0220b3e2d0f5a6dc1dc7460bd27aa"
+    },
+    "family": "2026-08-10-red-awgn-full-capture-frames47-crc-no-harm",
+    "global": {
+      "aggregate_rows": 960,
+      "frame_trace_rows": 45120,
+      "protected_trace_rows": 18048
+    },
+    "measurement": {
+      "capture_position_stop": 4500,
+      "capture_seconds": 47.78125,
+      "check_degree": 14,
+      "code_rate": 0.5,
+      "cp": 64,
+      "final_replay_support_end_seconds": 47.7734375,
+      "frame_samples": 8320,
+      "frames": 47,
+      "horizon": 0,
+      "inner_spacing": 10,
+      "nfft": 2048,
+      "outer_spacing": 10,
+      "partial_fft_parts": 4,
+      "paths": 12,
+      "seed": 4,
+      "snapshot_indices": [
+        1,
+        99,
+        197,
+        294,
+        392,
+        490,
+        588,
+        686,
+        783,
+        881,
+        979,
+        1077,
+        1175,
+        1272,
+        1370,
+        1468,
+        1566,
+        1664,
+        1761,
+        1859,
+        1957,
+        2055,
+        2153,
+        2250,
+        2348,
+        2446,
+        2544,
+        2642,
+        2740,
+        2837,
+        2935,
+        3033,
+        3131,
+        3229,
+        3326,
+        3424,
+        3522,
+        3620,
+        3718,
+        3815,
+        3913,
+        4011,
+        4109,
+        4207,
+        4304,
+        4402,
+        4500
+      ],
+      "snr_db": [
+        0,
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16,
+        18,
+        20,
+        22,
+        24,
+        26,
+        28,
+        30
+      ]
+    },
+    "optimized_variables": {
+      "cwz_joint": "C+W+z",
+      "profiled_cz": "C+z"
+    },
+    "payload_bits_per_frame": 3296,
+    "payload_bits_per_point": 154912,
+    "per_path": {
+      "aggregate_rows": 80,
+      "frame_trace_rows": 3760,
+      "protected_trace_rows": 1504
+    },
+    "receiver_source": {
+      "base_commit": "7fbdec9dd93e7ed5caade4bae4a73ccd030a7d3f",
+      "changed_source_sha256": {
+        "JunaCore/src/JunaCore.jl": "1666665f7a2728033d8f3645afa308fa8605d238dc534d038f4a611b0f419932",
+        "JunaCore/src/juna/common.jl": "447bada2fb97bcff256f0d5acf6b9e6b867f1d852f0b3e24a9c8344eabb906ff",
+        "JunaCore/src/juna/frame_wide_ldpc.jl": "f220e44dd80b5332ece6c140fdd8ac75e31ce8849bb2584de16e2cf561a12ab2",
+        "JunaCore/src/juna/profiled_cz_frame.jl": "46c2e77080a6161c356acfe1691f9139ef0102ee5fa1696cd317ece426b4feb4"
+      },
+      "loaded_modules": [
+        "JunaCore.JunaProfiledCzFrame.Modulation",
+        "JunaCore.JunaCrcConditionedJointCwzFrame.Modulation"
+      ],
+      "repository": "/home/gabiel/Documents/GitHub/Juna-worktrees/crc-no-harm-gradients",
+      "tracked_source_diff_sha256": "4e19b15bea8fd9c96c2721691629ae35deb3538e43b92ccc1ec9a7fe8cdf8821"
+    },
+    "receivers": [
+      {
+        "crc_no_harm": false,
+        "id": "ofdm_fec",
+        "name": "OFDM + FEC"
+      },
+      {
+        "crc_no_harm": false,
+        "id": "pfft",
+        "name": "Partial-FFT + FEC"
+      },
+      {
+        "crc_no_harm": false,
+        "id": "lite",
+        "name": "JUNA-Lite"
+      },
+      {
+        "crc_no_harm": true,
+        "id": "profiled_cz",
+        "name": "JUNA (C,z) Joint gradient"
+      },
+      {
+        "crc_no_harm": true,
+        "id": "cwz_joint",
+        "name": "Juna joint (C,W,z)"
+      }
+    ],
+    "schedule_provenance": {
+      "noise_seed_range": [
+        4,
+        50
+      ],
+      "optimizer_seed": 4,
+      "outcome_equality_required": false,
+      "payload_seed_range": [
+        4,
+        50
+      ],
+      "replay_seed_range": [
+        4,
+        50
+      ],
+      "schedule_source": "AWGN-023B",
+      "snapshot_schedule_equality_required": false,
+      "source_contract_sha256": "7081e56775f5665d615964dd7230596b0f8afd301ce0889dad5a0e606f510e00",
+      "source_sweep": "/home/gabiel/Documents/GitHub/Juna-worktrees/awgn-results/JunaCore/experiments/2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-sweep/awgn023b_sweep.jl",
+      "source_sweep_sha256": "6a995c62fbd938d69b7aa2c19f76e0bf618769b956fe764f64f19a60cb5d38ca"
+    },
+    "selection_reasons": [
+      "standard_crc_valid",
+      "crc_rescue",
+      "standard_fallback"
+    ]
+  },
+  "source_contract_sha256": "95ad236c8426abf3d1c5faaddb1a1f2cf7c9799fc27fad650b8e60cd918831b4",
+  "sources": [
+    {
+      "path": "runs/red1_hydrophone1/red_snr_sweep_awgn_full_capture_frames47_configuration.csv",
+      "rows": 80,
+      "sha256": "091c449abfbe019eece14953cdc50a589e7ae6dcc65a59ebc95abd4e501ffe39"
+    },
+    {
+      "path": "runs/red1_hydrophone2/red_snr_sweep_awgn_full_capture_frames47_configuration.csv",
+      "rows": 80,
+      "sha256": "5cb548c16c74d0dcaa0f6d23761cfa3df1a0540ae3a658c6cb5c20b82eb16ba3"
+    },
+    {
+      "path": "runs/red1_hydrophone3/red_snr_sweep_awgn_full_capture_frames47_configuration.csv",
+      "rows": 80,
+      "sha256": "6d350cc27548a219322e8c4a75f18421e39036991c74e1915e5d73a1d8aa7875"
+    },
+    {
+      "path": "runs/red2_hydrophone1/red_snr_sweep_awgn_full_capture_frames47_configuration.csv",
+      "rows": 80,
+      "sha256": "215b0f88313776330c8a244dd2eadf6335bc1f87744cfe7402b81d6749e24610"
+    },
+    {
+      "path": "runs/red2_hydrophone2/red_snr_sweep_awgn_full_capture_frames47_configuration.csv",
+      "rows": 80,
+      "sha256": "5f7c8838505a96b57a5f4c75aa0bc983653fc439cbfd6470cbbd65ffc66d03d5"
+    },
+    {
+      "path": "runs/red2_hydrophone3/red_snr_sweep_awgn_full_capture_frames47_configuration.csv",
+      "rows": 80,
+      "sha256": "b291fe0b45116bd778379a531419ac89a2a35dce4228ee84b253c3077f2c21f5"
+    },
+    {
+      "path": "runs/red3_hydrophone1/red_snr_sweep_awgn_full_capture_frames47_configuration.csv",
+      "rows": 80,
+      "sha256": "eb3bc69622d2b1a065c591eaccb39ec11cd3e2340feda110bff2a8f79e0c1224"
+    },
+    {
+      "path": "runs/red3_hydrophone2/red_snr_sweep_awgn_full_capture_frames47_configuration.csv",
+      "rows": 80,
+      "sha256": "c46c8b13f66a30789ec3e85139ad30a6eaf000cea2e765bffbf305813aa7abfa"
+    },
+    {
+      "path": "runs/red3_hydrophone3/red_snr_sweep_awgn_full_capture_frames47_configuration.csv",
+      "rows": 80,
+      "sha256": "fa3544c208e2a9eae80b58a676c5528a2500c65fe8e07402d4dcb6f4d635ba73"
+    },
+    {
+      "path": "runs/red4_hydrophone1/red_snr_sweep_awgn_full_capture_frames47_configuration.csv",
+      "rows": 80,
+      "sha256": "d8a07c619be2840646ebf060869ed24c8c13cfe47c99fb94fe78003ddc24890f"
+    },
+    {
+      "path": "runs/red4_hydrophone2/red_snr_sweep_awgn_full_capture_frames47_configuration.csv",
+      "rows": 80,
+      "sha256": "b1379ffc1196950a3eece3d6d7928c61e9f3fb623c882176bc671651565b22ce"
+    },
+    {
+      "path": "runs/red4_hydrophone3/red_snr_sweep_awgn_full_capture_frames47_configuration.csv",
+      "rows": 80,
+      "sha256": "58c7e8d906c3db94f66f1068682d779c389f83dd670bca731792c7d758e385cc"
+    }
+  ],
+  "time_window_s": [
+    0.0,
+    47.78125
+  ]
+}
