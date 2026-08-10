@@ -8,8 +8,9 @@ import os
 import sys
 
 
+CAPTURE_SECONDS = int(os.environ.get("JUNA_N512_NO_HARM_CAPTURE_SECONDS", "32"))
 EXPERIMENT_ID = (
-    "2026-08-10-red-awgn-first32s-frames32-crc-gated-no-harm-"
+    f"2026-08-10-red-awgn-first{CAPTURE_SECONDS}s-frames32-crc-gated-no-harm-"
     "n512-cp64-rate025-p5-5-dc14-kfill-pfft4"
 )
 PATHS = {(f"red{channel}", lane)
@@ -34,7 +35,8 @@ def main():
                   os.path.join(package, "experiments", EXPERIMENT_ID))
     results = os.path.join(experiment, "results")
     aggregate_path = os.path.join(
-        results, "red_snr_sweep_awgn_first32s_frames32_crc_no_harm.csv")
+        results,
+        f"red_snr_sweep_awgn_first{CAPTURE_SECONDS}s_frames32_crc_no_harm.csv")
     require(os.path.isfile(aggregate_path), "missing aggregate")
     with open(aggregate_path, newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
@@ -51,8 +53,9 @@ def main():
         "outer_spacing": "5", "inner_spacing": "5",
         "check_degree": "14", "horizon": "0",
         "partial_fft_parts": "4", "capture_start_seconds": "0.0",
-        "capture_stop_seconds": "32.0", "capture_tap_snapshots": "3073",
-        "capture_phase_samples": "614600",
+        "capture_stop_seconds": f"{float(CAPTURE_SECONDS)}",
+        "capture_tap_snapshots": str(CAPTURE_SECONDS * 96 + 1),
+        "capture_phase_samples": str(CAPTURE_SECONDS * 19_200 + 200),
     }
     for field, expected in exact.items():
         require({row[field] for row in rows} == {expected}, field + " differs")
@@ -153,7 +156,8 @@ def main():
     require(os.path.isfile(os.path.join(results, "results_view.html")),
             "missing rendered results page")
     print(
-        "VALID N512 CRC NO-HARM: 12/12 paths, 960 aggregates, "
+        f"VALID N512 CRC NO-HARM FIRST{CAPTURE_SECONDS}S: 12/12 paths, "
+        "960 aggregates, "
         "30720 frame traces, 12288 selection traces, 12 panels, 60 series"
     )
 

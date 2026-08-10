@@ -9,14 +9,15 @@ import subprocess
 import sys
 
 
+CAPTURE_SECONDS = int(os.environ.get("JUNA_N512_NO_HARM_CAPTURE_SECONDS", "32"))
 EXPERIMENT_ID = (
-    "2026-08-10-red-awgn-first32s-frames32-crc-gated-no-harm-"
+    f"2026-08-10-red-awgn-first{CAPTURE_SECONDS}s-frames32-crc-gated-no-harm-"
     "n512-cp64-rate025-p5-5-dc14-kfill-pfft4"
 )
 PATHS = [(f"red{channel}", lane)
          for channel in range(1, 5) for lane in range(1, 4)]
-PER_PATH = "red_snr_sweep_awgn_first32s_frames32_configuration.csv"
-AGGREGATE = "red_snr_sweep_awgn_first32s_frames32_crc_no_harm.csv"
+PER_PATH = f"red_snr_sweep_awgn_first{CAPTURE_SECONDS}s_frames32_configuration.csv"
+AGGREGATE = f"red_snr_sweep_awgn_first{CAPTURE_SECONDS}s_frames32_crc_no_harm.csv"
 
 
 def digest(path):
@@ -76,7 +77,8 @@ def main():
         "experiment_id": EXPERIMENT_ID,
         "result_group": "awgn",
         "result_scope": (
-            "BER versus SNR, first 32 seconds, 32 frames per point, seed 4"
+            f"BER versus SNR, first {CAPTURE_SECONDS} seconds, "
+            "32 frames per point, seed 4"
         ),
         "geometry": {
             "nfft": "512", "cp": "64", "code_rate": "0.25",
@@ -91,7 +93,7 @@ def main():
         },
         "frames_per_point": 32,
         "seed": 4,
-        "capture_time_seconds": [0.0, 32.0],
+        "capture_time_seconds": [0.0, float(CAPTURE_SECONDS)],
         "noise_model": {
             "kind": "awgn",
             "distribution": "proper-complex Gaussian",
@@ -147,7 +149,8 @@ def main():
         os.path.join(results, "results_view.html"),
     ], check=True)
     print(
-        "BUILT N512 CRC NO-HARM: 960 aggregates, 30720 frame traces, "
+        f"BUILT N512 CRC NO-HARM FIRST{CAPTURE_SECONDS}S: 960 aggregates, "
+        "30720 frame traces, "
         f"12288 selection traces, payload={payloads[0]}"
     )
 

@@ -10,7 +10,13 @@ $project = Join-Path $sourceRoot 'JunaCore\experiments\2026-08-08-red-awgn-snr-s
 $runner = Join-Path $repo 'JunaCore\bench\run_awgn_n512_crc_no_harm.jl'
 $builder = Join-Path $repo 'JunaCore\bench\build_awgn_n512_crc_no_harm.py'
 $validator = Join-Path $repo 'JunaCore\bench\validate_awgn_n512_crc_no_harm.py'
-$experiment = Join-Path $repo 'JunaCore\experiments\2026-08-10-red-awgn-first32s-frames32-crc-gated-no-harm-n512-cp64-rate025-p5-5-dc14-kfill-pfft4'
+$captureSeconds = if ($env:JUNA_N512_NO_HARM_CAPTURE_SECONDS) {
+    [int]$env:JUNA_N512_NO_HARM_CAPTURE_SECONDS
+} else {
+    32
+}
+$experimentId = "2026-08-10-red-awgn-first${captureSeconds}s-frames32-crc-gated-no-harm-n512-cp64-rate025-p5-5-dc14-kfill-pfft4"
+$experiment = Join-Path $repo (Join-Path 'JunaCore\experiments' $experimentId)
 
 $assignments = @(
     @{ Name = 'worker1'; Paths = '1,5,9' },
@@ -38,6 +44,7 @@ $workers = foreach ($assignment in $assignments) {
         Process = $process
         Stdout = $stdout
         Stderr = $stderr
+        RunLog = Join-Path $experiment ('n512_crc_no_harm_' + $assignment.Name + '.log')
     }
 }
 
@@ -46,13 +53,20 @@ Write-Output ("N512_NO_HARM_WORKERS_STARTED " +
 
 foreach ($worker in $workers) {
     Wait-Process -Id $worker.Process.Id
-    $worker.Process.Refresh()
-    if ($worker.Process.ExitCode -ne 0) {
+    $stderrLength = if (Test-Path $worker.Stderr) {
+        (Get-Item -LiteralPath $worker.Stderr).Length
+    } else {
+        0
+    }
+    $complete = (Test-Path $worker.RunLog) -and
+        [bool](Select-String -LiteralPath $worker.RunLog `
+            -Pattern '^N512_CRC_NO_HARM_COMPUTE_COMPLETE ' -Quiet)
+    if ($stderrLength -gt 0 -or -not $complete) {
         Write-Output ("N512_NO_HARM_WORKER_FAILED " + $worker.Name)
         if (Test-Path $worker.Stderr) {
             Get-Content -LiteralPath $worker.Stderr -Tail 100
         }
-        exit $worker.Process.ExitCode
+        exit 1
     }
     Write-Output ("N512_NO_HARM_WORKER_COMPLETE " + $worker.Name)
 }
