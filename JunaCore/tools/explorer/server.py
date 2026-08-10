@@ -1607,6 +1607,8 @@ _AWGN_023C_FAMILY = (
     "2026-08-10-red-awgn-repeated-first32s-frames128-crc-no-harm")
 _AWGN_025_FAMILY = (
     "2026-08-10-red-awgn-full-capture-frames47-rate05-crc-no-harm")
+_AWGN_026_FAMILY = (
+    "2026-08-10-red-awgn-full-capture-frames47-p10-10-crc-no-harm")
 _AWGN_PROGRESS_AGGREGATE = (
     "red_snr_sweep_awgn_first4s_frames4_configuration.csv")
 _AWGN_020_AGGREGATE = (
@@ -1685,6 +1687,16 @@ _AWGN_025_CONFIGURATIONS = (
     "rate05-p5-5-dc14-kfill-pfft4",
 )
 _AWGN_025_HARNESS = _AWGN_025_CONFIGURATIONS[0]
+_AWGN_026_CONFIGURATIONS = (
+    f"{_AWGN_026_FAMILY}-n1024-cp64-"
+    "rate025-p10-10-dc14-kfill-pfft4",
+)
+_AWGN_026_HARNESS = _AWGN_026_CONFIGURATIONS[0]
+_AWGN_027_CONFIGURATIONS = (
+    f"{_AWGN_023B_FAMILY}-n2048-cp64-"
+    "rate05-p10-10-dc14-kfill-pfft4",
+)
+_AWGN_027_HARNESS = _AWGN_027_CONFIGURATIONS[0]
 _AWGN_PROGRESS_CAMPAIGNS = (
     {"campaign_id": "AWGN-008", "code_rate": "0.25",
      "rate_token": "025", "outer_spacing": 5,
@@ -1757,6 +1769,18 @@ _AWGN_PROGRESS_CAMPAIGNS = (
      "configurations": _AWGN_025_CONFIGURATIONS,
      "harness": _AWGN_025_HARNESS, "log": "awgn025_sweep.log",
      "path_contract": "awgn025_path_contract.txt",
+     "aggregate": _AWGN_023B_AGGREGATE},
+    {"campaign_id": "AWGN-026", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 10,
+     "configurations": _AWGN_026_CONFIGURATIONS,
+     "harness": _AWGN_026_HARNESS, "log": "awgn026_sweep.log",
+     "path_contract": "awgn026_path_contract.txt",
+     "aggregate": _AWGN_023B_AGGREGATE},
+    {"campaign_id": "AWGN-027", "code_rate": "0.5",
+     "rate_token": "05", "outer_spacing": 10,
+     "configurations": _AWGN_027_CONFIGURATIONS,
+     "harness": _AWGN_027_HARNESS, "log": "awgn027_sweep.log",
+     "path_contract": "awgn027_path_contract.txt",
      "aggregate": _AWGN_023B_AGGREGATE},
 )
 _AWGN_PROGRESS_PATHS = tuple(
@@ -1908,7 +1932,7 @@ def _awgn_overall_state(campaigns, matrix_complete):
 
 
 def _awgn_progress_data():
-    """Aggregate approved AWGN-008 through AWGN-025 campaigns."""
+    """Aggregate approved AWGN-008 through AWGN-027 campaigns."""
     campaigns = [_awgn_campaign_progress(campaign)
                  for campaign in _AWGN_PROGRESS_CAMPAIGNS]
     completed_paths = sum(item["completed_paths"] for item in campaigns)
@@ -1943,9 +1967,9 @@ def _awgn_progress_card():
     return """
 <div id="awgn-live-progress" class="card" role="status" aria-live="polite">
 <div style="display:flex;justify-content:space-between;gap:.8rem">
-<strong>AWGN-008, AWGN-009, AWGN-012, AWGN-015, AWGN-016, AWGN-017, AWGN-018, AWGN-019, AWGN-020, AWGN-021, AWGN-022, AWGN-023B, AWGN-023C, AWGN-024, and AWGN-025 real-time progress</strong>
+<strong>AWGN-008, AWGN-009, AWGN-012, AWGN-015, AWGN-016, AWGN-017, AWGN-018, AWGN-019, AWGN-020, AWGN-021, AWGN-022, AWGN-023B, AWGN-023C, AWGN-024, AWGN-025, AWGN-026, and AWGN-027 real-time progress</strong>
 <span id="awgn-progress-state">checking...</span></div>
-<progress id="awgn-progress-bar" max="684" value="0"
+<progress id="awgn-progress-bar" max="708" value="0"
 style="display:block;width:100%;height:1.1rem;margin:.55rem 0"></progress>
 <div id="awgn-progress-text">Reading validated result paths...</div>
 <div id="awgn-progress-campaigns" style="white-space:pre-line"></div>
