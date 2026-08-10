@@ -12,15 +12,20 @@ const DATA_DIR = get(
     ENV, "JUNA_RED_DATA_DIR",
     joinpath(SOURCE_ROOT, "JunaCore", "experiments",
              "2026-08-01-red-lite-search", "data"))
+const CAPTURE_SECONDS = parse(
+    Float64, get(ENV, "JUNA_N512_NO_HARM_CAPTURE_SECONDS", "32"))
+CAPTURE_SECONDS > 0 && isinteger(CAPTURE_SECONDS) || error(
+    "JUNA_N512_NO_HARM_CAPTURE_SECONDS must be a positive whole number")
+const CAPTURE_LABEL = string(Int(CAPTURE_SECONDS))
 const EXPERIMENT_ID =
-    "2026-08-10-red-awgn-first32s-frames32-crc-gated-no-harm-" *
+    "2026-08-10-red-awgn-first$(CAPTURE_LABEL)s-frames32-crc-gated-no-harm-" *
     "n512-cp64-rate025-p5-5-dc14-kfill-pfft4"
 const OUTPUT_EXPERIMENTS = get(
     ENV, "JUNA_N512_NO_HARM_OUTPUT_EXPERIMENTS",
     normpath(joinpath(@__DIR__, "..", "experiments")))
 const EXPERIMENT_DIR = joinpath(OUTPUT_EXPERIMENTS, EXPERIMENT_ID)
 const RESULT_BASENAME =
-    "red_snr_sweep_awgn_first32s_frames32_configuration.csv"
+    "red_snr_sweep_awgn_first$(CAPTURE_LABEL)s_frames32_configuration.csv"
 const FRAME_TRACE_SUFFIX = "_frame_trace.csv"
 const SELECTION_TRACE_SUFFIX = "_selection_trace.csv"
 const PATHS = [(Symbol("red$channel"), lane)
@@ -67,7 +72,7 @@ const PROTECTED = Set((:profiled_cz, :cwz_joint))
 const MARKER_LOCK = ReentrantLock()
 const RUN_LOG_NAME = length(ARGS) >= 3 && ARGS[1] == "worker" ?
     "n512_crc_no_harm_$(ARGS[3]).log" : "n512_crc_no_harm_sweep.log"
-const SNAPSHOT_INDICES = [
+const SNAPSHOT_INDICES_32 = [
     1, 96, 190, 285, 385, 480, 574, 669,
     769, 864, 958, 1053, 1153, 1248, 1342, 1437,
     1537, 1632, 1726, 1821, 1921, 2016, 2110, 2205,
@@ -104,7 +109,8 @@ const PROTECTED_TRACE_HEADER = (
 )
 
 @eval B begin
-    const _N512_CRC_NO_HARM_POSITIONS = $SNAPSHOT_INDICES
+    const _N512_CRC_NO_HARM_POSITIONS_32 = $SNAPSHOT_INDICES_32
+    const _N512_CRC_NO_HARM_CAPTURE_SECONDS = $CAPTURE_SECONDS
     function _snapshot_positions(capture::ReplayCapture, packets::Integer,
                                  waveform_length::Integer, modem_fs::Real)
         count = Int(packets)
@@ -113,9 +119,15 @@ const PROTECTED_TRACE_HEADER = (
             "N512 no-harm runner supports one probe frame or 32 result frames"))
         _channel_samples, stop = _capture_position_limit(
             capture, Int(waveform_length) + 22, Float64(modem_fs))
-        last(_N512_CRC_NO_HARM_POSITIONS) <= stop || throw(ArgumentError(
-            "first32 schedule needs position 2973, capture supports $stop"))
-        copy(_N512_CRC_NO_HARM_POSITIONS)
+        if _N512_CRC_NO_HARM_CAPTURE_SECONDS == 32.0
+            last(_N512_CRC_NO_HARM_POSITIONS_32) <= stop || throw(ArgumentError(
+                "first32 schedule needs position 2973, capture supports $stop"))
+            return copy(_N512_CRC_NO_HARM_POSITIONS_32)
+        end
+        positions = round.(Int, range(1, stop; length=count))
+        allunique(positions) || throw(ArgumentError(
+            "capture-window packet positions are not distinct"))
+        positions
     end
 end
 
@@ -136,14 +148,16 @@ end
 function cropped_capture(channel::Symbol, lane::Integer)
     file = joinpath(DATA_DIR, getproperty(A.CHANNEL_FILES, channel))
     full = B.load_capture(file; receiver=Int(lane))
-    tap_snapshots = floor(Int, 32.0 * full.fs / full.step) + 1
-    phase_samples = floor(Int, 32.0 * full.fs) + full.step
-    tap_snapshots == 3_073 || error("tap crop differs")
-    phase_samples == 614_600 || error("phase crop differs")
+    tap_snapshots = floor(Int, CAPTURE_SECONDS * full.fs / full.step) + 1
+    phase_samples = floor(Int, CAPTURE_SECONDS * full.fs) + full.step
+    expected_taps = floor(Int, CAPTURE_SECONDS * 96) + 1
+    expected_phase = floor(Int, CAPTURE_SECONDS * 19_200) + 200
+    tap_snapshots == expected_taps || error("tap crop differs")
+    phase_samples == expected_phase || error("phase crop differs")
     B.ReplayLane.ReplayCapture(
         full.h[:, 1:tap_snapshots], full.phase[1:phase_samples],
         full.fs, full.fc, full.step, full.receiver,
-        full.name * "_first32s")
+        full.name * "_first$(CAPTURE_LABEL)s")
 end
 
 function write_csv(destination, rows, header)
@@ -198,7 +212,7 @@ end
 
 function path_contract(channel, lane, paths)
     join((
-        "campaign=N512-CRC-GATED-NO-HARM",
+        "campaign=N512-CRC-GATED-NO-HARM-FIRST$(CAPTURE_LABEL)S",
         "experiment_id=$EXPERIMENT_ID",
         "channel=$channel",
         "hydrophone=$lane",
@@ -256,7 +270,7 @@ function protected_trace_row(row, id, capture, decision)
     (
         workload_id=row.workload_id, snr_db=row.snr_db, frame=row.frame,
         algorithm_id=String(id), noise_model="awgn",
-        capture_start_seconds=0.0, capture_stop_seconds=32.0,
+        capture_start_seconds=0.0, capture_stop_seconds=CAPTURE_SECONDS,
         snapshot_index=row.snapshot_index,
         snapshot_seconds=snapshot_seconds(capture, row.snapshot_index),
         replay_support_end_seconds=replay_support_end_seconds(
@@ -282,7 +296,7 @@ function frame_trace_row(row, id, capture)
     (
         workload_id=row.workload_id, snr_db=row.snr_db, frame=row.frame,
         algorithm_id=String(id), noise_model="awgn",
-        capture_start_seconds=0.0, capture_stop_seconds=32.0,
+        capture_start_seconds=0.0, capture_stop_seconds=CAPTURE_SECONDS,
         snapshot_index=row.snapshot_index,
         snapshot_seconds=snapshot_seconds(capture, row.snapshot_index),
         replay_support_end_seconds=replay_support_end_seconds(
@@ -352,7 +366,7 @@ function evaluate(capture, channel, lane, snr; frames=32)
         ber=Float64(row.ber), decode_failures=Int(row.decode_failures),
         decode_seconds=Float64(row.mean_decode_seconds_per_frame),
         effective_rate_bps=Float64(row.effective_rate_bps),
-        capture_start_seconds=0.0, capture_stop_seconds=32.0,
+        capture_start_seconds=0.0, capture_stop_seconds=CAPTURE_SECONDS,
         capture_tap_snapshots=size(capture.h, 2),
         capture_phase_samples=length(capture.phase),
     ) for (index, row) in pairs(measured)]
@@ -407,8 +421,10 @@ function evaluate_path(channel, lane)
         return marker("SKIP_VALID $channel hydrophone $lane")
     marker("PATH_START $channel hydrophone $lane")
     capture = cropped_capture(channel, lane)
-    size(capture.h) == (768, 3_073) || error("tap crop differs")
-    length(capture.phase) == 614_600 || error("phase crop differs")
+    expected_taps = floor(Int, CAPTURE_SECONDS * 96) + 1
+    expected_phase = floor(Int, CAPTURE_SECONDS * 19_200) + 200
+    size(capture.h) == (768, expected_taps) || error("tap crop differs")
+    length(capture.phase) == expected_phase || error("phase crop differs")
     snrs = collect(0:2:30)
     # `benchmark_frame_capture` is not safe for concurrent multi-frame calls:
     # its frame callbacks can acquire the SNR label from another active call.
