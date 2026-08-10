@@ -1,0 +1,80 @@
+{
+  "campaign": "AWGN-027",
+  "family": "2026-08-10-red-awgn-full-capture-frames47-crc-no-harm",
+  "receiver_source": {
+    "repository": "/home/gabiel/Documents/GitHub/Juna-worktrees/crc-no-harm-gradients",
+    "base_commit": "7fbdec9dd93e7ed5caade4bae4a73ccd030a7d3f",
+    "tracked_source_diff_sha256": "4e19b15bea8fd9c96c2721691629ae35deb3538e43b92ccc1ec9a7fe8cdf8821",
+    "changed_source_sha256": {
+      "JunaCore/src/JunaCore.jl": "1666665f7a2728033d8f3645afa308fa8605d238dc534d038f4a611b0f419932",
+      "JunaCore/src/juna/common.jl": "447bada2fb97bcff256f0d5acf6b9e6b867f1d852f0b3e24a9c8344eabb906ff",
+      "JunaCore/src/juna/frame_wide_ldpc.jl": "f220e44dd80b5332ece6c140fdd8ac75e31ce8849bb2584de16e2cf561a12ab2",
+      "JunaCore/src/juna/profiled_cz_frame.jl": "46c2e77080a6161c356acfe1691f9139ef0102ee5fa1696cd317ece426b4feb4"
+    },
+    "loaded_modules": [
+      "JunaCore.JunaProfiledCzFrame.Modulation",
+      "JunaCore.JunaCrcConditionedJointCwzFrame.Modulation"
+    ]
+  },
+  "active_project": "/home/gabiel/Documents/GitHub/Juna-worktrees/src-001a-receiver-source/JunaCore/experiments/2026-08-04-red-snr-sweep/Project.toml",
+  "active_project_sha256": "09dd9b79369735576e21c210c969e16dbf77cc1ea333aecb2e4ee9d3b13a0ef0",
+  "active_manifest_sha256": "ab8752e8e162a64bcf22441d1b4906dd30ef7c40447b7d8abe5bc22a93226b90",
+  "schedule_provenance": {
+    "schedule_source": "AWGN-023B",
+    "source_sweep": "/home/gabiel/Documents/GitHub/Juna-worktrees/awgn-results/JunaCore/experiments/2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-sweep/awgn023b_sweep.jl",
+    "source_sweep_sha256": "6a995c62fbd938d69b7aa2c19f76e0bf618769b956fe764f64f19a60cb5d38ca",
+    "source_contract_sha256": "7081e56775f5665d615964dd7230596b0f8afd301ce0889dad5a0e606f510e00",
+    "payload_seed_range": [4, 50],
+    "noise_seed_range": [4, 50],
+    "replay_seed_range": [4, 50],
+    "optimizer_seed": 4,
+    "outcome_equality_required": false,
+    "snapshot_schedule_equality_required": false
+  },
+  "capture_sources": {
+    "red_1.mat": "09556b49e453a351f72b5c71435aab0048f68a80ab3b926ca4353dab47e89c45",
+    "red_2.mat": "0e42027cd51137e0c4519c7a9c109568ab513a5eece1abfc60b0073fe605f6eb",
+    "red_3.mat": "e3e4e53e96ec361e3df492616ae3f024727f039b5e5b1405dd709c8265798179",
+    "red_4.mat": "115ac3d1ae8b067858192f32a3fcfd073ee0220b3e2d0f5a6dc1dc7460bd27aa"
+  },
+  "measurement": {
+    "nfft": 2048,
+    "cp": 64,
+    "code_rate": 0.5,
+    "outer_spacing": 10,
+    "inner_spacing": 10,
+    "check_degree": 14,
+    "horizon": 0,
+    "partial_fft_parts": 4,
+    "snr_db": [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30],
+    "frames": 47,
+    "seed": 4,
+    "capture_seconds": 47.78125,
+    "frame_samples": 8320,
+    "capture_position_stop": 4500,
+    "final_replay_support_end_seconds": 47.7734375,
+    "snapshot_indices": [1, 99, 197, 294, 392, 490, 588, 686, 783, 881, 979, 1077, 1175, 1272, 1370, 1468, 1566, 1664, 1761, 1859, 1957, 2055, 2153, 2250, 2348, 2446, 2544, 2642, 2740, 2837, 2935, 3033, 3131, 3229, 3326, 3424, 3522, 3620, 3718, 3815, 3913, 4011, 4109, 4207, 4304, 4402, 4500],
+    "paths": 12
+  },
+  "receivers": [
+    {"id": "ofdm_fec", "name": "OFDM + FEC", "crc_no_harm": false},
+    {"id": "pfft", "name": "Partial-FFT + FEC", "crc_no_harm": false},
+    {"id": "lite", "name": "JUNA-Lite", "crc_no_harm": false},
+    {"id": "profiled_cz", "name": "JUNA (C,z) Joint gradient", "crc_no_harm": true},
+    {"id": "cwz_joint", "name": "Juna joint (C,W,z)", "crc_no_harm": true}
+  ],
+  "per_path": {
+    "aggregate_rows": 80,
+    "frame_trace_rows": 3760,
+    "protected_trace_rows": 1504
+  },
+  "global": {
+    "aggregate_rows": 960,
+    "frame_trace_rows": 45120,
+    "protected_trace_rows": 18048
+  },
+  "payload_bits_per_frame": 3296,
+  "payload_bits_per_point": 154912,
+  "selection_reasons": ["standard_crc_valid", "crc_rescue", "standard_fallback"],
+  "optimized_variables": {"profiled_cz": "C+z", "cwz_joint": "C+W+z"}
+}

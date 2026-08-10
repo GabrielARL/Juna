@@ -49,7 +49,8 @@ SCHEMA_VERSION = 1
 NAV = [("/", "Home"), ("/tests", "Tests"), ("/map", "Map"),
        ("/chain", "Chain"), ("/source", "Source"), ("/coverage", "Coverage"),
        ("/health", "Health"), ("/progress", "Progress"),
-       ("/results", "Results"), ("/awgn-results", "AWGN results")]
+       ("/results", "Results"), ("/awgn-results", "AWGN results"),
+       ("/no-harm-results", "No-harm results")]
 INTERFACE_METHODS = {"init", "modulate", "demodulate", "bitspersymbol",
                      "signallength", "payload_rate", "refinement_objective",
                      "frameblockcount", "framepayloadbits"}
@@ -1604,6 +1605,10 @@ _AWGN_022_FAMILY = "2026-08-10-red-awgn-first32s-frames32-crc-no-harm"
 _AWGN_023B_FAMILY = "2026-08-10-red-awgn-full-capture-frames47-crc-no-harm"
 _AWGN_023C_FAMILY = (
     "2026-08-10-red-awgn-repeated-first32s-frames128-crc-no-harm")
+_AWGN_025_FAMILY = (
+    "2026-08-10-red-awgn-full-capture-frames47-rate05-crc-no-harm")
+_AWGN_026_FAMILY = (
+    "2026-08-10-red-awgn-full-capture-frames47-p10-10-crc-no-harm")
 _AWGN_PROGRESS_AGGREGATE = (
     "red_snr_sweep_awgn_first4s_frames4_configuration.csv")
 _AWGN_020_AGGREGATE = (
@@ -1677,6 +1682,21 @@ _AWGN_024_CONFIGURATIONS = (
     "rate05-p5-5-dc14-kfill-pfft4",
 )
 _AWGN_024_HARNESS = _AWGN_024_CONFIGURATIONS[0]
+_AWGN_025_CONFIGURATIONS = (
+    f"{_AWGN_025_FAMILY}-n1024-cp64-"
+    "rate05-p5-5-dc14-kfill-pfft4",
+)
+_AWGN_025_HARNESS = _AWGN_025_CONFIGURATIONS[0]
+_AWGN_026_CONFIGURATIONS = (
+    f"{_AWGN_026_FAMILY}-n1024-cp64-"
+    "rate025-p10-10-dc14-kfill-pfft4",
+)
+_AWGN_026_HARNESS = _AWGN_026_CONFIGURATIONS[0]
+_AWGN_027_CONFIGURATIONS = (
+    f"{_AWGN_023B_FAMILY}-n2048-cp64-"
+    "rate05-p10-10-dc14-kfill-pfft4",
+)
+_AWGN_027_HARNESS = _AWGN_027_CONFIGURATIONS[0]
 _AWGN_PROGRESS_CAMPAIGNS = (
     {"campaign_id": "AWGN-008", "code_rate": "0.25",
      "rate_token": "025", "outer_spacing": 5,
@@ -1744,6 +1764,24 @@ _AWGN_PROGRESS_CAMPAIGNS = (
      "harness": _AWGN_024_HARNESS, "log": "awgn024_sweep.log",
      "path_contract": "awgn024_path_contract.txt",
      "aggregate": _AWGN_022_AGGREGATE},
+    {"campaign_id": "AWGN-025", "code_rate": "0.5",
+     "rate_token": "05", "outer_spacing": 5,
+     "configurations": _AWGN_025_CONFIGURATIONS,
+     "harness": _AWGN_025_HARNESS, "log": "awgn025_sweep.log",
+     "path_contract": "awgn025_path_contract.txt",
+     "aggregate": _AWGN_023B_AGGREGATE},
+    {"campaign_id": "AWGN-026", "code_rate": "0.25",
+     "rate_token": "025", "outer_spacing": 10,
+     "configurations": _AWGN_026_CONFIGURATIONS,
+     "harness": _AWGN_026_HARNESS, "log": "awgn026_sweep.log",
+     "path_contract": "awgn026_path_contract.txt",
+     "aggregate": _AWGN_023B_AGGREGATE},
+    {"campaign_id": "AWGN-027", "code_rate": "0.5",
+     "rate_token": "05", "outer_spacing": 10,
+     "configurations": _AWGN_027_CONFIGURATIONS,
+     "harness": _AWGN_027_HARNESS, "log": "awgn027_sweep.log",
+     "path_contract": "awgn027_path_contract.txt",
+     "aggregate": _AWGN_023B_AGGREGATE},
 )
 _AWGN_PROGRESS_PATHS = tuple(
     (f"red{channel}", hydrophone)
@@ -1894,7 +1932,7 @@ def _awgn_overall_state(campaigns, matrix_complete):
 
 
 def _awgn_progress_data():
-    """Aggregate approved AWGN-008 through AWGN-024 campaigns."""
+    """Aggregate approved AWGN-008 through AWGN-027 campaigns."""
     campaigns = [_awgn_campaign_progress(campaign)
                  for campaign in _AWGN_PROGRESS_CAMPAIGNS]
     completed_paths = sum(item["completed_paths"] for item in campaigns)
@@ -1929,9 +1967,9 @@ def _awgn_progress_card():
     return """
 <div id="awgn-live-progress" class="card" role="status" aria-live="polite">
 <div style="display:flex;justify-content:space-between;gap:.8rem">
-<strong>AWGN-008, AWGN-009, AWGN-012, AWGN-015, AWGN-016, AWGN-017, AWGN-018, AWGN-019, AWGN-020, AWGN-021, AWGN-022, AWGN-023B, AWGN-023C, and AWGN-024 real-time progress</strong>
+<strong>AWGN-008, AWGN-009, AWGN-012, AWGN-015, AWGN-016, AWGN-017, AWGN-018, AWGN-019, AWGN-020, AWGN-021, AWGN-022, AWGN-023B, AWGN-023C, AWGN-024, AWGN-025, AWGN-026, and AWGN-027 real-time progress</strong>
 <span id="awgn-progress-state">checking...</span></div>
-<progress id="awgn-progress-bar" max="672" value="0"
+<progress id="awgn-progress-bar" max="708" value="0"
 style="display:block;width:100%;height:1.1rem;margin:.55rem 0"></progress>
 <div id="awgn-progress-text">Reading validated result paths...</div>
 <div id="awgn-progress-campaigns" style="white-space:pre-line"></div>
@@ -1988,9 +2026,9 @@ pollAwgnProgress();
 </script>"""
 
 
-def _latest_experiment_results(awgn=False):
+def _latest_experiment_results(awgn=False, no_harm=False):
     """Newest rendered result in one noise-model family."""
-    experiment_ids = _experiment_ids(awgn=awgn)
+    experiment_ids = _experiment_ids(awgn=awgn, no_harm=no_harm)
     if not experiment_ids:
         family = "AWGN" if awgn else "non-AWGN"
         raise FileNotFoundError(f"no {family} experiment results")
@@ -2068,16 +2106,58 @@ def _experiment_family(experiment_id):
     return "awgn" if str(kind).strip().casefold() == "awgn" else "results"
 
 
-def _family_result_file(experiment_id, filename, awgn=False):
+def _manifest_declares_crc_no_harm(manifest):
+    """True only for either retained explicit CRC no-harm declaration."""
+    protected = {"profiled_cz", "cwz_joint"}
+    reasons = {"standard_crc_valid", "crc_rescue", "standard_fallback"}
+    policy = manifest.get("receiver_policy")
+    if (not isinstance(policy, dict) or policy.get("lite") != "unchanged" or
+            any(not isinstance(policy.get(receiver), str) or
+                "no-harm" not in policy[receiver].casefold()
+                for receiver in protected)):
+        return False
+    source_contract = manifest.get("source_contract")
+    receivers = (source_contract.get("receivers", [])
+                 if isinstance(source_contract, dict) else [])
+    enabled = {
+        receiver.get("id") for receiver in receivers
+        if isinstance(receiver, dict) and
+        receiver.get("crc_no_harm") is True
+    }
+    source_reasons = (source_contract.get("selection_reasons", [])
+                      if isinstance(source_contract, dict) else [])
+    declared_protected = manifest.get("protected_receivers", [])
+    if (isinstance(declared_protected, list) and
+            protected <= enabled and
+            reasons <= set(source_reasons) and
+            protected <= set(declared_protected)):
+        return True
+    rule = manifest.get("no_harm_rule")
+    counts = manifest.get("selection_reason_counts")
+    return (isinstance(rule, dict) and
+            all(isinstance(rule.get(key), str) and rule[key].strip()
+                for key in reasons) and
+            isinstance(counts, dict) and
+            all(isinstance(counts.get(receiver), dict) and
+                reasons <= set(counts[receiver])
+                for receiver in protected))
+
+
+def _family_result_file(experiment_id, filename, awgn=False, no_harm=False):
     """Resolve a result file only when its manifest has the right family."""
     path = _experiment_result_file(experiment_id, filename)
     expected = "awgn" if awgn else "results"
     if _experiment_family(experiment_id) != expected:
         raise FileNotFoundError("experiment has no valid matching family")
+    if no_harm:
+        manifest = _experiment_manifest(experiment_id)
+        if manifest is None or not _manifest_declares_crc_no_harm(manifest):
+            raise FileNotFoundError(
+                "experiment has no explicit CRC no-harm declaration")
     return path
 
 
-def _experiment_ids(awgn=False):
+def _experiment_ids(awgn=False, no_harm=False):
     """Every experiment in one noise-model family, newest first.
 
     Without this the Results tab silently shows whichever experiment was
@@ -2090,8 +2170,13 @@ def _experiment_ids(awgn=False):
     found = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
     experiment_ids = [_experiment_id_from_result(path) for path in found]
     expected = "awgn" if awgn else "results"
-    return [experiment_id for experiment_id in experiment_ids
-            if _experiment_family(experiment_id) == expected]
+    selected = [experiment_id for experiment_id in experiment_ids
+                if _experiment_family(experiment_id) == expected]
+    if no_harm:
+        selected = [experiment_id for experiment_id in selected
+                    if _manifest_declares_crc_no_harm(
+                        _experiment_manifest(experiment_id) or {})]
+    return selected
 
 
 _SWEEP_NAME_PATTERN = re.compile(
@@ -2130,7 +2215,7 @@ def _sweep_name_parameters(name):
 
 
 def _experiment_result_paths(experiment_id):
-    """Channel/hydrophone paths declared by one schema-2 result manifest."""
+    """Channel/hydrophone paths declared by one result manifest."""
     try:
         manifest = _experiment_result_file(experiment_id,
                                            "results_manifest.json")
@@ -2138,15 +2223,39 @@ def _experiment_result_paths(experiment_id):
             payload = json.load(handle)
     except (FileNotFoundError, OSError, json.JSONDecodeError):
         return []
+    raw_paths = payload.get("paths")
+    if raw_paths is None:
+        raw_paths = []
+        source_pattern = re.compile(
+            r"runs/([A-Za-z0-9._-]+)_hydrophone([1-9][0-9]*)/"
+            r"[^/]+\.csv")
+        for source in payload.get("sources", []):
+            if not isinstance(source, dict):
+                continue
+            source_path = source.get("path")
+            digest = source.get("sha256")
+            rows = source.get("rows")
+            match = (source_pattern.fullmatch(source_path)
+                     if isinstance(source_path, str) else None)
+            if (match and isinstance(rows, int) and rows > 0 and
+                    isinstance(digest, str) and
+                    re.fullmatch(r"[0-9a-fA-F]{64}", digest)):
+                raw_paths.append(" ".join(match.groups()))
+    if not isinstance(raw_paths, list):
+        return []
     paths = []
-    for raw in payload.get("paths", []):
+    seen = set()
+    for raw in raw_paths:
         match = re.fullmatch(r"([A-Za-z0-9._-]+)\s+([1-9][0-9]*)",
                              str(raw).strip())
         if not match:
             continue
         channel, hydrophone = match.groups()
-        paths.append({"value": f"{channel}:{hydrophone}",
-                      "label": f"{channel} hydrophone {hydrophone}"})
+        value = f"{channel}:{hydrophone}"
+        if value not in seen:
+            paths.append({"value": value,
+                          "label": f"{channel} hydrophone {hydrophone}"})
+            seen.add(value)
     return paths
 
 
@@ -2364,7 +2473,7 @@ window.addEventListener("DOMContentLoaded", function () {
 </script>""")
 
 
-def _results_comparison_query(query, awgn=False):
+def _results_comparison_query(query, awgn=False, no_harm=False):
     """Validated same-family IDs and one channel/hydrophone comparison key."""
     pairs = urllib.parse.parse_qsl(query or "", keep_blank_values=True)
     experiment_ids = [value for key, value in pairs
@@ -2380,7 +2489,8 @@ def _results_comparison_query(query, awgn=False):
         raise FileNotFoundError("unsafe channel/hydrophone path")
     unique_ids = list(dict.fromkeys(experiment_ids))
     for experiment_id in unique_ids:
-        _family_result_file(experiment_id, "results_view.html", awgn=awgn)
+        _family_result_file(experiment_id, "results_view.html", awgn=awgn,
+                            no_harm=no_harm)
     return unique_ids, match.group(1), int(match.group(2))
 
 
@@ -2404,14 +2514,14 @@ def _result_panel(document, channel, hydrophone):
     return None
 
 
-def page_results_comparison(query, awgn=False):
+def page_results_comparison(query, awgn=False, no_harm=False):
     """One selected BER-SNR panel from each same-family experiment."""
     experiment_ids, channel, hydrophone = _results_comparison_query(
-        query, awgn=awgn)
+        query, awgn=awgn, no_harm=no_harm)
     cards, plot_style, legend = [], "", ""
     for experiment_id in experiment_ids:
         result = _family_result_file(experiment_id, "results_view.html",
-                                     awgn=awgn)
+                                     awgn=awgn, no_harm=no_harm)
         with open(result, encoding="utf-8") as handle:
             document = handle.read()
         panel = _result_panel(document, channel, hydrophone)
@@ -2447,7 +2557,7 @@ def page_results_comparison(query, awgn=False):
   overflow-wrap:anywhere;margin:0 0 5px;color:var(--text-secondary); }}
 .experiment-result .panel {{ height:calc(100% - 22px); }}
 </style></head><body><div class="viz-root">
-<h1>{"AWGN — " if awgn else ""}{esc(label)}: BER versus added-noise SNR across experiments</h1>
+<h1>{"No-harm — " if no_harm else ("AWGN — " if awgn else "")}{esc(label)}: BER versus added-noise SNR across experiments</h1>
 <p class="axis-title">{len(cards)} plots from {len(experiment_ids)} matching
 experiments.</p>
 {legend}
@@ -2455,20 +2565,23 @@ experiments.</p>
 </div></body></html>"""
 
 
-def page_results(query="", awgn=False):
+def page_results(query="", awgn=False, no_harm=False):
     """Render one noise-model result family with shared controls."""
-    route_prefix = "/awgn-results" if awgn else "/results"
-    page_title = "AWGN results" if awgn else "Experiment results"
-    shell_title = "AWGN results" if awgn else "Results"
+    route_prefix = ("/no-harm-results" if no_harm else
+                    ("/awgn-results" if awgn else "/results"))
+    page_title = ("No-harm results" if no_harm else
+                  ("AWGN results" if awgn else "Experiment results"))
+    shell_title = ("No-harm results" if no_harm else
+                   ("AWGN results" if awgn else "Results"))
     progress_card = _awgn_progress_card() if awgn else ""
     experiment_id, page, other = _results_query(query)
     try:
         if experiment_id is None:
-            path = _latest_experiment_results(awgn=awgn)
+            path = _latest_experiment_results(awgn=awgn, no_harm=no_harm)
             experiment_id = _experiment_id_from_result(path)
         else:
             path = _family_result_file(experiment_id, "results_view.html",
-                                       awgn=awgn)
+                                       awgn=awgn, no_harm=no_harm)
     except FileNotFoundError:
         if experiment_id is not None:
             raise
@@ -2482,7 +2595,7 @@ shows the newest one.</div>"""
     stable_query = urllib.parse.urlencode(
         [("experiment", experiment_id), ("page", page)] + other)
     view_url = route_prefix + "/view?" + stable_query
-    available = _experiment_ids(awgn=awgn)
+    available = _experiment_ids(awgn=awgn, no_harm=no_harm)
     if len(available) > 1:
         options = "".join(
             f'<option value="{esc(name)}"'
@@ -2502,7 +2615,10 @@ shows the newest one.</div>"""
         available, experiment_id, view_url, initial_path,
         route_prefix=route_prefix)
     rel = os.path.relpath(path, ROOT)
-    family_note = ("The added noise is independent complex AWGN. The "
+    family_note = ("Only results with an explicit CRC no-harm declaration "
+                   "in the manifest are shown."
+                   if no_harm else
+                   "The added noise is independent complex AWGN. The "
                    "impulsive red-noise model is not used on this page."
                    if awgn else
                    "AWGN SNR sweeps with an explicit AWGN manifest "
@@ -2773,6 +2889,48 @@ class Handler(BaseHTTPRequestHandler):
                 except FileNotFoundError:
                     return self._send(
                         '{"error": "AWGN results manifest not found"}',
+                        404, "application/json")
+            if path == "/no-harm-results":
+                try:
+                    return self._send(page_results(
+                        query, awgn=True, no_harm=True))
+                except FileNotFoundError:
+                    return self._send("no-harm results not found", 404,
+                                      "text/plain")
+            if path == "/no-harm-results/compare":
+                try:
+                    return self._send(page_results_comparison(
+                        query, awgn=True, no_harm=True))
+                except FileNotFoundError:
+                    return self._send(
+                        "no-harm comparison results not found", 404,
+                        "text/plain")
+            if path == "/no-harm-results/view":
+                try:
+                    experiment_id, _page, _other = _results_query(query)
+                    result = (_latest_experiment_results(
+                        awgn=True, no_harm=True)
+                        if experiment_id is None else
+                        _family_result_file(
+                            experiment_id, "results_view.html", awgn=True,
+                            no_harm=True))
+                    with open(result, "rb") as fh:
+                        return self._send(fh.read(), ctype="text/html")
+                except FileNotFoundError:
+                    return self._send("no no-harm results yet", 404,
+                                      "text/plain")
+            if path == "/no-harm-results/manifest":
+                try:
+                    experiment_id, _page, _other = _results_query(query)
+                    manifest = _family_result_file(
+                        experiment_id, "results_manifest.json", awgn=True,
+                        no_harm=True)
+                    with open(manifest, "rb") as fh:
+                        return self._send(fh.read(),
+                                          ctype="application/json")
+                except FileNotFoundError:
+                    return self._send(
+                        '{"error": "no-harm results manifest not found"}',
                         404, "application/json")
             if path == "/favicon.ico":
                 self.send_response(204)

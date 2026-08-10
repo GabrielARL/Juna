@@ -72,10 +72,13 @@ S22 /awgn-results is a separate AWGN-only Results surface: it retains the
     experiments; and the original /results surface cannot include AWGN sweeps.
 S23 /awgn-results shows live AWGN-008, AWGN-009, AWGN-012, AWGN-015,
     AWGN-016, AWGN-017, AWGN-018, AWGN-019, AWGN-020, AWGN-021, AWGN-022,
-    AWGN-023B, AWGN-023C, and AWGN-024 progress backed by a read-only
-    provenance-wrapped API. The API counts their 672 approved paths,
+    AWGN-023B, AWGN-023C, AWGN-024, AWGN-025, AWGN-026, and AWGN-027 progress
+    backed by a read-only provenance-wrapped API. The API counts their 708 approved paths,
     using each campaign's fixed aggregate, trace, and path-contract names, and
     the browser polls it every two seconds without counting historical results.
+S24 /no-harm-results retains the Results controls but admits only AWGN
+    manifests that explicitly declare CRC no-harm behavior for both protected
+    receivers; its view, manifest, and comparison routes enforce the same gate.
 """
 import json
 import os
@@ -952,6 +955,73 @@ def check():
                         },
                     }, handle)
 
+            # S24 no-harm results require an explicit manifest declaration,
+            # not a matching experiment-directory name. Exercise both
+            # retained manifest schemas.
+            no_harm_ids = (awgn_ids[0], awgn_ids[1])
+            modern_manifest_path = os.path.join(
+                experiments, no_harm_ids[0], "results",
+                "results_manifest.json")
+            with open(modern_manifest_path, encoding="utf-8") as handle:
+                modern_manifest = json.load(handle)
+            modern_manifest["source_contract"] = {
+                "receivers": [
+                    {"id": "lite", "crc_no_harm": False},
+                    {"id": "profiled_cz", "crc_no_harm": True},
+                    {"id": "cwz_joint", "crc_no_harm": True},
+                ],
+                "selection_reasons": [
+                    "standard_crc_valid", "crc_rescue",
+                    "standard_fallback",
+                ],
+            }
+            modern_manifest["receiver_policy"] = {
+                "lite": "unchanged",
+                "profiled_cz": "CRC no-harm",
+                "cwz_joint": "CRC no-harm",
+            }
+            modern_manifest["protected_receivers"] = [
+                "profiled_cz", "cwz_joint"]
+            with open(modern_manifest_path, "w", encoding="utf-8") as handle:
+                json.dump(modern_manifest, handle)
+            rule_manifest_path = os.path.join(
+                experiments, no_harm_ids[1], "results",
+                "results_manifest.json")
+            with open(rule_manifest_path, encoding="utf-8") as handle:
+                rule_manifest = json.load(handle)
+            rule_manifest["no_harm_rule"] = {
+                "standard_crc_valid": "return standard",
+                "crc_rescue": "return certified rescue",
+                "standard_fallback": "return standard",
+            }
+            rule_manifest["receiver_policy"] = {
+                "lite": "unchanged",
+                "profiled_cz": "CRC-gated no-harm C+z",
+                "cwz_joint": "CRC-gated no-harm C+W+z",
+            }
+            rule_manifest["selection_reason_counts"] = {
+                receiver: {
+                    "standard_crc_valid": 1,
+                    "crc_rescue": 1,
+                    "standard_fallback": 1,
+                }
+                for receiver in ("profiled_cz", "cwz_joint")
+            }
+            rule_manifest.pop("paths")
+            rule_manifest["sources"] = [
+                {
+                    "path": (
+                        f"runs/red{channel}_hydrophone{hydrophone}/"
+                        "red_snr_sweep_awgn_configuration.csv"),
+                    "rows": 80,
+                    "sha256": "0" * 64,
+                }
+                for channel in range(1, 5)
+                for hydrophone in range(1, 4)
+            ]
+            with open(rule_manifest_path, "w", encoding="utf-8") as handle:
+                json.dump(rule_manifest, handle)
+
             # A rendered page alone cannot select a noise family. Missing,
             # malformed, and self-mismatched manifests belong to neither.
             for experiment_id in invalid_ids:
@@ -1017,6 +1087,15 @@ def check():
             awgn024_harness_name = (
                 "2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-"
                 "n1024-cp64-rate05-p5-5-dc14-kfill-pfft4")
+            awgn025_harness_name = (
+                "2026-08-10-red-awgn-full-capture-frames47-rate05-"
+                "crc-no-harm-n1024-cp64-rate05-p5-5-dc14-kfill-pfft4")
+            awgn026_harness_name = (
+                "2026-08-10-red-awgn-full-capture-frames47-p10-10-"
+                "crc-no-harm-n1024-cp64-rate025-p10-10-dc14-kfill-pfft4")
+            awgn027_harness_name = (
+                "2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-"
+                "n2048-cp64-rate05-p10-10-dc14-kfill-pfft4")
             campaign_specs = (
                 ("AWGN-008", "025", "0.25", 5, baseline_harness_name,
                  "awgn008_matrix.log"),
@@ -1056,6 +1135,9 @@ def check():
             progress_ids["AWGN-023B"] = (awgn023b_harness_name,)
             progress_ids["AWGN-023C"] = (awgn023c_harness_name,)
             progress_ids["AWGN-024"] = (awgn024_harness_name,)
+            progress_ids["AWGN-025"] = (awgn025_harness_name,)
+            progress_ids["AWGN-026"] = (awgn026_harness_name,)
+            progress_ids["AWGN-027"] = (awgn027_harness_name,)
             aggregate = (
                 "red_snr_sweep_awgn_first4s_frames4_configuration.csv")
             complete_pairs = tuple(
@@ -1174,6 +1256,45 @@ def check():
                 "red1_hydrophone1_selection_trace.csv"), "w").close()
             awgn024_contract = os.path.join(
                 awgn024_contract_dir, "awgn024_path_contract.txt")
+            awgn025_contract_dir = os.path.join(
+                experiments, progress_ids["AWGN-025"][0], "results", "runs",
+                "red1_hydrophone1")
+            os.makedirs(awgn025_contract_dir)
+            open(os.path.join(
+                awgn025_contract_dir,
+                "red_snr_sweep_awgn_full_capture_frames47_configuration.csv"),
+                "w").close()
+            open(os.path.join(
+                awgn025_contract_dir,
+                "red1_hydrophone1_selection_trace.csv"), "w").close()
+            awgn025_contract = os.path.join(
+                awgn025_contract_dir, "awgn025_path_contract.txt")
+            awgn026_contract_dir = os.path.join(
+                experiments, progress_ids["AWGN-026"][0], "results", "runs",
+                "red1_hydrophone1")
+            os.makedirs(awgn026_contract_dir)
+            open(os.path.join(
+                awgn026_contract_dir,
+                "red_snr_sweep_awgn_full_capture_frames47_configuration.csv"),
+                "w").close()
+            open(os.path.join(
+                awgn026_contract_dir,
+                "red1_hydrophone1_selection_trace.csv"), "w").close()
+            awgn026_contract = os.path.join(
+                awgn026_contract_dir, "awgn026_path_contract.txt")
+            awgn027_contract_dir = os.path.join(
+                experiments, progress_ids["AWGN-027"][0], "results", "runs",
+                "red1_hydrophone1")
+            os.makedirs(awgn027_contract_dir)
+            open(os.path.join(
+                awgn027_contract_dir,
+                "red_snr_sweep_awgn_full_capture_frames47_configuration.csv"),
+                "w").close()
+            open(os.path.join(
+                awgn027_contract_dir,
+                "red1_hydrophone1_selection_trace.csv"), "w").close()
+            awgn027_contract = os.path.join(
+                awgn027_contract_dir, "awgn027_path_contract.txt")
             old_id = ("2026-08-07-red-awgn-snr-sweep-"
                       "n1024-cp128-rate025-p5-5-"
                       "dc10-kfill-pfft4")
@@ -1210,6 +1331,12 @@ def check():
                 experiments, awgn023c_harness_name)
             awgn024_harness = os.path.join(
                 experiments, awgn024_harness_name)
+            awgn025_harness = os.path.join(
+                experiments, awgn025_harness_name)
+            awgn026_harness = os.path.join(
+                experiments, awgn026_harness_name)
+            awgn027_harness = os.path.join(
+                experiments, awgn027_harness_name)
             os.makedirs(baseline_harness)
             os.makedirs(rate_harness)
             os.makedirs(outer_harness)
@@ -1224,6 +1351,9 @@ def check():
             os.makedirs(awgn023b_harness, exist_ok=True)
             os.makedirs(awgn023c_harness, exist_ok=True)
             os.makedirs(awgn024_harness, exist_ok=True)
+            os.makedirs(awgn025_harness, exist_ok=True)
+            os.makedirs(awgn026_harness, exist_ok=True)
+            os.makedirs(awgn027_harness, exist_ok=True)
             with open(os.path.join(baseline_harness, "awgn008_matrix.log"),
                       "w", encoding="utf-8") as handle:
                 handle.write(
@@ -1280,6 +1410,18 @@ def check():
                       "w", encoding="utf-8") as handle:
                 handle.write(
                     "AWGN_024_QUEUE_START 2026-08-10T00:00:00+08:00\n")
+            with open(os.path.join(awgn025_harness, "awgn025_sweep.log"),
+                      "w", encoding="utf-8") as handle:
+                handle.write(
+                    "AWGN_025_QUEUE_START 2026-08-10T00:00:00+08:00\n")
+            with open(os.path.join(awgn026_harness, "awgn026_sweep.log"),
+                      "w", encoding="utf-8") as handle:
+                handle.write(
+                    "AWGN_026_QUEUE_START 2026-08-10T00:00:00+08:00\n")
+            with open(os.path.join(awgn027_harness, "awgn027_sweep.log"),
+                      "w", encoding="utf-8") as handle:
+                handle.write(
+                    "AWGN_027_QUEUE_START 2026-08-10T00:00:00+08:00\n")
             active_id = progress_ids["AWGN-009"][1]
             with open(os.path.join(rate_harness, "awgn009_matrix.log"), "w",
                       encoding="utf-8") as handle:
@@ -1358,6 +1500,104 @@ def check():
                 problems.append(
                     "S22: no-ID AWGN route did not select a valid AWGN family")
 
+            # S24 exposes the same controls on a separate page, but only for
+            # manifests that explicitly declare the CRC no-harm behavior.
+            no_harm_selected = urllib.parse.quote(no_harm_ids[0], safe="")
+            code, no_harm_page = fetch(
+                base, f"/no-harm-results?experiment={no_harm_selected}")
+            if code != 200:
+                problems.append(
+                    f"S24: populated /no-harm-results returned {code}")
+            for marker in (
+                    "<h1>No-harm results</h1>", ">No-harm results</a>",
+                    '<select id="experiment-picker"',
+                    'id="sweep-parameters"',
+                    'id="sweep-parameter-controls"',
+                    '<select id="path-filter"',
+                    'return "/no-harm-results/compare?"'):
+                if marker not in no_harm_page:
+                    problems.append(
+                        f"S24: no-harm page lost marker '{marker}'")
+            no_harm_picker = _re.search(
+                r'<select id="experiment-picker"[^>]*>(.*?)</select>',
+                no_harm_page, flags=_re.S)
+            if (not no_harm_picker or
+                    no_harm_picker.group(1).count("<option ") != 2):
+                problems.append(
+                    "S24: no-harm experiment picker does not contain "
+                    "exactly two declared options")
+            for experiment_id in no_harm_ids:
+                if experiment_id not in no_harm_page:
+                    problems.append(
+                        f"S24: no-harm page omitted '{experiment_id}'")
+            expected_no_harm_paths = [
+                {
+                    "value": f"red{channel}:{hydrophone}",
+                    "label": f"red{channel} hydrophone {hydrophone}",
+                }
+                for channel in range(1, 5)
+                for hydrophone in range(1, 4)
+            ]
+            if (server._experiment_result_paths(no_harm_ids[1]) !=
+                    expected_no_harm_paths):
+                problems.append(
+                    "S24: legacy no-harm manifest sources did not provide "
+                    "all 12 comparison paths")
+            excluded_awgn_id = awgn_ids[2]
+            if (excluded_awgn_id in no_harm_page or
+                    impulsive_id in no_harm_page):
+                problems.append(
+                    "S24: no-harm page included an undeclared result")
+            code, no_harm_latest = fetch(base, "/no-harm-results")
+            if (code != 200 or
+                    not any(item in no_harm_latest for item in no_harm_ids)):
+                problems.append(
+                    "S24: no-ID no-harm route did not select a declared result")
+            for suffix in ("view", "manifest"):
+                code, _ = fetch(
+                    base,
+                    f"/no-harm-results/{suffix}?experiment={no_harm_selected}")
+                if code != 200:
+                    problems.append(
+                        f"S24: /no-harm-results/{suffix} returned {code}")
+                excluded = urllib.parse.quote(excluded_awgn_id, safe="")
+                code, _ = fetch(
+                    base,
+                    f"/no-harm-results/{suffix}?experiment={excluded}")
+                if code != 404:
+                    problems.append(
+                        f"S24: /no-harm-results/{suffix} accepted a result "
+                        "without a no-harm declaration")
+            excluded = urllib.parse.quote(excluded_awgn_id, safe="")
+            code, _ = fetch(
+                base, f"/no-harm-results?experiment={excluded}")
+            if code != 404:
+                problems.append(
+                    "S24: no-harm page accepted an undeclared AWGN result")
+            no_harm_comparison_query = urllib.parse.urlencode([
+                *(('experiment', item) for item in no_harm_ids),
+                ('path', 'red1:1'),
+            ])
+            code, no_harm_comparison = fetch(
+                base,
+                "/no-harm-results/compare?" + no_harm_comparison_query)
+            if (code != 200 or no_harm_comparison.count(
+                    'class="experiment-result"') != 2):
+                problems.append(
+                    "S24: no-harm comparison did not render both declared "
+                    "experiments")
+            mixed_comparison_query = urllib.parse.urlencode([
+                ('experiment', no_harm_ids[0]),
+                ('experiment', excluded_awgn_id),
+                ('path', 'red1:1'),
+            ])
+            code, _ = fetch(
+                base,
+                "/no-harm-results/compare?" + mixed_comparison_query)
+            if code != 404:
+                problems.append(
+                    "S24: no-harm comparison accepted an undeclared result")
+
             code, results_page = fetch(base, "/results")
             if code != 200 or impulsive_id not in results_page:
                 problems.append(
@@ -1408,7 +1648,7 @@ def check():
                     problems.append(
                         "S22: (all) did not retain the single AWGN result view")
                 for marker in (
-                        "26 of 672 paths validated (3.9%); 2 of 56 "
+                        "26 of 708 paths validated (3.7%); 2 of 59 "
                         "configurations complete.",
                         "AWGN-008 (rate 0.25, outer spacing 5): "
                         "12 of 144 paths; running",
@@ -1437,6 +1677,12 @@ def check():
                         "AWGN-023C (rate 0.25, outer spacing 5): "
                         "0 of 12 paths; running",
                         "AWGN-024 (rate 0.5, outer spacing 5): "
+                        "0 of 12 paths; queued",
+                        "AWGN-025 (rate 0.5, outer spacing 5): "
+                        "0 of 12 paths; queued",
+                        "AWGN-026 (rate 0.25, outer spacing 10): "
+                        "0 of 12 paths; queued",
+                        "AWGN-027 (rate 0.5, outer spacing 10): "
                         "0 of 12 paths; queued",
                         f"Current: AWGN-009, {active_id}, "
                         "red1 hydrophone 2 | AWGN-016, "
@@ -1706,7 +1952,7 @@ def check():
 
             # S23 live campaign progress is computed from final result files.
             # Historical campaigns promote aggregate/trace pairs. AWGN-019,
-            # AWGN-020 through AWGN-024 additionally promote a per-path
+            # AWGN-020 through AWGN-027 additionally promote a per-path
             # contract after validation.
             code, progress_body = fetch(base, "/api/awgn-results/progress")
             if code != 200:
@@ -1719,9 +1965,10 @@ def check():
                         "AWGN-008", "AWGN-009", "AWGN-012", "AWGN-015",
                         "AWGN-016", "AWGN-017", "AWGN-018", "AWGN-019",
                         "AWGN-020", "AWGN-021", "AWGN-022", "AWGN-023B",
-                        "AWGN-023C", "AWGN-024"],
-                    "total_configurations": 56,
-                    "total_paths": 672,
+                        "AWGN-023C", "AWGN-024", "AWGN-025", "AWGN-026",
+                        "AWGN-027"],
+                    "total_configurations": 59,
+                    "total_paths": 708,
                     "completed_configurations": 2,
                     "completed_paths": 26,
                     "active_paths": [
@@ -1773,6 +2020,9 @@ def check():
                     "AWGN-023B": ("0.25", 5, 0, 0, "queued", 12, 1),
                     "AWGN-023C": ("0.25", 5, 0, 0, "running", 12, 1),
                     "AWGN-024": ("0.5", 5, 0, 0, "queued", 12, 1),
+                    "AWGN-025": ("0.5", 5, 0, 0, "queued", 12, 1),
+                    "AWGN-026": ("0.25", 10, 0, 0, "queued", 12, 1),
+                    "AWGN-027": ("0.5", 10, 0, 0, "queued", 12, 1),
                 }
                 campaigns = {item.get("campaign_id"): item
                              for item in progress.get("campaigns", [])}
@@ -1788,7 +2038,7 @@ def check():
                         problems.append(
                             f"S23: {campaign_id} progress {actual!r}, "
                             f"expected {values!r}")
-                expected_percent = 100 * 26 / 672
+                expected_percent = 100 * 26 / 708
                 if abs(progress.get("percent", -1) - expected_percent) > 1e-9:
                     problems.append(
                         "S23: progress percent does not match completed work")
@@ -1911,12 +2161,63 @@ def check():
                     problems.append(
                         "S23: AWGN-024 final contract did not promote exactly "
                         "one completed path")
+            open(awgn025_contract, "w").close()
+            code, contracted025_body = fetch(
+                base, "/api/awgn-results/progress")
+            if code != 200:
+                problems.append(
+                    "S23: progress failed after AWGN-025 contract promotion")
+            else:
+                contracted025 = json.loads(contracted025_body).get("data", {})
+                campaigns = {
+                    item.get("campaign_id"): item
+                    for item in contracted025.get("campaigns", [])}
+                awgn025 = campaigns.get("AWGN-025", {})
+                if (contracted025.get("completed_paths") != 34 or
+                        awgn025.get("completed_paths") != 1):
+                    problems.append(
+                        "S23: AWGN-025 final contract did not promote exactly "
+                        "one completed path")
+            open(awgn026_contract, "w").close()
+            code, contracted026_body = fetch(
+                base, "/api/awgn-results/progress")
+            if code != 200:
+                problems.append(
+                    "S23: progress failed after AWGN-026 contract promotion")
+            else:
+                contracted026 = json.loads(contracted026_body).get("data", {})
+                campaigns = {
+                    item.get("campaign_id"): item
+                    for item in contracted026.get("campaigns", [])}
+                awgn026 = campaigns.get("AWGN-026", {})
+                if (contracted026.get("completed_paths") != 35 or
+                        awgn026.get("completed_paths") != 1):
+                    problems.append(
+                        "S23: AWGN-026 final contract did not promote exactly "
+                        "one completed path")
+            open(awgn027_contract, "w").close()
+            code, contracted027_body = fetch(
+                base, "/api/awgn-results/progress")
+            if code != 200:
+                problems.append(
+                    "S23: progress failed after AWGN-027 contract promotion")
+            else:
+                contracted027 = json.loads(contracted027_body).get("data", {})
+                campaigns = {
+                    item.get("campaign_id"): item
+                    for item in contracted027.get("campaigns", [])}
+                awgn027 = campaigns.get("AWGN-027", {})
+                if (contracted027.get("completed_paths") != 36 or
+                        awgn027.get("completed_paths") != 1):
+                    problems.append(
+                        "S23: AWGN-027 final contract did not promote exactly "
+                        "one completed path")
             state_helper = getattr(server, "_awgn_overall_state", None)
             if state_helper is None:
                 problems.append("S23: missing truthful overall-state helper")
             else:
                 complete = {"state": "complete", "matrix_complete": True,
-                            "completed_paths": 672}
+                            "completed_paths": 708}
                 queued = {"state": "queued", "matrix_complete": False,
                           "completed_paths": 0}
                 not_started = {"state": "not-started",
@@ -1931,10 +2232,12 @@ def check():
             for marker in (
                     'id="awgn-live-progress"',
                     'id="awgn-progress-bar"',
-                    'max="672"',
+                    'max="708"',
                     "AWGN-008, AWGN-009, AWGN-012, AWGN-015, AWGN-016, "
                     "AWGN-017, AWGN-018, AWGN-019, AWGN-020, AWGN-021, "
-                    "AWGN-022, AWGN-023B, AWGN-023C, and AWGN-024 real-time "
+                    "AWGN-022, AWGN-023B, AWGN-023C, AWGN-024, AWGN-025, "
+                    "AWGN-026, and AWGN-027 "
+                    "real-time "
                     "progress",
                     "fetch('/api/awgn-results/progress'",
                     "setTimeout(pollAwgnProgress, 2000)"):
@@ -1961,4 +2264,4 @@ if __name__ == "__main__":
         for p in problems:
             print("  -", p)
         sys.exit(1)
-    print("server contract: PASS (S1-S23)")
+    print("server contract: PASS (S1-S24)")
