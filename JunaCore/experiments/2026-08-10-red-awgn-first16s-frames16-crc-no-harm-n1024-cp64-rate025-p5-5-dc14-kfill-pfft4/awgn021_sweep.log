@@ -1,0 +1,28 @@
+AWGN_021_QUEUE_START 2026-08-10T08:12:04.870
+AWGN_021_COMPUTE_START 2026-08-10T08:12:10.765
+PATH_START AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red1 hydrophone 1 2026-08-10T08:12:10.765
+PATH_VALID AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red1 hydrophone 1 2026-08-10T08:15:32.589
+PATH_START AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red1 hydrophone 2 2026-08-10T08:15:32.903
+PATH_VALID AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red1 hydrophone 2 2026-08-10T08:17:46.091
+PATH_START AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red1 hydrophone 3 2026-08-10T08:17:46.387
+PATH_VALID AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red1 hydrophone 3 2026-08-10T08:19:48.013
+PATH_START AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red2 hydrophone 1 2026-08-10T08:19:48.399
+PATH_VALID AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red2 hydrophone 1 2026-08-10T08:22:25.084
+PATH_START AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red2 hydrophone 2 2026-08-10T08:22:25.409
+PATH_VALID AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red2 hydrophone 2 2026-08-10T08:24:45.951
+PATH_START AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red2 hydrophone 3 2026-08-10T08:24:46.267
+PATH_VALID AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red2 hydrophone 3 2026-08-10T08:27:03.189
+PATH_START AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red3 hydrophone 1 2026-08-10T08:27:03.497
+PATH_VALID AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red3 hydrophone 1 2026-08-10T08:29:05.251
+PATH_START AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red3 hydrophone 2 2026-08-10T08:29:05.582
+PATH_VALID AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red3 hydrophone 2 2026-08-10T08:30:58.866
+PATH_START AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red3 hydrophone 3 2026-08-10T08:30:59.179
+PATH_VALID AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red3 hydrophone 3 2026-08-10T08:32:54.099
+PATH_START AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red4 hydrophone 1 2026-08-10T08:32:54.549
+PATH_VALID AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red4 hydrophone 1 2026-08-10T08:34:49.517
+PATH_START AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red4 hydrophone 2 2026-08-10T08:34:49.868
+PATH_VALID AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red4 hydrophone 2 2026-08-10T08:36:38.703
+PATH_START AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red4 hydrophone 3 2026-08-10T08:36:38.989
+PATH_VALID AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red4 hydrophone 3 2026-08-10T08:38:30.164
+CONFIGURATION_COMPLETE AWGN-021 2026-08-10-red-awgn-first16s-frames16-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 2026-08-10T08:38:35.090
+AWGN_021_COMPUTE_COMPLETE 2026-08-10T08:38:37.353
