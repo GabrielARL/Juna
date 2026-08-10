@@ -982,7 +982,7 @@ def check():
                 "2026-08-10-red-awgn-repeated-first32s-frames128-crc-no-harm-"
                 "n1024-cp64-rate025-p5-5-dc14-kfill-pfft4")
             awgn024_harness_name = (
-                "2026-08-10-red-awgn-first32s-frames32-crc-no-harm-"
+                "2026-08-10-red-awgn-first32s-frames32-rate05-crc-no-harm-"
                 "n1024-cp64-rate05-p5-5-dc14-kfill-pfft4")
             campaign_specs = (
                 ("AWGN-008", "025", "0.25", 5, baseline_harness_name,
