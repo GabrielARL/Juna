@@ -1,0 +1,149 @@
+{
+  "capture_time_seconds": [
+    0.0,
+    32.0
+  ],
+  "experiment_id": "2026-08-10-red-awgn-first32s-frames32-n512-cp64-rate025-p5-5-dc14-kfill-pfft4-gradient5",
+  "frames_per_point": 32,
+  "geometry": {
+    "check_degree": "14",
+    "code_rate": "0.25",
+    "cp": "64",
+    "horizon": "0",
+    "inner_spacing": "5",
+    "nfft": "512",
+    "outer_spacing": "5"
+  },
+  "geometry_display": {
+    "check_degree": "14",
+    "code_rate": "0.25",
+    "cp": "64",
+    "horizon": "fill",
+    "inner_spacing": "5",
+    "nfft": "512",
+    "outer_spacing": "5",
+    "partial_fft_parts": "4"
+  },
+  "noise_model": {
+    "distribution": "proper-complex Gaussian",
+    "injection": "after measured replay, before receiver alignment",
+    "kind": "awgn"
+  },
+  "panel_count": 12,
+  "partial_fft_parts": 4,
+  "payload_bits_per_frame": 1452,
+  "receiver_policy": {
+    "cwz_joint": "gradient-only",
+    "lite": "unchanged",
+    "profiled_cz": "gradient-only"
+  },
+  "receivers": [
+    "cwz_joint",
+    "lite",
+    "ofdm_fec",
+    "pfft",
+    "profiled_cz"
+  ],
+  "result_group": "awgn",
+  "result_scope": "BER versus SNR, first 32 seconds, 32 frames per point, seed 4",
+  "row_count": 960,
+  "schema_version": 1,
+  "seed": 4,
+  "series_count": 60,
+  "snapshot_indices": [
+    1,
+    96,
+    190,
+    285,
+    385,
+    480,
+    574,
+    669,
+    769,
+    864,
+    958,
+    1053,
+    1153,
+    1248,
+    1342,
+    1437,
+    1537,
+    1632,
+    1726,
+    1821,
+    1921,
+    2016,
+    2110,
+    2205,
+    2305,
+    2400,
+    2494,
+    2589,
+    2689,
+    2784,
+    2878,
+    2973
+  ],
+  "sources": [
+    {
+      "path": "runs/red1_hydrophone1/red_awgn_first32s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "a124e88a8355662ec4e346a7dbf36cfa40447f7582f0f2985f6f22041a329631"
+    },
+    {
+      "path": "runs/red1_hydrophone2/red_awgn_first32s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "4ca31bd27dac32ba8316a8fc4a2dbf2ff6bdc4314dd40cee9a980f3b7623efb9"
+    },
+    {
+      "path": "runs/red1_hydrophone3/red_awgn_first32s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "eced68a84a045df5e4080183db89d86e597f27a48ca5a9959f57ea481365403d"
+    },
+    {
+      "path": "runs/red2_hydrophone1/red_awgn_first32s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "6cd52ed058abb8479d488bc6df1f30cdd3ff7d51a586f398b1ad22a29d29a1d3"
+    },
+    {
+      "path": "runs/red2_hydrophone2/red_awgn_first32s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "23934d2d92d1d5250c8c1b017bf4f35a0451120caa2c8c5ac27cf81ae0e74ccb"
+    },
+    {
+      "path": "runs/red2_hydrophone3/red_awgn_first32s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "8712a6266e6d915c93b75021f1854ce4049766eba12f0d48e01fce5b3d236936"
+    },
+    {
+      "path": "runs/red3_hydrophone1/red_awgn_first32s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "9c2297c74f1609908ee87b1fc7d87c4302d99068c13ae2804b7264b228de1c8b"
+    },
+    {
+      "path": "runs/red3_hydrophone2/red_awgn_first32s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "e858d59e95a7666a250ba8778c3154cfe648c8eb80e61ffdf04eb0a7211788dc"
+    },
+    {
+      "path": "runs/red3_hydrophone3/red_awgn_first32s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "a6ea071286c822cc85fd50660490eb0e14d379e65a9670125ceb99d0cc314134"
+    },
+    {
+      "path": "runs/red4_hydrophone1/red_awgn_first32s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "2a398af49d86c6e8bf6032f5e7a224cf783b7040c1f2abfe47917e909a34fe81"
+    },
+    {
+      "path": "runs/red4_hydrophone2/red_awgn_first32s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "981cd3743953994fefb9b967299b130155285dbe3ee6516e1277c56e0d39e81c"
+    },
+    {
+      "path": "runs/red4_hydrophone3/red_awgn_first32s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "8f35aa3d767fcee73a3b3c9e61c75d894bb6ddffc5907b0d8e6e7fa4f96800b3"
+    }
+  ]
+}
