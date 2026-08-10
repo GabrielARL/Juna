@@ -1,0 +1,45 @@
+{
+  "campaign": "AWGN-022",
+  "family": "2026-08-10-red-awgn-first32s-frames32-crc-no-harm",
+  "receiver_source": {
+    "repository": "/home/gabiel/Documents/GitHub/Juna-worktrees/crc-no-harm-gradients",
+    "base_commit": "7fbdec9dd93e7ed5caade4bae4a73ccd030a7d3f",
+    "tracked_source_diff_sha256": "4e19b15bea8fd9c96c2721691629ae35deb3538e43b92ccc1ec9a7fe8cdf8821",
+    "loaded_modules": [
+      "JunaCore.JunaProfiledCzFrame.Modulation",
+      "JunaCore.JunaCrcConditionedJointCwzFrame.Modulation"
+    ]
+  },
+  "active_project": "/home/gabiel/Documents/GitHub/Juna-worktrees/awgn-results/JunaCore/experiments/2026-08-04-red-snr-sweep/Project.toml",
+  "measurement": {
+    "nfft": 1024,
+    "cp": 64,
+    "code_rate": 0.25,
+    "outer_spacing": 5,
+    "inner_spacing": 5,
+    "check_degree": 14,
+    "horizon": 0,
+    "partial_fft_parts": 4,
+    "snr_db": [0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30],
+    "frames": 32,
+    "seed": 4,
+    "capture_seconds": 32.0,
+    "snapshot_indices": [1, 96, 190, 285, 385, 480, 574, 669, 769, 864, 958, 1053, 1153, 1248, 1342, 1437, 1537, 1632, 1726, 1821, 1921, 2016, 2110, 2205, 2305, 2400, 2494, 2589, 2689, 2784, 2878, 2973],
+    "paths": 12
+  },
+  "receivers": [
+    {"id": "ofdm_fec", "name": "OFDM + FEC", "crc_no_harm": false},
+    {"id": "pfft", "name": "Partial-FFT + FEC", "crc_no_harm": false},
+    {"id": "lite", "name": "JUNA-Lite", "crc_no_harm": false},
+    {"id": "profiled_cz", "name": "JUNA (C,z) Joint gradient", "crc_no_harm": true},
+    {"id": "cwz_joint", "name": "Juna joint (C,W,z)", "crc_no_harm": true}
+  ],
+  "per_path": {
+    "aggregate_rows": 80,
+    "frame_trace_rows": 2560,
+    "protected_trace_rows": 1024
+  },
+  "payload_bits_per_frame": 1616,
+  "selection_reasons": ["standard_crc_valid", "crc_rescue", "standard_fallback"],
+  "optimized_variables": {"profiled_cz": "C+z", "cwz_joint": "C+W+z"}
+}
