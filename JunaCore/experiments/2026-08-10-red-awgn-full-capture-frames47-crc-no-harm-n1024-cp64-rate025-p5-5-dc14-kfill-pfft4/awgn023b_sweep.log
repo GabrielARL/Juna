@@ -1,0 +1,28 @@
+AWGN_023B_QUEUE_START 2026-08-10T11:04:30.867
+AWGN_023B_COMPUTE_START 2026-08-10T11:04:37.799
+PATH_START AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red1 hydrophone 1 2026-08-10T11:04:37.799
+PATH_VALID AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red1 hydrophone 1 2026-08-10T11:13:46.553
+PATH_START AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red1 hydrophone 2 2026-08-10T11:13:47.020
+PATH_VALID AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red1 hydrophone 2 2026-08-10T11:21:00.616
+PATH_START AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red1 hydrophone 3 2026-08-10T11:21:01.009
+PATH_VALID AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red1 hydrophone 3 2026-08-10T11:27:50.479
+PATH_START AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red2 hydrophone 1 2026-08-10T11:27:50.813
+PATH_VALID AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red2 hydrophone 1 2026-08-10T11:36:40.467
+PATH_START AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red2 hydrophone 2 2026-08-10T11:36:40.875
+PATH_VALID AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red2 hydrophone 2 2026-08-10T11:43:46.666
+PATH_START AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red2 hydrophone 3 2026-08-10T11:43:47.142
+PATH_VALID AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red2 hydrophone 3 2026-08-10T11:50:48.218
+PATH_START AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red3 hydrophone 1 2026-08-10T11:50:48.616
+PATH_VALID AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red3 hydrophone 1 2026-08-10T11:57:05.658
+PATH_START AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red3 hydrophone 2 2026-08-10T11:57:06.001
+PATH_VALID AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red3 hydrophone 2 2026-08-10T12:03:10.782
+PATH_START AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red3 hydrophone 3 2026-08-10T12:03:11.112
+PATH_VALID AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red3 hydrophone 3 2026-08-10T12:09:16.761
+PATH_START AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red4 hydrophone 1 2026-08-10T12:09:17.239
+PATH_VALID AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red4 hydrophone 1 2026-08-10T12:14:59.270
+PATH_START AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red4 hydrophone 2 2026-08-10T12:14:59.706
+PATH_VALID AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red4 hydrophone 2 2026-08-10T12:20:45.659
+PATH_START AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red4 hydrophone 3 2026-08-10T12:20:45.997
+PATH_VALID AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 red4 hydrophone 3 2026-08-10T12:26:40.143
+CONFIGURATION_COMPLETE AWGN-023B 2026-08-10-red-awgn-full-capture-frames47-crc-no-harm-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4 2026-08-10T12:27:21.939
+AWGN_023B_COMPUTE_COMPLETE 2026-08-10T12:27:41.111
