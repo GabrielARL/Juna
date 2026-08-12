@@ -1,0 +1,138 @@
+{
+  "capture_time_seconds": [
+    0.0,
+    47.0
+  ],
+  "experiment_id": "2026-08-11-red-awgn-first47s-frame1s-frames32-crc-gated-no-harm-n1536-cp64-rate025-p5-7-dc14-kfill-pfft4",
+  "frame_duration_budget_seconds": 1.0,
+  "frame_duration_seconds": 0.9266666666666666,
+  "frame_samples": 8896,
+  "frame_trace_row_count": 30720,
+  "frames_per_point": 32,
+  "geometry": {
+    "check_degree": "14",
+    "code_rate": "0.25",
+    "cp": "64",
+    "horizon": "0",
+    "inner_spacing": "7",
+    "nfft": "1536",
+    "outer_spacing": "5"
+  },
+  "geometry_display": {
+    "check_degree": "14",
+    "code_rate": "0.25",
+    "cp": "64",
+    "horizon": "fill",
+    "inner_spacing": "7",
+    "nfft": "1536",
+    "outer_spacing": "5",
+    "partial_fft_parts": "4"
+  },
+  "no_harm_rule": {
+    "crc_rescue": "return gradient only when its CRC is valid",
+    "implementation": "experiment-boundary instrumentation of the checked-in cz_crc_gate receiver; not the unpublished AWGN-022 wrapper",
+    "standard_crc_valid": "return standard without gradient rescue",
+    "standard_fallback": "return standard when rescue CRC is invalid"
+  },
+  "noise_model": {
+    "distribution": "proper-complex Gaussian",
+    "injection": "after measured replay, before receiver alignment",
+    "kind": "awgn"
+  },
+  "panel_count": 12,
+  "partial_fft_parts": 4,
+  "payload_bits_per_frame": 1557,
+  "receiver_policy": {
+    "cwz_joint": "CRC-gated no-harm C+W+z",
+    "lite": "unchanged",
+    "profiled_cz": "CRC-gated no-harm C+z"
+  },
+  "receivers": [
+    "cwz_joint",
+    "lite",
+    "ofdm_fec",
+    "pfft",
+    "profiled_cz"
+  ],
+  "result_group": "awgn",
+  "result_scope": "BER versus SNR, first 47 seconds, 1-second frame budget, 32 frames per point, seed 4",
+  "row_count": 960,
+  "schema_version": 1,
+  "seed": 4,
+  "selection_reason_counts": {
+    "cwz_joint": {
+      "crc_rescue": 5,
+      "standard_crc_valid": 3966,
+      "standard_fallback": 2173
+    },
+    "profiled_cz": {
+      "crc_rescue": 4,
+      "standard_crc_valid": 3966,
+      "standard_fallback": 2174
+    }
+  },
+  "selection_trace_row_count": 12288,
+  "series_count": 60,
+  "sources": [
+    {
+      "path": "runs/red1_hydrophone1/red_snr_sweep_awgn_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "1d1dbf00721ca291348e2f8c1424040668a7f0ef8c032792bf36b886db96a56c"
+    },
+    {
+      "path": "runs/red1_hydrophone2/red_snr_sweep_awgn_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "d95b61858bc00d4bc41f51f2c3475a5efdc95e40cb7a61646a2cef60d20d8700"
+    },
+    {
+      "path": "runs/red1_hydrophone3/red_snr_sweep_awgn_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "21900ce0233642a768b3aae11b89fc8b74a5044ae559d959cbeec3cfe44f1718"
+    },
+    {
+      "path": "runs/red2_hydrophone1/red_snr_sweep_awgn_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "025965674446aeee63e45c927af9903ddc2d81eb90acfe37a2a3696c917d4f84"
+    },
+    {
+      "path": "runs/red2_hydrophone2/red_snr_sweep_awgn_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "22e2d50930ad2ada29cb3ceaf6186e6c29af47183a291fbc72f4489e81f85a5e"
+    },
+    {
+      "path": "runs/red2_hydrophone3/red_snr_sweep_awgn_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "458b942f30e42d8a9d12346014b7b7e3bb4935ba648ff42e0c2c72400205a1ec"
+    },
+    {
+      "path": "runs/red3_hydrophone1/red_snr_sweep_awgn_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "4c720f075b7f45afceeb30269d574e7766b1a839c40a750c878b994055307f63"
+    },
+    {
+      "path": "runs/red3_hydrophone2/red_snr_sweep_awgn_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "49659558b6d6d144f42961415189b5f0e12583e9f9483dc9c0cdbe915d1e7ec3"
+    },
+    {
+      "path": "runs/red3_hydrophone3/red_snr_sweep_awgn_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "3f3ffa7a0c44a5ac33c36bf44c10df8bd9bb67d84f9af92f59a3aca7b95b31ce"
+    },
+    {
+      "path": "runs/red4_hydrophone1/red_snr_sweep_awgn_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "c72d5c38b3cbf96fdaec51cb0e41160b5bc52d54dcb6ba0308bb0e278e971e5e"
+    },
+    {
+      "path": "runs/red4_hydrophone2/red_snr_sweep_awgn_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "8e2b426de4ba2528e063c4e60fff8ded3324fe2217e9bc676d5416dc00158f8b"
+    },
+    {
+      "path": "runs/red4_hydrophone3/red_snr_sweep_awgn_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "a0bc1b616a703155594e414b5f12e607869d034b533ad53908cc5c8680b6086e"
+    }
+  ]
+}
