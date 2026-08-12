@@ -2953,6 +2953,35 @@ def _no_harm_effective_rate_query(query):
     return experiments[0], snr_db
 
 
+def _best_observed_scope(values, default="all"):
+    """One canonical best-observed comparison scope."""
+    if len(values) > 1:
+        raise FileNotFoundError("multiple best-observed scopes")
+    scope = values[0] if values else default
+    if scope not in ("family", "all"):
+        raise FileNotFoundError("unknown best-observed scope")
+    return scope
+
+
+def _no_harm_effective_rate_best_query(query):
+    """One anchor, canonical SNR, and comparison scope, with no extras."""
+    pairs = urllib.parse.parse_qsl(query or "", keep_blank_values=True)
+    if any(key not in ("experiment", "snr_db", "scope")
+           for key, _value in pairs):
+        raise FileNotFoundError("unknown best-observed query value")
+    experiments = [value for key, value in pairs if key == "experiment"]
+    if (len(experiments) != 1 or
+            not _EXPERIMENT_ID_RE.fullmatch(experiments[0])):
+        raise FileNotFoundError("one no-harm experiment is required")
+    rows_by_snr = _no_harm_effective_rate_data(experiments[0])
+    snr_db = _no_harm_effective_rate_snr(
+        [value for key, value in pairs if key == "snr_db"],
+        tuple(rows_by_snr))
+    scope = _best_observed_scope(
+        [value for key, value in pairs if key == "scope"])
+    return experiments[0], snr_db, scope
+
+
 def _no_harm_effective_rate_rows(experiment_id, snr_db=20.0):
     """Strict stored effective-rate rows for one no-harm result and SNR."""
     rows_by_snr = _no_harm_effective_rate_data(experiment_id)
@@ -3089,6 +3118,14 @@ _BEST_OBSERVED_CONFIG_COLORS = (
 )
 
 
+def _best_observed_config_color(index):
+    """Deterministic configuration color without a fixed family-size cap."""
+    if index < len(_BEST_OBSERVED_CONFIG_COLORS):
+        return _BEST_OBSERVED_CONFIG_COLORS[index]
+    hue = (index * 137.508) % 360
+    return f"hsl({hue:.1f} 65% 42%)"
+
+
 def _no_harm_effective_rate_family_choices(available, experiment_id):
     """One deterministic picker option for each strict comparison family."""
     families = {}
@@ -3124,20 +3161,25 @@ def _no_harm_effective_rate_family_choices(available, experiment_id):
     ))
 
 
-def _no_harm_effective_rate_family(experiment_id):
-    """Load one strict matched family once, varying only N and pilots."""
+def _no_harm_effective_rate_family(experiment_id, scope="family"):
+    """Load one strict family or every tested no-harm configuration."""
+    if scope not in ("family", "all"):
+        raise FileNotFoundError("invalid effective-rate comparison scope")
     _anchor_nfft, anchor_signature, summary = (
         _no_harm_effective_rate_configuration(experiment_id))
-    groups = {}
+    groups = []
+    identities = set()
     anchor_seen = False
     shared_snr_grid = None
     for candidate in _experiment_ids(awgn=True, no_harm=True):
         try:
-            nfft, signature, _candidate_summary = (
+            nfft, signature, candidate_summary = (
                 _no_harm_effective_rate_configuration(candidate))
         except FileNotFoundError:
+            if scope == "all":
+                raise
             continue
-        if signature != anchor_signature:
+        if scope == "family" and signature != anchor_signature:
             continue
         name_parameters = _sweep_name_parameters(candidate)
         if name_parameters is None:
@@ -3150,9 +3192,11 @@ def _no_harm_effective_rate_family(experiment_id):
         if outer_spacing < 1 or inner_spacing < 1:
             raise FileNotFoundError("matching pilot geometry is invalid")
         group_key = nfft, outer_spacing, inner_spacing
-        if group_key in groups:
+        identity = signature, nfft, outer_spacing, inner_spacing
+        if identity in identities:
             raise FileNotFoundError(
-                "more than one result claims one N and pilot setting")
+                "more than one result claims one complete configuration")
+        identities.add(identity)
         observations = _no_harm_effective_rate_observations(candidate)
         candidate_snr_grid = tuple(observations)
         if shared_snr_grid is None:
@@ -3162,29 +3206,36 @@ def _no_harm_effective_rate_family(experiment_id):
                 "matching configurations use different SNR grids")
         combined_pilot_ratio = (
             Fraction(1, outer_spacing) + Fraction(1, inner_spacing))
-        groups[group_key] = {
+        groups.append((group_key, {
             "experiment_id": candidate,
             "observations": observations,
             "combined_pilot_ratio": combined_pilot_ratio,
-        }
+            "signature": signature,
+            "family_summary": candidate_summary,
+            "display_label": _experiment_display_label(
+                candidate, no_harm=True),
+            "broad_candidate_key": candidate if scope == "all" else None,
+        }))
         anchor_seen = anchor_seen or candidate == experiment_id
     if not groups or not anchor_seen or shared_snr_grid is None:
         raise FileNotFoundError("no matching effective-rate family")
-    if len(groups) > len(_BEST_OBSERVED_CONFIG_COLORS):
-        raise FileNotFoundError("effective-rate family is too large")
     ordered = tuple(sorted(
-        groups.items(),
+        groups,
         key=lambda item: (
             item[0][0], item[1]["combined_pilot_ratio"],
-            item[0][1], item[0][2]),
+            item[0][1], item[0][2], item[1]["signature"],
+            item[1]["experiment_id"]),
     ))
-    return ordered, summary, shared_snr_grid
+    comparison_summary = (
+        "All tested no-harm configurations" if scope == "all" else summary)
+    return ordered, comparison_summary, shared_snr_grid
 
 
 def _no_harm_effective_rate_n_groups(
-        experiment_id, snr_db, channel, hydrophone):
+        experiment_id, snr_db, channel, hydrophone, scope="family"):
     """Stored receiver rates for every unambiguous matching N."""
-    family, summary, snr_grid = _no_harm_effective_rate_family(experiment_id)
+    family, summary, snr_grid = _no_harm_effective_rate_family(
+        experiment_id, scope)
     if snr_db not in snr_grid:
         raise FileNotFoundError(
             "matching N does not contain the selected SNR")
@@ -3200,6 +3251,8 @@ def _no_harm_effective_rate_n_groups(
             "experiment_id": candidate["experiment_id"],
             "rates": rates,
             "combined_pilot_ratio": candidate["combined_pilot_ratio"],
+            "display_label": candidate["display_label"],
+            "family_summary": candidate["family_summary"],
         }))
         peak = max(
             peak,
@@ -3214,14 +3267,15 @@ def _no_harm_effective_rate_n_groups(
 def _no_harm_effective_rate_by_n_query(query):
     """One declared anchor, exact stored SNR, and canonical RED/H path."""
     pairs = urllib.parse.parse_qsl(query or "", keep_blank_values=True)
-    allowed = {"experiment", "snr_db", "path"}
+    allowed = {"experiment", "snr_db", "path", "scope"}
     if any(key not in allowed for key, _value in pairs):
         raise FileNotFoundError("unknown across-N query value")
     values = {
         key: [value for pair_key, value in pairs if pair_key == key]
         for key in allowed
     }
-    if (any(len(items) != 1 for items in values.values()) or
+    if (any(len(values[key]) != 1
+            for key in ("experiment", "snr_db", "path")) or
             not _EXPERIMENT_ID_RE.fullmatch(values["experiment"][0])):
         raise FileNotFoundError("one across-N query value is required")
     path_match = re.fullmatch(r"red([1-4]):([1-3])", values["path"][0])
@@ -3233,7 +3287,8 @@ def _no_harm_effective_rate_by_n_query(query):
         values["snr_db"], tuple(rows_by_snr))
     channel = f"red{path_match.group(1)}"
     hydrophone = int(path_match.group(2))
-    return experiment_id, snr_db, channel, hydrophone
+    scope = _best_observed_scope(values["scope"], default="family")
+    return experiment_id, snr_db, channel, hydrophone, scope
 
 
 def _no_harm_effective_rate_by_n_slider(snr_grid, selected_snr):
@@ -3381,11 +3436,11 @@ min-width:0;background:#fff}}.rate-panel figcaption{{font-size:13px;margin:0 0 2
 
 
 def page_no_harm_effective_rate_by_n(query):
-    """One RED/H path compared across otherwise identical N settings."""
-    experiment_id, snr_db, channel, hydrophone = (
+    """One RED/H path compared across selected stored configurations."""
+    experiment_id, snr_db, channel, hydrophone, scope = (
         _no_harm_effective_rate_by_n_query(query))
     groups, configuration, y_max = _no_harm_effective_rate_n_groups(
-        experiment_id, snr_db, channel, hydrophone)
+        experiment_id, snr_db, channel, hydrophone, scope)
     snr_grid = tuple(_no_harm_effective_rate_data(experiment_id))
     snr_control = _no_harm_effective_rate_by_n_slider(snr_grid, snr_db)
 
@@ -3449,22 +3504,31 @@ def page_no_harm_effective_rate_by_n(query):
             f'data-pilot-percent="{pilot_percent_text}" '
             f'data-pilot-spacing="{pilot_spacing}" '
             f'data-experiment-id="{esc(group["experiment_id"])}">'
+            f'<title>{esc(group["display_label"])}; source '
+            f'{esc(group["experiment_id"])}</title>'
             + "".join(bars) +
             f'<text class="n-label" x="{group_center:.2f}" '
             f'y="{plot_bottom + 22:.1f}" text-anchor="middle">'
             f'<tspan x="{group_center:.2f}">N={nfft}</tspan>'
             f'<tspan x="{group_center:.2f}" dy="14">pilots '
-            f'{pilot_spacing} · {pilot_percent_text}%</tspan></text></g>')
+            f'{pilot_spacing} · {pilot_percent_text}%</tspan>'
+            + (f'<tspan class="group-family-label" '
+               f'x="{group_center:.2f}" dy="14">result '
+               f'{group_index + 1}</tspan>' if scope == "all" else "") +
+            '</text></g>')
 
     legend = "".join(
         f'<span><i style="background:{color}"></i>{esc(label)}</span>'
         for _receiver_id, label, color in _EFFECTIVE_RATE_RECEIVERS)
     midpoint = y_max / 2.0
-    back_url = "/no-harm-results?" + urllib.parse.urlencode([
+    back_query = [
         ("experiment", experiment_id),
-        ("plot", "effective-rate"),
+        ("plot", "best-observed" if scope == "all" else "effective-rate"),
         ("snr_db", f"{snr_db:g}"),
-    ])
+    ]
+    if scope == "all":
+        back_query.append(("scope", "all"))
+    back_url = "/no-harm-results?" + urllib.parse.urlencode(back_query)
     single_note = (
         '<p class="note">Only one matching N and pilot setting is currently '
         'available.</p>'
@@ -3475,12 +3539,22 @@ def page_no_harm_effective_rate_by_n(query):
         f'<p class="note">All five stored effective payload rates are 0 bps '
         f'at {snr_db:g} dB for this path.</p>'
         if all_zero else "")
-    heading = (f"{channel.upper()} · H{hydrophone} effective payload rate "
-               f"across N and pilot ratio at {snr_db:g} dB")
+    heading = (
+        f"{channel.upper()} · H{hydrophone} effective payload rate across "
+        f"tested configurations at {snr_db:g} dB" if scope == "all" else
+        f"{channel.upper()} · H{hydrophone} effective payload rate across "
+        f"N and pilot ratio at {snr_db:g} dB")
+    scope_note = ("<p class=\"warning-note\">This view includes "
+                  "configurations with different capture windows, frame "
+                  "counts, receiver policies, code rates, and frame "
+                  "durations. It reports the largest stored effective "
+                  "payload rate; it is not a controlled comparison.</p>"
+                  if scope == "all" else "")
     body = f"""
 <p><a class="button-link" href="{esc(back_url)}">Back to all paths</a></p>
 <h1>{esc(heading)}</h1>
 <p class="grouped-rate-configuration">{esc(configuration)}</p>
+{scope_note}
 <p class="grouped-rate-formula">Combined pilot ratio = 1 / outer spacing + 1 / inner spacing. Ordered pilot spacings remain separate.</p>
 {snr_control}
 {single_note}
@@ -3489,7 +3563,8 @@ def page_no_harm_effective_rate_by_n(query):
 <div class="grouped-rate-chart">
 <div class="grouped-rate-y-label">Effective payload rate (bps)</div>
 <svg id="effective-rate-by-n" viewBox="0 0 {chart_width:.0f} 330"
-role="img" aria-label="{esc(heading)}" data-y-max="{y_max:g}">
+role="img" aria-label="{esc(heading)}" data-y-max="{y_max:g}"
+data-comparison-scope="{scope}">
 <line x1="{plot_left:.1f}" y1="{plot_top:.1f}" x2="{plot_left:.1f}"
 y2="{plot_bottom:.1f}" class="axis"/>
 <line x1="{plot_left:.1f}" y1="{plot_bottom:.1f}"
@@ -3507,10 +3582,12 @@ text-anchor="end">{midpoint:g}</text>
 text-anchor="end">0</text>
 {"".join(group_markup)}
 <text class="x-label" x="{chart_width / 2:.1f}" y="324"
-text-anchor="middle">N and combined pilot ratio</text></svg></div>
+text-anchor="middle">{"Tested configuration" if scope == "all" else "N and combined pilot ratio"}</text></svg></div>
 <style>
 .grouped-rate-configuration{{color:var(--muted);margin:.25rem 0 .6rem}}
 .grouped-rate-formula{{color:var(--muted);margin:.25rem 0 .5rem}}
+.warning-note{{background:#fff3bf;border:1px solid #ffe066;border-radius:6px;
+padding:7px;margin:.5rem 0}}
 #grouped-rate-legend{{display:flex;gap:14px;flex-wrap:wrap;margin:.4rem 0 .8rem}}
 #grouped-rate-legend span{{display:flex;align-items:center;gap:5px}}
 #grouped-rate-legend i{{display:inline-block;width:14px;height:10px}}
@@ -3531,14 +3608,17 @@ fill:#18212b}}
     return shell(heading, "/no-harm-results", body, wide=True)
 
 
-def _best_observed_candidate_key(group_key, receiver_id):
+def _best_observed_candidate_key(
+        group_key, receiver_id, broad_candidate_key=None):
     """Stable identity for one configuration and receiver candidate."""
+    if broad_candidate_key is not None:
+        return f"{broad_candidate_key}:{receiver_id}"
     nfft, outer_spacing, inner_spacing = group_key
     return f"n{nfft}-p{outer_spacing}-{inner_spacing}-{receiver_id}"
 
 
 def _best_observed_cell(family, snr_db, channel, hydrophone):
-    """Exact winners, next distinct rate, and one-frame near ties."""
+    """Ordered receiver winners, next distinct rate, and near ties."""
     candidates = []
     for config_index, (group_key, group) in enumerate(family):
         rows = group["observations"][snr_db]
@@ -3557,7 +3637,13 @@ def _best_observed_cell(family, snr_db, channel, hydrophone):
                 "receiver_color": receiver_color,
                 "rate": observation["rate"],
                 "quantum": quantum,
-                "key": _best_observed_candidate_key(group_key, receiver_id),
+                "key": _best_observed_candidate_key(
+                    group_key, receiver_id,
+                    group.get("broad_candidate_key")),
+                "configuration_label": group.get(
+                    "display_label",
+                    f"N={group_key[0]} · pilots "
+                    f"{group_key[1]}/{group_key[2]}"),
             })
     peak = max(candidate["rate"] for candidate in candidates)
     if peak == 0:
@@ -3565,16 +3651,27 @@ def _best_observed_cell(family, snr_db, channel, hydrophone):
             "peak": 0.0, "winners": (), "near_ties": (),
             "runner_up": None, "margin": None, "outage": True,
         }
-    winners = tuple(candidate for candidate in candidates
-                    if math.isclose(candidate["rate"], peak,
-                                    rel_tol=1e-12, abs_tol=1e-9))
+    exact_rate_winners = tuple(
+        candidate for candidate in candidates
+        if math.isclose(candidate["rate"], peak,
+                        rel_tol=1e-12, abs_tol=1e-9))
+    tied_receivers = tuple(
+        receiver_id for receiver_id, _label, _color
+        in _EFFECTIVE_RATE_RECEIVERS
+        if any(candidate["receiver_id"] == receiver_id
+               for candidate in exact_rate_winners))
+    selected_receiver = tied_receivers[0]
+    winners = tuple(
+        candidate for candidate in exact_rate_winners
+        if candidate["receiver_id"] == selected_receiver)
     remaining = tuple(candidate for candidate in candidates
-                      if candidate not in winners)
+                      if candidate not in exact_rate_winners)
     runner_up = max((candidate["rate"] for candidate in remaining),
                     default=None)
     margin = peak - runner_up if runner_up is not None else None
     winner_quantum = max(
-        (candidate["quantum"] or 0.0 for candidate in winners), default=0.0)
+        (candidate["quantum"] or 0.0
+         for candidate in exact_rate_winners), default=0.0)
     near_ties = []
     for candidate in remaining:
         gap = peak - candidate["rate"]
@@ -3584,6 +3681,8 @@ def _best_observed_cell(family, snr_db, channel, hydrophone):
     return {
         "peak": peak,
         "winners": winners,
+        "rate_tied_receivers": tied_receivers,
+        "selected_receiver": selected_receiver,
         "near_ties": tuple(near_ties),
         "runner_up": runner_up,
         "margin": margin,
@@ -3689,10 +3788,11 @@ window.addEventListener("DOMContentLoaded", function () {{
 
 
 def page_no_harm_effective_rate_best(query):
-    """Twelve matched-family maximum-rate envelopes across stored SNRs."""
-    experiment_id, selected_snr = _no_harm_effective_rate_query(query)
+    """Twelve maximum-rate envelopes for one family or every tested result."""
+    experiment_id, selected_snr, scope = (
+        _no_harm_effective_rate_best_query(query))
     family, configuration, snr_grid = _no_harm_effective_rate_family(
-        experiment_id)
+        experiment_id, scope)
     if selected_snr not in snr_grid:
         raise FileNotFoundError("best-observed SNR is outside the stored grid")
     candidate_count = len(family) * len(_EFFECTIVE_RATE_RECEIVERS)
@@ -3716,8 +3816,8 @@ def page_no_harm_effective_rate_best(query):
     plot_width = 360.0 - plot_left - plot_right
     plot_height = plot_bottom - plot_top
     cell_width = plot_width / len(snr_grid)
-    receiver_color = {
-        receiver_id: color for receiver_id, _label, color
+    receiver_display = {
+        receiver_id: (label, color) for receiver_id, label, color
         in _EFFECTIVE_RATE_RECEIVERS
     }
     panels = []
@@ -3736,10 +3836,12 @@ def page_no_harm_effective_rate_best(query):
                 point_coordinates.append(f"{x:.2f},{y:.2f}")
                 if snr_db == selected_snr:
                     focused_cell = cell
-                winner_algorithms = ",".join(
-                    candidate["receiver_id"] for candidate in cell["winners"])
+                winner_algorithms = cell.get("selected_receiver") or ""
                 winner_keys = ",".join(
                     candidate["key"] for candidate in cell["winners"])
+                winner_experiment_ids = ",".join(dict.fromkeys(
+                    candidate["experiment_id"]
+                    for candidate in cell["winners"]))
                 near_keys = ",".join(
                     candidate["key"] for candidate in cell["near_ties"])
                 if cell["outage"]:
@@ -3764,19 +3866,25 @@ def page_no_harm_effective_rate_best(query):
                         f'x="{plot_left + cell_width * snr_index + stripe_width * stripe_index:.2f}" '
                         f'y="{ribbon_top:.2f}" width="{stripe_width:.2f}" '
                         f'height="{ribbon_height:.2f}" '
-                        f'fill="{_BEST_OBSERVED_CONFIG_COLORS[index]}"/>'
+                        f'fill="{_best_observed_config_color(index)}"/>'
                         for stripe_index, index in enumerate(config_indexes))
-                    algorithms = {
-                        candidate["receiver_id"]
-                        for candidate in cell["winners"]}
-                    point_color = (receiver_color[next(iter(algorithms))]
-                                   if len(algorithms) == 1 else "#212529")
+                    selected_receiver = cell["selected_receiver"]
+                    selected_label, point_color = receiver_display[
+                        selected_receiver]
+                    tied_receiver_count = len(cell["rate_tied_receivers"])
                     winner_text = "; ".join(
-                        f'N={candidate["group_key"][0]}, pilots '
-                        f'{candidate["group_key"][1]}/'
-                        f'{candidate["group_key"][2]}, '
-                        f'{candidate["receiver_label"]}'
+                        (f'{candidate["configuration_label"]}, '
+                         f'{candidate["receiver_label"]}' if scope == "all"
+                         else f'N={candidate["group_key"][0]}, pilots '
+                         f'{candidate["group_key"][1]}/'
+                         f'{candidate["group_key"][2]}, '
+                         f'{candidate["receiver_label"]}')
                         for candidate in cell["winners"])
+                    receiver_choice_text = (
+                        f"receiver order selected {selected_label} from "
+                        f"{tied_receiver_count} equal-rate receivers"
+                        if tied_receiver_count > 1 else
+                        f"selected receiver {selected_label}")
                     margin_text = ("no distinct runner-up" if
                                    cell["margin"] is None else
                                    f'observed lead {cell["margin"]:.1f} bps')
@@ -3785,18 +3893,23 @@ def page_no_harm_effective_rate_best(query):
                                      candidate["key"]
                                      for candidate in cell["near_ties"]))
                     title = (f"{snr_db:g} dB: {cell['peak']:.1f} bps; "
-                             f"{winner_text}; {margin_text}; near ties: "
-                             f"{near_text}")
+                             f"{winner_text}; {receiver_choice_text}; "
+                             f"{margin_text}; near ties: {near_text}")
                 detail_url = (
                     "/no-harm-results/effective-rate/by-n?" +
                     urllib.parse.urlencode([
                         ("experiment", experiment_id),
                         ("snr_db", f"{snr_db:g}"),
                         ("path", path),
+                        ("scope", scope),
                     ]))
+                winner_count = len(cell["winners"])
                 aria = (f"{channel.upper()} H{hydrophone}, {snr_db:g} dB, "
                         f"{cell['peak']:.1f} bps, "
-                        f"{len(cell['winners'])} exact winners, "
+                        f"{winner_count} winning configuration"
+                        f"{'s' if winner_count != 1 else ''}, "
+                        f"selected receiver "
+                        f"{receiver_display[cell['selected_receiver']][0] if not cell['outage'] else 'none'}, "
                         f"{len(cell['near_ties'])} near ties; open all "
                         "configuration bars")
                 cell_markup.append(
@@ -3806,9 +3919,12 @@ def page_no_harm_effective_rate_best(query):
                     f'data-snr-db="{snr_db:g}" '
                     f'data-outage="{str(cell["outage"]).lower()}" '
                     f'data-winner-count="{len(cell["winners"])}" '
+                    f'data-rate-tied-receiver-count="{len(cell.get("rate_tied_receivers", ()))}" '
+                    f'data-selected-receiver="{cell.get("selected_receiver") or ""}" '
                     f'data-near-tie-count="{len(cell["near_ties"])}" '
                     f'data-winner-algorithms="{winner_algorithms}" '
                     f'data-winner-keys="{winner_keys}" '
+                    f'data-winner-experiment-ids="{winner_experiment_ids}" '
                     f'data-near-tie-keys="{near_keys}">'
                     + ribbon_markup +
                     f'<circle class="winner-point" cx="{x:.2f}" cy="{y:.2f}" '
@@ -3826,8 +3942,9 @@ def page_no_harm_effective_rate_best(query):
             focus_x = plot_left + cell_width * (focus_index + 0.5)
             summary = ("outage, 0 bps" if focused_cell["outage"] else
                        f'{focused_cell["peak"]:.1f} bps, '
-                       f'{len(focused_cell["winners"])} exact winner'
-                       f'{"s" if len(focused_cell["winners"]) != 1 else ""}')
+                       f'{len(focused_cell["winners"])} winning configuration'
+                       f'{"s" if len(focused_cell["winners"]) != 1 else ""}, '
+                       f'{receiver_display[focused_cell["selected_receiver"]][0]}')
             title_id = f"best-rate-title-{channel}-{hydrophone}"
             desc_id = f"best-rate-desc-{channel}-{hydrophone}"
             panels.append(
@@ -3840,7 +3957,9 @@ def page_no_harm_effective_rate_best(query):
                 f'<title id="{title_id}">{channel.upper()} H{hydrophone} '
                 'best observed effective payload rate</title>'
                 f'<desc id="{desc_id}">Maximum stored rate at every tested '
-                'SNR; the ribbon identifies the winning configuration.</desc>'
+                'SNR; receiver rate ties use the approved decoding-time '
+                'order, and the ribbon identifies winning configurations.'
+                '</desc>'
                 f'<line class="axis" x1="{plot_left}" y1="{plot_top}" '
                 f'x2="{plot_left}" y2="{plot_bottom}"/>'
                 f'<line class="axis" x1="{plot_left}" y1="{plot_bottom}" '
@@ -3887,10 +4006,15 @@ def page_no_harm_effective_rate_best(query):
     config_legend = []
     for index, (group_key, group) in enumerate(family):
         nfft, outer_spacing, inner_spacing = group_key
+        legend_label = (
+            group["display_label"] if scope == "all" else
+            f"N={nfft} · pilots {outer_spacing}/{inner_spacing}")
         config_legend.append(
-            '<span class="winner-config-legend-item">'
-            f'<i style="background:{_BEST_OBSERVED_CONFIG_COLORS[index]}"></i>'
-            f'N={nfft} · pilots {outer_spacing}/{inner_spacing}</span>')
+            '<span class="winner-config-legend-item" '
+            f'data-experiment-id="{esc(group["experiment_id"])}" '
+            f'title="{esc(group["experiment_id"])}">'
+            f'<i style="background:{_best_observed_config_color(index)}"></i>'
+            f'{esc(legend_label)}</span>')
     receiver_legend = "".join(
         f'<span><i style="background:{color}"></i>{esc(label)}</span>'
         for _receiver_id, label, color in _EFFECTIVE_RATE_RECEIVERS)
@@ -3899,13 +4023,20 @@ def page_no_harm_effective_rate_best(query):
         for _group_key, group in family)
     provenance_recorded = all(
         identity is not None for identity in provenance_identities)
-    if (provenance_recorded and
+    if (scope == "family" and provenance_recorded and
             len(set(provenance_identities)) != 1):
         raise FileNotFoundError(
             "matching configurations have different source provenance")
     provenance_note = ("" if provenance_recorded else
         '<p class="warning-note"><b>Provenance unverified.</b> Common source '
         'and harness digests are not recorded in every retained manifest.</p>')
+    scope_note = ("<p class=\"warning-note\">This view includes "
+                  "configurations with different capture windows, frame "
+                  "counts, receiver policies, code rates, and frame "
+                  "durations. It reports the largest stored effective "
+                  "payload rate; it is not a controlled comparison.</p>"
+                  if scope == "all" else "")
+    family_count = len({group["signature"] for _key, group in family})
     grid_text = " ".join(f"{snr_db:g}" for snr_db in snr_grid)
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -3932,13 +4063,20 @@ justify-content:space-between;gap:5px;font-size:12px;margin-bottom:2px}}
 text-align:left}}.range-table th{{background:#f1f3f5}}
 </style></head><body><main id="best-observed-rate-view"
 data-anchor-experiment="{esc(experiment_id)}" data-family-size="{len(family)}"
+data-comparison-scope="{scope}" data-family-count="{family_count}"
+data-configuration-count="{len(family)}"
 data-candidate-count="{candidate_count}" data-focused-snr="{selected_snr:g}"
-data-snr-grid="{grid_text}" data-y-max="{y_max:g}">
+data-snr-grid="{grid_text}" data-y-max="{y_max:g}"
+data-receiver-tie-order="ofdm_fec pfft lite profiled_cz cwz_joint">
 <h1>Best observed effective payload rate</h1>
 <p class="configuration">{esc(configuration)}</p>
 <p class="method-note">The black line is the largest stored effective payload
-rate at each tested SNR. Ribbon colors identify configurations. Exact receiver
-ties are retained. Dashed rings mark choices within one successful-frame rate step of the maximum; these are near ties, not exact winners. Decoder time is not included.</p>
+rate at each tested SNR. Equal receiver rates use the approved decoding-time order:
+OFDM+FEC, PFFT, Lite, (C,z), (C,W,z). Ribbon colors identify configurations
+that remain after this receiver choice. Dashed rings mark choices within one
+successful-frame rate step of the maximum; these are near ties, not exact winners.
+Decoder time is not included in the effective payload rate.</p>
+{scope_note}
 {provenance_note}
 {_best_observed_snr_slider(snr_grid, selected_snr)}
 <div class="legend-row" id="best-config-legend">{''.join(config_legend)}</div>
@@ -3947,7 +4085,7 @@ ties are retained. Dashed rings mark choices within one successful-frame rate st
 <p class="method-note">Ranges join adjacent tested SNR points only when the full winner and near-tie sets are unchanged. They do not interpolate between tested
 SNR values.</p>
 <table class="range-table"><thead><tr><th>Path</th><th>Tested SNR (dB)</th>
-<th>Winner set</th><th>Near-tie set</th></tr></thead>
+<th>Selected winner set</th><th>Near-tie set</th></tr></thead>
 <tbody>{''.join(range_rows)}</tbody></table>
 </main></body></html>"""
 
@@ -4095,6 +4233,13 @@ def page_results(query="", awgn=False, no_harm=False):
         selected_plot = plot_values[0] if plot_values else "ber"
     else:
         selected_plot = "ber"
+    scope_values = [value for key, value in other if key == "scope"]
+    selected_scope = "family"
+    if no_harm and selected_plot == "best-observed":
+        selected_scope = _best_observed_scope(scope_values)
+    elif scope_values:
+        raise FileNotFoundError(
+            "best-observed scope requires the best-observed plot")
     try:
         if experiment_id is None:
             path = _latest_experiment_results(awgn=awgn, no_harm=no_harm)
@@ -4123,16 +4268,19 @@ shows the newest one.</div>"""
             snr_values, rate_grid)
     stable_other = [
         (key, value) for key, value in other
-        if not (no_harm and key in ("layout", "plot", "snr_db"))]
+        if not (no_harm and key in ("layout", "plot", "snr_db", "scope"))]
     if no_harm and selected_plot in ("effective-rate", "best-observed"):
         rate_route = ("/effective-rate/best" if
                       selected_plot == "best-observed" else
                       "/effective-rate")
+        rate_query = [
+            ("experiment", experiment_id),
+            ("snr_db", f"{selected_snr:g}"),
+        ]
+        if selected_plot == "best-observed":
+            rate_query.append(("scope", selected_scope))
         view_url = (route_prefix + rate_route + "?" +
-                    urllib.parse.urlencode([
-                        ("experiment", experiment_id),
-                        ("snr_db", f"{selected_snr:g}"),
-                    ]))
+                    urllib.parse.urlencode(rate_query))
         embedded_view_url = view_url
         snr_control = _no_harm_effective_rate_slider(
             rate_grid, selected_snr, view_url, selected_plot)
@@ -4155,12 +4303,28 @@ shows the newest one.</div>"""
                 '</option>')
         jump = ("var url = new window.URL(location.href); "
                 "url.searchParams.set('experiment', this.value); "
+                "url.searchParams.set('scope', 'family'); "
                 "location.href = url")
+        scope_jump = ("var url = new window.URL(location.href); "
+                      "url.searchParams.set('scope', this.value); "
+                      "location.href = url")
+        scope_options = (
+            f'<option value="all"'
+            f'{" selected" if selected_scope == "all" else ""}>'
+            'All tested no-harm configurations</option>'
+            f'<option value="family"'
+            f'{" selected" if selected_scope == "family" else ""}>'
+            'Selected family</option>')
+        family_disabled = " disabled" if selected_scope == "all" else ""
         picker = (
-            '<label style="margin-right:auto">Comparison family '
+            '<span style="margin-right:auto;display:flex;gap:.6rem;'
+            'align-items:center"><label>Comparison scope '
+            f'<select id="best-observed-scope-picker" '
+            f'onchange="{esc(scope_jump)}">{scope_options}</select></label>'
+            '<label>Comparison family '
             f'<select id="effective-rate-family-picker" '
-            f'onchange="{esc(jump)}">'
-            f'{"".join(family_options)}</select></label>')
+            f'{family_disabled.strip()} onchange="{esc(jump)}">'
+            f'{"".join(family_options)}</select></label></span>')
     elif len(available) > 1:
         option_rows = []
         for name in available:
@@ -4184,6 +4348,9 @@ shows the newest one.</div>"""
             "var url = new window.URL(location.href); "
             "if (this.value === 'ber') url.searchParams.delete('plot'); "
             "else url.searchParams.set('plot', this.value); "
+            "if (this.value === 'best-observed') "
+            "url.searchParams.set('scope', 'all'); "
+            "else url.searchParams.delete('scope'); "
             "location.href = url")
         plot_picker = (
             '<label>Plot <select id="plot-picker" '

@@ -84,8 +84,9 @@ S24 /no-harm-results retains the Results controls but admits only AWGN
     panel. Each effective-rate panel links to a strict grouped-bar comparison
     that holds every configuration field fixed except N and pilot geometry.
     A matched-family best-observed view renders twelve maximum-rate envelopes,
-    exact receiver ties, outages, near ties, sampled winner ranges, and links
-    every path/SNR cell back to the grouped-bar detail.
+    resolves equal-rate receivers in the approved decoding-time order, retains
+    configuration ties, shows outages and near ties, and links every path/SNR
+    cell back to the grouped-bar detail.
 """
 import html
 import json
@@ -1210,6 +1211,15 @@ def check():
                                                   receiver_id ==
                                                   "profiled_cz"):
                                                 rate = 1500.0
+                                        elif snr_db == 12:
+                                            rate = min(rate, 1200.0)
+                                            if (experiment_index in (4, 5) and
+                                                    receiver_id == "lite"):
+                                                rate = 1600.0
+                                            elif (experiment_index == 5 and
+                                                  receiver_id ==
+                                                  "profiled_cz"):
+                                                rate = 1600.0
                                     elif (experiment_index == 2 and
                                           channel == 1 and hydrophone == 1 and
                                           snr_db == 10):
@@ -2144,11 +2154,13 @@ def check():
             best_outer_query = urllib.parse.urlencode([
                 ("experiment", no_harm_ids[0]),
                 ("plot", "best-observed"),
+                ("scope", "family"),
                 ("snr_db", "6"),
             ])
             best_endpoint_query = urllib.parse.urlencode([
                 ("experiment", no_harm_ids[0]),
                 ("snr_db", "6"),
+                ("scope", "family"),
             ])
             best_endpoint_url = (
                 "/no-harm-results/effective-rate/best?" +
@@ -2162,6 +2174,10 @@ def check():
                     not in best_outer_page or
                     '<select id="effective-rate-family-picker"' not in
                     best_outer_page or
+                    '<select id="best-observed-scope-picker"' not in
+                    best_outer_page or
+                    '<option value="family" selected>Selected family</option>'
+                    not in best_outer_page or
                     best_outer_page.count('data-family-size="') != 3 or
                     'data-family-size="5" selected' not in best_outer_page or
                     'id="sweep-parameters"' in best_outer_page or
@@ -2182,6 +2198,13 @@ def check():
             best_cell_pairs = _re.findall(
                 r'<g class="winner-cell" data-path="([^"]+)" '
                 r'data-snr-db="([^"]+)"', best_view)
+            best_cell_blocks = {
+                (match.group(2), match.group(3)): match.group(1)
+                for match in _re.finditer(
+                    r'(<g class="winner-cell" data-path="([^"]+)" '
+                    r'data-snr-db="([^"]+)".*?</g></a>)',
+                    best_view, _re.DOTALL)
+            }
             expected_best_cell_pairs = [
                 (path, str(snr_db))
                 for path in expected_best_paths
@@ -2193,6 +2216,7 @@ def check():
                     ("experiment", no_harm_ids[0]),
                     ("snr_db", "6"),
                     ("path", "red1:1"),
+                    ("scope", "family"),
                 ]))
             best_markers = (
                 "<h1>Best observed effective payload rate</h1>",
@@ -2203,8 +2227,10 @@ def check():
                 'data-path="red1:1" data-snr-db="0" '
                 'data-outage="true" data-winner-count="0"',
                 'data-path="red1:1" data-snr-db="2" '
-                'data-outage="false" data-winner-count="3"',
-                'data-winner-algorithms="lite,profiled_cz,cwz_joint"',
+                'data-outage="false" data-winner-count="1"',
+                'data-rate-tied-receiver-count="3" '
+                'data-selected-receiver="lite"',
+                'data-winner-algorithms="lite"',
                 'data-path="red1:1" data-snr-db="4" '
                 'data-outage="false" data-winner-count="1"',
                 'data-winner-algorithms="ofdm_fec"',
@@ -2212,33 +2238,240 @@ def check():
                 'data-outage="false" data-winner-count="1"',
                 'data-near-tie-count="1"',
                 'data-path="red1:1" data-snr-db="10" '
+                'data-outage="false" data-winner-count="1"',
+                'data-rate-tied-receiver-count="2" '
+                'data-selected-receiver="lite"',
+                'data-path="red1:1" data-snr-db="12" '
                 'data-outage="false" data-winner-count="2"',
-                'data-winner-algorithms="lite,profiled_cz"',
+                'data-winner-keys="n1024-p5-10-lite,'
+                'n2048-p5-10-lite"',
+                'data-receiver-tie-order="ofdm_fec pfft lite '
+                'profiled_cz cwz_joint"',
+                "Equal receiver rates use the approved decoding-time order: "
+                "OFDM+FEC, PFFT, Lite, (C,z), (C,W,z).",
+                "receiver order selected Lite from 3 equal-rate receivers",
+                "receiver order selected Lite from 2 equal-rate receivers",
                 'class="winner-range" data-path="red1:1" '
                 'data-snr-start="6" data-snr-end="8"',
                 f'href="{html.escape(first_detail_url, quote=True)}"',
                 "Ranges join adjacent tested SNR points only when the full "
                 "winner and near-tie sets are unchanged.",
-                "Decoder time is not included.",
+                "Decoder time is not included in the effective payload rate.",
                 "within one successful-frame rate step of the maximum",
                 'class="winner-range-near"',
                 "Provenance unverified.",
             )
+            compact_best_view = _re.sub(r"\s+", " ", best_view)
+            missing_best_markers = tuple(
+                marker for marker in best_markers
+                if marker not in best_view and marker not in compact_best_view)
+            cell_0 = best_cell_blocks.get(("red1:1", "0"), "")
+            cell_2 = best_cell_blocks.get(("red1:1", "2"), "")
+            cell_4 = best_cell_blocks.get(("red1:1", "4"), "")
+            cell_6 = best_cell_blocks.get(("red1:1", "6"), "")
+            cell_10 = best_cell_blocks.get(("red1:1", "10"), "")
+            cell_12 = best_cell_blocks.get(("red1:1", "12"), "")
+            winner_counts = _re.findall(
+                r'<g class="winner-cell"[^>]*data-winner-count="([0-9]+)"',
+                best_view)
+            expected_winner_distribution = {
+                "0": 1,
+                "1": 190,
+                "2": 1,
+            }
+            winner_distribution = {
+                count: winner_counts.count(count)
+                for count in set(winner_counts)
+            }
+            exact_cell_contract = (
+                'data-outage="true"' in cell_0 and
+                'data-winner-count="0"' in cell_0 and
+                'data-selected-receiver=""' in cell_0 and
+                'data-near-tie-count="0"' in cell_0 and
+                'fill="#868e96"' in cell_0 and
+                'fill="#adb5bd"' in cell_0 and
+                'data-winner-keys="n1024-p5-10-lite"' in cell_2 and
+                'data-selected-receiver="lite"' in cell_2 and
+                'fill="#51cf66"' in cell_2 and
+                'data-selected-receiver="ofdm_fec"' in cell_4 and
+                'fill="#339af0"' in cell_4 and
+                'data-near-tie-keys="n1024-p5-10-lite"' in cell_6 and
+                'observed lead 1.0 bps' in cell_6 and
+                'data-winner-keys="n1024-p5-10-lite"' in cell_10 and
+                'data-selected-receiver="lite"' in cell_10 and
+                'fill="#51cf66"' in cell_10 and
+                'data-winner-keys="n1024-p5-10-lite,'
+                'n2048-p5-10-lite"' in cell_12 and
+                'data-selected-receiver="lite"' in cell_12 and
+                cell_12.count('winner-ribbon-stripe') == 2 and
+                'fill="#51cf66"' in cell_12)
+
+            priority_contract = True
+            priority_cases = (
+                (("ofdm_fec", "pfft", "lite", "profiled_cz", "cwz_joint"),
+                 "ofdm_fec"),
+                (("pfft", "lite", "profiled_cz", "cwz_joint"), "pfft"),
+                (("lite", "profiled_cz", "cwz_joint"), "lite"),
+                (("profiled_cz", "cwz_joint"), "profiled_cz"),
+            )
+            for tied_receiver_ids, expected_receiver in priority_cases:
+                priority_observations = {
+                    (1, 1, receiver_id): {
+                        "rate": (100.0 if receiver_id in tied_receiver_ids
+                                 else 50.0),
+                        "successful_frames": 1,
+                    }
+                    for receiver_id, _label, _color
+                    in server._EFFECTIVE_RATE_RECEIVERS
+                }
+                priority_family = (((1024, 5, 5), {
+                    "experiment_id": "priority-contract",
+                    "observations": {0.0: priority_observations},
+                }),)
+                priority_cell = server._best_observed_cell(
+                    priority_family, 0.0, 1, 1)
+                if (priority_cell["selected_receiver"] != expected_receiver or
+                        {winner["receiver_id"]
+                         for winner in priority_cell["winners"]} !=
+                        {expected_receiver}):
+                    priority_contract = False
             if (best_code != 200 or
-                    any(marker not in best_view for marker in best_markers) or
+                    missing_best_markers or
                     best_paths != expected_best_paths or
                     best_cell_pairs != expected_best_cell_pairs or
                     best_view.count('class="winner-panel"') != 12 or
                     best_view.count('class="winner-cell-link"') != 192 or
                     best_view.count('class="winner-point"') != 192 or
-                    best_view.count('winner-ribbon-stripe') < 192 or
+                    best_view.count('winner-ribbon-stripe') != 192 or
                     best_view.count(
                         'class="winner-config-legend-item"') != 5 or
+                    winner_distribution != expected_winner_distribution or
+                    not exact_cell_contract or
+                    not priority_contract or
+                    _re.search(
+                        r'<circle class="winner-point"[^>]*'
+                        r'fill="#212529"', best_view) or
                     no_harm_ids[2] in best_view):
                 problems.append(
                     "S24: best-observed figure did not render twelve strict "
-                    "winner envelopes with every tested SNR, exact ties, "
-                    "outages, near ties, ranges, and detail links")
+                    "winner envelopes with every tested SNR, ordered receiver "
+                    "tie resolution, configuration ties, outages, near ties, "
+                    "ranges, and detail links; missing markers="
+                    f"{missing_best_markers!r}")
+
+            # UI-043: Best observed defaults to every tested no-harm
+            # configuration, while retaining the strict family restriction.
+            all_best_endpoint_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]),
+                ("snr_db", "10"),
+                ("scope", "all"),
+            ])
+            all_best_endpoint_url = (
+                "/no-harm-results/effective-rate/best?" +
+                all_best_endpoint_query)
+            default_all_outer_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]),
+                ("plot", "best-observed"),
+                ("snr_db", "10"),
+            ])
+            default_all_outer_code, default_all_outer = fetch(
+                base, "/no-harm-results?" + default_all_outer_query)
+            all_best_code, all_best_view = fetch(
+                base, all_best_endpoint_url)
+            all_cell_blocks = {
+                (match.group(2), match.group(3)): match.group(1)
+                for match in _re.finditer(
+                    r'(<g class="winner-cell" data-path="([^"]+)" '
+                    r'data-snr-db="([^"]+)".*?</g></a>)',
+                    all_best_view, _re.DOTALL)
+            }
+            all_cell_0 = all_cell_blocks.get(("red1:1", "0"), "")
+            all_cell_10 = all_cell_blocks.get(("red1:1", "10"), "")
+            all_cell_12 = all_cell_blocks.get(("red1:1", "12"), "")
+            all_legend_ids = _re.findall(
+                r'class="winner-config-legend-item" '
+                r'data-experiment-id="([^"]+)"', all_best_view)
+            all_detail_url = (
+                "/no-harm-results/effective-rate/by-n?" +
+                urllib.parse.urlencode([
+                    ("experiment", no_harm_ids[0]),
+                    ("snr_db", "10"),
+                    ("path", "red1:1"),
+                    ("scope", "all"),
+                ]))
+            all_scope_contract = (
+                default_all_outer_code == 200 and
+                '<select id="best-observed-scope-picker"' in
+                default_all_outer and
+                '<option value="all" selected>All tested no-harm '
+                'configurations</option>' in default_all_outer and
+                'id="effective-rate-family-picker" disabled' in
+                default_all_outer and
+                f'<iframe id="single-result" src="{all_best_endpoint_url}"'
+                in default_all_outer and
+                all_best_code == 200 and
+                'data-comparison-scope="all"' in all_best_view and
+                'data-family-count="3"' in all_best_view and
+                'data-configuration-count="7"' in all_best_view and
+                'data-candidate-count="35"' in all_best_view and
+                all_best_view.count('class="winner-panel"') == 12 and
+                all_best_view.count('class="winner-cell-link"') == 192 and
+                all_best_view.count('class="winner-point"') == 192 and
+                len(all_legend_ids) == 7 and
+                set(all_legend_ids) == set(no_harm_ids) and
+                'data-selected-receiver="cwz_joint"' in all_cell_0 and
+                f'data-winner-experiment-ids="{no_harm_ids[2]}"' in
+                all_cell_0 and
+                'data-rate-tied-receiver-count="5"' in all_cell_10 and
+                'data-selected-receiver="ofdm_fec"' in all_cell_10 and
+                f'data-winner-experiment-ids="{no_harm_ids[2]}"' in
+                all_cell_10 and
+                '9999.0 bps' in all_cell_10 and
+                'fill="#339af0"' in all_cell_10 and
+                'data-selected-receiver="lite"' in all_cell_12 and
+                f'data-winner-experiment-ids="{no_harm_ids[4]},'
+                f'{no_harm_ids[5]}"' in all_cell_12 and
+                f'href="{html.escape(all_detail_url, quote=True)}"' in
+                all_best_view and
+                'This view includes configurations with different capture '
+                'windows, frame counts, receiver policies, code rates, and '
+                'frame durations.' in all_best_view and
+                'It reports the largest stored effective payload rate; it '
+                'is not a controlled comparison.' in all_best_view and
+                not _re.search(
+                    r'<circle class="winner-point"[^>]*fill="#212529"',
+                    all_best_view))
+            all_detail_code, all_detail_view = fetch(base, all_detail_url)
+            all_detail_ids = _re.findall(
+                r'<g class="n-group"[^>]*data-experiment-id="([^"]+)"',
+                all_detail_view)
+            repeated_n_pilots = _re.findall(
+                r'<g class="n-group" data-nfft="1024"[^>]*'
+                r'data-pilot-spacing="5/5"', all_detail_view)
+            all_detail_contract = (
+                all_detail_code == 200 and
+                'data-comparison-scope="all"' in all_detail_view and
+                all_detail_view.count('class="n-group"') == 7 and
+                all_detail_view.count('class="grouped-receiver-bar"') == 35
+                and len(all_detail_ids) == 7 and
+                set(all_detail_ids) == set(no_harm_ids) and
+                len(repeated_n_pilots) == 2 and
+                'effective payload rate across tested configurations at '
+                '10 dB' in all_detail_view and
+                all_detail_view.count('class="group-family-label"') == 7 and
+                all(expression in all_detail_view for expression in
+                    no_harm_ids) and
+                'plot=best-observed' in all_detail_view and
+                'scope=all' in all_detail_view)
+            if not all_scope_contract:
+                problems.append(
+                    "S24: best-observed all-configurations scope did not "
+                    "scan every family, preserve duplicate N/pilot records, "
+                    "or identify the selected algorithm and source result")
+            if not all_detail_contract:
+                problems.append(
+                    "S24: all-configurations winner link did not retain its "
+                    "scope or render every source configuration and receiver")
             invalid_best_queries = (
                 [("experiment", no_harm_ids[0]), ("snr_db", "1")],
                 [("experiment", impulsive_id), ("snr_db", "6")],
@@ -2246,6 +2479,10 @@ def check():
                  ("extra", "value")],
                 [("experiment", no_harm_ids[0]),
                  ("experiment", no_harm_ids[0]), ("snr_db", "6")],
+                [("experiment", no_harm_ids[0]), ("snr_db", "6"),
+                 ("scope", "bogus")],
+                [("experiment", no_harm_ids[0]), ("snr_db", "6"),
+                 ("scope", "all"), ("scope", "family")],
             )
             for invalid_pairs in invalid_best_queries:
                 invalid_best_code, _ = fetch(
