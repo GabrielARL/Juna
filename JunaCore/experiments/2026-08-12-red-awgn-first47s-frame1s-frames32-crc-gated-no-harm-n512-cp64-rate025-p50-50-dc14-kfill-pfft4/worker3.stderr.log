@@ -1,0 +1,5 @@
+┌ Info: pilot-percent frame1s configuration
+│   nfft = 512
+│   requested_percent = 4
+│   outer = 50
+└   inner = 50
