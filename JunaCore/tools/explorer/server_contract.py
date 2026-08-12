@@ -79,7 +79,16 @@ S23 /awgn-results shows live AWGN-008, AWGN-009, AWGN-012, AWGN-015,
 S24 /no-harm-results retains the Results controls but admits only AWGN
     manifests that explicitly declare CRC no-harm behavior for both protected
     receivers; its view, manifest, and comparison routes enforce the same gate.
+    Each declared result also exposes a selectable-SNR effective-payload-rate
+    figure with twelve channel/hydrophone panels and five receiver bars per
+    panel. Each effective-rate panel links to a strict grouped-bar comparison
+    that holds every configuration field fixed except N and pilot geometry.
+    A matched-family best-observed view renders twelve maximum-rate envelopes,
+    resolves equal-rate receivers in the approved decoding-time order, retains
+    configuration ties, shows outages and near ties, and links every path/SNR
+    cell back to the grouped-bar detail.
 """
+import html
 import json
 import os
 import subprocess
@@ -97,7 +106,9 @@ import server  # noqa: E402
 from source_symbol_explorer import analyze  # noqa: E402
 
 NAV_LABELS = ["Home", "Tests", "Map", "Chain", "Source", "Coverage",
-              "Health", "Progress", "Results", "AWGN results"]
+              "Health", "Progress", "No-harm results"]
+REMOVED_NAV_LINKS = [("/results", "Results"),
+                     ("/awgn-results", "AWGN results")]
 API_ENDPOINTS = ["/api/repository", "/api/suites", "/api/chain",
                  "/api/symbols", "/api/coverage", "/api/runs",
                  "/api/health", "/api/palette", "/api/receivers",
@@ -119,6 +130,13 @@ def fetch(base, path, method="GET", body=None):
             return resp.status, resp.read().decode()
     except urllib.error.HTTPError as err:
         return err.code, err.read().decode()
+
+
+def nav_fragment(document):
+    """Return only the shell navigation markup."""
+    if "<nav>" not in document or "</nav>" not in document:
+        return ""
+    return document.split("<nav>", 1)[1].split("</nav>", 1)[0]
 
 def browser_dom(base, path):
     chrome = next((candidate for candidate in
@@ -156,11 +174,26 @@ def check():
                  "/health", "/progress"]:
         code, text = fetch(base, path)
         pages[path] = text
+        navigation = nav_fragment(text)
         if code != 200:
             problems.append(f"S1: {path} returned {code}")
         for label in NAV_LABELS:
-            if f">{label}</a>" not in text:
+            if f">{label}</a>" not in navigation:
                 problems.append(f"S1: {path} lost nav label '{label}'")
+        for href, label in REMOVED_NAV_LINKS:
+            if f'<a href="{href}"' in navigation:
+                problems.append(
+                    f"S1: {path} retained removed nav label '{label}'")
+    palette_pages = {
+        (item["href"], item["label"])
+        for item in server.palette_index()
+        if item["kind"] == "page"
+    }
+    for href, label in REMOVED_NAV_LINKS:
+        if (href, label) not in palette_pages:
+            problems.append(
+                f"S1: removed tab '{label}' is no longer reachable through "
+                "the command palette")
 
     # S2
     cov = pages.get("/coverage", "")
@@ -863,9 +896,13 @@ def check():
     code, awgn_empty = fetch(base, "/awgn-results")
     if code != 200:
         problems.append(f"S22: /awgn-results returned {code}")
-    for marker in ("<h1>AWGN results</h1>", ">AWGN results</a>"):
-        if marker not in awgn_empty:
-            problems.append(f"S22: /awgn-results lost marker '{marker}'")
+    if "<h1>AWGN results</h1>" not in awgn_empty:
+        problems.append("S22: /awgn-results lost its page heading")
+    awgn_navigation = nav_fragment(awgn_empty)
+    for href, label in REMOVED_NAV_LINKS:
+        if f'<a href="{href}"' in awgn_navigation:
+            problems.append(
+                f"S22: /awgn-results retained removed tab '{label}'")
 
     original_root = server.ROOT
     try:
@@ -931,13 +968,18 @@ def check():
                 results = os.path.join(experiments, experiment_id, "results")
                 os.makedirs(results)
                 result_paths = paths
-                panels = "".join(
-                    '<figure class="panel"><figcaption>'
-                    f'<b>{path.rsplit(" ", 1)[0]} hydrophone '
-                    f'{path.rsplit(" ", 1)[1]}</b></figcaption>'
-                    f'<svg data-contract-experiment="{experiment_id}" '
-                    f'data-contract-path="{path}"></svg></figure>'
-                    for path in result_paths)
+                panels = []
+                for path in result_paths:
+                    channel, hydrophone = path.rsplit(" ", 1)
+                    suffix = (" — fixture configuration"
+                              if path == "red4 3" else "")
+                    panels.append(
+                        '<figure class="panel"><figcaption>'
+                        f'<b>{channel} hydrophone {hydrophone}{suffix}</b>'
+                        '</figcaption>'
+                        f'<svg data-contract-experiment="{experiment_id}" '
+                        f'data-contract-path="{path}"></svg></figure>')
+                panels = "".join(panels)
                 with open(os.path.join(results, "results_view.html"),
                           "w", encoding="utf-8") as handle:
                     handle.write(
@@ -958,7 +1000,10 @@ def check():
             # S24 no-harm results require an explicit manifest declaration,
             # not a matching experiment-directory name. Exercise both
             # retained manifest schemas.
-            no_harm_ids = (awgn_ids[0], awgn_ids[1])
+            no_harm_ids = (
+                legacy_awgn_ids[0], rate_awgn_ids[7], rate_awgn_ids[0],
+                legacy_awgn_ids[2], rate_awgn_ids[15],
+                rate_awgn_ids[21], outer_awgn_ids[2])
             modern_manifest_path = os.path.join(
                 experiments, no_harm_ids[0], "results",
                 "results_manifest.json")
@@ -980,10 +1025,49 @@ def check():
                 "profiled_cz": "CRC no-harm",
                 "cwz_joint": "CRC no-harm",
             }
+            modern_manifest["frames_per_point"] = 8
+            modern_manifest["capture_time_seconds"] = [0.0, 8.0]
+            modern_manifest["geometry"] = {
+                "nfft": "1024", "code_rate": "0.25",
+                "outer_spacing": "5", "inner_spacing": "5",
+                "cp": "128", "check_degree": "10", "horizon": "0",
+            }
+            modern_manifest["seed"] = 4
+            modern_manifest["partial_fft_parts"] = 4
+            modern_manifest["configured_frame_duration_seconds"] = 1.0
             modern_manifest["protected_receivers"] = [
                 "profiled_cz", "cwz_joint"]
             with open(modern_manifest_path, "w", encoding="utf-8") as handle:
                 json.dump(modern_manifest, handle)
+
+            # UI-037 needs two otherwise-identical retained configurations
+            # whose only comparison dimension is N.
+            for sibling_id, nfft, outer, inner in (
+                    (no_harm_ids[3], "2048", "5", "5"),
+                    (no_harm_ids[4], "1024", "5", "10"),
+                    (no_harm_ids[5], "2048", "5", "10"),
+                    (no_harm_ids[6], "1024", "10", "5")):
+                sibling_manifest_path = os.path.join(
+                    experiments, sibling_id, "results",
+                    "results_manifest.json")
+                sibling_manifest = dict(modern_manifest)
+                sibling_manifest["experiment_id"] = sibling_id
+                sibling_manifest["geometry"] = dict(
+                    modern_manifest["geometry"])
+                sibling_parameters = server._sweep_name_parameters(sibling_id)
+                sibling_manifest["geometry"].update({
+                    "nfft": nfft,
+                    "outer_spacing": outer,
+                    "inner_spacing": inner,
+                    "cp": sibling_parameters["CP"],
+                    "code_rate": sibling_parameters["code rate"],
+                    "check_degree": sibling_parameters["check degree"],
+                    "horizon": "0",
+                })
+                with open(
+                        sibling_manifest_path, "w",
+                        encoding="utf-8") as handle:
+                    json.dump(sibling_manifest, handle)
             rule_manifest_path = os.path.join(
                 experiments, no_harm_ids[1], "results",
                 "results_manifest.json")
@@ -998,6 +1082,16 @@ def check():
                 "lite": "unchanged",
                 "profiled_cz": "CRC-gated no-harm C+z",
                 "cwz_joint": "CRC-gated no-harm C+W+z",
+            }
+            rule_manifest["frames_per_point"] = 32
+            rule_manifest["capture_time_seconds"] = [0.0, 47.0]
+            rule_parameters = server._sweep_name_parameters(no_harm_ids[1])
+            rule_manifest["geometry"] = {
+                "nfft": "2048", "code_rate": "0.125",
+                "outer_spacing": "5", "inner_spacing": "10",
+                "cp": rule_parameters["CP"],
+                "check_degree": rule_parameters["check degree"],
+                "horizon": "0",
             }
             rule_manifest["selection_reason_counts"] = {
                 receiver: {
@@ -1021,6 +1115,125 @@ def check():
             ]
             with open(rule_manifest_path, "w", encoding="utf-8") as handle:
                 json.dump(rule_manifest, handle)
+
+            third_manifest_path = os.path.join(
+                experiments, no_harm_ids[2], "results",
+                "results_manifest.json")
+            with open(third_manifest_path, encoding="utf-8") as handle:
+                third_manifest = json.load(handle)
+            third_manifest["source_contract"] = modern_manifest[
+                "source_contract"]
+            third_manifest["receiver_policy"] = {
+                "lite": "unchanged",
+                "profiled_cz": "CRC-gated no-harm C+z",
+                "cwz_joint": "CRC-gated no-harm C+W+z",
+            }
+            third_manifest["protected_receivers"] = [
+                "profiled_cz", "cwz_joint"]
+            third_manifest["frames_per_point"] = 32
+            third_manifest["capture_time_seconds"] = [0.0, 32.0]
+            third_manifest["geometry"] = {
+                "nfft": "1024", "code_rate": "0.125",
+                "outer_spacing": "5", "inner_spacing": "5",
+                "cp": "64", "check_degree": "10", "horizon": "0",
+            }
+            with open(third_manifest_path, "w", encoding="utf-8") as handle:
+                json.dump(third_manifest, handle)
+
+            # UI-032/UI-033: each declared no-harm result has one aggregate
+            # table from which the selected-SNR effective-payload-rate figure
+            # is rendered. Values are deliberately distinct across SNR and
+            # receiver so the route cannot pass by drawing one shared payload
+            # ceiling or by silently retaining the 20 dB rows.
+            receiver_ids = (
+                "ofdm_fec", "pfft", "lite", "profiled_cz", "cwz_joint")
+            for experiment_index, experiment_id in enumerate(no_harm_ids):
+                aggregate_path = os.path.join(
+                    experiments, experiment_id, "results",
+                    "contract_effective_rate.csv")
+                with open(aggregate_path, "w", encoding="utf-8") as handle:
+                    handle.write(
+                        "channel,lane,snr_db,algorithm_id,"
+                        "effective_rate_bps,frames,successful_frames\n")
+                    for snr_db in range(0, 31, 2):
+                        for channel in range(1, 5):
+                            for hydrophone in range(1, 4):
+                                for receiver_index, receiver_id in enumerate(
+                                        receiver_ids):
+                                    rate = (1000 + 100 * experiment_index +
+                                            10 * channel + hydrophone +
+                                            receiver_index / 10 +
+                                            25 * (snr_db - 20))
+                                    if (experiment_id == no_harm_ids[1] and
+                                            snr_db == 14 and channel == 1 and
+                                            hydrophone == 1):
+                                        rate = 0.0
+                                    elif (experiment_id == no_harm_ids[0] and
+                                          snr_db == 14 and channel == 1 and
+                                          hydrophone == 1 and
+                                          receiver_id == "pfft"):
+                                        rate = 0.0
+                                    # UI-040 fixes four ranking cases in one
+                                    # matched family without changing the
+                                    # selected-SNR values used above: outage,
+                                    # exact tie, unique winner, and near tie.
+                                    if (experiment_index in (0, 3, 4, 5, 6)
+                                            and channel == 1 and
+                                            hydrophone == 1):
+                                        if snr_db == 0:
+                                            rate = 0.0
+                                        elif snr_db == 2:
+                                            rate = min(rate, 1100.0)
+                                            if (experiment_index == 4 and
+                                                    receiver_id in (
+                                                        "lite", "profiled_cz",
+                                                        "cwz_joint")):
+                                                rate = 1200.0
+                                        elif snr_db == 4:
+                                            rate = min(rate, 1200.0)
+                                            if (experiment_index == 5 and
+                                                    receiver_id == "ofdm_fec"):
+                                                rate = 1300.0
+                                        elif snr_db in (6, 8):
+                                            rate = min(rate, 1100.0)
+                                            if (experiment_index == 6 and
+                                                    receiver_id == "ofdm_fec"):
+                                                rate = 1400.0
+                                            elif (experiment_index == 4 and
+                                                  receiver_id == "lite"):
+                                                rate = 1399.0
+                                        elif snr_db == 10:
+                                            rate = min(rate, 1150.0)
+                                            if (experiment_index == 4 and
+                                                    receiver_id == "lite"):
+                                                rate = 1500.0
+                                            elif (experiment_index == 5 and
+                                                  receiver_id ==
+                                                  "profiled_cz"):
+                                                rate = 1500.0
+                                        elif snr_db == 12:
+                                            rate = min(rate, 1200.0)
+                                            if (experiment_index in (4, 5) and
+                                                    receiver_id == "lite"):
+                                                rate = 1600.0
+                                            elif (experiment_index == 5 and
+                                                  receiver_id ==
+                                                  "profiled_cz"):
+                                                rate = 1600.0
+                                    elif (experiment_index == 2 and
+                                          channel == 1 and hydrophone == 1 and
+                                          snr_db == 10):
+                                        rate = 9999.0
+                                    frame_count = (8 if experiment_index in
+                                                   (0, 3, 4, 5, 6) else 32)
+                                    successful_frames = (
+                                        0 if rate == 0 else
+                                        max(1, min(frame_count,
+                                                   int(rate // 180))))
+                                    handle.write(
+                                        f"red{channel},{hydrophone},{snr_db},"
+                                        f"{receiver_id},{rate:.1f},"
+                                        f"{frame_count},{successful_frames}\n")
 
             # A rendered page alone cannot select a noise family. Missing,
             # malformed, and self-mismatched manifests belong to neither.
@@ -1511,6 +1724,10 @@ def check():
             for marker in (
                     "<h1>No-harm results</h1>", ">No-harm results</a>",
                     '<select id="experiment-picker"',
+                    'id="experiment-picker" onchange="var url = new '
+                    'window.URL(location.href);',
+                    'id="plot-picker" onchange="var url = new '
+                    'window.URL(location.href);',
                     'id="sweep-parameters"',
                     'id="sweep-parameter-controls"',
                     '<select id="path-filter"',
@@ -1518,14 +1735,954 @@ def check():
                 if marker not in no_harm_page:
                     problems.append(
                         f"S24: no-harm page lost marker '{marker}'")
+            for marker in (
+                    'id="awgn-live-progress"',
+                    '<strong>Unregistered experiment output.</strong>',
+                    "fetch('/api/awgn-results/progress'"):
+                if marker in no_harm_page:
+                    problems.append(
+                        f"S24: no-harm page retained removed pane '{marker}'")
+            no_harm_navigation = nav_fragment(no_harm_page)
+            for href, label in REMOVED_NAV_LINKS:
+                if f'<a href="{href}"' in no_harm_navigation:
+                    problems.append(
+                        f"S24: no-harm page retained removed tab '{label}'")
+            compact_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]), ("page", "summary"),
+                ("layout", "compact-four"),
+            ])
+            compact_view_url = "/no-harm-results/view?" + compact_query
+            normal_view_url = (
+                "/no-harm-results/view?" + urllib.parse.urlencode([
+                    ("experiment", no_harm_ids[0]), ("page", "summary"),
+                ]))
+            if (f'<iframe id="single-result" src="{compact_view_url}"' not in
+                    no_harm_page or
+                    f'<a id="results-open" href="{normal_view_url}"' not in
+                    no_harm_page):
+                problems.append(
+                    "S24: embedded no-harm view is not compact while the "
+                    "own-tab link remains full size")
+
+            fixture_view_path = os.path.join(
+                experiments, no_harm_ids[0], "results", "results_view.html")
+            with open(fixture_view_path, "rb") as handle:
+                fixture_view_before = handle.read()
+            code, compact_view = fetch(base, compact_view_url)
+            compact_markers = (
+                'id="no-harm-compact-four"',
+                "grid-template-columns:repeat(3,minmax(0,1fr))",
+                ".viz-root>h1,.viz-root>.axis-title,",
+                ".viz-root>.provenance,.viz-root>.legend,",
+                ".panel figcaption>span{display:none!important}",
+            )
+            if (code != 200 or
+                    any(marker not in compact_view
+                        for marker in compact_markers) or
+                    compact_view.count('<figure class="panel">') != 12):
+                problems.append(
+                    "S24: compact no-harm view is not a provenance-free "
+                    "three-column grid with all 12 panels retained")
+            compact_paths = _re.findall(
+                r'data-contract-path="([^"]+)"', compact_view)
+            expected_compact_paths = [
+                f"red{channel} {hydrophone}"
+                for channel in range(1, 5)
+                for hydrophone in range(1, 4)
+            ]
+            if compact_paths != expected_compact_paths:
+                problems.append(
+                    "S24: compact no-harm grid is not three hydrophone "
+                    "columns by four channel rows")
+            code, normal_view = fetch(base, normal_view_url)
+            fixture_view_text = fixture_view_before.decode("utf-8")
+            if (code != 200 or normal_view != fixture_view_text or
+                    'id="no-harm-compact-four"' in normal_view):
+                problems.append(
+                    "S24: full-size no-harm own-tab view received compact "
+                    "layout overrides or changed bytes")
+            normal_paths = _re.findall(
+                r'data-contract-path="([^"]+)"', normal_view)
+            if normal_paths != list(paths):
+                problems.append(
+                    "S24: compact channel/hydrophone ordering changed the "
+                    "full-size result view")
+            awgn_compact_url = (
+                "/awgn-results/view?" + urllib.parse.urlencode([
+                    ("experiment", no_harm_ids[0]), ("page", "summary"),
+                    ("layout", "compact-four"),
+                ]))
+            code, awgn_compact_view = fetch(base, awgn_compact_url)
+            if (code != 200 or awgn_compact_view != fixture_view_text or
+                    'id="no-harm-compact-four"' in awgn_compact_view):
+                problems.append(
+                    "S24: compact no-harm layout leaked into or changed "
+                    "AWGN results")
+            with open(fixture_view_path, "rb") as handle:
+                fixture_view_after = handle.read()
+            if fixture_view_after != fixture_view_before:
+                problems.append(
+                    "S24: compact no-harm rendering modified the generated "
+                    "result file")
+
+            rate_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]),
+                ("plot", "effective-rate"),
+            ])
+            code, rate_page = fetch(
+                base, "/no-harm-results?" + rate_query)
+            rate_view_url = (
+                "/no-harm-results/effective-rate?" +
+                urllib.parse.urlencode([
+                    ("experiment", no_harm_ids[0]),
+                    ("snr_db", "20"),
+                ]))
+            if (code != 200 or
+                    '<select id="plot-picker"' not in rate_page or
+                    '<option value="effective-rate" selected>'
+                    not in rate_page or
+                    'id="effective-rate-snr-control"' not in rate_page or
+                    'id="effective-rate-snr" type="range"' not in rate_page or
+                    'min="0" max="30" step="2" value="20"' not in rate_page or
+                    '<label for="effective-rate-snr">SNR</label>' not in
+                    rate_page or
+                    'aria-valuetext="20 dB"' not in rate_page or
+                    'id="effective-rate-snr-value" '
+                    'for="effective-rate-snr">20 dB</output>' not in rate_page or
+                    'new window.URL(window.location.href)' not in rate_page or
+                    'slider.addEventListener("input"' not in rate_page or
+                    'slider.addEventListener("change"' not in rate_page or
+                    'window.addEventListener("pageshow"' not in rate_page or
+                    'history.replaceState(null, "", pageUrl)' not in rate_page or
+                    'openLink.href = allowPathComparison ? singleUrl :' not in
+                    rate_page or
+                    f'<iframe id="single-result" src="{rate_view_url}"'
+                    not in rate_page):
+                problems.append(
+                    "S24: no-harm page did not expose its selected-SNR "
+                    "effective-payload-rate figure")
+            rate_path_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]),
+                ("plot", "effective-rate"),
+                ("path", "red1:1"),
+            ])
+            rate_path_dom, browser_error = browser_dom(
+                base, "/no-harm-results?" + rate_path_query)
+            if rate_path_dom is None:
+                problems.append(
+                    "S24: retained-path effective-rate view not checked: "
+                    f"{browser_error}")
+            else:
+                rate_path_select = _re.search(
+                    r'<select id="path-filter"([^>]*)>', rate_path_dom)
+                rate_path_single = _re.search(
+                    r'<iframe id="single-result"([^>]*)>', rate_path_dom)
+                rate_path_comparison = _re.search(
+                    r'<iframe id="comparison-result"([^>]*)>', rate_path_dom)
+                rate_path_open = _re.search(
+                    r'<a id="results-open"([^>]*)>', rate_path_dom)
+                if (not rate_path_select or
+                        "disabled" not in rate_path_select.group(1) or
+                        not rate_path_single or
+                        "hidden" in rate_path_single.group(1) or
+                        f'src="{rate_view_url}"' not in
+                        html.unescape(rate_path_single.group(1)) or
+                        not rate_path_comparison or
+                        "hidden" not in rate_path_comparison.group(1) or
+                        not rate_path_open or
+                        f'href="{rate_view_url}"' not in
+                        html.unescape(rate_path_open.group(1))):
+                    problems.append(
+                        "S24: channel/hydrophone selection replaced the "
+                        "effective-payload-rate plot with a BER comparison")
+            selected_snr_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]),
+                ("plot", "effective-rate"),
+                ("snr_db", "18"),
+            ])
+            selected_snr_url = (
+                "/no-harm-results/effective-rate?" +
+                urllib.parse.urlencode([
+                    ("experiment", no_harm_ids[0]),
+                    ("snr_db", "18"),
+                ]))
+            code, selected_snr_page = fetch(
+                base, "/no-harm-results?" + selected_snr_query)
+            if (code != 200 or
+                    'min="0" max="30" step="2" value="18"' not in
+                    selected_snr_page or
+                    '>18 dB</output>' not in selected_snr_page or
+                    f'<iframe id="single-result" src="{selected_snr_url}"'
+                    not in selected_snr_page):
+                problems.append(
+                    "S24: selected SNR did not reach the slider and "
+                    "effective-payload-rate iframe")
+            code, selected_snr_view = fetch(base, selected_snr_url)
+            if (code != 200 or
+                    "<h1>Effective payload rate at 18 dB</h1>" not in
+                    selected_snr_view or
+                    'data-rate-bps="961.0"' not in selected_snr_view or
+                    selected_snr_view.count('<figure class="rate-panel"') !=
+                    12 or
+                    selected_snr_view.count('class="receiver-bar"') != 60):
+                problems.append(
+                    "S24: selected SNR did not render its corresponding "
+                    "twelve-panel effective-rate bars")
+            invalid_snr_queries = (
+                "", "-2", "1", "20.0", "31", "NaN", "Inf", "not-a-number",
+            )
+            for invalid_snr in invalid_snr_queries:
+                invalid_pairs = [
+                    ("experiment", no_harm_ids[0]),
+                    ("plot", "effective-rate"),
+                    ("snr_db", invalid_snr),
+                ]
+                outer_code, _ = fetch(
+                    base, "/no-harm-results?" +
+                    urllib.parse.urlencode(invalid_pairs))
+                endpoint_code, _ = fetch(
+                    base, "/no-harm-results/effective-rate?" +
+                    urllib.parse.urlencode([
+                        ("experiment", no_harm_ids[0]),
+                        ("snr_db", invalid_snr),
+                    ]))
+                if outer_code != 404 or endpoint_code != 404:
+                    problems.append(
+                        "S24: effective-rate SNR accepted invalid value "
+                        f"{invalid_snr!r}")
+            duplicate_snr = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]),
+                ("plot", "effective-rate"),
+                ("snr_db", "18"), ("snr_db", "20"),
+            ])
+            duplicate_endpoint_snr = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]),
+                ("snr_db", "18"), ("snr_db", "20"),
+            ])
+            if (fetch(base, "/no-harm-results?" + duplicate_snr)[0] != 404 or
+                    fetch(base, "/no-harm-results/effective-rate?" +
+                          duplicate_endpoint_snr)[0] != 404):
+                problems.append(
+                    "S24: effective-rate SNR accepted duplicate values")
+            code, rate_view = fetch(base, rate_view_url)
+            rate_markers = (
+                "<h1>Effective payload rate at 20 dB</h1>",
+                'id="effective-rate-legend"',
+                "grid-template-columns:repeat(3,minmax(0,1fr))",
+                ">OFDM+FEC<", ">PFFT<", ">Lite<", ">(C,z)<", ">(C,W,z)<",
+                'data-rate-bps="1011.0"',
+            )
+            if (code != 200 or
+                    any(marker not in rate_view for marker in rate_markers) or
+                    rate_view.count('<figure class="rate-panel"') != 12 or
+                    rate_view.count('class="receiver-bar"') != 60):
+                problems.append(
+                    "S24: 20 dB effective-payload-rate figure is not a "
+                    "twelve-panel, five-receiver bar plot")
+            if ('@media(max-width:760px){.rate-grid{'
+                    'grid-template-columns:1fr}}' in rate_view):
+                problems.append(
+                    "S24: effective-payload-rate figure collapses below its "
+                    "four-channel by three-hydrophone grid")
+            rate_scale = _re.search(r'data-y-max="([^"]+)"', rate_view)
+            selected_snr_scale = _re.search(
+                r'data-y-max="([^"]+)"', selected_snr_view)
+            if (not rate_scale or not selected_snr_scale or
+                    rate_scale.group(1) != selected_snr_scale.group(1)):
+                problems.append(
+                    "S24: effective-rate vertical scale changed with SNR")
+            rate_paths = _re.findall(
+                r'data-contract-path="([^"]+)"', rate_view)
+            if rate_paths != expected_compact_paths:
+                problems.append(
+                    "S24: effective-payload-rate panels are not four channel "
+                    "rows by three hydrophone columns")
+            rate_panel_links = _re.findall(
+                r'<a class="rate-panel-link"([^>]*)>', rate_view)
+            expected_first_by_n = (
+                "/no-harm-results/effective-rate/by-n?" +
+                urllib.parse.urlencode([
+                    ("experiment", no_harm_ids[0]),
+                    ("snr_db", "20"),
+                    ("path", "red1:1"),
+                ]))
+            first_by_n_attrs = (html.unescape(rate_panel_links[0])
+                                if rate_panel_links else "")
+            if (len(rate_panel_links) != 12 or
+                    any('target="_top"' not in attrs
+                        for attrs in rate_panel_links) or
+                    f'href="{expected_first_by_n}"' not in first_by_n_attrs):
+                problems.append(
+                    "S24: effective-rate panels are not twelve semantic "
+                    "top-level links to their across-N comparison")
+            selected_rate_links = _re.findall(
+                r'<a class="rate-panel-link"([^>]*)>', selected_snr_view)
+            if (not selected_rate_links or
+                    'snr_db=18' not in html.unescape(
+                        selected_rate_links[0])):
+                problems.append(
+                    "S24: effective-rate panel links did not retain the "
+                    "selected SNR")
+
+            by_n_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]),
+                ("snr_db", "14"),
+                ("path", "red1:1"),
+            ])
+            by_n_url = "/no-harm-results/effective-rate/by-n?" + by_n_query
+            code, by_n_view = fetch(base, by_n_url)
+            by_n_groups = _re.findall(
+                r'<g class="n-group"[^>]*data-nfft="([^"]+)"[^>]*'
+                r'data-combined-pilot-ratio="([^"]+)"[^>]*'
+                r'data-pilot-spacing="([^"]+)"', by_n_view)
+            by_n_bar_count = by_n_view.count(
+                'class="grouped-receiver-bar"')
+            by_n_zero_count = by_n_view.count('class="zero-rate-marker"')
+            by_n_diagnostic_checks = {
+                "heading": "<h1>RED1 · H1 effective payload rate across N "
+                           "and pilot ratio at 14 dB</h1>" in by_n_view,
+                "slider": 'min="0" max="30" step="2" value="14"' in
+                          by_n_view,
+                "percents": (by_n_view.count(
+                    'data-pilot-percent="30"') == 3 and
+                    by_n_view.count('data-pilot-percent="40"') == 2),
+                "rates": all(
+                    f'data-rate-bps="{rate}.0"' in by_n_view
+                    for rate in (861, 1161, 1261, 1361, 1461)),
+                "ids": all(
+                    f'data-experiment-id="{no_harm_ids[index]}"' in by_n_view
+                    for index in (0, 3, 4, 5, 6)),
+                "formula": "Combined pilot ratio = 1 / outer spacing + 1 / "
+                           "inner spacing." in by_n_view,
+                "axis": ">N and combined pilot ratio<" in by_n_view,
+            }
+            by_n_diagnostic_missing = [
+                name for name, passed in by_n_diagnostic_checks.items()
+                if not passed]
+            if (code != 200 or
+                    "<h1>RED1 · H1 effective payload rate across N and "
+                    "pilot ratio at "
+                    "14 dB</h1>" not in by_n_view or
+                    'id="effective-rate-by-n-snr-control"' not in by_n_view or
+                    'id="effective-rate-by-n-snr" type="range"' not in
+                    by_n_view or
+                    'min="0" max="30" step="2" value="14"' not in
+                    by_n_view or
+                    'aria-valuetext="14 dB"' not in by_n_view or
+                    'id="effective-rate-by-n-snr-value" '
+                    'for="effective-rate-by-n-snr">14 dB</output>' not in
+                    by_n_view or
+                    'new window.URL(window.location.href)' not in by_n_view or
+                    'slider.addEventListener("input"' not in by_n_view or
+                    'slider.addEventListener("change"' not in by_n_view or
+                    by_n_groups != [
+                        ("1024", "3/10", "5/10"),
+                        ("1024", "3/10", "10/5"),
+                        ("1024", "2/5", "5/5"),
+                        ("2048", "3/10", "5/10"),
+                        ("2048", "2/5", "5/5"),
+                    ] or
+                    by_n_bar_count != 25 or
+                    by_n_view.count('data-pilot-percent="30"') != 3 or
+                    by_n_view.count('data-pilot-percent="40"') != 2 or
+                    'data-rate-bps="861.0"' not in by_n_view or
+                    'data-rate-bps="1161.0"' not in by_n_view or
+                    'data-rate-bps="1261.0"' not in by_n_view or
+                    'data-rate-bps="1361.0"' not in by_n_view or
+                    'data-rate-bps="1461.0"' not in by_n_view or
+                    by_n_zero_count != 1 or
+                    by_n_view.count('class="zero-rate-label"') != 1 or
+                    f'data-experiment-id="{no_harm_ids[0]}"' not in
+                    by_n_view or
+                    f'data-experiment-id="{no_harm_ids[3]}"' not in
+                    by_n_view or
+                    any(f'data-experiment-id="{no_harm_ids[index]}"' not in
+                        by_n_view for index in (4, 5, 6)) or
+                    no_harm_ids[1] in by_n_view or
+                    no_harm_ids[2] in by_n_view or
+                    "Combined pilot ratio = 1 / outer spacing + 1 / inner "
+                    "spacing." not in by_n_view or
+                    ">Effective payload rate (bps)<" not in by_n_view or
+                    ">N and combined pilot ratio<" not in by_n_view):
+                problems.append(
+                    "S24: grouped detail did not render five sorted N/pilot "
+                    "groups with 25 exact receiver bars and its SNR slider "
+                    "for RED1 H1 at 14 dB "
+                    f"(groups={by_n_groups!r}, bars="
+                    f"{by_n_bar_count}, zero={by_n_zero_count}, missing="
+                    f"{by_n_diagnostic_missing!r})")
+            configuration_helper = getattr(
+                server, "_no_harm_effective_rate_configuration", None)
+            if configuration_helper is None:
+                problems.append(
+                    "S24: across-N comparison has no strict configuration "
+                    "signature")
+            else:
+                base_n, base_signature, _ = configuration_helper(
+                    no_harm_ids[0])
+                sibling_n, sibling_signature, _ = configuration_helper(
+                    no_harm_ids[3])
+                expected_signature = (
+                    "first8s-frames8", "crc-no-harm", "128", "0.25",
+                    "10", "fill", "4", "1", "4")
+                if (base_n != 1024 or sibling_n != 2048 or
+                        base_signature != expected_signature or
+                        sibling_signature != expected_signature):
+                    problems.append(
+                        "S24: grouped signature did not hold capture, frames, "
+                        "policy, CP, rate, dc, K, PFFT, frame duration, and "
+                        "seed fixed while excluding N and pilot geometry")
+            by_n_20_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]),
+                ("snr_db", "20"),
+                ("path", "red1:1"),
+            ])
+            code_20, by_n_20_view = fetch(
+                base, "/no-harm-results/effective-rate/by-n?" +
+                by_n_20_query)
+            by_n_scale = _re.search(r'data-y-max="([^"]+)"', by_n_view)
+            by_n_20_scale = _re.search(
+                r'data-y-max="([^"]+)"', by_n_20_view)
+            if (code_20 != 200 or not by_n_scale or not by_n_20_scale or
+                    by_n_scale.group(1) != by_n_20_scale.group(1)):
+                problems.append(
+                    "S24: across-N comparison changed its vertical scale "
+                    "with the selected SNR")
+
+            # UI-040: one matched comparison family becomes a twelve-panel
+            # maximum-rate envelope without hiding exact ties or outages.
+            best_outer_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]),
+                ("plot", "best-observed"),
+                ("scope", "family"),
+                ("snr_db", "6"),
+            ])
+            best_endpoint_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]),
+                ("snr_db", "6"),
+                ("scope", "family"),
+            ])
+            best_endpoint_url = (
+                "/no-harm-results/effective-rate/best?" +
+                best_endpoint_query)
+            best_outer_code, best_outer_page = fetch(
+                base, "/no-harm-results?" + best_outer_query)
+            if (best_outer_code != 200 or
+                    '<option value="best-observed" selected>' not in
+                    best_outer_page or
+                    f'<iframe id="single-result" src="{best_endpoint_url}"'
+                    not in best_outer_page or
+                    '<select id="effective-rate-family-picker"' not in
+                    best_outer_page or
+                    '<select id="best-observed-scope-picker"' not in
+                    best_outer_page or
+                    '<option value="family" selected>Selected family</option>'
+                    not in best_outer_page or
+                    best_outer_page.count('data-family-size="') != 3 or
+                    'data-family-size="5" selected' not in best_outer_page or
+                    'id="sweep-parameters"' in best_outer_page or
+                    'min="0" max="30" step="2" value="6"' not in
+                    best_outer_page):
+                problems.append(
+                    "S24: best-observed plot did not retain its selected SNR "
+                    "or disable the unrelated BER path comparison")
+            best_code, best_view = fetch(base, best_endpoint_url)
+            best_paths = _re.findall(
+                r'<figure class="winner-panel" data-path="([^"]+)"',
+                best_view)
+            expected_best_paths = [
+                f"red{channel}:{hydrophone}"
+                for channel in range(1, 5)
+                for hydrophone in range(1, 4)
+            ]
+            best_cell_pairs = _re.findall(
+                r'<g class="winner-cell" data-path="([^"]+)" '
+                r'data-snr-db="([^"]+)"', best_view)
+            best_cell_blocks = {
+                (match.group(2), match.group(3)): match.group(1)
+                for match in _re.finditer(
+                    r'(<g class="winner-cell" data-path="([^"]+)" '
+                    r'data-snr-db="([^"]+)".*?</g></a>)',
+                    best_view, _re.DOTALL)
+            }
+            expected_best_cell_pairs = [
+                (path, str(snr_db))
+                for path in expected_best_paths
+                for snr_db in range(0, 31, 2)
+            ]
+            first_detail_url = (
+                "/no-harm-results/effective-rate/by-n?" +
+                urllib.parse.urlencode([
+                    ("experiment", no_harm_ids[0]),
+                    ("snr_db", "6"),
+                    ("path", "red1:1"),
+                    ("scope", "family"),
+                ]))
+            best_markers = (
+                "<h1>Best observed effective payload rate</h1>",
+                'id="best-observed-snr" type="range"',
+                'min="0" max="30" step="2" value="6"',
+                'data-family-size="5"',
+                'data-focused-snr="6"',
+                'data-path="red1:1" data-snr-db="0" '
+                'data-outage="true" data-winner-count="0"',
+                'data-path="red1:1" data-snr-db="2" '
+                'data-outage="false" data-winner-count="1"',
+                'data-rate-tied-receiver-count="3" '
+                'data-selected-receiver="lite"',
+                'data-winner-algorithms="lite"',
+                'data-path="red1:1" data-snr-db="4" '
+                'data-outage="false" data-winner-count="1"',
+                'data-winner-algorithms="ofdm_fec"',
+                'data-path="red1:1" data-snr-db="6" '
+                'data-outage="false" data-winner-count="1"',
+                'data-near-tie-count="1"',
+                'data-path="red1:1" data-snr-db="10" '
+                'data-outage="false" data-winner-count="1"',
+                'data-rate-tied-receiver-count="2" '
+                'data-selected-receiver="lite"',
+                'data-path="red1:1" data-snr-db="12" '
+                'data-outage="false" data-winner-count="2"',
+                'data-winner-keys="n1024-p5-10-lite,'
+                'n2048-p5-10-lite"',
+                'data-receiver-tie-order="ofdm_fec pfft lite '
+                'profiled_cz cwz_joint"',
+                "Equal receiver rates use the approved decoding-time order: "
+                "OFDM+FEC, PFFT, Lite, (C,z), (C,W,z).",
+                "receiver order selected Lite from 3 equal-rate receivers",
+                "receiver order selected Lite from 2 equal-rate receivers",
+                'class="winner-range" data-path="red1:1" '
+                'data-snr-start="6" data-snr-end="8"',
+                f'href="{html.escape(first_detail_url, quote=True)}"',
+                "Ranges join adjacent tested SNR points only when the full "
+                "winner and near-tie sets are unchanged.",
+                "Decoder time is not included in the effective payload rate.",
+                "within one successful-frame rate step of the maximum",
+                'class="winner-range-near"',
+                "Provenance unverified.",
+            )
+            compact_best_view = _re.sub(r"\s+", " ", best_view)
+            missing_best_markers = tuple(
+                marker for marker in best_markers
+                if marker not in best_view and marker not in compact_best_view)
+            cell_0 = best_cell_blocks.get(("red1:1", "0"), "")
+            cell_2 = best_cell_blocks.get(("red1:1", "2"), "")
+            cell_4 = best_cell_blocks.get(("red1:1", "4"), "")
+            cell_6 = best_cell_blocks.get(("red1:1", "6"), "")
+            cell_10 = best_cell_blocks.get(("red1:1", "10"), "")
+            cell_12 = best_cell_blocks.get(("red1:1", "12"), "")
+            winner_counts = _re.findall(
+                r'<g class="winner-cell"[^>]*data-winner-count="([0-9]+)"',
+                best_view)
+            expected_winner_distribution = {
+                "0": 1,
+                "1": 190,
+                "2": 1,
+            }
+            winner_distribution = {
+                count: winner_counts.count(count)
+                for count in set(winner_counts)
+            }
+            exact_cell_contract = (
+                'data-outage="true"' in cell_0 and
+                'data-winner-count="0"' in cell_0 and
+                'data-selected-receiver=""' in cell_0 and
+                'data-near-tie-count="0"' in cell_0 and
+                'fill="#868e96"' in cell_0 and
+                'fill="#adb5bd"' in cell_0 and
+                'data-winner-keys="n1024-p5-10-lite"' in cell_2 and
+                'data-selected-receiver="lite"' in cell_2 and
+                'fill="#51cf66"' in cell_2 and
+                'data-selected-receiver="ofdm_fec"' in cell_4 and
+                'fill="#339af0"' in cell_4 and
+                'data-near-tie-keys="n1024-p5-10-lite"' in cell_6 and
+                'observed lead 1.0 bps' in cell_6 and
+                'data-winner-keys="n1024-p5-10-lite"' in cell_10 and
+                'data-selected-receiver="lite"' in cell_10 and
+                'fill="#51cf66"' in cell_10 and
+                'data-winner-keys="n1024-p5-10-lite,'
+                'n2048-p5-10-lite"' in cell_12 and
+                'data-selected-receiver="lite"' in cell_12 and
+                cell_12.count('winner-ribbon-stripe') == 2 and
+                'fill="#51cf66"' in cell_12)
+
+            priority_contract = True
+            priority_cases = (
+                (("ofdm_fec", "pfft", "lite", "profiled_cz", "cwz_joint"),
+                 "ofdm_fec"),
+                (("pfft", "lite", "profiled_cz", "cwz_joint"), "pfft"),
+                (("lite", "profiled_cz", "cwz_joint"), "lite"),
+                (("profiled_cz", "cwz_joint"), "profiled_cz"),
+            )
+            for tied_receiver_ids, expected_receiver in priority_cases:
+                priority_observations = {
+                    (1, 1, receiver_id): {
+                        "rate": (100.0 if receiver_id in tied_receiver_ids
+                                 else 50.0),
+                        "successful_frames": 1,
+                    }
+                    for receiver_id, _label, _color
+                    in server._EFFECTIVE_RATE_RECEIVERS
+                }
+                priority_family = (((1024, 5, 5), {
+                    "experiment_id": "priority-contract",
+                    "observations": {0.0: priority_observations},
+                }),)
+                priority_cell = server._best_observed_cell(
+                    priority_family, 0.0, 1, 1)
+                if (priority_cell["selected_receiver"] != expected_receiver or
+                        {winner["receiver_id"]
+                         for winner in priority_cell["winners"]} !=
+                        {expected_receiver}):
+                    priority_contract = False
+            if (best_code != 200 or
+                    missing_best_markers or
+                    best_paths != expected_best_paths or
+                    best_cell_pairs != expected_best_cell_pairs or
+                    best_view.count('class="winner-panel"') != 12 or
+                    best_view.count('class="winner-cell-link"') != 192 or
+                    best_view.count('class="winner-point"') != 192 or
+                    best_view.count('winner-ribbon-stripe') != 192 or
+                    best_view.count(
+                        'class="winner-config-legend-item"') != 5 or
+                    winner_distribution != expected_winner_distribution or
+                    not exact_cell_contract or
+                    not priority_contract or
+                    _re.search(
+                        r'<circle class="winner-point"[^>]*'
+                        r'fill="#212529"', best_view) or
+                    no_harm_ids[2] in best_view):
+                problems.append(
+                    "S24: best-observed figure did not render twelve strict "
+                    "winner envelopes with every tested SNR, ordered receiver "
+                    "tie resolution, configuration ties, outages, near ties, "
+                    "ranges, and detail links; missing markers="
+                    f"{missing_best_markers!r}")
+
+            # UI-043: Best observed defaults to every tested no-harm
+            # configuration, while retaining the strict family restriction.
+            all_best_endpoint_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]),
+                ("snr_db", "10"),
+                ("scope", "all"),
+            ])
+            all_best_endpoint_url = (
+                "/no-harm-results/effective-rate/best?" +
+                all_best_endpoint_query)
+            default_all_outer_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]),
+                ("plot", "best-observed"),
+                ("snr_db", "10"),
+            ])
+            default_all_outer_code, default_all_outer = fetch(
+                base, "/no-harm-results?" + default_all_outer_query)
+            all_best_code, all_best_view = fetch(
+                base, all_best_endpoint_url)
+            all_cell_blocks = {
+                (match.group(2), match.group(3)): match.group(1)
+                for match in _re.finditer(
+                    r'(<g class="winner-cell" data-path="([^"]+)" '
+                    r'data-snr-db="([^"]+)".*?</g></a>)',
+                    all_best_view, _re.DOTALL)
+            }
+            all_cell_0 = all_cell_blocks.get(("red1:1", "0"), "")
+            all_cell_10 = all_cell_blocks.get(("red1:1", "10"), "")
+            all_cell_12 = all_cell_blocks.get(("red1:1", "12"), "")
+            all_legend_ids = _re.findall(
+                r'class="winner-config-legend-item" '
+                r'data-experiment-id="([^"]+)"', all_best_view)
+            all_detail_url = (
+                "/no-harm-results/effective-rate/by-n?" +
+                urllib.parse.urlencode([
+                    ("experiment", no_harm_ids[0]),
+                    ("snr_db", "10"),
+                    ("path", "red1:1"),
+                    ("scope", "all"),
+                ]))
+            all_scope_contract = (
+                default_all_outer_code == 200 and
+                '<select id="best-observed-scope-picker"' in
+                default_all_outer and
+                '<option value="all" selected>All tested no-harm '
+                'configurations</option>' in default_all_outer and
+                'id="effective-rate-family-picker" disabled' in
+                default_all_outer and
+                f'<iframe id="single-result" src="{all_best_endpoint_url}"'
+                in default_all_outer and
+                all_best_code == 200 and
+                'data-comparison-scope="all"' in all_best_view and
+                'data-family-count="3"' in all_best_view and
+                'data-configuration-count="7"' in all_best_view and
+                'data-candidate-count="35"' in all_best_view and
+                all_best_view.count('class="winner-panel"') == 12 and
+                all_best_view.count('class="winner-cell-link"') == 192 and
+                all_best_view.count('class="winner-point"') == 192 and
+                len(all_legend_ids) == 7 and
+                set(all_legend_ids) == set(no_harm_ids) and
+                'data-selected-receiver="cwz_joint"' in all_cell_0 and
+                f'data-winner-experiment-ids="{no_harm_ids[2]}"' in
+                all_cell_0 and
+                'data-rate-tied-receiver-count="5"' in all_cell_10 and
+                'data-selected-receiver="ofdm_fec"' in all_cell_10 and
+                f'data-winner-experiment-ids="{no_harm_ids[2]}"' in
+                all_cell_10 and
+                '9999.0 bps' in all_cell_10 and
+                'fill="#339af0"' in all_cell_10 and
+                'data-selected-receiver="lite"' in all_cell_12 and
+                f'data-winner-experiment-ids="{no_harm_ids[4]},'
+                f'{no_harm_ids[5]}"' in all_cell_12 and
+                f'href="{html.escape(all_detail_url, quote=True)}"' in
+                all_best_view and
+                'This view includes configurations with different capture '
+                'windows, frame counts, receiver policies, code rates, and '
+                'frame durations.' in all_best_view and
+                'It reports the largest stored effective payload rate; it '
+                'is not a controlled comparison.' in all_best_view and
+                not _re.search(
+                    r'<circle class="winner-point"[^>]*fill="#212529"',
+                    all_best_view))
+            all_detail_code, all_detail_view = fetch(base, all_detail_url)
+            all_detail_ids = _re.findall(
+                r'<g class="n-group"[^>]*data-experiment-id="([^"]+)"',
+                all_detail_view)
+            repeated_n_pilots = _re.findall(
+                r'<g class="n-group" data-nfft="1024"[^>]*'
+                r'data-pilot-spacing="5/5"', all_detail_view)
+            all_detail_contract = (
+                all_detail_code == 200 and
+                'data-comparison-scope="all"' in all_detail_view and
+                all_detail_view.count('class="n-group"') == 7 and
+                all_detail_view.count('class="grouped-receiver-bar"') == 35
+                and len(all_detail_ids) == 7 and
+                set(all_detail_ids) == set(no_harm_ids) and
+                len(repeated_n_pilots) == 2 and
+                'effective payload rate across tested configurations at '
+                '10 dB' in all_detail_view and
+                all_detail_view.count('class="group-family-label"') == 7 and
+                all(expression in all_detail_view for expression in
+                    no_harm_ids) and
+                'plot=best-observed' in all_detail_view and
+                'scope=all' in all_detail_view)
+            if not all_scope_contract:
+                problems.append(
+                    "S24: best-observed all-configurations scope did not "
+                    "scan every family, preserve duplicate N/pilot records, "
+                    "or identify the selected algorithm and source result")
+            if not all_detail_contract:
+                problems.append(
+                    "S24: all-configurations winner link did not retain its "
+                    "scope or render every source configuration and receiver")
+            invalid_best_queries = (
+                [("experiment", no_harm_ids[0]), ("snr_db", "1")],
+                [("experiment", impulsive_id), ("snr_db", "6")],
+                [("experiment", no_harm_ids[0]), ("snr_db", "6"),
+                 ("extra", "value")],
+                [("experiment", no_harm_ids[0]),
+                 ("experiment", no_harm_ids[0]), ("snr_db", "6")],
+                [("experiment", no_harm_ids[0]), ("snr_db", "6"),
+                 ("scope", "bogus")],
+                [("experiment", no_harm_ids[0]), ("snr_db", "6"),
+                 ("scope", "all"), ("scope", "family")],
+            )
+            for invalid_pairs in invalid_best_queries:
+                invalid_best_code, _ = fetch(
+                    base, "/no-harm-results/effective-rate/best?" +
+                    urllib.parse.urlencode(invalid_pairs))
+                if invalid_best_code != 404:
+                    problems.append(
+                        "S24: best-observed route accepted an ambiguous, "
+                        "undeclared, unknown, or off-grid query")
+                    break
+            single_n_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[1]),
+                ("snr_db", "14"),
+                ("path", "red1:1"),
+            ])
+            single_n_code, single_n_view = fetch(
+                base, "/no-harm-results/effective-rate/by-n?" +
+                single_n_query)
+            if (single_n_code != 200 or
+                    single_n_view.count('class="n-group"') != 1 or
+                    single_n_view.count(
+                        'class="grouped-receiver-bar"') != 5 or
+                    single_n_view.count('class="zero-rate-marker"') != 5 or
+                    single_n_view.count('class="zero-rate-label"') != 5 or
+                    "Only one matching N and pilot setting is currently "
+                    "available." not in
+                    single_n_view or
+                    "All five stored effective payload rates are 0 bps at "
+                    "14 dB for this path." not in single_n_view or
+                    'min="0" max="30" step="2" value="14"' not in
+                    single_n_view):
+                problems.append(
+                    "S24: single-N zero-rate detail did not retain its SNR "
+                    "slider and visible zero-value explanation")
+            original_experiment_ids = server._experiment_ids
+            server._experiment_ids = lambda **_kwargs: list(no_harm_ids) + [
+                no_harm_ids[0]]
+            try:
+                duplicate_n_code, _ = fetch(base, by_n_url)
+                duplicate_best_code, _ = fetch(base, best_endpoint_url)
+            finally:
+                server._experiment_ids = original_experiment_ids
+            if duplicate_n_code != 404 or duplicate_best_code != 404:
+                problems.append(
+                    "S24: grouped comparison or best-observed figure silently "
+                    "selected or averaged duplicate configurations")
+            invalid_by_n_queries = (
+                [("experiment", no_harm_ids[0]), ("snr_db", "14")],
+                [("experiment", no_harm_ids[0]), ("path", "red1:1")],
+                [("snr_db", "14"), ("path", "red1:1")],
+                [("experiment", no_harm_ids[0]), ("snr_db", "1"),
+                 ("path", "red1:1")],
+                [("experiment", no_harm_ids[0]), ("snr_db", "14"),
+                 ("path", "red0:1")],
+                [("experiment", no_harm_ids[0]), ("snr_db", "14"),
+                 ("path", "red1:4")],
+                [("experiment", impulsive_id), ("snr_db", "14"),
+                 ("path", "red1:1")],
+                [("experiment", no_harm_ids[0]), ("snr_db", "14"),
+                 ("path", "red1:1"), ("extra", "value")],
+                [("experiment", no_harm_ids[0]),
+                 ("experiment", no_harm_ids[0]), ("snr_db", "14"),
+                 ("path", "red1:1")],
+            )
+            for invalid_pairs in invalid_by_n_queries:
+                invalid_code, _ = fetch(
+                    base, "/no-harm-results/effective-rate/by-n?" +
+                    urllib.parse.urlencode(invalid_pairs))
+                if invalid_code != 404:
+                    problems.append(
+                        "S24: across-N route accepted an incomplete, "
+                        "ambiguous, unsafe, or off-grid query")
+                    break
+            code, _excluded_rate = fetch(
+                base, "/no-harm-results/effective-rate?" +
+                urllib.parse.urlencode([("experiment", impulsive_id)]))
+            if code != 404:
+                problems.append(
+                    "S24: effective-payload-rate route accepted a result "
+                    "without a no-harm declaration")
+            aggregate_path = os.path.join(
+                experiments, no_harm_ids[0], "results",
+                "contract_effective_rate.csv")
+            with open(aggregate_path, "rb") as handle:
+                aggregate_before = handle.read()
+            aggregate_lines = aggregate_before.splitlines(keepends=True)
+            with open(aggregate_path, "wb") as handle:
+                removed = False
+                retained_lines = []
+                for line in aggregate_lines:
+                    if (not removed and
+                            line.startswith(b"red4,3,20,cwz_joint,")):
+                        removed = True
+                        continue
+                    retained_lines.append(line)
+                handle.write(b"".join(retained_lines))
+            code, _incomplete_rate = fetch(base, rate_view_url)
+            by_n_incomplete_code, _ = fetch(
+                base,
+                "/no-harm-results/effective-rate/by-n?" +
+                by_n_20_query)
+            best_incomplete_code, _ = fetch(
+                base, best_endpoint_url)
+            ber_code, _ber_with_incomplete_rate = fetch(
+                base, "/no-harm-results?" + urllib.parse.urlencode([
+                    ("experiment", no_harm_ids[0]),
+                ]))
+            with open(aggregate_path, "wb") as handle:
+                handle.write(aggregate_before)
+            if code != 404:
+                problems.append(
+                    "S24: effective-payload-rate route accepted incomplete "
+                    "path/receiver coverage")
+            if by_n_incomplete_code != 404:
+                problems.append(
+                    "S24: across-N route accepted an incomplete matching "
+                    "aggregate")
+            if best_incomplete_code != 404:
+                problems.append(
+                    "S24: best-observed route accepted an incomplete "
+                    "matching aggregate")
+            if ber_code != 200:
+                problems.append(
+                    "S24: incomplete effective-rate data disabled the BER "
+                    "result page")
+            with open(fixture_view_path, "rb") as handle:
+                if handle.read() != fixture_view_before:
+                    problems.append(
+                        "S24: effective-payload-rate rendering modified the "
+                        "generated BER result file")
             no_harm_picker = _re.search(
                 r'<select id="experiment-picker"[^>]*>(.*?)</select>',
                 no_harm_page, flags=_re.S)
             if (not no_harm_picker or
-                    no_harm_picker.group(1).count("<option ") != 2):
+                    no_harm_picker.group(1).count("<option ") != 7):
                 problems.append(
                     "S24: no-harm experiment picker does not contain "
-                    "exactly two declared options")
+                    "exactly seven declared options")
+            expected_no_harm_labels = {
+                no_harm_ids[0]: (
+                    "N=1024 · rate=0.25 · pilots=5/5 · first 8 s · "
+                    "8 frames · CRC no-harm"),
+                no_harm_ids[1]: (
+                    "N=2048 · rate=0.125 · pilots=5/10 · first 47 s · "
+                    "32 frames · CRC-gated no-harm"),
+                no_harm_ids[2]: (
+                    "N=1024 · rate=0.125 · pilots=5/5 · first 32 s · "
+                    "32 frames · CRC-gated no-harm"),
+                no_harm_ids[3]: (
+                    "N=2048 · rate=0.25 · pilots=5/5 · first 8 s · "
+                    "8 frames · CRC no-harm"),
+                no_harm_ids[4]: (
+                    "N=1024 · rate=0.25 · pilots=5/10 · first 8 s · "
+                    "8 frames · CRC no-harm"),
+                no_harm_ids[5]: (
+                    "N=2048 · rate=0.25 · pilots=5/10 · first 8 s · "
+                    "8 frames · CRC no-harm"),
+                no_harm_ids[6]: (
+                    "N=1024 · rate=0.25 · pilots=10/5 · first 8 s · "
+                    "8 frames · CRC no-harm"),
+            }
+            if no_harm_picker:
+                picker_options = {}
+                for tag, label in _re.findall(
+                        r'(<option\b[^>]*>)(.*?)</option>',
+                        no_harm_picker.group(1), flags=_re.S):
+                    value = _re.search(r'\bvalue="([^"]+)"', tag)
+                    title = _re.search(r'\btitle="([^"]+)"', tag)
+                    if value:
+                        picker_options[value.group(1)] = {
+                            "label": label.strip(),
+                            "title": title.group(1) if title else None,
+                        }
+                for experiment_id, label in expected_no_harm_labels.items():
+                    if picker_options.get(experiment_id) != {
+                            "label": label, "title": experiment_id}:
+                        problems.append(
+                            "S24: compact picker label/title mismatch for "
+                            f"'{experiment_id}'")
+                if len({item["label"] for item in picker_options.values()}) != 7:
+                    problems.append(
+                        "S24: compact experiment labels are not unique")
+            policy_label = getattr(
+                server, "_no_harm_policy_label", lambda _policy: "missing")
+            if policy_label({
+                    "profiled_cz": "CRC-gated no-harm C+z",
+                    "cwz_joint": "CRC no-harm",
+                    "lite": "unchanged",
+                    }) is not None:
+                problems.append(
+                    "S24: mixed protected receiver policies got one compact "
+                    "policy label")
+            for marker in (
+                    '"Capture / frames"', '"Receiver policy"',
+                    '"N"', '"code rate"', '"pilots"',
+                    'id="sweep-match-count" role="status" '
+                    'aria-live="polite"'):
+                if marker not in no_harm_page:
+                    problems.append(
+                        f"S24: compact no-harm filters lost '{marker}'")
             for experiment_id in no_harm_ids:
                 if experiment_id not in no_harm_page:
                     problems.append(
@@ -1543,7 +2700,8 @@ def check():
                 problems.append(
                     "S24: legacy no-harm manifest sources did not provide "
                     "all 12 comparison paths")
-            excluded_awgn_id = awgn_ids[2]
+            excluded_awgn_id = next(
+                item for item in awgn_ids if item not in no_harm_ids)
             if (excluded_awgn_id in no_harm_page or
                     impulsive_id in no_harm_page):
                 problems.append(
@@ -1553,6 +2711,186 @@ def check():
                     not any(item in no_harm_latest for item in no_harm_ids)):
                 problems.append(
                     "S24: no-ID no-harm route did not select a declared result")
+            for marker in (
+                    'id="awgn-live-progress"',
+                    '<strong>Unregistered experiment output.</strong>',
+                    "fetch('/api/awgn-results/progress'"):
+                if marker in no_harm_latest:
+                    problems.append(
+                        f"S24: no-ID no-harm page retained removed pane "
+                        f"'{marker}'")
+            with tempfile.TemporaryDirectory(
+                    prefix="juna-empty-no-harm-contract-") as empty_root:
+                os.makedirs(os.path.join(empty_root, "experiments"))
+                populated_root = server.ROOT
+                server.ROOT = empty_root
+                try:
+                    empty_no_harm = server.page_results(
+                        "", awgn=True, no_harm=True)
+                finally:
+                    server.ROOT = populated_root
+            if ("No experiment results page exists yet" not in empty_no_harm or
+                    any(marker in empty_no_harm for marker in (
+                        'id="awgn-live-progress"',
+                        '<strong>Unregistered experiment output.</strong>',
+                        "fetch('/api/awgn-results/progress'"))):
+                problems.append(
+                    "S24: empty no-harm page retained a removed pane or lost "
+                    "its empty-state message")
+
+            no_harm_dom, browser_error = browser_dom(
+                base, f"/no-harm-results?experiment={no_harm_selected}")
+            if no_harm_dom is None:
+                problems.append(
+                    "S24: no-harm browser controls not checked: "
+                    f"{browser_error}")
+            else:
+                controls = _re.search(
+                    r'<span id="sweep-parameter-controls"[^>]*>'
+                    r'(.*?)</span>', no_harm_dom, flags=_re.S)
+                if (not controls or controls.group(1).count("<select") != 5 or
+                        "7 experiments match" not in no_harm_dom):
+                    problems.append(
+                        "S24: browser did not render five compact controls "
+                        "and seven matches")
+                if controls:
+                    expected_filters = (
+                        ("sweep-filter-capture_frames", "Capture / frames",
+                         [("", "(all)"),
+                          ("first8s-frames8", "first 8 s · 8 frames"),
+                          ("first32s-frames32", "first 32 s · 32 frames"),
+                          ("first47s-frames32", "first 47 s · 32 frames")]),
+                        ("sweep-filter-receiver_policy", "Receiver policy",
+                         [("", "(all)"),
+                          ("crc-no-harm", "CRC no-harm"),
+                          ("crc-gated-no-harm", "CRC-gated no-harm")]),
+                        ("sweep-filter-nfft", "N",
+                         [("", "(all)"), ("1024", "1024"),
+                          ("2048", "2048")]),
+                        ("sweep-filter-code_rate", "code rate",
+                         [("", "(all)"), ("0.125", "0.125"),
+                          ("0.25", "0.25")]),
+                        ("sweep-filter-pilots", "pilots",
+                         [("", "(all)"), ("5/5", "5/5"),
+                          ("5/10", "5/10"), ("10/5", "10/5")]),
+                    )
+                    for select_id, label, expected_options in expected_filters:
+                        select = _re.search(
+                            rf'<label for="{_re.escape(select_id)}">'
+                            rf'{_re.escape(label)} </label>\s*'
+                            rf'<select id="{_re.escape(select_id)}">'
+                            r'(.*?)</select>', controls.group(1), flags=_re.S)
+                        options = (_re.findall(
+                            r'<option[^>]*value="([^"]*)"[^>]*>'
+                            r'(.*?)</option>', select.group(1), flags=_re.S)
+                                   if select else [])
+                        if options != expected_options:
+                            problems.append(
+                                f"S24: {label} options {options!r}, "
+                                f"expected {expected_options!r}")
+                default_picker = _re.search(
+                    r'<select id="experiment-picker"[^>]*>(.*?)</select>',
+                    no_harm_dom, flags=_re.S)
+                default_tags = (_re.findall(r'<option\b[^>]*>',
+                                             default_picker.group(1))
+                                if default_picker else [])
+                default_single = _re.search(
+                    r'<iframe id="single-result"([^>]*)>', no_harm_dom)
+                default_comparison = _re.search(
+                    r'<iframe id="comparison-result"([^>]*)>', no_harm_dom)
+                if (len(default_tags) != 7 or
+                        any("hidden" in tag or "disabled" in tag
+                            for tag in default_tags) or
+                        not default_single or
+                        "hidden" in default_single.group(1) or
+                        not default_comparison or
+                        "hidden" not in default_comparison.group(1)):
+                    problems.append(
+                        "S24: (all) did not restore every experiment and the "
+                        "single-result view")
+
+            multi_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]), ("page", "trace"),
+                ("sentinel", "kept"),
+                ("receiver_policy", "crc-gated-no-harm"),
+            ])
+            multi_dom, browser_error = browser_dom(
+                base, "/no-harm-results?" + multi_query)
+            if multi_dom is None:
+                problems.append(
+                    "S24: multiple no-harm matches not checked: "
+                    f"{browser_error}")
+            else:
+                multi_picker = _re.search(
+                    r'<select id="experiment-picker"[^>]*>(.*?)</select>',
+                    multi_dom, flags=_re.S)
+                multi_tags = (_re.findall(r'<option\b[^>]*>',
+                                           multi_picker.group(1))
+                              if multi_picker else [])
+                visible = [tag for tag in multi_tags
+                           if "hidden" not in tag and "disabled" not in tag]
+                placeholders = [tag for tag in multi_tags
+                                if "data-filter-placeholder" in tag]
+                multi_single = _re.search(
+                    r'<iframe id="single-result"([^>]*)>', multi_dom)
+                if ("2 experiments match" not in multi_dom or
+                        len(visible) != 2 or
+                        len(placeholders) != 1 or
+                        "selected" not in placeholders[0] or
+                        "Choose one of 2 matching experiments" not in
+                        multi_dom or
+                        any("selected" in tag for tag in visible) or
+                        not multi_single or
+                        "hidden" not in multi_single.group(1) or
+                        "page=trace" not in multi_dom or
+                        "sentinel=kept" not in multi_dom):
+                    problems.append(
+                        "S24: multiple matches did not wait for an explicit "
+                        "experiment choice "
+                        f"(visible={len(visible)}, placeholders="
+                        f"{placeholders!r}, single="
+                        f"{(multi_single.group(1) if multi_single else None)!r}, "
+                        f"prompt={'Choose one of 2 matching experiments' in multi_dom}, "
+                        f"page={'page=trace' in multi_dom}, "
+                        f"sentinel={'sentinel=kept' in multi_dom})")
+
+            unique_query = urllib.parse.urlencode([
+                ("experiment", no_harm_ids[0]), ("page", "trace"),
+                ("sentinel", "kept"), ("nfft", "2048"),
+                ("code_rate", "0.125"), ("pilots", "5/10"),
+                ("capture_frames", "first47s-frames32"),
+                ("receiver_policy", "crc-gated-no-harm"),
+            ])
+            unique_dom, browser_error = browser_dom(
+                base, "/no-harm-results?" + unique_query)
+            if unique_dom is None:
+                problems.append(
+                    "S24: unique no-harm filter not checked: "
+                    f"{browser_error}")
+            else:
+                unique_picker = _re.search(
+                    r'<select id="experiment-picker"[^>]*>(.*?)</select>',
+                    unique_dom, flags=_re.S)
+                unique_options = {}
+                if unique_picker:
+                    for tag, label in _re.findall(
+                            r'(<option\b[^>]*>)(.*?)</option>',
+                            unique_picker.group(1), flags=_re.S):
+                        value = _re.search(r'\bvalue="([^"]+)"', tag)
+                        if value:
+                            unique_options[value.group(1)] = tag
+                chosen_tag = unique_options.get(no_harm_ids[1], "")
+                hidden_tag = unique_options.get(no_harm_ids[0], "")
+                if ("1 experiments match" not in unique_dom or
+                        "selected" not in chosen_tag or
+                        "hidden" in chosen_tag or "disabled" in chosen_tag or
+                        "hidden" not in hidden_tag or
+                        "disabled" not in hidden_tag or
+                        "page=trace" not in unique_dom or
+                        "sentinel=kept" not in unique_dom):
+                    problems.append(
+                        "S24: unique filters did not narrow the picker, "
+                        "select the match, and preserve the query")
             for suffix in ("view", "manifest"):
                 code, _ = fetch(
                     base,
@@ -1582,10 +2920,17 @@ def check():
                 base,
                 "/no-harm-results/compare?" + no_harm_comparison_query)
             if (code != 200 or no_harm_comparison.count(
-                    'class="experiment-result"') != 2):
+                    'class="experiment-result"') != 7):
                 problems.append(
-                    "S24: no-harm comparison did not render both declared "
+                    "S24: no-harm comparison did not render all declared "
                     "experiments")
+            for experiment_id, label in expected_no_harm_labels.items():
+                if (f'data-experiment-id="{experiment_id}"' not in
+                        no_harm_comparison or
+                        f"<h2>{label}</h2>" not in no_harm_comparison):
+                    problems.append(
+                        "S24: no-harm comparison lost compact heading/full "
+                        f"ID for '{experiment_id}'")
             mixed_comparison_query = urllib.parse.urlencode([
                 ('experiment', no_harm_ids[0]),
                 ('experiment', excluded_awgn_id),
@@ -1724,7 +3069,7 @@ def check():
                     "S22: full outer-spacing geometry did not narrow to one")
 
             single_query = urllib.parse.urlencode([
-                ("experiment", single_awgn_id), ("nfft", "4096"),
+                ("experiment", awgn_ids[0]), ("nfft", "4096"),
                 ("cp", "64"), ("code_rate", "0.25"),
                 ("outer_spacing", "5"), ("inner_spacing", "5"),
                 ("check_degree", "10"), ("horizon", "fill")])
@@ -1736,6 +3081,11 @@ def check():
             elif "1 experiments match" not in single_dom:
                 problems.append(
                     "S22: N4096 geometry did not narrow to one result")
+            elif not _re.search(
+                    rf'<option\b[^>]*value="{_re.escape(single_awgn_id)}"'
+                    r'[^>]*\bselected', single_dom):
+                problems.append(
+                    "S22: unique AWGN geometry did not select its experiment")
 
             n4096_parameters = {
                 "N": "4096", "CP": "64", "code rate": "0.25",
@@ -2250,6 +3600,11 @@ def check():
             if 'id="awgn-live-progress"' in results_page:
                 problems.append(
                     "S23: live AWGN progress leaked onto /results")
+            for route, document in (("/results", results_page),
+                                    ("/awgn-results", awgn_page)):
+                if "Unregistered experiment output." not in document:
+                    problems.append(
+                        f"S23: {route} lost its unregistered-output notice")
     finally:
         server.ROOT = original_root
 
