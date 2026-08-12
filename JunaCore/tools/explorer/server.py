@@ -3173,6 +3173,21 @@ def _best_observed_config_color(index):
     return f"hsl({hue:.1f} 65% 42%)"
 
 
+def _best_observed_all_scope_eligible(
+        code_rate, combined_pilot_ratio, configured_duration):
+    """Whether one tested configuration enters the broad winner scan."""
+    try:
+        rate = Fraction(code_rate)
+        pilot_ratio = Fraction(combined_pilot_ratio)
+        duration = (Fraction(1) if configured_duration == "unspecified"
+                    else Fraction(configured_duration))
+    except (TypeError, ValueError, ZeroDivisionError):
+        raise FileNotFoundError("invalid best-observed eligibility value")
+    return (rate != Fraction(1, 2) and
+            pilot_ratio <= Fraction(1, 2) and
+            duration == Fraction(1))
+
+
 def _no_harm_effective_rate_family_choices(available, experiment_id):
     """One deterministic picker option for each strict comparison family."""
     families = {}
@@ -3228,6 +3243,7 @@ def _no_harm_effective_rate_family(experiment_id, scope="family"):
             continue
         if scope == "family" and signature != anchor_signature:
             continue
+        anchor_seen = anchor_seen or candidate == experiment_id
         name_parameters = _sweep_name_parameters(candidate)
         if name_parameters is None:
             raise FileNotFoundError("matching pilot geometry is incomplete")
@@ -3239,6 +3255,16 @@ def _no_harm_effective_rate_family(experiment_id, scope="family"):
         if outer_spacing < 1 or inner_spacing < 1:
             raise FileNotFoundError("matching pilot geometry is invalid")
         group_key = nfft, outer_spacing, inner_spacing
+        combined_pilot_ratio = (
+            Fraction(1, outer_spacing) + Fraction(1, inner_spacing))
+        try:
+            code_rate = Fraction(name_parameters["code rate"])
+        except (KeyError, TypeError, ValueError, ZeroDivisionError):
+            raise FileNotFoundError("matching code rate is invalid")
+        if (scope == "all" and
+                not _best_observed_all_scope_eligible(
+                    code_rate, combined_pilot_ratio, signature[7])):
+            continue
         identity = signature, nfft, outer_spacing, inner_spacing
         if identity in identities:
             raise FileNotFoundError(
@@ -3251,8 +3277,6 @@ def _no_harm_effective_rate_family(experiment_id, scope="family"):
         elif candidate_snr_grid != shared_snr_grid:
             raise FileNotFoundError(
                 "matching configurations use different SNR grids")
-        combined_pilot_ratio = (
-            Fraction(1, outer_spacing) + Fraction(1, inner_spacing))
         groups.append((group_key, {
             "experiment_id": candidate,
             "observations": observations,
@@ -3263,7 +3287,6 @@ def _no_harm_effective_rate_family(experiment_id, scope="family"):
                 candidate, no_harm=True),
             "broad_candidate_key": candidate if scope == "all" else None,
         }))
-        anchor_seen = anchor_seen or candidate == experiment_id
     if not groups or not anchor_seen or shared_snr_grid is None:
         raise FileNotFoundError("no matching effective-rate family")
     ordered = tuple(sorted(
@@ -3274,7 +3297,9 @@ def _no_harm_effective_rate_family(experiment_id, scope="family"):
             item[1]["experiment_id"]),
     ))
     comparison_summary = (
-        "All tested configurations" if scope == "all" else summary)
+        "Eligible configurations: frame budget = 1 s, pilot ≤ 50%, "
+        "code rate ≠ 0.5"
+        if scope == "all" else summary)
     return ordered, comparison_summary, shared_snr_grid
 
 
@@ -3588,13 +3613,13 @@ def page_no_harm_effective_rate_by_n(query):
         if all_zero else "")
     heading = (
         f"{channel.upper()} · H{hydrophone} effective payload rate across "
-        f"tested configurations at {snr_db:g} dB" if scope == "all" else
+        f"eligible configurations at {snr_db:g} dB" if scope == "all" else
         f"{channel.upper()} · H{hydrophone} effective payload rate across "
         f"N and pilot ratio at {snr_db:g} dB")
     scope_note = ("<p class=\"warning-note\">This view includes "
                   "configurations with different capture windows, frame "
-                  "counts, receiver policies, code rates, and frame "
-                  "durations. It reports the largest stored effective "
+                  "counts, receiver policies, and code rates. It reports "
+                  "the largest stored effective "
                   "payload rate; it is not a controlled comparison.</p>"
                   if scope == "all" else "")
     body = f"""
@@ -3629,7 +3654,7 @@ text-anchor="end">{midpoint:g}</text>
 text-anchor="end">0</text>
 {"".join(group_markup)}
 <text class="x-label" x="{chart_width / 2:.1f}" y="324"
-text-anchor="middle">{"Tested configuration" if scope == "all" else "N and combined pilot ratio"}</text></svg></div>
+text-anchor="middle">{"Eligible configuration" if scope == "all" else "N and combined pilot ratio"}</text></svg></div>
 <style>
 .grouped-rate-configuration{{color:var(--muted);margin:.25rem 0 .6rem}}
 .grouped-rate-formula{{color:var(--muted);margin:.25rem 0 .5rem}}
@@ -4384,7 +4409,7 @@ shows the newest one.</div>"""
         scope_options = (
             f'<option value="all"'
             f'{" selected" if selected_scope == "all" else ""}>'
-            'All tested configurations</option>'
+            'Eligible configurations</option>'
             f'<option value="family"'
             f'{" selected" if selected_scope == "family" else ""}>'
             'Selected family</option>')

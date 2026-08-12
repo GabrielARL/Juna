@@ -101,6 +101,7 @@ import tempfile
 import threading
 import urllib.parse
 import urllib.request
+from fractions import Fraction
 from http.server import ThreadingHTTPServer
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -1105,6 +1106,7 @@ def check():
             }
             rule_manifest["frames_per_point"] = 32
             rule_manifest["capture_time_seconds"] = [0.0, 47.0]
+            rule_manifest["frame_duration_budget_seconds"] = 2.0
             rule_parameters = server._sweep_name_parameters(no_harm_ids[1])
             rule_manifest["geometry"] = {
                 "nfft": "2048", "code_rate": "0.125",
@@ -2579,8 +2581,7 @@ def check():
                 r'Result ([1-9][0-9]*)</th>', all_best_view)
             expected_all_ids = [
                 no_harm_ids[4], no_harm_ids[6], no_harm_ids[2],
-                no_harm_ids[0], no_harm_ids[1], no_harm_ids[5],
-                no_harm_ids[3],
+                no_harm_ids[0], no_harm_ids[5], no_harm_ids[3],
             ]
             all_detail_url = (
                 "/no-harm-results/effective-rate/by-n?" +
@@ -2594,7 +2595,7 @@ def check():
                 default_all_outer_code == 200 and
                 '<select id="best-observed-scope-picker"' in
                 default_all_outer and
-                '<option value="all" selected>All tested '
+                '<option value="all" selected>Eligible '
                 'configurations</option>' in default_all_outer and
                 'id="effective-rate-family-picker"' not in
                 default_all_outer and
@@ -2606,10 +2607,11 @@ def check():
                 all_best_embedded_view.count('type="range"') == 0 and
                 all_best_code == 200 and
                 'data-comparison-scope="all"' in all_best_view and
-                'data-family-count="3"' in all_best_view and
-                'data-configuration-count="7"' in all_best_view and
-                'data-candidate-count="35"' in all_best_view and
-                '<p class="configuration">All tested configurations</p>' in
+                'data-family-count="2"' in all_best_view and
+                'data-configuration-count="6"' in all_best_view and
+                'data-candidate-count="30"' in all_best_view and
+                '<p class="configuration">Eligible configurations: frame '
+                'budget = 1 s, pilot ≤ 50%, code rate ≠ 0.5</p>' in
                 all_best_view and
                 all_best_view.count('class="winner-panel"') == 12 and
                 all_best_view.count('class="winner-cell-link"') == 192 and
@@ -2617,7 +2619,7 @@ def check():
                 all_best_view.count('<table id="best-config-table"') == 1 and
                 all_best_view.count(
                     '<details id="best-configurations"') == 1 and
-                '<summary>Configurations (7)</summary>' in all_best_view and
+                '<summary>Configurations (6)</summary>' in all_best_view and
                 '<details id="best-configurations" open' not in all_best_view and
                 all_best_view.find('class="best-observed-grid"') <
                 all_best_view.find('<details id="best-configurations"') and
@@ -2633,15 +2635,14 @@ def check():
                     ("1024", "0.25", "30", "10/5"),
                     ("1024", "0.125", "40", "5/5"),
                     ("1024", "0.25", "40", "5/5"),
-                    ("2048", "0.125", "30", "5/10"),
                     ("2048", "0.25", "30", "5/10"),
                     ("2048", "0.25", "40", "5/5"),
                 ] and
                 all_table_ids == expected_all_ids and
-                all_table_indexes == [str(index) for index in range(7)] and
+                all_table_indexes == [str(index) for index in range(6)] and
                 all_table_results == [
                     (server._best_observed_config_color(index),
-                     str(index + 1)) for index in range(7)] and
+                     str(index + 1)) for index in range(6)] and
                 'id="best-config-legend"' not in all_best_view and
                 'class="winner-config-legend-item"' not in all_best_view and
                 'data-selected-receiver="cwz_joint"' in all_cell_0 and
@@ -2676,21 +2677,24 @@ def check():
             all_detail_contract = (
                 all_detail_code == 200 and
                 'data-comparison-scope="all"' in all_detail_view and
-                all_detail_view.count('class="n-group"') == 7 and
-                all_detail_view.count('class="grouped-receiver-bar"') == 35
-                and len(all_detail_ids) == 7 and
-                set(all_detail_ids) == set(no_harm_ids) and
-                '<p class="grouped-rate-configuration">All tested '
-                'configurations</p>' in all_detail_view and
+                all_detail_view.count('class="n-group"') == 6 and
+                all_detail_view.count('class="grouped-receiver-bar"') == 30
+                and len(all_detail_ids) == 6 and
+                set(all_detail_ids) == set(no_harm_ids) - {no_harm_ids[1]} and
+                '<p class="grouped-rate-configuration">Eligible '
+                'configurations: frame budget = 1 s, pilot ≤ 50%, '
+                'code rate ≠ 0.5</p>' in
+                all_detail_view and
                 len(repeated_n_pilots) == 2 and
-                len(all_detail_pilot_labels) == 7 and
+                len(all_detail_pilot_labels) == 6 and
                 all(label.endswith("%") and "/" not in label
                     for label in all_detail_pilot_labels) and
-                'effective payload rate across tested configurations at '
+                'effective payload rate across eligible configurations at '
                 '10 dB' in all_detail_view and
-                all_detail_view.count('class="group-family-label"') == 7 and
+                all_detail_view.count('class="group-family-label"') == 6 and
+                no_harm_ids[1] not in all_detail_view and
                 all(expression in all_detail_view for expression in
-                    no_harm_ids) and
+                    set(no_harm_ids) - {no_harm_ids[1]}) and
                 'plot=best-observed' in all_detail_view and
                 'scope=all' in all_detail_view)
             if not all_scope_contract:
@@ -2702,6 +2706,69 @@ def check():
                 problems.append(
                     "S24: all-configurations winner link did not retain its "
                     "scope or render every source configuration and receiver")
+
+            eligibility = getattr(
+                server, "_best_observed_all_scope_eligible", None)
+            eligibility_contract = (
+                callable(eligibility) and
+                eligibility(Fraction(1, 4), Fraction(1, 2), "1") and
+                eligibility(Fraction(1, 8), Fraction(2, 5),
+                            "unspecified") and
+                not eligibility(Fraction(1, 2), Fraction(1, 5), "1") and
+                not eligibility(Fraction("0.50"), Fraction(2, 5), "1") and
+                not eligibility(Fraction(1, 4), Fraction(8, 15), "1") and
+                not eligibility(Fraction(1, 4), Fraction(2, 5), "2"))
+            if not eligibility_contract:
+                problems.append(
+                    "S24: all-scope eligibility did not exclude rate 0.5 "
+                    "pilot ratios above 50 percent, and two-second frames at "
+                    "exact boundaries")
+
+            if callable(eligibility):
+                original_eligibility = (
+                    server._best_observed_all_scope_eligible)
+                server._best_observed_all_scope_eligible = (
+                    lambda _code_rate, pilot_ratio, duration:
+                    pilot_ratio < Fraction(2, 5) and duration != "2")
+                try:
+                    filtered_all_code, filtered_all_view = fetch(
+                        base, all_best_endpoint_url)
+                    filtered_detail_code, filtered_detail_view = fetch(
+                        base, all_detail_url)
+                    filtered_family_code, filtered_family_view = fetch(
+                        base, best_endpoint_url)
+                    filtered_direct_code, _filtered_direct_view = fetch(
+                        base, rate_view_url)
+                finally:
+                    server._best_observed_all_scope_eligible = (
+                        original_eligibility)
+                filtered_all_ids = _re.findall(
+                    r'class="winner-config-table-result"[^>]*'
+                    r'data-experiment-id="([^"]+)"', filtered_all_view)
+                filtered_detail_ids = _re.findall(
+                    r'<g class="n-group"[^>]*'
+                    r'data-experiment-id="([^"]+)"',
+                    filtered_detail_view)
+                expected_filtered_ids = {
+                    no_harm_ids[4], no_harm_ids[5], no_harm_ids[6],
+                }
+                filtered_scope_contract = (
+                    filtered_all_code == 200 and
+                    'data-configuration-count="3"' in filtered_all_view and
+                    'data-candidate-count="15"' in filtered_all_view and
+                    set(filtered_all_ids) == expected_filtered_ids and
+                    filtered_detail_code == 200 and
+                    filtered_detail_view.count('class="n-group"') == 3 and
+                    filtered_detail_view.count(
+                        'class="grouped-receiver-bar"') == 15 and
+                    set(filtered_detail_ids) == expected_filtered_ids and
+                    filtered_family_code == 200 and
+                    'data-configuration-count="5"' in filtered_family_view and
+                    filtered_direct_code == 200)
+                if not filtered_scope_contract:
+                    problems.append(
+                        "S24: all-scope eligibility was not isolated from "
+                        "excluded anchors, family scope, or direct figures")
             invalid_best_queries = (
                 [("experiment", no_harm_ids[0]), ("snr_db", "1")],
                 [("experiment", impulsive_id), ("snr_db", "6")],
