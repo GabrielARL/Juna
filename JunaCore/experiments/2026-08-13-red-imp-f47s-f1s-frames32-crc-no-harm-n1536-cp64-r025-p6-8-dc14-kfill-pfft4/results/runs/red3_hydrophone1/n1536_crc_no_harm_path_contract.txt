@@ -1,0 +1,11 @@
+campaign=N1536-CRC-GATED-NO-HARM-IMPULSIVE-FIRST47S
+experiment_id=2026-08-13-red-imp-f47s-f1s-frames32-crc-no-harm-n1536-cp64-r025-p6-8-dc14-kfill-pfft4
+channel=red3
+hydrophone=1
+aggregate_sha256=0f2fa666c2c87b6de3534013d92b1d3118ccc4169e4ad3bbd5e4a143a1db46e0
+frame_trace_sha256=8fb5913b9b8937c7d6e9a7b3abb0b4b5651e765cab6475c3e58d1d19c0226ae1
+selection_trace_sha256=f7629641f506e65b99409906f97cf299d4e4c24cca1919db009ce1219ec23600
+aggregate_rows=80
+frame_trace_rows=2560
+selection_trace_rows=1024
+selection_rule=standard_crc_valid|crc_rescue|standard_fallback
