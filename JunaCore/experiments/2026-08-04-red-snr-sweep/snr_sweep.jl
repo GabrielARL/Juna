@@ -42,7 +42,10 @@ const OBJECTIVE_LABEL = Ref("min-BER")
 const CZ_RESULTS = SEARCH
 
 const ALGORITHMS = (
-    (id=:ofdm_fec, name="OFDM + FEC", profile=:ofdm_fec),
+    # CL-152: the package renamed this frame-receiver profile from
+    # :ofdm_fec to :standard after this family last ran; the descriptor id
+    # and the CSV algorithm_id stay ofdm_fec.
+    (id=:ofdm_fec, name="OFDM + FEC", profile=:standard),
     (id=:pfft, name="Partial-FFT + FEC", profile=:pfft),
     (id=:lite, name="JUNA-Lite", profile=:lite),
     (id=:profiled_cz, name="JUNA (C,z) Joint gradient", profile=:profiled_cz,
