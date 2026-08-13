@@ -3215,7 +3215,7 @@ def _paper_marker_markup(shape, x, y, r, fill, stroke, extra=""):
 
 # CL-156: the symmetric alpha-stable (SaS) ambient-noise sweep family.
 _SALPHAS_NAME_PATTERN = re.compile(
-    r"-n(\d+)-cp(\d+)-rate(\d+)-p(\d+)-(\d+)-dc(\d+)-k([A-Za-z0-9]+)"
+    r"-n(\d+)-cp(\d+)-r(?:ate)?(\d+)-p(\d+)-(\d+)-dc(\d+)-k([A-Za-z0-9]+)"
     r"(?:-pfft(\d+))?$")
 
 
@@ -3224,7 +3224,7 @@ def _salphas_experiments():
     experiments = []
     root = os.path.join(ROOT, "experiments")
     for name in sorted(os.listdir(root)):
-        if "-red-snr-sweep-" not in name:
+        if "-red-snr-sweep-" not in name and "-red-imp-" not in name:
             continue
         match = _SALPHAS_NAME_PATTERN.search(name)
         if match is None:
@@ -3234,16 +3234,20 @@ def _salphas_experiments():
             continue
         paths = sorted(
             entry for entry in os.listdir(runs)
-            if os.path.isfile(os.path.join(
-                runs, entry, "red_snr_sweep_uwa_noise_configuration.csv")))
+            if glob.glob(os.path.join(
+                runs, entry, "red_snr_sweep_*_configuration.csv")))
         if not paths:
             continue
         nfft, cp, rate, outer, inner, dc, horizon, pfft = match.groups()
         rate_text = f"0.{rate[1:]}" if rate.startswith("0") else rate
         percent = _combined_pilot_percent_text(outer, inner)
+        frames_match = re.search(r"frames(\d+)", name)
+        frames = frames_match.group(1) if frames_match else "60"
+        policy = ("CRC no-harm arms" if "crc-no-harm" in name
+                  else "ungated arms")
         label = (f"N={nfft} · CP{cp} · rate={rate_text} · "
                  f"pilots={percent}% · dc={dc} · K={horizon} · "
-                 f"views={pfft or '4'}")
+                 f"views={pfft or '4'} · {policy} · {frames} frames")
         experiments.append({
             "id": name, "label": label, "paths": paths})
     return experiments
@@ -3254,10 +3258,11 @@ def _salphas_rows(experiment_id):
     runs = os.path.join(ROOT, "experiments", experiment_id, "results", "runs")
     rows = {}
     for entry in sorted(os.listdir(runs)):
-        aggregate = os.path.join(
-            runs, entry, "red_snr_sweep_uwa_noise_configuration.csv")
-        if not os.path.isfile(aggregate):
+        matches = glob.glob(os.path.join(
+            runs, entry, "red_snr_sweep_*_configuration.csv"))
+        if not matches:
             continue
+        aggregate = matches[0]
         with open(aggregate, newline="") as handle:
             for row in csv.DictReader(handle):
                 key = (row["channel"], row["lane"], row["algorithm_id"])
@@ -3401,7 +3406,8 @@ label{{font-size:13px}}select{{font-size:13px;max-width:100%}}</style>
 <h1>Symmetric alpha-stable noise results</h1>
 <p class="configuration">Measured replay plus the uwa-channels
 alpha-stable noise model (alpha = 1.7, correlated across the three
-hydrophones); ungated gradient arms; 60 frames per point; seed 4.
+hydrophones); seed 4; the experiment label names the arm policy and the
+frames per point.
 One curve per distinct result: receivers joined with "=" returned
 identical bit-error counts at every SNR point of that panel.  Hollow
 markers mark zero observed bit errors, drawn at 0.5 divided by the
