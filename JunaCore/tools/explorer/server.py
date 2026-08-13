@@ -53,7 +53,8 @@ NAV = [("/", "Home"), ("/tests", "Tests"), ("/map", "Map"),
        ("/chain", "Chain"), ("/source", "Source"), ("/coverage", "Coverage"),
        ("/health", "Health"), ("/progress", "Progress"),
        ("/results", "Results"), ("/awgn-results", "AWGN results"),
-       ("/no-harm-results", "Results")]
+       ("/no-harm-results", "Results"),
+       ("/salphas-results", "SαS results")]
 HIDDEN_NAV_TABS = {"/results", "/awgn-results"}
 INTERFACE_METHODS = {"init", "modulate", "demodulate", "bitspersymbol",
                      "signallength", "payload_rate", "refinement_objective",
@@ -3212,6 +3213,207 @@ def _paper_marker_markup(shape, x, y, r, fill, stroke, extra=""):
             f'stroke="{stroke}" stroke-width="1.2">{extra}</polygon>')
 
 
+# CL-156: the symmetric alpha-stable (SaS) ambient-noise sweep family.
+_SALPHAS_NAME_PATTERN = re.compile(
+    r"-n(\d+)-cp(\d+)-rate(\d+)-p(\d+)-(\d+)-dc(\d+)-k([A-Za-z0-9]+)"
+    r"(?:-pfft(\d+))?$")
+
+
+def _salphas_experiments():
+    """Ambient-noise fixed-geometry sweeps with per-path aggregates."""
+    experiments = []
+    root = os.path.join(ROOT, "experiments")
+    for name in sorted(os.listdir(root)):
+        if "-red-snr-sweep-" not in name:
+            continue
+        match = _SALPHAS_NAME_PATTERN.search(name)
+        if match is None:
+            continue
+        runs = os.path.join(root, name, "results", "runs")
+        if not os.path.isdir(runs):
+            continue
+        paths = sorted(
+            entry for entry in os.listdir(runs)
+            if os.path.isfile(os.path.join(
+                runs, entry, "red_snr_sweep_uwa_noise_configuration.csv")))
+        if not paths:
+            continue
+        nfft, cp, rate, outer, inner, dc, horizon, pfft = match.groups()
+        rate_text = f"0.{rate[1:]}" if rate.startswith("0") else rate
+        percent = _combined_pilot_percent_text(outer, inner)
+        label = (f"N={nfft} · CP{cp} · rate={rate_text} · "
+                 f"pilots={percent}% · dc={dc} · K={horizon} · "
+                 f"views={pfft or '4'}")
+        experiments.append({
+            "id": name, "label": label, "paths": paths})
+    return experiments
+
+
+def _salphas_rows(experiment_id):
+    """Per-path aggregates of one ambient sweep, keyed for the panels."""
+    runs = os.path.join(ROOT, "experiments", experiment_id, "results", "runs")
+    rows = {}
+    for entry in sorted(os.listdir(runs)):
+        aggregate = os.path.join(
+            runs, entry, "red_snr_sweep_uwa_noise_configuration.csv")
+        if not os.path.isfile(aggregate):
+            continue
+        with open(aggregate, newline="") as handle:
+            for row in csv.DictReader(handle):
+                key = (row["channel"], row["lane"], row["algorithm_id"])
+                rows.setdefault(key, {})[float(row["snr_db"])] = (
+                    int(row["bit_errors"]), int(row["payload_bits"]),
+                    int(row["successful_frames"]))
+    return rows
+
+
+def page_salphas_results(query):
+    """Twelve merged-receiver BER panels for one alpha-stable sweep."""
+    experiments = _salphas_experiments()
+    if not experiments:
+        raise FileNotFoundError("no alpha-stable sweep results found")
+    if isinstance(query, str):
+        query = urllib.parse.parse_qs(query or "")
+    requested = query.get("experiment", [None])[0]
+    known = {entry["id"]: entry for entry in experiments}
+    if requested is None:
+        requested = experiments[-1]["id"]
+    if requested not in known:
+        raise FileNotFoundError("unknown alpha-stable sweep")
+    rows = _salphas_rows(requested)
+    receiver_order = tuple(_PAPER_RECEIVER_STYLE)
+
+    plot_left, plot_right, plot_top, plot_bottom = 42.0, 8.0, 14.0, 196.0
+    plot_width = 360.0 - plot_left - plot_right
+    plot_height = plot_bottom - plot_top
+    decades = 6.0   # 1e0 down to 1e-6
+
+    def y_of(ber_value):
+        clamped = max(ber_value, 10 ** -decades)
+        return plot_top + (-math.log10(clamped)) / decades * plot_height
+
+    panels = []
+    for channel_number in range(1, 5):
+        channel = f"red{channel_number}"
+        for hydrophone in ("1", "2", "3"):
+            present = all(
+                (channel, hydrophone, receiver) in rows
+                for receiver in receiver_order)
+            if not present:
+                panels.append(
+                    '<figure class="winner-panel"><figcaption>'
+                    f'<b>red {channel_number}</b> · hydrophone {hydrophone}'
+                    '</figcaption><p class="salphas-missing">not run'
+                    '</p></figure>')
+                continue
+            keyed = {}
+            for receiver in receiver_order:
+                series = rows[(channel, hydrophone, receiver)]
+                identity = tuple(series[s][0] for s in sorted(series))
+                keyed.setdefault(identity, []).append(receiver)
+            group_markup = []
+            legend_lines = []
+            for order, (identity, members) in enumerate(keyed.items()):
+                first = members[0]
+                color = _PAPER_RECEIVER_STYLE[first][1]
+                joined = " = ".join(
+                    _PAPER_RECEIVER_STYLE[m][0] for m in members)
+                series = rows[(channel, hydrophone, first)]
+                snrs = sorted(series)
+                points = []
+                markers = []
+                for snr_db in snrs:
+                    errors, payload_bits, _ok = series[snr_db]
+                    hollow = errors == 0
+                    value = (0.5 / payload_bits) if hollow \
+                        else errors / payload_bits
+                    x = plot_left + (snr_db / 30.0) * plot_width
+                    y = y_of(value)
+                    points.append(f"{x:.2f},{y:.2f}")
+                    title = (f"{snr_db:g} dB · {joined} · "
+                             + ("no observed bit errors, floor "
+                                if hollow else "BER ")
+                             + f"{value:.2e}")
+                    markers.append(
+                        f'<circle cx="{x:.2f}" cy="{y:.2f}" r="3.1" '
+                        f'fill="{"#fff" if hollow else color}" '
+                        f'stroke="{color}" stroke-width="1.1">'
+                        f'<title>{esc(title)}</title></circle>')
+                group_markup.append(
+                    f'<polyline fill="none" stroke="{color}" '
+                    f'stroke-width="1.3" points="{" ".join(points)}"/>'
+                    + "".join(markers))
+                legend_y = plot_bottom - 6 - 11 * (
+                    len(keyed) - 1 - order)
+                legend_lines.append(
+                    f'<circle cx="{plot_left + 8:.1f}" '
+                    f'cy="{legend_y - 3:.1f}" r="3" fill="{color}"/>'
+                    f'<text x="{plot_left + 15:.1f}" y="{legend_y:.1f}">'
+                    f'{esc(joined)}</text>')
+            axis_marks = "".join(
+                f'<line class="grid" x1="{plot_left}" '
+                f'y1="{y_of(10 ** -d):.1f}" x2="352" '
+                f'y2="{y_of(10 ** -d):.1f}"/>'
+                f'<text x="38" y="{y_of(10 ** -d) + 3:.1f}" '
+                f'text-anchor="end">1e-{d}</text>'
+                for d in range(0, 7, 2))
+            panels.append(
+                '<figure class="winner-panel">'
+                f'<figcaption><b>red {channel_number}</b> · '
+                f'hydrophone {hydrophone}</figcaption>'
+                '<svg viewBox="0 0 360 218" role="img">'
+                f'<line class="axis" x1="{plot_left}" y1="{plot_top}" '
+                f'x2="{plot_left}" y2="{plot_bottom}"/>'
+                f'<line class="axis" x1="{plot_left}" y1="{plot_bottom}" '
+                f'x2="352" y2="{plot_bottom}"/>'
+                + axis_marks + "".join(group_markup)
+                + "".join(legend_lines) +
+                f'<text x="{plot_left}" y="214">0</text>'
+                '<text x="352" y="214" text-anchor="end">30 dB</text>'
+                '</svg></figure>')
+
+    options = "".join(
+        f'<option value="{esc(entry["id"])}"'
+        + (" selected" if entry["id"] == requested else "")
+        + f'>{esc(entry["label"])}'
+        + ("" if len(entry["paths"]) == 12
+           else f' · {len(entry["paths"])}/12 paths')
+        + '</option>'
+        for entry in experiments)
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Symmetric alpha-stable noise results</title><style>
+*{{box-sizing:border-box}}body{{margin:0;background:#fff;color:#18212b;
+font:14px system-ui,sans-serif}}main{{padding:12px}}h1{{font-size:21px;
+margin:0 0 3px}}.configuration{{color:#4b5563;margin:.25rem 0}}
+.best-observed-grid{{display:grid;
+grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}}
+.winner-panel{{margin:0;border:1px solid #d8dde3;border-radius:6px;
+padding:5px;min-width:0;background:#fff}}
+.winner-panel figcaption{{font-size:12px;margin-bottom:2px}}
+.winner-panel svg{{display:block;width:100%;height:auto}}
+.winner-panel text{{font-size:9px;fill:#4b5563}}
+.axis{{stroke:#9aa3ad}}.grid{{stroke:#e7e9ed}}
+.salphas-missing{{color:#8a887f;font-size:12px;margin:3rem 0;
+text-align:center}}
+label{{font-size:13px}}select{{font-size:13px;max-width:100%}}</style>
+</head><body><main>
+<h1>Symmetric alpha-stable noise results</h1>
+<p class="configuration">Measured replay plus the uwa-channels
+alpha-stable noise model (alpha = 1.7, correlated across the three
+hydrophones); ungated gradient arms; 60 frames per point; seed 4.
+One curve per distinct result: receivers joined with "=" returned
+identical bit-error counts at every SNR point of that panel.  Hollow
+markers mark zero observed bit errors, drawn at 0.5 divided by the
+payload bits of the point.</p>
+<label>Experiment <select
+onchange="location.href='/salphas-results?experiment='+
+encodeURIComponent(this.value)">{options}</select></label>
+<div class="best-observed-grid" style="margin-top:8px">
+{''.join(panels)}</div>
+</main></body></html>"""
+
+
 def _best_observed_all_scope_eligible(
         code_rate, combined_pilot_ratio, configured_duration):
     """Whether one tested configuration enters the broad winner scan."""
@@ -4909,6 +5111,13 @@ class Handler(BaseHTTPRequestHandler):
                 except FileNotFoundError:
                     return self._send("results not found", 404,
                                       "text/plain")
+            if path == "/salphas-results":
+                try:
+                    return self._send(page_salphas_results(query))
+                except FileNotFoundError:
+                    return self._send(
+                        "alpha-stable sweep results not found", 404,
+                        "text/plain")
             if path == "/no-harm-results/compare":
                 try:
                     return self._send(page_results_comparison(
