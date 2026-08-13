@@ -3173,6 +3173,45 @@ def _best_observed_config_color(index):
     return f"hsl({hue:.1f} 65% 42%)"
 
 
+# CL-155: the joint paper's presentation, mirrored back into this page.
+_PAPER_RECEIVER_STYLE = {
+    "ofdm_fec": ("OFDM+LDPC", "#2a78d6"),
+    "pfft": ("Partial-FFT+LDPC", "#eb6834"),
+    "lite": ("JUNA-Lite", "#1baf7a"),
+    "profiled_cz": ("C,z", "#eda100"),
+    "cwz_joint": ("C,W,z", "#e87ba4"),
+}
+_PAPER_VIRIDIS = ("#440154", "#46327e", "#365c8d", "#277f8e",
+                  "#1fa187", "#4ac16d", "#a0da39", "#fde725")
+_PAPER_N_SHAPES = {"512": "square", "1024": "circle", "1536": "diamond",
+                   "2048": "triangle-up", "4096": "triangle-down"}
+
+
+def _paper_marker_markup(shape, x, y, r, fill, stroke, extra=""):
+    """One winning-N marker in the paper's shape convention."""
+    if shape == "square":
+        s = r * 1.7
+        return (f'<rect class="winner-point" x="{x - s / 2:.2f}" '
+                f'y="{y - s / 2:.2f}" width="{s:.2f}" height="{s:.2f}" '
+                f'fill="{fill}" stroke="{stroke}" stroke-width="1.2">'
+                f'{extra}</rect>')
+    if shape == "diamond":
+        pts = (f"{x:.2f},{y - r * 1.25:.2f} {x + r * 1.25:.2f},{y:.2f} "
+               f"{x:.2f},{y + r * 1.25:.2f} {x - r * 1.25:.2f},{y:.2f}")
+    elif shape == "triangle-down":
+        pts = (f"{x - r * 1.2:.2f},{y - r:.2f} "
+               f"{x + r * 1.2:.2f},{y - r:.2f} {x:.2f},{y + r * 1.2:.2f}")
+    elif shape == "triangle-up":
+        pts = (f"{x:.2f},{y - r * 1.2:.2f} {x + r * 1.2:.2f},{y + r:.2f} "
+               f"{x - r * 1.2:.2f},{y + r:.2f}")
+    else:
+        return (f'<circle class="winner-point" cx="{x:.2f}" cy="{y:.2f}" '
+                f'r="{r:.1f}" fill="{fill}" stroke="{stroke}" '
+                f'stroke-width="1.2">{extra}</circle>')
+    return (f'<polygon class="winner-point" points="{pts}" fill="{fill}" '
+            f'stroke="{stroke}" stroke-width="1.2">{extra}</polygon>')
+
+
 def _best_observed_all_scope_eligible(
         code_rate, combined_pilot_ratio, configured_duration):
     """Whether one tested configuration enters the broad winner scan."""
@@ -3882,6 +3921,54 @@ def page_no_harm_effective_rate_best(query):
             all_cells[(channel, hydrophone)] = tuple(path_cells)
     y_max = max(500.0, math.ceil(peak / 500.0) * 500.0)
 
+    # CL-155: discrete paper-style identities computed over the whole page.
+    winning_indexes = sorted({
+        candidate["config_index"]
+        for cells in all_cells.values()
+        for _snr, cell in cells
+        for candidate in cell["winners"]})
+
+    def _config_geometry_label(index):
+        nfft, outer_spacing, inner_spacing = family[index][0]
+        percent = _combined_pilot_percent_text(outer_spacing, inner_spacing)
+        return f"N={nfft} · {percent}%"
+
+    def _config_density_key(index):
+        nfft, outer_spacing, inner_spacing = family[index][0]
+        return (Fraction(1, int(outer_spacing)) +
+                Fraction(1, int(inner_spacing)), int(nfft))
+
+    # One discrete color per winning GEOMETRY (N and combined pilot
+    # percent), the paper's configuration identity; experiments sharing a
+    # geometry share a ribbon color.
+    label_order = []
+    label_key = {}
+    for index in sorted(winning_indexes, key=_config_density_key):
+        label = _config_geometry_label(index)
+        if label not in label_key:
+            label_key[label] = _config_density_key(index)
+            label_order.append(label)
+    if len(label_order) <= 1:
+        viridis_picks = [0] * len(label_order)
+    else:
+        viridis_picks = [
+            round(i * (len(_PAPER_VIRIDIS) - 1) / (len(label_order) - 1))
+            for i in range(len(label_order))]
+    label_color = {label: _PAPER_VIRIDIS[pick]
+                   for label, pick in zip(label_order, viridis_picks)}
+    config_color = {index: label_color[_config_geometry_label(index)]
+                    for index in winning_indexes}
+    seen_tie_sets = []
+    seen_shapes = set()
+    for cells in all_cells.values():
+        for _snr, cell in cells:
+            if cell["outage"]:
+                continue
+            tied = tuple(cell["rate_tied_receivers"])
+            if tied not in seen_tie_sets:
+                seen_tie_sets.append(tied)
+            seen_shapes.add(str(cell["winners"][0]["group_key"][0]))
+
     plot_left, plot_right = 38.0, 8.0
     plot_top, plot_bottom = 14.0, 158.0
     ribbon_top, ribbon_height = 174.0, 18.0
@@ -3915,13 +4002,23 @@ def page_no_harm_effective_rate_best(query):
                 near_keys = ",".join(
                     candidate["key"] for candidate in cell["near_ties"])
                 if cell["outage"]:
-                    point_color = "#868e96"
+                    point_color = "#8a887f"
+                    cross_x = plot_left + cell_width * (snr_index + 0.5)
+                    cross_y = ribbon_top + ribbon_height / 2
                     ribbon_markup = (
                         f'<rect class="winner-ribbon-cell '
                         f'winner-ribbon-outage" '
                         f'x="{plot_left + cell_width * snr_index:.2f}" '
                         f'y="{ribbon_top:.2f}" width="{cell_width:.2f}" '
-                        f'height="{ribbon_height:.2f}" fill="#adb5bd"/>')
+                        f'height="{ribbon_height:.2f}" fill="#f4f4f2"/>'
+                        f'<line x1="{cross_x - 3.2:.2f}" '
+                        f'y1="{cross_y - 3.2:.2f}" x2="{cross_x + 3.2:.2f}" '
+                        f'y2="{cross_y + 3.2:.2f}" stroke="#8a887f" '
+                        'stroke-width="1.2"/>'
+                        f'<line x1="{cross_x - 3.2:.2f}" '
+                        f'y1="{cross_y + 3.2:.2f}" x2="{cross_x + 3.2:.2f}" '
+                        f'y2="{cross_y - 3.2:.2f}" stroke="#8a887f" '
+                        'stroke-width="1.2"/>')
                     title = (f"{snr_db:g} dB: 0 bps; outage; none of "
                              f"{candidate_count} choices delivered positive "
                              "payload")
@@ -3936,11 +4033,15 @@ def page_no_harm_effective_rate_best(query):
                         f'x="{plot_left + cell_width * snr_index + stripe_width * stripe_index:.2f}" '
                         f'y="{ribbon_top:.2f}" width="{stripe_width:.2f}" '
                         f'height="{ribbon_height:.2f}" '
-                        f'fill="{_best_observed_config_color(index)}"/>'
+                        f'fill="{config_color.get(index, "#d8dde3")}" '
+                        'stroke="#fff" stroke-width="0.4"/>'
                         for stripe_index, index in enumerate(config_indexes))
-                    selected_receiver = cell["selected_receiver"]
-                    selected_label, point_color = receiver_display[
-                        selected_receiver]
+                    tied = tuple(cell["rate_tied_receivers"])
+                    tie_label = " = ".join(
+                        _PAPER_RECEIVER_STYLE[r][0] for r in tied)
+                    point_color = _PAPER_RECEIVER_STYLE[tied[0]][1]
+                    point_hollow = len(tied) == 1
+                    selected_label = tie_label
                     tied_receiver_count = len(cell["rate_tied_receivers"])
                     winner_text = "; ".join(
                         (f'{candidate["configuration_label"]}, '
@@ -3951,10 +4052,9 @@ def page_no_harm_effective_rate_best(query):
                          f'{candidate["receiver_label"]}')
                         for candidate in cell["winners"])
                     receiver_choice_text = (
-                        f"receiver order selected {selected_label} from "
-                        f"{tied_receiver_count} equal-rate receivers"
+                        f"best receivers {tie_label}"
                         if tied_receiver_count > 1 else
-                        f"selected receiver {selected_label}")
+                        f"{tie_label} holds the maximum alone")
                     margin_text = ("no distinct runner-up" if
                                    cell["margin"] is None else
                                    f'observed lead {cell["margin"]:.1f} bps')
@@ -3966,7 +4066,8 @@ def page_no_harm_effective_rate_best(query):
                     title = (f"{snr_db:g} dB: {cell['peak']:.1f} bps; "
                              f"{winner_text}; {receiver_choice_text}; "
                              f"{margin_text}; near ties: {near_text}")
-                envelope_points.append((x, y, point_color))
+                if not cell["outage"]:
+                    envelope_points.append((x, y))
                 detail_url = (
                     "/no-harm-results/effective-rate/by-n?" +
                     urllib.parse.urlencode([
@@ -4005,12 +4106,16 @@ def page_no_harm_effective_rate_best(query):
                     f'data-winner-experiment-ids="{winner_experiment_ids}" '
                     f'data-near-tie-keys="{near_keys}">'
                     + ribbon_markup +
-                    f'<circle class="winner-point" cx="{x:.2f}" cy="{y:.2f}" '
-                    f'r="{4.2 if snr_db == selected_snr else 3.0}" '
-                    f'fill="{point_color}" stroke="#fff" stroke-width="1">'
-                    f'<title>{esc(title)}</title></circle>'
+                    ("" if cell["outage"] else _paper_marker_markup(
+                        _PAPER_N_SHAPES.get(
+                            str(cell["winners"][0]["group_key"][0]),
+                            "circle"),
+                        x, y, 4.6 if snr_db == selected_snr else 3.4,
+                        "#fff" if point_hollow else point_color,
+                        point_color,
+                        f'<title>{esc(title)}</title>'))
                     + (f'<circle class="near-tie-ring" cx="{x:.2f}" '
-                       f'cy="{y:.2f}" r="6" fill="none" stroke="#495057" '
+                       f'cy="{y:.2f}" r="6.6" fill="none" stroke="#495057" '
                        'stroke-width="1" stroke-dasharray="2 2"/>'
                        if cell["near_ties"] else "") +
                     '</g></a>')
@@ -4022,14 +4127,9 @@ def page_no_harm_effective_rate_best(query):
                 summary = "0.0 bps · outage"
             else:
                 focused_winners = focused_cell["winners"]
-                selected_label = receiver_display[
-                    focused_cell["selected_receiver"]][0]
-                tied_receiver_count = len(
-                    focused_cell["rate_tied_receivers"])
-                receiver_summary = (
-                    f"{selected_label} selected among "
-                    f"{tied_receiver_count} equal-rate receivers"
-                    if tied_receiver_count > 1 else selected_label)
+                receiver_summary = " = ".join(
+                    _PAPER_RECEIVER_STYLE[r][0]
+                    for r in focused_cell["rate_tied_receivers"])
                 if len(focused_winners) == 1:
                     focused_group = focused_winners[0]["group_key"]
                     configuration_summary = (
@@ -4040,13 +4140,12 @@ def page_no_harm_effective_rate_best(query):
                         f"{len(focused_winners)} configurations")
                 summary = (f'{focused_cell["peak"]:.1f} bps · '
                            f'{configuration_summary} · {receiver_summary}')
-            envelope_markup = "".join(
-                '<line class="winner-envelope-segment" '
-                f'x1="{left[0]:.2f}" y1="{left[1]:.2f}" '
-                f'x2="{right[0]:.2f}" y2="{right[1]:.2f}" '
-                f'stroke="{right[2]}" stroke-width="1.8"/>'
-                for left, right in zip(
-                    envelope_points, envelope_points[1:]))
+            envelope_markup = (
+                '<polyline class="winner-envelope" fill="none" '
+                'stroke="#b9b7af" stroke-width="1.2" points="'
+                + " ".join(f"{px:.2f},{py:.2f}"
+                           for px, py in envelope_points)
+                + '"/>') if envelope_points else ""
             title_id = f"best-rate-title-{channel}-{hydrophone}"
             desc_id = f"best-rate-desc-{channel}-{hydrophone}"
             panels.append(
@@ -4059,9 +4158,10 @@ def page_no_harm_effective_rate_best(query):
                 f'<title id="{title_id}">{channel.upper()} H{hydrophone} '
                 'best observed effective payload rate</title>'
                 f'<desc id="{desc_id}">Maximum stored rate at every tested '
-                'SNR; receiver rate ties use the approved decoding-time '
-                'order, and the ribbon identifies winning configurations.'
-                '</desc>'
+                'SNR; marker color names the receivers sharing the maximum, '
+                'joined with equals, hollow when one receiver holds it '
+                'alone; marker shape names the winning N; the ribbon names '
+                'the winning configuration.</desc>'
                 f'<line class="axis" x1="{plot_left}" y1="{plot_top}" '
                 f'x2="{plot_left}" y2="{plot_bottom}"/>'
                 f'<line class="axis" x1="{plot_left}" y1="{plot_bottom}" '
@@ -4103,7 +4203,7 @@ def page_no_harm_effective_rate_best(query):
             f'data-experiment-id="{esc(group["experiment_id"])}" '
             f'data-config-index="{index}">'
             '<i class="winner-config-swatch" '
-            f'style="background:{_best_observed_config_color(index)}" '
+            f'style="background:{config_color.get(index, "#d8dde3")}" '
             f'aria-hidden="true"></i>Result {index + 1}</th></tr>')
     config_table = (
         '<table id="best-config-table" class="winner-config-table">'
@@ -4111,9 +4211,28 @@ def page_no_harm_effective_rate_best(query):
         '<th scope="col">N</th><th scope="col">Rate</th>'
         '<th scope="col">Pilot</th><th scope="col">Result</th>'
         '</tr></thead><tbody>' + "".join(config_rows) + '</tbody></table>')
+    tie_rank = {receiver_id: rank for rank, (receiver_id, _label, _color)
+                in enumerate(_EFFECTIVE_RATE_RECEIVERS)}
+    seen_tie_sets.sort(key=lambda tied: (tie_rank[tied[0]], -len(tied)))
     receiver_legend = "".join(
-        f'<span><i style="background:{color}"></i>{esc(label)}</span>'
-        for _receiver_id, label, color in _EFFECTIVE_RATE_RECEIVERS)
+        '<span><i style="background:'
+        + ("#fff" if len(tied) == 1 else _PAPER_RECEIVER_STYLE[tied[0]][1])
+        + f';border:2px solid {_PAPER_RECEIVER_STYLE[tied[0]][1]};'
+        'border-radius:50%;width:10px;height:10px"></i>'
+        + esc(" = ".join(_PAPER_RECEIVER_STYLE[r][0] for r in tied))
+        + '</span>'
+        for tied in seen_tie_sets)
+    shape_glyph = {"circle": "●", "triangle-up": "▲", "triangle-down": "▼",
+                   "square": "■", "diamond": "◆"}
+    shape_legend = "".join(
+        f'<span style="color:#6f6d66">'
+        f'{shape_glyph[_PAPER_N_SHAPES.get(n, "circle")]} N={esc(n)}</span>'
+        for n in sorted(seen_shapes, key=int)) + (
+        '<span style="color:#8a887f">✕ no recovered frame</span>')
+    config_bar = "".join(
+        f'<span><i style="background:{label_color[label]}"></i>'
+        f'{esc(label)}</span>'
+        for label in label_order)
     provenance_identities = tuple(
         _best_observed_provenance_identity(group["experiment_id"])
         for _group_key, group in family)
@@ -4141,9 +4260,10 @@ justify-content:space-between;gap:5px;font-size:12px;margin-bottom:2px}}
 .winner-panel text{{font-size:9px;fill:#4b5563}}.axis{{stroke:#9aa3ad}}
 .grid{{stroke:#e7e9ed}}.winner-focus{{stroke:#e03131;stroke-width:1.2}}
 .winner-cell-link:focus .winner-ribbon-cell{{stroke:#111;stroke-width:2}}
-.legend-row{{display:flex;gap:12px;flex-wrap:wrap;margin:.35rem 0 .6rem}}
+.legend-row{{display:flex;gap:12px;flex-wrap:wrap;margin:.3rem 0 .35rem}}
 .legend-row span{{display:flex;align-items:center;gap:4px;font-size:12px}}
 .legend-row i{{display:inline-block;width:13px;height:9px}}
+.legend-row b{{font-size:12px}}#best-config-bar i{{width:20px;height:11px}}
 .winner-config-table{{border-collapse:collapse;margin:.35rem 0 .6rem;
 font-size:12px;min-width:330px}}
 .winner-config-table caption{{font-weight:600;text-align:left;margin-bottom:3px}}
@@ -4168,7 +4288,11 @@ data-receiver-tie-order="ofdm_fec pfft lite profiled_cz cwz_joint">
 <h1>Best observed effective payload rate</h1>
 <p class="configuration">{esc(configuration)}</p>
 {'' if embedded else _best_observed_snr_slider(snr_grid, selected_snr)}
-<div class="legend-row" id="best-receiver-legend">{receiver_legend}</div>
+<div class="legend-row" id="best-receiver-legend">
+<b>best receivers (ties joined with =):</b>{receiver_legend}</div>
+<div class="legend-row" id="best-shape-legend">{shape_legend}</div>
+<div class="legend-row" id="best-config-bar">
+<b>winning configuration (ribbon color):</b>{config_bar}</div>
 <div class="best-observed-grid">{''.join(panels)}</div>
 <details id="best-configurations">
 <summary>Configurations ({len(family)})</summary>{config_table}</details>
