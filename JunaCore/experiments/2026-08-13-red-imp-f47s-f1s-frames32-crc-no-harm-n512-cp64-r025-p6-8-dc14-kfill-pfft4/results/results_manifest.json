@@ -1,0 +1,144 @@
+{
+  "capture_time_seconds": [
+    0.0,
+    47.0
+  ],
+  "experiment_id": "2026-08-13-red-imp-f47s-f1s-frames32-crc-no-harm-n512-cp64-r025-p6-8-dc14-kfill-pfft4",
+  "frame_duration_budget_seconds": 1.0,
+  "frame_duration_seconds": 0.9666666666666667,
+  "frame_samples": 9280,
+  "frame_trace_row_count": 30720,
+  "frames_per_point": 32,
+  "geometry": {
+    "check_degree": "14",
+    "code_rate": "0.25",
+    "cp": "64",
+    "horizon": "0",
+    "inner_spacing": "8",
+    "nfft": "512",
+    "outer_spacing": "6"
+  },
+  "geometry_display": {
+    "check_degree": "14",
+    "code_rate": "0.25",
+    "cp": "64",
+    "horizon": "fill",
+    "inner_spacing": "8",
+    "nfft": "512",
+    "outer_spacing": "6",
+    "partial_fft_parts": "4"
+  },
+  "no_harm_rule": {
+    "crc_rescue": "return gradient only when its CRC is valid",
+    "implementation": "experiment-boundary instrumentation of the checked-in cz_crc_gate receiver; not the unpublished AWGN-022 wrapper",
+    "standard_crc_valid": "return standard without gradient rescue",
+    "standard_fallback": "return standard when rescue CRC is invalid"
+  },
+  "noise_model": {
+    "alpha": 1.7,
+    "correlation": "correlated across three hydrophones",
+    "distribution": "symmetric alpha-stable",
+    "injection": "after measured replay, before receiver alignment",
+    "kind": "alpha-stable",
+    "sha256": "afec257ccf0a30bbb9225956e1c2dae6614bb5acdac991f533403be32f85dd63",
+    "snr_normalization": "alpha-stable pseudo-power 2*delta^2",
+    "source": "red_noise.mat, Zenodo record 21287414"
+  },
+  "panel_count": 12,
+  "partial_fft_parts": 4,
+  "payload_bits_per_frame": 1653,
+  "receiver_policy": {
+    "cwz_joint": "CRC-gated no-harm C+W+z",
+    "lite": "unchanged",
+    "profiled_cz": "CRC-gated no-harm C+z"
+  },
+  "receivers": [
+    "cwz_joint",
+    "lite",
+    "ofdm_fec",
+    "pfft",
+    "profiled_cz"
+  ],
+  "result_group": "impulsive",
+  "result_scope": "BER versus alpha-stable pseudo-SNR, first 47 seconds, one-second frame budget, 32 frames per point, seed 4",
+  "row_count": 960,
+  "schema_version": 1,
+  "seed": 4,
+  "selection_reason_counts": {
+    "cwz_joint": {
+      "crc_rescue": 11,
+      "standard_crc_valid": 1978,
+      "standard_fallback": 4155
+    },
+    "profiled_cz": {
+      "crc_rescue": 7,
+      "standard_crc_valid": 1978,
+      "standard_fallback": 4159
+    }
+  },
+  "selection_trace_row_count": 12288,
+  "series_count": 60,
+  "snr_definition": "signal power over alpha-stable pseudo-power 2*delta^2; Mahmood & Chitre, IEEE JOE 42(3) 2017, eq. (35)",
+  "sources": [
+    {
+      "path": "runs/red1_hydrophone1/red_snr_sweep_impulsive_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "a648d58028d05de327d7bee3e8abb75cc18928aac80987f3c80cedfad836128a"
+    },
+    {
+      "path": "runs/red1_hydrophone2/red_snr_sweep_impulsive_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "b8ebbc8584da9cb19375228eb8015f538364934a2c59cdfe5b2af9410cc7b9d7"
+    },
+    {
+      "path": "runs/red1_hydrophone3/red_snr_sweep_impulsive_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "a405acdf49d464e2cc57db86a615afe941b3e0517b119a1e5371e43a698f134f"
+    },
+    {
+      "path": "runs/red2_hydrophone1/red_snr_sweep_impulsive_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "3c2e7f0ebe9fe802999b6df850a6e0d7e45b608940d015fcf00189c837ab551d"
+    },
+    {
+      "path": "runs/red2_hydrophone2/red_snr_sweep_impulsive_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "de6e03740c28f4db010420d71d772c581ac2691709c4bf659ddceea2e5f5ec0d"
+    },
+    {
+      "path": "runs/red2_hydrophone3/red_snr_sweep_impulsive_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "c6bf8694f49e983fe1679f32a9f1d9a78b8bc336d14c7713c08911b8f8557a63"
+    },
+    {
+      "path": "runs/red3_hydrophone1/red_snr_sweep_impulsive_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "81571a315e4445412f0028cecc2ab867fbe1a18967fb37a5f0051a49c7a62b6f"
+    },
+    {
+      "path": "runs/red3_hydrophone2/red_snr_sweep_impulsive_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "ff4b2b47acca02d20804c6f5cb7175c9b55b22c0f1e1a58ca529177db0266fb8"
+    },
+    {
+      "path": "runs/red3_hydrophone3/red_snr_sweep_impulsive_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "883847e3e28b4a53d81c50f9d661ecdc85779bf6f9dc4b43b305744a17ddc99a"
+    },
+    {
+      "path": "runs/red4_hydrophone1/red_snr_sweep_impulsive_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "5783f65a1522da3f41aa2e68e1cbbb2fd5d683379afa73870aba629e8d11b07d"
+    },
+    {
+      "path": "runs/red4_hydrophone2/red_snr_sweep_impulsive_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "3e90217281eba968697ff5b97729e725f1db00c4befa16fdb6e2544c750f5bd6"
+    },
+    {
+      "path": "runs/red4_hydrophone3/red_snr_sweep_impulsive_first47s_frames32_configuration.csv",
+      "rows": 80,
+      "sha256": "aaf5589b84d9d6316b6b8474e365e9b9ad18e4ffdd0e17b742b2dd9d831eae4d"
+    }
+  ]
+}
