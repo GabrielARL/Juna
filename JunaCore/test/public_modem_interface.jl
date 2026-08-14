@@ -330,7 +330,20 @@ end
                     # branch: it must inherit that branch's failure here,
                     # not be rescued by another receiver's refinement.
                     @test distorted_paths.juna == distorted_paths.standard
+                elseif descriptor.profile === :frame_wide_ldpc &&
+                       compared.cz_crc_no_harm
+                    # Standard fails CRC for this deterministic distortion, so
+                    # no-harm C,z must select a certified gradient checkpoint.
+                    no_harm = PublicInterfaceJuna._cz_crc_no_harm_last_trace(
+                        compared)
+                    @test no_harm.selected_source === :gradient
+                    @test no_harm.selection_reason === :crc_rescue
+                    @test !no_harm.standard_crc_valid
+                    @test no_harm.rescue_is_gradient
+                    @test no_harm.rescue_crc_valid
+                    @test (distorted_paths.juna .> 0) == payload
                 else
+                    # JUNA-Lite remains unchanged and recovers this waveform.
                     @test (distorted_paths.juna .> 0) == payload
                 end
                 @test distorted_paths.standard != distorted_paths.partial

@@ -1575,8 +1575,11 @@ function _frame_receiver_trace(m::Modulation, code::_Code, layout::_Layout,
     return _frame_profiled_gradient_refine(
       m, code, layout, observations)
   profile === _MODE_PROFILED_CZ &&
-    return _frame_profiled_cz_refine(
-      m, code, layout, observations; payload_nbits)
+    return m.cz_crc_no_harm ?
+      _frame_crc_no_harm_profiled_cz_refine(
+        m, code, layout, observations; payload_nbits) :
+      _frame_profiled_cz_refine(
+        m, code, layout, observations; payload_nbits)
   profile === :stateful_lite &&
     return merge((profile=:stateful_lite,),
                  _frame_juna_refine(m, code, layout, observations))

@@ -66,6 +66,15 @@
         "profiled_cz",
         "conditioned_joint_cwz"
       ]
+    },
+    {
+      "id": "direct_cz",
+      "facade": "JunaDirectCzFrame",
+      "path": [
+        "acquisition",
+        "frame",
+        "direct_cz"
+      ]
     }
   ],
   "edges": [
@@ -153,6 +162,16 @@
       "from": "profiled_cz",
       "to": "conditioned_joint_cwz",
       "condition": "conditioned joint proposal enabled"
+    },
+    {
+      "receiver": "direct_cz",
+      "from": "acquisition",
+      "to": "frame"
+    },
+    {
+      "receiver": "direct_cz",
+      "from": "frame",
+      "to": "direct_cz"
     }
   ],
   "stages": [
@@ -305,11 +324,14 @@
       "detail": "The frame receiver solves C conditional on z and derives W from C. BP checks candidates before frame payload metrics are returned.",
       "symbols": [
         "ProfiledCzFrameModulation",
+        "CrcNoHarmProfiledCzFrameModulation",
         "CrcProfiledCzFrameModulation",
+        "_frame_crc_no_harm_profiled_cz_refine",
         "_frame_profiled_cz_refine",
         "_cz_profile_C!",
         "_cz_update_W!",
         "_cz_candidate_crc_valid",
+        "_cz_crc_no_harm_select",
         "_cz_bp_feedback!",
         "_cz_restart_logits"
       ],
@@ -337,10 +359,28 @@
       "symbols": [
         "CrcConditionedCwzFrameModulation",
         "CrcConditionedJointCwzFrameModulation",
+        "CrcNoHarmConditionedJointCwzFrameModulation",
         "_cz_conditioned_joint_step!"
       ],
       "suites": [
         "profiled-cz-crc"
+      ],
+      "kind": "iterative",
+      "evidence": "direct"
+    },
+    {
+      "id": "direct_cz",
+      "title": "Direct C,z",
+      "detail": "Complex C and real z are updated directly from the pure J(C,z) objective with separate step sizes, clipping, backtracking, fixed-pilot restoration, decoder checkpoints, and CRC selection. W is derived only for decoder checkpoints.",
+      "symbols": [
+        "DirectCzFrameModulation",
+        "_direct_cz_objective_and_gradient!",
+        "_direct_cz_solve",
+        "_direct_cz_crc_select",
+        "_frame_direct_cz_refine"
+      ],
+      "suites": [
+        "direct-cz"
       ],
       "kind": "iterative",
       "evidence": "direct"

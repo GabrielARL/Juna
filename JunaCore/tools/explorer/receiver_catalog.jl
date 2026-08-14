@@ -76,6 +76,19 @@ const RECEIVERS = [
      role = "proposed",
      specific_suite_exemption = "",
      purpose = "Profiled C,z frame receiver with guarded simultaneous C,W,z proposals."),
+    (id = "direct_cz",
+     display_name = "Direct C,z",
+     facade = "JunaDirectCzFrame",
+     mode = "frame_wide_ldpc",
+     profile = "frame_wide_ldpc",
+     frame_receiver = "profiled_cz",
+     objective = "direct_cz_frame",
+     conditioned_joint = false,
+     variant_facades = String[],
+     chain_path = ["acquisition", "frame", "direct_cz"],
+     role = "proposed",
+     specific_suite_exemption = "",
+     purpose = "Direct simultaneous descent on C and z with CRC no-harm selection."),
 ]
 
 function assert_receiver_catalog()
@@ -88,17 +101,19 @@ function assert_receiver_catalog()
         "JunaStandard", "JunaPartialFFT", "JunaLite",
         "JunaProfiledCzFrame", "JunaCrcProfiledCzFrame",
         "JunaCrcConditionedJointCwzFrame",
+        "JunaDirectCzFrame",
     ])
     for receiver in RECEIVERS
         facade = getfield(JunaCore, Symbol(receiver.facade))
         modem = facade.Modulation()
-        @assert string(modem.mode) == receiver.mode
-        @assert string(JunaCore.Juna.receiver_profile(modem)) == receiver.profile
+        base = receiver.id == "direct_cz" ? modem.base : modem
+        @assert string(base.mode) == receiver.mode
+        @assert string(JunaCore.Juna.receiver_profile(base)) == receiver.profile
         @assert string(JunaCore.Modulations.refinement_objective(modem)) ==
                 receiver.objective
-        @assert modem.cz_conditioned_joint == receiver.conditioned_joint
+        @assert base.cz_conditioned_joint == receiver.conditioned_joint
         isempty(receiver.frame_receiver) ||
-            @assert string(modem.frame_receiver) == receiver.frame_receiver
+            @assert string(base.frame_receiver) == receiver.frame_receiver
         for variant_name in receiver.variant_facades
             variant = getfield(JunaCore, Symbol(variant_name)).Modulation()
             @assert string(JunaCore.Juna.receiver_profile(variant)) ==

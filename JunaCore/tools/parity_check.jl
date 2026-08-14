@@ -33,6 +33,19 @@ function frame_refinement_parity_digest(label, modem; conditioned_joint=false)
         randn(rng, length(waveform)) .+ 1im .* randn(rng, length(waveform)))
     metrics, _ = PC_Modulations.demodulate(
         modem, nbits, waveform .+ noise, PC_FC, PC_FS)
+    clean_trace = JunaCore.Juna._cz_crc_no_harm_last_trace(modem)
+    clean_trace.standard_crc_valid || error(
+        "$label parity case did not certify Standard")
+    clean_trace.selected_source === :standard || error(
+        "$label parity case did not return Standard exactly")
+    modem.cz_gradient_trace === nothing || error(
+        "$label parity case ran refinement after Standard passed CRC")
+
+    PC_Modulations.demodulate(
+        modem, nbits, zeros(ComplexF64, length(waveform)), PC_FC, PC_FS)
+    failed_trace = JunaCore.Juna._cz_crc_no_harm_last_trace(modem)
+    failed_trace.rescue_executed || error(
+        "$label parity case did not run refinement after Standard failed CRC")
     trace = JunaCore.Juna._cz_gradient_last_trace(modem)
     trace.bp_checkpoints >= 2 || error(
         "$label parity case did not run refinement")
@@ -55,7 +68,7 @@ function profiled_cz_parity_digest()
         nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
         partial_fft_parts=2, partial_fft_nbands=2,
         pilot_ratio=1/3, inner_pilot_ratio=0.0,
-        refinement_steps=1, cz_gate_selection_only=true,
+        refinement_steps=1,
     )
     frame_refinement_parity_digest(PC_PROFILED_CZ_READER_NAME, modem)
 end
@@ -65,8 +78,7 @@ function conditioned_joint_parity_digest()
         nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
         partial_fft_parts=2, partial_fft_nbands=2,
         pilot_ratio=1/3, inner_pilot_ratio=0.0,
-        refinement_steps=1, cz_gate_selection_only=true,
-        cz_crc_gate=false, cz_gradient_only=true,
+        refinement_steps=1,
     )
     frame_refinement_parity_digest(
         PC_CONDITIONED_JOINT_READER_NAME, modem; conditioned_joint=true)

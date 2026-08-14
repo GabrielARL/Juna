@@ -21,7 +21,7 @@ const CzDcMods = JunaCore.Modulations
         lite = CzDcJuna.FrameWideLDPCModulation(
             ; base_kwargs..., ldpc_npc=dc, frame_receiver=:lite,
             refinement_steps=0)
-        gradient = JunaCore.JunaProfiledCzFrame.Modulation(
+        gradient = CzDcJuna.ProfiledCzFrameModulation(
             ; base_kwargs..., ldpc_npc=dc, refinement_steps=1)
 
         lite_code = CzDcJuna._frame_code(lite, frame_blocks)
@@ -68,7 +68,7 @@ const CzDcMods = JunaCore.Modulations
 
     @testset "invalid dc is rejected" begin
         invalid_dc = base_kwargs.ldpc_n - base_kwargs.ldpc_k + 1
-        modem = JunaCore.JunaProfiledCzFrame.Modulation(
+        modem = CzDcJuna.ProfiledCzFrameModulation(
             ; base_kwargs..., ldpc_npc=invalid_dc)
         @test !CzDcMods.isvalid(modem, fc, fs)
     end

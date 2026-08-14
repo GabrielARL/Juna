@@ -3,6 +3,8 @@
 using Test
 using JunaCore
 using LinearAlgebra
+using Random
+using SignalAnalysis: mseq
 
 const CrcJuna = JunaCore.Juna
 const CrcMods = JunaCore.Modulations
@@ -49,6 +51,253 @@ const CrcMods = JunaCore.Modulations
         @test !CrcJuna.CrcProfiledCzFrameModulation().cz_gradient_only
         @test !CrcJuna.CrcProfiledCzFrameModulation(
             cz_crc_gate=false).cz_crc_gate
+    end
+
+    @testset "CRC no-harm is confined to the two gradient modules" begin
+        cz = JunaCore.JunaProfiledCzFrame.Modulation()
+        cwz = JunaCore.JunaCrcConditionedJointCwzFrame.Modulation()
+        lite = JunaCore.JunaLite.Modulation()
+
+        @test cz.cz_crc_no_harm
+        @test cwz.cz_crc_no_harm
+        @test !lite.cz_crc_no_harm
+        @test cz.frame_crc_bits == 16
+        @test cwz.frame_crc_bits == 16
+        @test !cz.cz_crc_gate
+        @test !cwz.cz_crc_gate
+        @test cz.cz_gradient_only
+        @test cwz.cz_gradient_only
+        @test !cz.cz_conditioned_joint
+        @test cwz.cz_conditioned_joint
+        for unprotected in (
+            CrcJuna.StandardModulation(),
+            CrcJuna.PartialFFTModulation(),
+            CrcJuna.ProfiledCzFrameModulation(),
+            CrcJuna.CrcProfiledCzFrameModulation(),
+            CrcJuna.CrcTurboCwzFrameModulation(),
+            CrcJuna.CrcConditionedJointCwzFrameModulation(),
+            JunaCore.JunaCrcProfiledCzFrame.Modulation(),
+        )
+            @test !unprotected.cz_crc_no_harm
+        end
+        @test isdefined(CrcJuna, :_frame_crc_no_harm_profiled_cz_refine)
+
+        @test_throws ArgumentError CrcJuna.CrcNoHarmProfiledCzFrameModulation(
+            cz_crc_no_harm=false)
+        @test_throws ArgumentError CrcJuna.CrcNoHarmConditionedJointCwzFrameModulation(
+            cz_conditioned_joint=false)
+
+        invalid_cz = CrcJuna.CrcNoHarmProfiledCzFrameModulation()
+        invalid_cz.cz_em_enabled = true
+        @test !isvalid(invalid_cz, 24_000.0, 24_000.0)
+        invalid_cwz =
+            CrcJuna.CrcNoHarmConditionedJointCwzFrameModulation()
+        invalid_cwz.cz_bp_feedback = 0.0
+        @test !isvalid(invalid_cwz, 24_000.0, 24_000.0)
+    end
+
+    @testset "CRC no-harm selection keeps exact candidates" begin
+        standard_equalized = ComplexF64[1 + 2im]
+        rescue_equalized = ComplexF64[3 + 4im]
+        standard = (best=(name=:standard,), best_equalized=standard_equalized)
+        rescue = (best=(name=:gradient,), best_equalized=rescue_equalized)
+
+        short_circuit = CrcJuna._cz_crc_no_harm_select(
+            standard, true, nothing, false)
+        @test short_circuit.selected === standard
+        @test short_circuit.selected.best_equalized === standard_equalized
+        @test short_circuit.selection_reason === :standard_crc_valid
+
+        rescued = CrcJuna._cz_crc_no_harm_select(
+            standard, false, rescue, true)
+        @test rescued.selected === rescue
+        @test rescued.selected.best_equalized === rescue_equalized
+        @test rescued.selection_reason === :crc_rescue
+
+        fallback = CrcJuna._cz_crc_no_harm_select(
+            standard, false, rescue, false)
+        @test fallback.selected === standard
+        @test fallback.selected.best_equalized === standard_equalized
+        @test fallback.selection_reason === :standard_fallback
+    end
+
+    @testset "CRC-valid Standard bypasses both gradient engines" begin
+        kwargs = (
+            nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+            partial_fft_parts=2, partial_fft_nbands=2,
+            pilot_ratio=1/3, inner_pilot_ratio=0.0,
+            refinement_steps=1,
+        )
+        baseline = CrcJuna.FrameWideLDPCModulation(
+            ; kwargs..., frame_receiver=:standard, frame_crc_bits=16)
+        receivers = (
+            (JunaCore.JunaProfiledCzFrame.Modulation(; kwargs...), (:C, :z)),
+            (JunaCore.JunaCrcConditionedJointCwzFrame.Modulation(; kwargs...),
+             (:C, :W, :z)),
+        )
+        payload = Bool[isodd(count_ones(37i + 5)) for i in 1:24]
+        fc, fs = 24_000.0, 24_000.0
+        waveform = CrcMods.modulate(baseline, payload, fc, fs)
+        baseline_metrics, _ = CrcMods.demodulate(
+            baseline, length(payload), waveform, fc, fs)
+
+        for (receiver, optimized_variables) in receivers
+            metrics, _ = CrcMods.demodulate(
+                receiver, length(payload), waveform, fc, fs)
+            trace = CrcJuna._cz_crc_no_harm_last_trace(receiver)
+            @test metrics == baseline_metrics
+            @test trace.optimized_variables == optimized_variables
+            @test trace.selected_source === :standard
+            @test trace.selection_reason === :standard_crc_valid
+            @test trace.standard_crc_valid
+            @test !trace.rescue_is_gradient
+            @test !trace.rescue_crc_valid
+            @test !trace.rescue_executed
+            @test trace.gradient_checkpoints == 0
+            @test receiver.cz_gradient_trace === nothing
+        end
+    end
+
+    @testset "uncertified gradient output falls back exactly to Standard" begin
+        kwargs = (
+            nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+            partial_fft_parts=2, partial_fft_nbands=2,
+            pilot_ratio=1/3, inner_pilot_ratio=0.0,
+            refinement_steps=1,
+        )
+        baseline = CrcJuna.FrameWideLDPCModulation(
+            ; kwargs..., frame_receiver=:standard, frame_crc_bits=16)
+        receivers = (
+            JunaCore.JunaProfiledCzFrame.Modulation(; kwargs...),
+            JunaCore.JunaCrcConditionedJointCwzFrame.Modulation(; kwargs...),
+        )
+        payload = Bool[isodd(count_ones(37i + 5)) for i in 1:24]
+        fc, fs = 24_000.0, 24_000.0
+        waveform = CrcMods.modulate(baseline, payload, fc, fs)
+        missing = zeros(ComplexF64, length(waveform))
+        baseline_metrics, _ = CrcMods.demodulate(
+            baseline, length(payload), missing, fc, fs)
+
+        for receiver in receivers
+            metrics, _ = CrcMods.demodulate(
+                receiver, length(payload), missing, fc, fs)
+            trace = CrcJuna._cz_crc_no_harm_last_trace(receiver)
+            gradient_trace = CrcJuna._cz_gradient_last_trace(receiver)
+            @test metrics == baseline_metrics
+            @test trace.selected_source === :standard
+            @test trace.selection_reason === :standard_fallback
+            @test !trace.standard_crc_valid
+            @test !trace.rescue_crc_valid
+            @test !trace.rescue_crc_valid || trace.rescue_is_gradient
+            @test trace.rescue_executed
+            @test trace.gradient_checkpoints == gradient_trace.bp_checkpoints
+            @test trace.gradient_checkpoints >= 2
+        end
+    end
+
+    @testset "both gradient engines supply a certified rescue" begin
+        kwargs = (
+            nc=64, np=16, ldpc_k=20, ldpc_n=40, ldpc_npc=2,
+            partial_fft_parts=2, partial_fft_nbands=2,
+            pilot_ratio=1/3, inner_pilot_ratio=0.0,
+            refinement_steps=2,
+        )
+        baseline = CrcJuna.FrameWideLDPCModulation(
+            ; kwargs..., frame_receiver=:standard, frame_crc_bits=16)
+        receivers = (
+            (
+                JunaCore.JunaProfiledCzFrame.Modulation(; kwargs...),
+                CrcJuna.CrcProfiledCzFrameModulation(
+                    ; kwargs..., cz_em_enabled=false,
+                    cz_crc_gate=false, cz_gradient_only=true),
+                (:C, :z), 1, 0,
+            ),
+            (
+                JunaCore.JunaCrcConditionedJointCwzFrame.Modulation(; kwargs...),
+                CrcJuna.CrcConditionedJointCwzFrameModulation(
+                    ; kwargs..., cz_crc_gate=false, cz_gradient_only=true),
+                (:C, :W, :z), 2, 2,
+            ),
+        )
+        payload = Bool[isodd(count_ones(37i + 5)) for i in 1:24]
+        fc, fs = 24_000.0, 24_000.0
+        waveform = CrcMods.modulate(baseline, payload, fc, fs)
+        signal_power = sum(abs2, waveform) / length(waveform)
+        sigma = sqrt(signal_power / (2 * 10^(2 / 10)))
+        rng = MersenneTwister(211)
+        received = waveform .+ sigma .* (
+            randn(rng, length(waveform)) .+
+            im .* randn(rng, length(waveform)))
+
+        baseline_metrics, _ = CrcMods.demodulate(
+            baseline, length(payload), received, fc, fs)
+        @test count((baseline_metrics .> 0) .!= payload) == 2
+        for (protected, unwrapped, optimized_variables,
+             selected_iteration, accepted_steps) in receivers
+            protected_metrics, _ = CrcMods.demodulate(
+                protected, length(payload), received, fc, fs)
+            unwrapped_metrics, _ = CrcMods.demodulate(
+                unwrapped, length(payload), received, fc, fs)
+            trace = CrcJuna._cz_crc_no_harm_last_trace(protected)
+            gradient_trace = CrcJuna._cz_gradient_last_trace(protected)
+            unwrapped_trace = CrcJuna._cz_gradient_last_trace(unwrapped)
+
+            @test (protected_metrics .> 0) == payload
+            @test protected_metrics == unwrapped_metrics
+            @test trace.selected_source === :gradient
+            @test trace.selection_reason === :crc_rescue
+            @test !trace.standard_crc_valid
+            @test trace.rescue_is_gradient
+            @test trace.rescue_crc_valid
+            @test trace.rescue_executed
+            @test gradient_trace.optimized_variables == optimized_variables
+            @test gradient_trace.selected_iteration == selected_iteration
+            @test gradient_trace.bp_checkpoints ==
+                  unwrapped_trace.bp_checkpoints == 3
+            @test gradient_trace.conditioned_accepted_steps ==
+                  unwrapped_trace.conditioned_accepted_steps == accepted_steps
+        end
+    end
+
+    @testset "conditioned no-harm keeps a CRC-valid gradient checkpoint" begin
+        receiver =
+            JunaCore.JunaCrcConditionedJointCwzFrame.Modulation()
+        payload = Vector{Bool}(mseq(7) .> 0)
+        fc, fs = 24_000.0, 24_000.0
+        distorted = CrcMods.modulate(receiver, payload, fc, fs)
+        gains = ComplexF64[
+            1.45 - 0.35im, 0.62 + 0.75im,
+            -0.35 + 1.2im, 1.05 + 0.18im,
+        ]
+        @test CrcJuna._frame_nblocks(receiver, length(payload)) == 1
+        for part in 1:Int(receiver.partial_fft_parts)
+            lo, hi = CrcJuna._part_bounds(
+                Int(receiver.nc), Int(receiver.partial_fft_parts), part)
+            first_sample = Int(receiver.np) + lo
+            last_sample = Int(receiver.np) + hi
+            @views distorted[first_sample:last_sample] .*= gains[part]
+        end
+
+        paths = CrcJuna.demodulate_methods(
+            receiver, length(payload), distorted, fc, fs)
+        trace = CrcJuna._cz_crc_no_harm_last_trace(receiver)
+        gradient_trace = CrcJuna._cz_gradient_last_trace(receiver)
+
+        @test count((paths.standard .> 0) .!= payload) > 0
+        @test (paths.partial .> 0) == payload
+        @test (paths.juna .> 0) == payload
+        @test trace.optimized_variables == (:C, :W, :z)
+        @test trace.selected_source === :gradient
+        @test trace.selection_reason === :crc_rescue
+        @test !trace.standard_crc_valid
+        @test trace.rescue_is_gradient
+        @test trace.rescue_crc_valid
+        @test trace.rescue_executed
+        @test gradient_trace.gradient_crc_valid
+        @test 1 <= gradient_trace.selected_iteration <=
+              CrcJuna._wcz_optimizer_config(receiver).steps
+        @test gradient_trace.conditioned_accepted_steps > 0
+        @test trace.gradient_checkpoints == gradient_trace.bp_checkpoints
     end
 
     @testset "CRC C,z uses posterior-moment channel refinement" begin
@@ -508,7 +757,7 @@ const CrcMods = JunaCore.Modulations
             refinement_steps=2, cz_gate_selection_only=true,
         )
         family = (
-            (:base, JunaCore.JunaProfiledCzFrame.Modulation(; kwargs...),
+            (:base, CrcJuna.ProfiledCzFrameModulation(; kwargs...),
              (:C, :z)),
             (:crc, JunaCore.JunaCrcProfiledCzFrame.Modulation(; kwargs...),
              (:C, :z)),
@@ -522,7 +771,7 @@ const CrcMods = JunaCore.Modulations
                  ; kwargs..., cz_conditioned_joint=true),
              (:C, :W, :z)),
             (:conditioned_legacy,
-             JunaCore.JunaCrcConditionedJointCwzFrame.Modulation(; kwargs...),
+             CrcJuna.CrcConditionedJointCwzFrameModulation(; kwargs...),
              (:C, :W, :z)),
         )
         payload = Bool[isodd(count_ones(29i + 11)) for i in 1:24]
