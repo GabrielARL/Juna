@@ -1,0 +1,657 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=0.85in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs,tabularx,array}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{xurl}
+\usepackage{hyperref}
+
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black}
+\setlist{leftmargin=2em}
+\setlength{\parskip}{0.25em}
+\setlength{\parindent}{0pt}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+\newcommand{\C}{\mathbb C}
+\newcommand{\norm}[1]{\left\lVert #1\right\rVert}
+\newcommand{\PSR}{\mathrm{PSR}}
+
+\title{Number of Partial-FFT Views}
+\author{}
+\date{9 August 2026}
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+
+Underwater acoustic orthogonal frequency division multiplexing (OFDM)
+receivers operate on channels that are time varying and frequency selective.
+A receiver can demodulate one OFDM block with a single fast Fourier
+transform (FFT) over the useful received interval.  When the channel changes
+within that interval, the carriers mix, and the receiver sees intercarrier
+interference (ICI).  One class of remedies keeps time-local components of
+the interval.  The receiver transforms shorter parts of the interval
+separately, so each transform sees the channel over a shorter time.
+Partial-FFT demodulation is such a receiver \cite{yerramalli}.  It keeps
+time-local components of the full-interval FFT, while combiner weights form
+one pre-decoder soft symbol per carrier.
+
+After demodulation, errors are corrected with forward error correction
+(FEC).  The receivers in this note check parity constraints and reuse
+decoder posterior information, so any linear block code with parity
+constraints can serve.  Low-density parity-check (LDPC) codes are the common
+choice, and every retained run uses LDPC as the demonstration.
+
+We reconsider whether four partial-FFT views help at $N=1024$, why the
+Partial-FFT receiver can lose to OFDM with FEC, and whether the result
+depends on the code rate.  The pilot-trained combiner estimates its weights
+from pilot carriers alone; we write pilot-only for the receiver that stops
+there.  JUNA-Lite starts from that pilot-only candidate and refines it with
+decoder posterior symbols as weighted anchors.  We separate three kinds of
+statements: mathematical identities, measurements in the retained files,
+and possible explanations that require another comparison.
+
+All receivers at one printed configuration receive the same waveform.
+Hence their uncoded and coded transmission rates are identical before receiver
+errors are counted.  Receiver performance changes the effective data rate
+through
+\begin{equation}
+  R_{\rm eff}
+  =
+  \frac{B_{\rm pay}}{T_{\rm frame}}\PSR,
+  \label{eq:effective-rate}
+\end{equation}
+where $B_{\rm pay}$ is the payload bits per frame, $T_{\rm frame}$ is the
+frame transmission duration, and $\PSR$ is the payload-exact frame success
+rate.  This expression separates waveform rate from the fraction of frames
+recovered by a receiver.  A receiver can therefore raise the delivered rate
+only by recovering more frames.
+
+The two result families answer different questions.  Table~\ref{tab:evidence}
+records the boundary used throughout this note.
+
+\begin{table}[ht]
+\centering
+\caption{Result families used in this note.}
+\label{tab:evidence}
+\begin{tabularx}{\textwidth}{@{}p{0.18\textwidth}YYY@{}}
+\toprule
+Result family & Channel and added noise & Frame use & Comparison supported \\
+\midrule
+First-four-second AWGN
+& Measured Red replay with complex Gaussian noise that is independent over samples
+& Four approximately non-overlapping frames per path and SNR, one seed
+& Receiver counts at one fixed waveform with four views \\
+Legacy added-noise sweep
+& Measured Red replay with impulsive noise correlated across the three hydrophones
+& Sixty frames per path and SNR, one seed; the same workloads recur across SNR after noise scaling
+& Three matched directory pairs with one and four views at code rate 0.125 \\
+Selected $N=1024$, CP$=128$ rate rows
+& Legacy sweep with impulsive added noise
+& Sixty frames per path and SNR, one seed
+& Code rates 0.25 and 0.5 represented only by one-view runs in this selection \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The first family is additive white Gaussian noise (AWGN), whereas the matched
+view comparison is not.  We therefore do not use the legacy comparison to
+identify the cause of the AWGN panel.  The historical rate-0.5 rows are not
+part of the retained AWGN results.
+
+The retained files support one description.  In every retained rate-0.125
+comparison, OFDM+FEC results match exactly with one and four views, the
+pilot-only receiver recovers fewer frames with four views, and JUNA-Lite
+recovers more; the cause is not yet identified.  The remainder of this note
+states what that sentence rests on, and which comparisons would identify the
+cause.
+
+\section{What the Number of Views Cannot Change}
+
+We first state what changing the number of views cannot change.  Let $r[n]$
+be the useful received interval and let $g_m[n]$ select view $m$.  We write
+the carrier-$k$ view as
+\begin{equation}
+  Y_{m,k}
+  =
+  \sum_{n=0}^{N-1} g_m[n]r[n]e^{-j2\pi kn/N},
+  \label{eq:view}
+\end{equation}
+where $N$ is the useful interval length, $n$ is the sample index, $k$ is the
+carrier index, and $m$ is the view index.  Each view retains the contribution
+from one non-overlapping part of the useful interval, so each view sees the
+channel over a shorter time than the full transform does.
+
+The implementation windows form a partition of the useful samples:
+\begin{equation}
+  \sum_{m=1}^{M}g_m[n]=1,
+  \label{eq:partition}
+\end{equation}
+where $M$ is the number of partial-FFT views.  Linearity of the FFT then gives
+\begin{equation}
+  \sum_{m=1}^{M}Y_{m,k}=Y_k^{\rm full},
+  \label{eq:sum-identity}
+\end{equation}
+where $Y_k^{\rm full}$ is the full-interval FFT output on carrier $k$.
+Equation~\eqref{eq:sum-identity} holds for every number of non-overlapping
+views used by this receiver.
+
+The OFDM+FEC receiver applies residual pilot equalization after the sum in
+\eqref{eq:sum-identity}.  It must therefore be independent of the configured
+number of views, apart from numerical precision.  Across each of the three
+legacy pairs, its successes, bit errors, bit error rate (BER), and effective
+rate match exactly in all 192 path--SNR cells.  (The three pairs contain 576
+such cells; none differs.)
+
+This agreement is strong regression evidence, but the result file does not
+prove the identity.  The identity follows from the partition and FFT
+linearity; a numerical test protects its implementation.  The receivers can
+therefore differ only after the transforms, in how the views are combined.
+We describe that combiner next.
+
+\section{The Pilot-Trained Combiner}
+
+Partial-FFT reception is intended to retain information when the channel
+varies within the full useful interval.  The pilot-only receiver therefore
+does not use the sum with equal weights.  For carrier $k$ in band $b$, it
+forms
+\begin{equation}
+  Z_k
+  =
+  \sum_{m=1}^{M}w_{m,b}Y_{m,k},
+  \label{eq:combiner}
+\end{equation}
+where $w_{m,b}$ is the complex weight for view $m$ and carrier band $b$.
+Unequal weights preserve a different combination of the time-local
+components than the full FFT.
+
+The weights solve a bandwise ridge problem:
+\begin{equation}
+  \widehat{\bm w}_b
+  =
+  \underset{\bm w\in\C^M}{\operatorname{arg\,min}}
+  \left\{
+  \sum_{p\in\mathcal P_b}
+  \left|\bm w^{T}\bm Y_p-X_p\right|^2
+  +\delta\norm{\bm w}_2^2
+  \right\},
+  \label{eq:ridge}
+\end{equation}
+where $\bm Y_p=[Y_{1,p},\ldots,Y_{M,p}]^T$, $\bm w$ is a trial direct
+coefficient vector, $\widehat{\bm w}_b$ is the fitted vector, $X_p$ is the
+known symbol, $\delta$ is the ridge term, and $\norm{\cdot}_2$ is the
+Euclidean norm.  The set $\mathcal P_b$ contains the pilot targets in band
+$b$; when the band contains fewer than $M$ targets, the implementation uses
+all target pilots.  The transpose in \eqref{eq:ridge} matches the direct
+coefficient sum in \eqref{eq:combiner}.  This fit trades pilot error against
+the size of the combiner weights.
+
+After combining, the receiver divides every pilot by its known symbol,
+interpolates the resulting response over the active carriers, and divides
+$Z_k$ by that response.  With one view and one global band, the fitted
+combiner is one scalar $\alpha$, giving
+\begin{equation}
+  Z_k=\alpha Y_k^{\rm full},
+  \qquad
+  \widehat H_k=\alpha\widetilde H_k,
+  \qquad
+  \frac{Z_k}{\widehat H_k}
+  =
+  \frac{Y_k^{\rm full}}{\widetilde H_k},
+  \label{eq:scalar-cancellation}
+\end{equation}
+where $\widetilde H_k$ is the response obtained by interpolating the unscaled
+pilot responses.  The fitted scalar multiplies every carrier and every pilot
+alike, so the division removes it.  The cancellation holds provided the
+scalar does not reach the implementation's guard for a response near zero.
+
+The deployed receiver uses 16 bands.  A different scalar can therefore be
+fitted in each band, and pilot interpolation can cross a boundary between two
+scalars.  With four views, the weighted result is generally not a scalar
+multiple of the full FFT, so the cancellation in
+\eqref{eq:scalar-cancellation} does not apply.
+
+The current package test checks only that one raw view equals the full useful
+interval FFT.  It does not check equality after combining one view with one
+band spanning all active carriers and applying residual pilot equalization.
+Thus the proposed PFFT-002 test is mathematically sound, but it is not yet
+present in \texttt{Pkg.test()}.  We report the measured results next.
+
+\section{Measured-Channel Results}
+
+\subsection{The AWGN Panel}
+
+We first examine the panel that motivated the question.  It uses $N=1024$,
+CP$=64$, code rate 0.25, pilot spacings 5/5, check degree 14, and four views.
+At 30~dB, pooling the twelve Red channel--hydrophone paths gives
+Table~\ref{tab:awgn}.
+
+\begin{table}[ht]
+\centering
+\caption{First-four-second AWGN frame counts at 30~dB.}
+\label{tab:awgn}
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Receiver & Successful frames & Frame success rate \\
+\midrule
+OFDM+FEC & 42/48 & 0.875 \\
+Pilot-only Partial-FFT+FEC & 36/48 & 0.750 \\
+JUNA-Lite & 46/48 & 0.958 \\
+JUNA $(C,z)$ experiment receiver & 46/48 & 0.958 \\
+JUNA $(C,W,z)$ experiment receiver & 46/48 & 0.958 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The count of four frames per path is too small to order the receivers.
+The OFDM and JUNA-Lite totals differ by four frames, and the saved files do not
+retain their paired frame outcomes.  We therefore report the counts without
+claiming an improvement for receivers using the same waveform.
+
+\subsection{The Matched View Pairs}
+
+The matched legacy comparison is larger but belongs to the impulsive added-noise
+family.  Table~\ref{tab:views} pools SNR from 20 to 30~dB, giving 4320
+frame trials represented by aggregate counts per receiver and column.
+
+\begin{table}[ht]
+\centering
+\caption{Legacy frame success rates with impulsive added noise and four or one partial-FFT views.}
+\label{tab:views}
+\begin{tabular}{@{}llrr@{}}
+\toprule
+Geometry & Receiver & Four views & One view \\
+\midrule
+CP16, pilots 3/5
+& OFDM+FEC & 0.827778 & 0.827778 \\
+& Pilot-only Partial-FFT+FEC & 0.566435 & 0.816204 \\
+& JUNA-Lite & 0.930787 & 0.815509 \\
+\addlinespace
+CP16, pilots 3/10
+& OFDM+FEC & 0.811343 & 0.811343 \\
+& Pilot-only Partial-FFT+FEC & 0.546296 & 0.802083 \\
+& JUNA-Lite & 0.931481 & 0.803241 \\
+\addlinespace
+CP128, pilots 5/10
+& OFDM+FEC & 0.698843 & 0.698843 \\
+& Pilot-only Partial-FFT+FEC & 0.371991 & 0.674769 \\
+& JUNA-Lite & 0.896991 & 0.677315 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Four views reduce the pilot-only success rate in all three pairs, from 0.82
+to 0.57, from 0.80 to 0.55, and from 0.67 to 0.37.  The same four views
+raise the JUNA-Lite rate in all three pairs, from 0.82 to 0.93, from 0.80 to
+0.93, and from 0.68 to 0.90.  OFDM+FEC matches exactly in every cell.  The
+same decomposition therefore harms the receiver that trains its weights on
+pilots alone and helps the receiver that refines with decoder posterior
+symbols.
+
+The $(C,z)$ and $(C,W,z)$ experiment receivers differ from JUNA-Lite by no
+more than 0.0031 in these comparisons with four views.  The gradient-only
+receivers therefore do not materially change the recorded pooled rates; the
+large increase is already present in JUNA-Lite.
+
+The table does not constitute a four-view comparison with equal weights.
+Changing from one to four views changes the dimension of the ridge fit, the
+view signals, and the stopping behavior of JUNA-Lite.  A receiver with four
+views and one common fixed weight is required to isolate the decomposition
+itself.
+
+\subsection{The Code-Rate Rows}
+
+The available rows do not separate code rate from the number of views.
+Table~\ref{tab:rate} shows the settings behind the earlier interpretation that
+the result depends on code rate.
+
+\begin{table}[ht]
+\centering
+\caption{Historical high-SNR comparison at $N=1024$ and CP$=128$.}
+\label{tab:rate}
+\begin{tabular}{@{}rrrrl@{}}
+\toprule
+Code rate & Views & OFDM+FEC & Best JUNA receiver & Reading \\
+\midrule
+0.125 & 4 & 0.698843 & 0.897917 & Four-view result \\
+0.25  & 1 & 0.735880 & 0.725926 & One-view result \\
+0.5   & 1 & 0.176620 & 0.162269 & One-view legacy result \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The table supports a gain with four views in the tested rate-0.125 legacy
+configuration.  It does not show that the gain is confined to that code rate,
+because the other code rates were measured with one view.  Failure to measure
+a difference is also not evidence that two receivers are equivalent.  Before
+interpreting these differences, we state what the retained files can and
+cannot support.
+
+\section{Limitations}
+
+Every receiver within one run receives a copy of the same received waveform,
+so the receiver outcomes are paired.  The calculation that treats the two receiver
+proportions as independent gives $z=1.477$ and $p=0.140$ for the AWGN counts.
+However, that calculation does not match
+the experiment.  From the two margins alone, the possible exact two-sided
+McNemar $p$-values range from 0.125 to 0.289.
+
+The legacy calculations that give $p$-values below $10^{-50}$ also treat
+4320 outcomes per receiver as independent.  However, each SNR uses the same sixty
+frame seeds, the receivers share each received waveform, and the three hydrophones
+share correlated added noise.  With four capture groups, the minimum
+attainable two-sided exact sign-test $p$-value is 0.125.
+
+We therefore use the legacy differences as descriptions of these retained
+files.  Repeated seeds support statements about these captures, while more
+independent captures are required for statements beyond the retained Red
+files.  Both cases require frame traces for every receiver and a paired comparison
+that keeps the capture as a group.  Overlapping marginal intervals do not
+replace that paired comparison.  With those limits stated, we turn to the
+possible explanations.
+
+\section{Possible Explanations}
+
+The retained results identify several effects but do not select one cause.
+We therefore state each explanation with the measurement that would oppose
+it.
+
+\subsection{Pilots per Band}
+
+At $N=1024$, pilot spacing 5 gives 205 pilots, or only 12--13 pilots in each
+of 16 bands.  The pilot-only receiver estimates four complex weights per band
+from these targets.  At $N=2048$ and $N=4096$, the corresponding counts are
+25--26 and 51--52 pilots per band.
+
+The four columns of the ridge problem can be correlated because every view
+comes from the same received block.  A poorly conditioned correlation matrix
+can make the fitted weights sensitive to pilot noise, even when the ridge term
+keeps the solve finite.  This explanation predicts large condition numbers and
+large weight norms where pilot-only Partial-FFT reception loses.
+
+For uncorrelated view noise, the combined noise variance is
+\begin{equation}
+  \sigma_Z^2
+  =
+  \sum_{m=1}^{M}|w_{m,b}|^2\sigma_m^2,
+  \label{eq:noise-gain}
+\end{equation}
+where $\sigma_m^2$ is the noise variance in view $m$ and $\sigma_Z^2$ is the
+variance after combining.  Large fitted weights can therefore increase the
+noise passed to the decoder.
+
+The implementation did not retain the weights, correlation matrix condition
+numbers, or the noise gain.  The explanation based on the number of pilots is
+therefore consistent with the measured $N$ crossover --- in the AWGN family
+the pilot-only receiver loses at $N=1024$ and wins at $N=2048$ and $N=4096$
+--- but the current files do not establish it.
+
+\subsection{Band Boundaries}
+
+One weight vector is shared by every carrier in a band.  Residual pilot
+equalization then interpolates pilot responses across active carriers,
+including carriers near a band boundary.  Different weight vectors on the two
+sides need not pass through that interpolation as one common factor.
+
+This explanation predicts a smaller gap with one band spanning all carriers, with weights
+that vary continuously across frequency, or with the same fixed weights in
+all bands.  It also explains why the identity for one view and one band spanning
+all carriers says
+nothing about the deployed 16-band path.
+
+\subsection{OFDM Under Residual Doppler}
+
+Shorter FFT intervals reduce mixing among carriers, and weighted combining of
+their outputs can reduce intercarrier interference
+\cite{yerramalli}.  In the notation of this note, equal weights reconstruct
+the full FFT, while unequal weights retain a different combination of the
+view coefficients.
+
+At a sampling rate of 9.6~kHz, the useful interval and one of four views have
+the durations in Table~\ref{tab:duration}.
+
+\begin{table}[ht]
+\centering
+\caption{Useful-interval and single-view durations for four views at 9.6~kHz.}
+\label{tab:duration}
+\begin{tabular}{@{}rrr@{}}
+\toprule
+$N$ & Useful interval & One of four views \\
+\midrule
+1024 & 106.7~ms & 26.7~ms \\
+2048 & 213.3~ms & 53.3~ms \\
+4096 & 426.7~ms & 106.7~ms \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+On a time-varying channel, longer OFDM blocks can expose more within-block
+variation to the views.  However,
+larger $N$ also supplies more pilots per band, so the measured crossover
+cannot be assigned to block duration alone.  A comparison with the channel
+held fixed and another with the same number of pilots are both required.
+
+\subsection{Candidate Selection and Stopping}
+
+The frame-wide JUNA-Lite path starts from the pilot-only Partial-FFT candidate.
+It returns immediately when that candidate satisfies the low-density
+parity-check syndrome.  In this path, the validity flag means a zero
+syndrome and does not mean that a cyclic redundancy check (CRC) passed.
+
+Four-view pilot-only reception performs poorly in the three legacy pairs, so
+it can cause JUNA-Lite to enter posterior-anchor refinement more often.  The
+pilot-only reception with one view performs much better and can stop refinement
+earlier.  The measured JUNA-Lite difference may therefore combine useful
+time-local information with a change in how often refinement runs.
+
+This explanation predicts that the gap changes when both view settings run
+the same fixed number of refinements.  It also predicts parity-valid but
+CRC-invalid early returns if a wrong codeword satisfies the parity checks.
+The saved Lite files do not retain these events.
+
+\subsection{LDPC Posterior Symbols}
+
+A lower code rate supplies more redundant bits and can give the decoder more
+reliable posterior information for the JUNA-Lite anchor set.  Decoder feedback
+is useful when pilots alone do not specify stable combiner weights and when the
+posterior information is reliable.
+
+This explanation predicts a larger Lite gain with four views at lower code rate
+after the number of views, noise realization, geometry, and stopping rule are
+held fixed.  The existing rate table does not make that comparison, so the
+explanation based on code rate remains untested.
+
+\subsection{Cyclic Prefix}
+
+The cyclic prefix (CP) reduces intersymbol interference when it covers the
+channel delay spread.  For each path in the audit, squared tap magnitudes were
+averaged over replay snapshots to form a mean power-delay profile.  The
+shortest contiguous interval containing 90 percent of its energy ranges from
+about 3.1 to 8.1~ms.  CP64 is 6.67~ms and covers eleven of the twelve mean
+windows under that rule, while CP128 is 13.33~ms and covers all twelve.
+
+The 90-percent rule is a design choice rather than a physical boundary.  A
+shorter CP leaves residual energy outside the guard, while a longer CP spends
+more transmission time on the guard.  CP128 is therefore a conservative guard
+under this rule, not the only usable guard.  The audit calculation does not yet
+have a tracked script and is not a reproducible result until that script is
+retained.
+
+A coherence calculation using the tap estimates alone also omits the separate
+samplewise phase trajectory used by the replay channel.  The quoted coherence time therefore
+cannot be used as a hard limit that discards every longer-$N$ result.  Four-view
+reception is intended to retain information when the channel varies within the
+full useful interval.
+
+\section{Complexity and Evaluation}
+
+The simple OFDM+FEC receiver does not run the Partial-FFT combiner refinement.
+Both receivers can stop after one decoder run when the initial JUNA-Lite
+candidate is valid.  JUNA-Lite adds combiner fits and decoder runs only when
+refinement proceeds.  At one waveform, it cannot increase the transmitted raw
+rate; it can increase the delivered rate only by recovering more frames.
+
+The present Red evidence does not support the earlier statement that JUNA
+should not be used.  It supports a narrower statement: JUNA-Lite with four
+views has a large descriptive gain in three rate-0.125 legacy comparisons
+with impulsive added noise, while the AWGN comparison with four frames per
+path remains inconclusive.
+
+One proposed policy would decode with Standard first, let a failed CRC trigger
+JUNA-Lite, use CRC for Lite stopping and final selection, and return an erasure
+if Lite also fails.  That policy was not measured.  The AWGN $(C,z)$ receivers
+set \texttt{cz\_crc\_gate=false} and \texttt{cz\_gradient\_only=true}, while
+frame-wide JUNA-Lite starts from pilot-only Partial-FFT reception and stops on
+LDPC validity rather than CRC validity.  The measured receivers do not
+demonstrate a CRC-gated policy.
+
+Until the controlled comparisons run, the retained files support one working
+rule for these captures at code rate 0.125.  One should change the number of
+views only together with the receiver that uses them: with pilots alone, one
+view recovered more frames; with posterior-anchor refinement, four views
+recovered more.  The cost of the four-view choice is the refinement's
+combiner fits and decoder runs.  The choice is undone by returning the view
+count to one, which leaves OFDM+FEC unchanged by the identity in
+\eqref{eq:sum-identity}.  The comparisons that would settle the remaining
+questions follow.
+
+\section{Experimental Method}
+
+We can distinguish the explanations with the controlled comparisons in
+Table~\ref{tab:tests}.  Each comparison keeps the received frames, pilot
+symbols, code, channel, and added noise fixed unless the named quantity is the
+one being changed.
+
+\begin{table}[ht]
+\centering
+\caption{Controlled comparisons for the remaining explanations.}
+\label{tab:tests}
+\begin{tabularx}{\textwidth}{@{}p{0.23\textwidth}YY@{}}
+\toprule
+Question & Controlled comparison & Evidence to retain \\
+\midrule
+One-view cancellation
+& One view, one global band, and the same input through Standard and Partial-FFT equalization
+& Equalized arrays before decoding, with a numerical tolerance \\
+Four-view reconstruction
+& Four views with every weight fixed to the same global value, against Standard
+& Equalized arrays, BER, and frame success \\
+Band-boundary effect
+& One band against 16 bands with the same four views and targets
+& Per-band weights and carrier error near each boundary \\
+Weight-estimation loss
+& Pilot-only reception with four views and logged ridge matrices
+& Condition numbers, weight norms, pilot residuals, and noise gain \\
+Lite stopping effect
+& One and four views with the same fixed number of Lite refinements
+& Initial syndrome, CRC, selected iteration, and every candidate outcome \\
+Code-rate effect
+& Matched AWGN runs with one and four views at rates 0.125 and 0.25
+& Paired frame outcomes for every receiver; rate 0.5 only if that experiment is reopened \\
+Channel-variation effect
+& Frozen taps and phase against the measured replay, with pilot support held fixed
+& Effective-channel variation, weights, BER, and frame success \\
+Deployment policy
+& Standard first, followed by CRC-gated Lite only after failure
+& Effective data rate, processing latency, decoder runs, and undetected errors \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The frame traces must retain Standard, pilot-only Partial-FFT, and JUNA-Lite,
+not only the gradient-only receivers.  Repeated seeds and additional
+independent captures are needed before probabilities are used to generalize
+beyond the retained Red files.
+
+We record the branches, exact experiment directories, result manifests, and
+receiver files so that each statement can be checked.
+
+\begingroup
+\small
+\begin{itemize}[itemsep=0.15em,topsep=0.2em]
+  \item AWGN panel: branch \texttt{agent/awgn-results}, decision AWGN-018,
+  and manifest
+  \path{JunaCore/experiments/2026-08-08-red-awgn-first4s-frames4-snr-sweep-n1024-cp64-rate025-p5-5-dc14-kfill-pfft4/results/results_manifest.json}.
+  Its configuration is $N=1024$, CP$=64$, rate 0.25, pilots 5/5, check
+  degree 14, and four views.  The manifest lists the twelve configuration
+  CSV files used for Table~\ref{tab:awgn}.
+  \item Legacy matched pairs: branch \texttt{agent/all-results}.  Under
+  \path{JunaCore/experiments}, the exact directory pairs are
+  \begin{itemize}
+    \item \path{2026-08-06-red-snr-sweep-n1024-cp16-rate0125-p3-5-dc10-kfill}
+    and \path{2026-08-06-red-snr-sweep-n1024-cp16-rate0125-p3-5-dc10-kfill-pfft1};
+    \item \path{2026-08-06-red-snr-sweep-n1024-cp16-rate0125-p3-10-dc10-kfill}
+    and \path{2026-08-06-red-snr-sweep-n1024-cp16-rate0125-p3-10-dc10-kfill-pfft1};
+    \item \path{2026-08-06-red-snr-sweep-n1024-cp128-rate0125-p5-10-dc10-kfill}
+    and \path{2026-08-06-red-snr-sweep-n1024-cp128-rate0125-p5-10-dc10-kfill-pfft1}.
+  \end{itemize}
+  Each directory contains \path{results/results_manifest.json}; each manifest
+  lists the twelve configuration CSV files used for Table~\ref{tab:views}.
+  \item AWGN receiver provenance: the result manifest pins these values:
+  \begin{itemize}
+    \item source commit:\\
+    \path{14976b6c057549dcc00b5cd5020a97d6cfc7ffdb}
+    \item receiver-source tree:\\
+    \path{2db4aadfbbe9bde6cf34cb20e98a638d0f9aad0f}
+  \end{itemize}
+  \item Restored receiver source inspected for this note: main commit
+  \texttt{7fbdec9}, especially
+  \path{JunaCore/src/juna/common.jl} and
+  \path{JunaCore/src/juna/frame_wide_ldpc.jl}.
+  \item Existing regression test:
+  \path{JunaCore/test/partial_fft_receiver.jl}.
+\end{itemize}
+\endgroup
+
+The older legacy manifests do not record a source commit or tree, and the
+default files with four views do not print the view count in their CSV schema.
+Their directory pairs differ in the run wrapper by the explicit one-view
+setting, and OFDM results match exactly, but the missing provenance remains a
+reproducibility limitation.
+
+\section{Conclusion}
+
+In every retained rate-0.125 comparison, OFDM+FEC results match exactly with
+one and four views, the pilot-only receiver recovers fewer frames with four
+views, and JUNA-Lite recovers more; the cause is not yet identified.
+
+We considered why four partial-FFT views can reduce pilot-only receiver
+performance at $N=1024$ while improving JUNA-Lite.  Summation with equal weights
+reconstructs the full FFT for every view count, but pilot-only Partial-FFT
+reception estimates unequal bandwise weights from limited pilots.  JUNA-Lite
+then adds decoder posterior symbols as weighted anchors, unless a valid initial
+candidate stops the refinement.
+
+The retained legacy results show a large JUNA-Lite increase with four views at code
+rate 0.125 and a large pilot-only decrease under impulsive added noise.  They
+do not establish dependence on code rate, identify one physical cause, or
+validate the equality test with one view and one band spanning all carriers.
+The AWGN panel with four frames per path is also too small to order the receivers.
+
+Under the stated 90-percent delay-window rule, CP128 is a conservative guard,
+while $N=1024$ remains a tested choice for the simple OFDM receiver.  The tap
+estimates alone do not establish that the replay channel stays fixed over the
+$N=1024$ useful interval.
+The retained files therefore do not justify excluding JUNA-Lite.  They show a
+descriptive four-view increase in the legacy rate-0.125 cases.  Its AWGN
+improvement, code-rate dependence, cause, and processing trade-off remain
+undetermined until the controlled comparisons in Table~\ref{tab:tests} use
+matched frames and settings.
+
+\begin{thebibliography}{9}
+
+\bibitem{yerramalli}
+S. Yerramalli, M. Stojanovic, and U. Mitra,
+``Partial FFT Demodulation: A Detection Method for Highly Doppler Distorted
+OFDM Systems,''
+\emph{IEEE Transactions on Signal Processing}, vol.~60, no.~11,
+pp.~5906--5918, November 2012.
+
+\end{thebibliography}
+
+\end{document}
