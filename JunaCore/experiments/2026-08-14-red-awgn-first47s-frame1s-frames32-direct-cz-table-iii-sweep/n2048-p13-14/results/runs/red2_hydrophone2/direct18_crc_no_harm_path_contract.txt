@@ -1,0 +1,11 @@
+campaign=DIRECT18-CRC-GATED-NO-HARM-FIRST47S
+experiment_id=n2048-p13-14
+channel=red2
+hydrophone=2
+aggregate_sha256=24e8e113d3cf42b9db6df3dc95b90f9296023158a9b1e2c58d5d97ef9eb788b1
+frame_trace_sha256=6bf17cb580835139e015b0b576668b743ef6e09bb348940491104058f184fad0
+selection_trace_sha256=8a62fbf57e979f8b019b82bea8cfee876ccb22c26a831949078d068b171b825a
+aggregate_rows=16
+frame_trace_rows=512
+selection_trace_rows=0
+selection_rule=direct_ungated_cz
