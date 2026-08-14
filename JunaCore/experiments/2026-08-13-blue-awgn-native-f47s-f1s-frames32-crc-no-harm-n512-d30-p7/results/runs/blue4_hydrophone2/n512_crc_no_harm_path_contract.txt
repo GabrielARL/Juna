@@ -1,0 +1,11 @@
+campaign=BLUE-NATIVE-AWGN-N512-CRC-GATED-NO-HARM-FIRST47S
+experiment_id=2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n512-d30-p7
+channel=blue4
+hydrophone=2
+aggregate_sha256=14a0ac290231875f302de8bdc71fa46d7ee17672b54a6d12db341cb5e92f9ecc
+frame_trace_sha256=85bb0725fc856497bf0db1ecc7b5b0f35513f5dcbbf228e58b1e07d34355a422
+selection_trace_sha256=1b54b1f68d57d3808f0af741f2d575b998542e16534510df5e8e2b3b866a8883
+aggregate_rows=80
+frame_trace_rows=2560
+selection_trace_rows=1024
+selection_rule=standard_crc_valid|crc_rescue|standard_fallback
