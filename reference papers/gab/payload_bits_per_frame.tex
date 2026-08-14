@@ -1,0 +1,167 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=0.85in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{booktabs}
+
+\setlength{\parskip}{0.25em}
+\setlength{\parindent}{0pt}
+
+\title{Payload Bits per Frame}
+\author{}
+\date{11 August 2026}
+
+\begin{document}
+\maketitle
+
+\section{Configuration}
+
+An orthogonal frequency-division multiplexing (OFDM) frame carries data,
+pilot symbols, a cyclic prefix, a synchronization signal, and a cyclic
+redundancy check (CRC).  We calculate the payload for the current JUNA frame
+at durations of one and two seconds, with a sampling rate of 9600 samples per
+second.
+
+The frame uses quadrature phase shift keying (QPSK), code rate 0.25, outer
+and inner pilot spacings 5/5, and a cyclic prefix of 64 samples.  The
+low-density parity-check (LDPC) code has check degree 14, the code horizon
+fills the frame, and the receiver uses four partial-FFT parts.  The
+synchronization signal uses 4096 samples, and the CRC uses 16 bits once per
+frame.
+
+\section{One-Second Frame}
+
+Let $N$ be the fast Fourier transform size and let $B(N)$ be the number of
+complete OFDM blocks in one frame.  The number of complete blocks is given by
+\begin{equation}
+  B(N)
+  =
+  \left\lfloor\frac{9600-4096}{N+64}\right\rfloor,
+  \label{eq:blocks}
+\end{equation}
+where 9600 is the one-second sample budget, 4096 is the synchronization
+overhead, and 64 is the cyclic prefix length.  Only complete blocks are
+transmitted, so the samples remaining after the last complete block carry no
+additional payload.
+
+Let $k(N)$ be the LDPC information bits in one OFDM block after the outer
+pilots and code rate are applied.  The user payload $P(N)$ is given by
+\begin{equation}
+  P(N)
+  =
+  B(N)k(N)
+  -\left\lceil\frac{B(N)k(N)}{5}\right\rceil
+  -16,
+  \label{eq:payload}
+\end{equation}
+where the ceiling term gives the inner pilot bits and 16 is the frame CRC.
+The cyclic prefix reduces the number of blocks that fit in the frame, while
+the CRC is removed once from the complete frame payload.
+
+Table~\ref{tab:payload} gives the payload returned by the current modem for
+each FFT size.  The frame sample count includes the synchronization signal
+and the cyclic prefix of every complete OFDM block.
+
+\begin{table}[ht]
+\centering
+\caption{Payload bits per one-second frame after pilot, coding, cyclic prefix,
+synchronization, and CRC overhead.}
+\label{tab:payload}
+\begin{tabular}{@{}rrrrrr@{}}
+\toprule
+$N$ & Blocks & Frame samples & LDPC $n/k$ & Before CRC & Payload \\
+\midrule
+ 512 & 9 & 9280 & $816/204$   & 1468 & 1452 \\
+1024 & 5 & 9536 & $1632/408$  & 1632 & \textbf{1616} \\
+1536 & 3 & 8896 & $2448/612$  & 1468 & 1452 \\
+2048 & 2 & 8320 & $3264/816$  & 1305 & 1289 \\
+4096 & 1 & 8256 & $6544/1636$ & 1308 & 1292 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The $N=1024$ configuration carries 1616 payload bits, which is the largest
+payload among these five configurations.  The $N=512$ and $N=1536$
+configurations both carry 1452 bits because their complete blocks contain the
+same total number of LDPC information bits.
+
+A larger FFT does not necessarily increase the payload in a fixed one-second
+frame.  The synchronization signal, cyclic prefixes, and requirement for
+complete OFDM blocks leave a different number of unused samples for each FFT
+size.  These values describe transmitted frame capacity and do not measure
+bit error rate or receiver success.
+
+\section{Two-Second Frame}
+
+The two-second frame has a budget of 19200 samples at the same sampling rate.
+The synchronization signal and CRC are included once, so more of this budget
+is available for complete OFDM blocks.
+
+Let $B_2(N)$ be the number of complete OFDM blocks in the two-second frame.
+The number of complete blocks is given by
+\begin{equation}
+  B_2(N)
+  =
+  \left\lfloor\frac{19200-4096}{N+64}\right\rfloor,
+  \label{eq:blocks-two-seconds}
+\end{equation}
+where $N$ is the FFT size, 19200 is the two-second sample budget, 4096 is the
+synchronization overhead, and 64 is the cyclic prefix length.  The larger
+frame admits more complete OFDM blocks because synchronization is included
+once.
+
+Let $P_2(N)$ be the user payload in the two-second frame.  The payload is
+given by
+\begin{equation}
+  P_2(N)
+  =
+  B_2(N)k(N)
+  -\left\lceil\frac{B_2(N)k(N)}{5}\right\rceil
+  -16,
+  \label{eq:payload-two-seconds}
+\end{equation}
+where $k(N)$ is the LDPC information bits in one block, the ceiling term gives
+the inner pilot bits, and 16 is the frame CRC.  This calculation removes the
+inner pilots and CRC after the complete block count is fixed.
+
+Table~\ref{tab:payload-two-seconds} gives the two-second payload returned by
+the current modem for each FFT size.
+
+\begin{table}[ht]
+\centering
+\caption{Payload bits per two-second frame after pilot, coding, cyclic prefix,
+synchronization, and CRC overhead.}
+\label{tab:payload-two-seconds}
+\begin{tabular}{@{}rrrrr@{}}
+\toprule
+$N$ & Blocks & Frame samples & Before CRC & Payload \\
+\midrule
+ 512 & 26 & 19072 & 4243 & 4227 \\
+1024 & 13 & 18240 & 4243 & 4227 \\
+1536 &  9 & 18496 & 4406 & 4390 \\
+2048 &  7 & 18880 & 4569 & \textbf{4553} \\
+4096 &  3 & 16576 & 3926 & 3910 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The $N=2048$ configuration carries 4553 payload bits, which is the largest
+payload among the five two-second configurations.  Thus the FFT size with the
+largest payload changes when the frame duration changes.
+
+At $N=1024$, two separate one-second frames carry $2\times1616=3232$ payload
+bits.  One two-second frame carries 4227 bits, giving 995 additional bits
+because synchronization and CRC are included once and three additional
+complete OFDM blocks fit in the frame.
+
+\section{Verification}
+
+The current JUNA modem returned a valid configuration for all five FFT sizes
+at both frame durations.  Retained result manifests independently record 1452 bits for
+$N=512$, 1616 bits for $N=1024$, and 1289 bits for $N=2048$.  The $N=1536$
+and $N=4096$ values, together with every two-second value, were obtained from
+the same current modem calculation.
+
+\end{document}

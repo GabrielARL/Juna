@@ -52,6 +52,71 @@ These mean **stop adding detail**. Rewrite shorter:
 
 If he says it twice, the second attempt is still too long. Never answer confusion with more evidence.
 
+## Never coin a term — in conversation either
+
+The `mandar` skill forbids invented names in documents. The ban covers
+**chat**, which is where invented names are actually born: a short label
+appears in an explanation, goes unchallenged because conversation looks
+informal, and then walks into the paper as settled vocabulary. That is how
+`arm`, `profiled`, `ladder`, and `conditioned joint step` reached a draft. He
+stopped the work twice to ask what they meant — *"what is arm? I don't
+understand all these coined terms you come up with"*.
+
+**Default to describing, not naming.** "The receiver that computes the
+combiner" costs six words and no confusion; a short label saves you typing
+and costs him the meaning.
+
+**When a name is unavoidable and it is not his, not in a source, and not a
+code identifier, mark it at first use, in the sentence:** "(my word, not
+yours)". The mark is the enforcement — he can see it, or see it missing where
+a strange word appeared. A rule with no visible output gets broken silently.
+
+## General before specific — always
+
+When introducing any technique, code, model, or tool, state the general
+class first, narrow step by step, claim the work at the most general level
+it holds, and name the specific instance last, as the demonstration. His
+dictation of the canonical example: *"say that one can choose to use FEC,
+then one popular code is linear block codes, then most people uses
+LDPC...then work here is not limited to LDPC, any linear block code as long
+as have parity constrains can be used. however as a demonstration of this
+idea we use LDPC. always ----- general ----- specific-----. write like this
+always"*.
+
+The pattern, in order:
+
+1. The general need (error correction).
+2. The general class that meets it (linear block codes, via parity
+   constraints).
+3. The most common instance (LDPC).
+4. The work's true scope, stated at the class level (any linear block code
+   with parity constraints).
+5. The instance used, named as the demonstration (we use LDPC).
+
+Never open with the specific instance, and never let the claim ride on it.
+This applies to every such introduction, not only codes.
+
+## One reading only — spell the action out
+
+A noun phrase that compresses an action makes the reader unpack it, and
+some readers unpack it wrongly. "A separate receiver" reads as a kind of
+hardware; what was meant is *"a receiver that performs demodulation and
+decoding separately"*. His dictation: *"what is a separate receiver? say: a
+receiver that does separate demodulation and decoding, please avoid
+sentence formation that would confuse the human reader"* and *"whatever you
+write, recheck it many times to see if it can be intepreted in any other
+way that is not intended"*.
+
+Two obligations follow:
+
+1. **Write the action, not a label for the action.** If a phrase stands
+   for a process, spell the process out at least once per section, and
+   prefer spelling it out everywhere.
+2. **Before delivering any sentence, reread it hunting for other
+   parses.** Read it as a hostile stranger: every pronoun, every "this",
+   every compressed modifier. If a second reading exists, rewrite until
+   only the intended one survives. Do this for chat as well as documents.
+
 ## What he rejects
 
 - **Duplication.** Two items doing the same job.
