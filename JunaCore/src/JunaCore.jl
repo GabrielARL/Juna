@@ -14,11 +14,12 @@ module JunaLite
 end
 
 module JunaProfiledCzFrame
-  # Frame-wide C,z refinement. The physical response C is solved conditional
-  # on the relaxed codeword z, and the partial-FFT combiner W is derived from C.
+  # Standard is returned when its frame passes CRC. Otherwise frame-wide C,z
+  # refinement runs, and replaces Standard only when its own output passes CRC.
   export Modulation
   const Modulation =
-    getfield(parentmodule(@__MODULE__), :Juna).ProfiledCzFrameModulation
+    getfield(parentmodule(@__MODULE__), :Juna).
+      CrcNoHarmProfiledCzFrameModulation
 end
 
 module JunaCrcProfiledCzFrame
@@ -30,12 +31,19 @@ module JunaCrcProfiledCzFrame
 end
 
 module JunaCrcConditionedJointCwzFrame
-  # CRC-bearing frame receiver with simultaneous, block-preconditioned
-  # hand-gradient C,W,z proposals guarded by pilot and trust-region checks.
+  # Standard is returned when its frame passes CRC. Otherwise simultaneous
+  # C,W,z refinement runs, and replaces Standard only when its output passes CRC.
   export Modulation
   const Modulation =
     getfield(parentmodule(@__MODULE__), :Juna).
-      CrcConditionedJointCwzFrameModulation
+      CrcNoHarmConditionedJointCwzFrameModulation
+end
+
+module JunaDirectCzFrame
+  # Separate direct C,z descent with CRC no-harm selection.
+  export Modulation
+  const Modulation =
+    getfield(parentmodule(@__MODULE__), :Juna).DirectCzFrameModulation
 end
 
 module JunaStandard

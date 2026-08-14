@@ -1,9 +1,9 @@
 #!/usr/bin/env julia
 #
 # Source layout and public facades — src/ contains the Lite closure plus the
-# approved Profiled C,z closure. The complete C,z receiver uses the shared W,z
-# and C,W,z implementation files, while unrelated receiver files and facades
-# remain absent. Standard remains the baseline facade.
+# approved Profiled C,z and Direct C,z closures. The complete C,z receivers use
+# the shared W,z and C,W,z implementation files, while unrelated receiver files
+# and facades remain absent. Standard remains the baseline facade.
 #
 # If this fails: package composition drifted — a migrated file went missing,
 # the Juna.jl include order/count changed, a pruned receiver file
@@ -30,6 +30,7 @@ const SOURCE_LAYOUT_SRC = joinpath(SOURCE_LAYOUT_ROOT, "src")
     full = joinpath(SOURCE_LAYOUT_SRC, "juna", "full.jl")
     coupled = joinpath(SOURCE_LAYOUT_SRC, "juna", "coupled.jl")
     profiled_cz = joinpath(SOURCE_LAYOUT_SRC, "juna", "profiled_cz_frame.jl")
+    direct_cz = joinpath(SOURCE_LAYOUT_SRC, "juna", "direct_cz_frame.jl")
 
     @testset "required files are present" begin
         @test isfile(junacore)
@@ -42,6 +43,7 @@ const SOURCE_LAYOUT_SRC = joinpath(SOURCE_LAYOUT_ROOT, "src")
         @test isfile(full)
         @test isfile(coupled)
         @test isfile(profiled_cz)
+        @test isfile(direct_cz)
     end
 
     @testset "wrapper wires the complete approved closure in source order" begin
@@ -53,6 +55,8 @@ const SOURCE_LAYOUT_SRC = joinpath(SOURCE_LAYOUT_ROOT, "src")
         include_coupled = "include(joinpath(@__DIR__, \"juna\", \"coupled.jl\"))"
         include_profiled_cz =
             "include(joinpath(@__DIR__, \"juna\", \"profiled_cz_frame.jl\"))"
+        include_direct_cz =
+            "include(joinpath(@__DIR__, \"juna\", \"direct_cz_frame.jl\"))"
 
         @test occursin(include_common, wrapper_text)
         @test occursin(include_frame_wide, wrapper_text)
@@ -60,8 +64,9 @@ const SOURCE_LAYOUT_SRC = joinpath(SOURCE_LAYOUT_ROOT, "src")
         @test occursin(include_full, wrapper_text)
         @test occursin(include_coupled, wrapper_text)
         @test occursin(include_profiled_cz, wrapper_text)
+        @test occursin(include_direct_cz, wrapper_text)
 
-        @test count("include(joinpath(@__DIR__, \"juna\"", wrapper_text) == 6
+        @test count("include(joinpath(@__DIR__, \"juna\"", wrapper_text) == 7
 
         common_at = findfirst(include_common, wrapper_text)
         frame_wide_at = findfirst(include_frame_wide, wrapper_text)
@@ -69,14 +74,17 @@ const SOURCE_LAYOUT_SRC = joinpath(SOURCE_LAYOUT_ROOT, "src")
         full_at = findfirst(include_full, wrapper_text)
         coupled_at = findfirst(include_coupled, wrapper_text)
         profiled_cz_at = findfirst(include_profiled_cz, wrapper_text)
+        direct_cz_at = findfirst(include_direct_cz, wrapper_text)
         @test common_at !== nothing
         @test frame_wide_at !== nothing
         @test lite_at !== nothing
         @test full_at !== nothing
         @test coupled_at !== nothing
         @test profiled_cz_at !== nothing
+        @test direct_cz_at !== nothing
         @test first(common_at) < first(frame_wide_at) < first(lite_at) <
-              first(full_at) < first(coupled_at) < first(profiled_cz_at)
+              first(full_at) < first(coupled_at) < first(profiled_cz_at) <
+              first(direct_cz_at)
     end
 
     @testset "unrelated receiver files are absent from src/" begin
@@ -95,12 +103,17 @@ const SOURCE_LAYOUT_SRC = joinpath(SOURCE_LAYOUT_ROOT, "src")
         @test isdefined(JunaCore, :JunaProfiledCzFrame)
         @test isdefined(JunaCore, :JunaCrcProfiledCzFrame)
         @test isdefined(JunaCore, :JunaCrcConditionedJointCwzFrame)
+        @test isdefined(JunaCore, :JunaDirectCzFrame)
         @test JunaCore.JunaProfiledCzFrame.Modulation().frame_receiver ===
               :profiled_cz
         @test JunaCore.JunaCrcProfiledCzFrame.Modulation().mode ===
               :crc_profiled_cz_frame
         @test JunaCore.JunaCrcConditionedJointCwzFrame.Modulation().
               cz_conditioned_joint
+        @test JunaCore.JunaDirectCzFrame.Modulation() isa
+              JunaCore.Juna.DirectCzFrameModulation
+        @test JunaCore.JunaDirectCzFrame.Modulation().base isa
+              JunaCore.Juna.Modulation
 
         for facade in (:JunaFullyCoupled, :JunaTurboMAP,
                        :JunaProfiledGradient, :JunaFrameWideLDPC,

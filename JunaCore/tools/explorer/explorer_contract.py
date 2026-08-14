@@ -26,8 +26,8 @@ C7  vendored analyzer health: analyze() sees exactly the migrated source
     link route present. This contract checks the analyzer maintained by Juna.
 C8  receivers.json freshness and integrity: it is exported from the Julia
     receiver catalog; receiver ids/facades are unique and exactly match the
-    receivers declared by chain.json. Profiled C,z and Conditioned joint
-    C,W,z remain separate receiver paths.
+    receivers declared by chain.json. Profiled C,z, Conditioned joint C,W,z,
+    and Direct C,z remain separate receiver paths.
 C9  multi-receiver DAG integrity: schema version 2, every receiver path and
     edge references real stages, paths start at acquisition, all five package
     receiver paths are represented, and conditional edges carry labels.
@@ -36,9 +36,9 @@ C10 suite applicability is explicit and computable: each registry entry is
     suites are declared on that stage; each receiver has universal coverage
     and either a receiver-specific suite or a justified exemption.
 C11 reader-visible stage names retain the nine labels approved on 2026-08-01
-    and add the approved Profiled C,z and Conditioned joint C,W,z labels; the
-    combiner-refit description follows the current code by stating that
-    data-anchor confidence values weight the refit.
+    and add the approved Profiled C,z, Conditioned joint C,W,z, and Direct C,z
+    labels; the combiner-refit description follows the current code by stating
+    that data-anchor confidence values weight the refit.
 C12 the interface test uses the four reader-visible result labels approved on
     2026-08-01 and does not retain their ambiguous predecessors.
 """
@@ -69,6 +69,7 @@ APPROVED_STAGE_TITLES = {
     "frame": "Frame-wide FEC receiver",
     "profiled_cz": "Profiled C,z",
     "conditioned_joint_cwz": "Conditioned joint C,W,z",
+    "direct_cz": "Direct C,z",
 }
 
 
@@ -173,7 +174,7 @@ def check():
         problems.append("C8: duplicate receiver facades")
     expected_receiver_ids = {
         "standard", "partial-fft", "lite", "profiled_cz",
-        "conditioned_joint_cwz",
+        "conditioned_joint_cwz", "direct_cz",
     }
     if set(receiver_ids) != expected_receiver_ids:
         problems.append(
@@ -216,6 +217,23 @@ def check():
         problems.append(
             "C8: Conditioned joint C,W,z catalog fields differ from " +
             repr(expected_conditioned))
+    direct = next((r for r in receivers if r["id"] == "direct_cz"), {})
+    expected_direct = {
+        "display_name": "Direct C,z",
+        "facade": "JunaDirectCzFrame",
+        "variant_facades": [],
+        "mode": "frame_wide_ldpc",
+        "profile": "frame_wide_ldpc",
+        "frame_receiver": "profiled_cz",
+        "objective": "direct_cz_frame",
+        "conditioned_joint": False,
+        "chain_path": ["acquisition", "frame", "direct_cz"],
+    }
+    if any(direct.get(key) != value
+           for key, value in expected_direct.items()):
+        problems.append(
+            "C8: Direct C,z catalog fields differ from " +
+            repr(expected_direct))
 
     # C9 shared stage DAG integrity
     if chain.get("schema_version") != 2:
@@ -231,6 +249,7 @@ def check():
         "JunaStandard", "JunaPartialFFT", "JunaLite",
         "JunaProfiledCzFrame", "JunaCrcProfiledCzFrame",
         "JunaCrcConditionedJointCwzFrame",
+        "JunaDirectCzFrame",
     }
     if catalog_facades != expected_facades:
         problems.append(
@@ -393,7 +412,8 @@ def check():
                       os.path.join("juna", "lite.jl"),
                       os.path.join("juna", "full.jl"),
                       os.path.join("juna", "coupled.jl"),
-                      os.path.join("juna", "profiled_cz_frame.jl")}
+                      os.path.join("juna", "profiled_cz_frame.jl"),
+                      os.path.join("juna", "direct_cz_frame.jl")}
     if files != expected_files:
         problems.append(f"C7: analyzer file set drifted: {sorted(files)}")
     if len(analyzed["symbols"]) < 250:

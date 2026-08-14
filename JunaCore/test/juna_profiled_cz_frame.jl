@@ -18,6 +18,8 @@ const CZMods = JunaCore.Modulations
         modem = JunaCore.JunaProfiledCzFrame.Modulation(; kwargs...)
         @test modem.mode === :frame_wide_ldpc
         @test modem.frame_receiver === :profiled_cz
+        @test modem.frame_crc_bits == 16
+        @test modem.cz_crc_no_harm
         @test CZMods.refinement_objective(modem) === :profiled_cz_frame
         code = CZJuna._frame_code(modem, 3)
         @test (code.k, code.n) == (3modem.ldpc_k, 3modem.ldpc_n)
@@ -43,7 +45,7 @@ const CZMods = JunaCore.Modulations
     @testset "zero steps exactly reproduce frame Lite" begin
         lite = CZJuna.FrameWideLDPCModulation(
             ; kwargs..., frame_receiver=:lite, refinement_steps=0)
-        cz = JunaCore.JunaProfiledCzFrame.Modulation(
+        cz = CZJuna.ProfiledCzFrameModulation(
             ; kwargs..., refinement_steps=0)
         fc, fs = 24_000.0, 24_000.0
         nbits = 2 * CZMods.bitspersymbol(lite) - 3
@@ -58,7 +60,7 @@ const CZMods = JunaCore.Modulations
     end
 
     @testset "C,z trajectory executes and finishes with BP" begin
-        modem = JunaCore.JunaProfiledCzFrame.Modulation(
+        modem = CZJuna.ProfiledCzFrameModulation(
             ; kwargs..., refinement_steps=1)
         fc, fs = 24_000.0, 24_000.0
         nbits = 2 * CZMods.bitspersymbol(modem) - 3

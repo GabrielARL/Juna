@@ -1,8 +1,8 @@
 # Shared descriptors for cross-cutting public-boundary tests.
 #
-# The catalog has one entry for each reader-selectable receiver family. The
-# Profiled C,z entry uses the base facade; its CRC and conditioned public
-# facades are covered by the receiver-specific family tests.
+# The shared catalog has one entry for each public runtime mode exercised by
+# the cross-cutting boundary tests. The CRC, conditioned C,W,z, and Direct C,z
+# wrapper facades are covered by receiver-specific suites.
 
 const PUBLIC_RECEIVER_DESCRIPTORS = (
     (name = "Standard OFDM", key = :standard, mode = :standard,

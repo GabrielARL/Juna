@@ -413,6 +413,25 @@ function _cz_candidate_payload(m::Modulation, code::_Code, candidate,
   BitVector(metrics .> 0)
 end
 
+function _cz_crc_no_harm_select(standard, standard_crc_valid::Bool,
+                                rescue, rescue_crc_valid::Bool)
+  standard_crc_valid && return (
+    selected=standard,
+    selected_source=:standard,
+    selection_reason=:standard_crc_valid,
+  )
+  rescue_crc_valid && return (
+    selected=rescue,
+    selected_source=:gradient,
+    selection_reason=:crc_rescue,
+  )
+  (
+    selected=standard,
+    selected_source=:standard,
+    selection_reason=:standard_fallback,
+  )
+end
+
 function _cz_restart_logits(base, restart::Integer, seed::Integer,
                             inner_mask, inner_bits, clip::Real)
   index = Int(restart)
@@ -455,6 +474,8 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
   config = _wcz_optimizer_config(m)
   nblocks = size(observations, 3)
   crc_enabled = m.frame_crc_bits > 0 && m.cz_crc_gate
+  capture_crc_gradient = crc_enabled ||
+    (m.frame_crc_bits > 0 && m.cz_crc_no_harm)
   lite_crc_valid = _cz_candidate_crc_valid(
     m, code, lite.best, nblocks, payload_nbits)
   legacy_early_skip = crc_enabled ?
@@ -652,7 +673,7 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
           syndrome=candidate.syndrome,
         ))
       end
-      if crc_enabled && candidate_crc_valid &&
+      if capture_crc_gradient && candidate_crc_valid &&
           (best_crc_gradient === nothing ||
            _juna_better(best_crc_gradient, candidate))
         best_crc_gradient = candidate
@@ -707,7 +728,7 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
     end
   end
 
-  gradient_crc_valid = crc_enabled ?
+  gradient_crc_valid = capture_crc_gradient ?
     best_crc_gradient !== nothing :
     _cz_candidate_crc_valid(
       m, code, best_gradient, nblocks, payload_nbits)
@@ -719,7 +740,10 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
     _juna_selection_reason(lite.best, best_gradient) !== :lite_fallback
   # The CRC-certified candidate may be `nothing` when no iterate passed CRC,
   # so the standalone arm keeps the raw gradient rather than swapping it in.
-  if crc_enabled && choose_gradient && !m.cz_gradient_only
+  select_crc_gradient =
+    (crc_enabled && choose_gradient && !m.cz_gradient_only) ||
+    (m.cz_crc_no_harm && best_crc_gradient !== nothing)
+  if select_crc_gradient
     best_gradient = best_crc_gradient
     best_gradient_equalized = best_crc_gradient_equalized
     selected_iteration = best_crc_iteration
@@ -776,8 +800,69 @@ function _frame_profiled_cz_refine(m::Modulation, code::_Code,
   )
 end
 
+function _frame_crc_no_harm_profiled_cz_refine(
+    m::Modulation, code::_Code, layout::_Layout, observations;
+    payload_nbits=nothing)
+  m.cz_crc_no_harm || throw(ArgumentError(
+    "CRC no-harm selection requires cz_crc_no_harm=true"))
+  payload_nbits === nothing && throw(ArgumentError(
+    "CRC no-harm selection requires the user payload length"))
+
+  m.cz_crc_no_harm_trace = nothing
+  m.cz_gradient_trace = nothing
+  nblocks = size(observations, 3)
+  standard = _frame_static_trace(
+    m, code, layout, observations, _MODE_STANDARD)
+  standard_crc_valid = _cz_candidate_crc_valid(
+    m, code, standard.best, nblocks, payload_nbits)
+
+  if standard_crc_valid
+    decision = _cz_crc_no_harm_select(standard, true, nothing, false)
+    m.cz_crc_no_harm_trace = (
+      scope=:frame,
+      optimized_variables=m.cz_conditioned_joint ? (:C, :W, :z) : (:C, :z),
+      selected_source=decision.selected_source,
+      selection_reason=decision.selection_reason,
+      standard_crc_valid=true,
+      rescue_is_gradient=false,
+      rescue_crc_valid=false,
+      rescue_executed=false,
+      gradient_checkpoints=0,
+    )
+    return merge(decision.selected, (profile=_MODE_PROFILED_CZ,))
+  end
+
+  rescue = _frame_profiled_cz_refine(
+    m, code, layout, observations; payload_nbits)
+  gradient_trace = _cz_gradient_last_trace(m)
+  rescue_is_gradient = gradient_trace.selected_gradient &&
+    gradient_trace.selected_iteration > 0
+  rescue_crc_valid = rescue_is_gradient && _cz_candidate_crc_valid(
+    m, code, rescue.best, nblocks, payload_nbits)
+  decision = _cz_crc_no_harm_select(
+    standard, false, rescue, rescue_crc_valid)
+  m.cz_crc_no_harm_trace = (
+    scope=:frame,
+    optimized_variables=gradient_trace.optimized_variables,
+    selected_source=decision.selected_source,
+    selection_reason=decision.selection_reason,
+    standard_crc_valid=false,
+    rescue_is_gradient,
+    rescue_crc_valid,
+    rescue_executed=true,
+    gradient_checkpoints=gradient_trace.bp_checkpoints,
+  )
+  merge(decision.selected, (profile=_MODE_PROFILED_CZ,))
+end
+
 function _cz_gradient_last_trace(m::Modulation)
   m.cz_gradient_trace === nothing && throw(ArgumentError(
     "no C,z frame gradient trace is available; run demodulation first"))
   m.cz_gradient_trace
+end
+
+function _cz_crc_no_harm_last_trace(m::Modulation)
+  m.cz_crc_no_harm_trace === nothing && throw(ArgumentError(
+    "no CRC no-harm trace is available; run demodulation first"))
+  m.cz_crc_no_harm_trace
 end

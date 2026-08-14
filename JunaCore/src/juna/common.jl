@@ -24,6 +24,7 @@ Base.@kwdef mutable struct Modulation <: Modulations.Modulation
   frame_crc_bits::Int = 0            # 0=legacy framing; 16=one external CRC-16/CCITT over the complete frame payload
   frame_code_horizon::Int = 0        # 0=one graph over all blocks; h>0=disconnected h-block graph components
   cz_crc_gate::Bool = true           # when CRC is present, require a certified rescue before replacing Lite
+  cz_crc_no_harm::Bool = false       # Standard first; accept this receiver only when its output passes CRC
   cz_gate_selection_only::Bool = false # opt-in experiment contract: gate selects after an otherwise identical trajectory
   cz_restarts::Int = 1               # constrained C,z trajectories; 1 preserves deployed behavior
   cz_restart_seed::Int = 17_071      # deterministic perturbation seed for diagnostic restart lists
@@ -62,6 +63,7 @@ Base.@kwdef mutable struct Modulation <: Modulations.Modulation
   gradient_guarded_trace::Any = nothing
   profiled_gradient_trace::Any = nothing
   cz_gradient_trace::Any = nothing
+  cz_crc_no_harm_trace::Any = nothing
   # Ground truth for the Lite :genie/:graded arms and the C,z :genie arm,
   # attached per frame by the experiment harness. Deployed receivers leave this
   # nothing and never read it; a missing oracle grid is a hard error rather than
@@ -157,6 +159,30 @@ ProfiledCzFrameModulation(; kwargs...) =
   Modulation(; (; kwargs..., mode = _MODE_FRAME_WIDE_LDPC,
                  frame_receiver = _MODE_PROFILED_CZ)...)
 
+function CrcNoHarmProfiledCzFrameModulation(; kwargs...)
+  supplied = (; kwargs...)
+  fixed = (
+    mode=_MODE_FRAME_WIDE_LDPC,
+    frame_receiver=_MODE_PROFILED_CZ,
+    frame_crc_bits=16,
+    cz_crc_gate=false,
+    cz_crc_no_harm=true,
+    cz_gate_selection_only=false,
+    cz_em_enabled=false,
+    cz_independent_w=false,
+    cz_bp_feedback=0.0,
+    cz_vp_gradient=false,
+    cz_conditioned_joint=false,
+    cz_gradient_only=true,
+  )
+  for (field, expected) in pairs(fixed)
+    haskey(supplied, field) || continue
+    supplied[field] == expected || throw(ArgumentError(
+      "CrcNoHarmProfiledCzFrameModulation fixes $field=$expected"))
+  end
+  Modulation(; (; kwargs..., fixed...)...)
+end
+
 function CrcProfiledCzFrameModulation(; kwargs...)
   supplied = (; kwargs...)
   for (field, expected) in pairs((
@@ -243,6 +269,30 @@ function CrcConditionedJointCwzFrameModulation(; kwargs...)
       cz_bp_feedback=0.5,
       cz_vp_gradient=true,
       cz_conditioned_joint=true)
+end
+
+function CrcNoHarmConditionedJointCwzFrameModulation(; kwargs...)
+  supplied = (; kwargs...)
+  fixed = (
+    mode=_MODE_CRC_PROFILED_CZ_FRAME,
+    frame_receiver=_MODE_PROFILED_CZ,
+    frame_crc_bits=16,
+    cz_crc_gate=false,
+    cz_crc_no_harm=true,
+    cz_gate_selection_only=false,
+    cz_em_enabled=true,
+    cz_independent_w=false,
+    cz_bp_feedback=0.5,
+    cz_vp_gradient=true,
+    cz_conditioned_joint=true,
+    cz_gradient_only=true,
+  )
+  for (field, expected) in pairs(fixed)
+    haskey(supplied, field) || continue
+    supplied[field] == expected || throw(ArgumentError(
+      "CrcNoHarmConditionedJointCwzFrameModulation fixes $field=$expected"))
+  end
+  Modulation(; (; kwargs..., fixed...)...)
 end
 
 function _frame_receiver_profile(m::Modulation)
@@ -362,6 +412,7 @@ function Modulations.init(m::Modulation, fc, fs)
   m.gradient_guarded_trace = nothing
   m.profiled_gradient_trace = nothing
   m.cz_gradient_trace = nothing
+  m.cz_crc_no_harm_trace = nothing
   nothing
 end
 
@@ -467,6 +518,25 @@ function Base.isvalid(m::Modulation, fc, fs)
     isfinite(m.cz_bp_feedback) &&
       0.0 <= m.cz_bp_feedback <= 1.0 || return false
     m.cz_feedback_source in _CZ_FEEDBACK_SOURCES || return false
+    if m.cz_crc_no_harm
+      m.frame_receiver === _MODE_PROFILED_CZ || return false
+      m.frame_crc_bits == 16 || return false
+      !m.cz_crc_gate || return false
+      !m.cz_gate_selection_only || return false
+      m.cz_gradient_only || return false
+      !m.cz_independent_w || return false
+      if m.cz_conditioned_joint
+        m.mode === _MODE_CRC_PROFILED_CZ_FRAME || return false
+        m.cz_em_enabled || return false
+        m.cz_bp_feedback == 0.5 || return false
+        m.cz_vp_gradient || return false
+      else
+        m.mode === _MODE_FRAME_WIDE_LDPC || return false
+        !m.cz_em_enabled || return false
+        m.cz_bp_feedback == 0.0 || return false
+        !m.cz_vp_gradient || return false
+      end
+    end
     isfinite(m.cz_joint_c_radius) && m.cz_joint_c_radius > 0.0 ||
       return false
     isfinite(m.cz_joint_w_radius) && m.cz_joint_w_radius > 0.0 ||

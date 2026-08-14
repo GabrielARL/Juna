@@ -342,6 +342,7 @@ function buildFacadesSection(data) {
             JunaProfiledCzFrame: "profiled_cz",
             JunaCrcProfiledCzFrame: "profiled_cz",
             JunaCrcConditionedJointCwzFrame: "conditioned_joint_cwz",
+            JunaDirectCzFrame: "direct_cz",
           }[facade.name] || ""
         ) + "#sym=" + encodeURIComponent(facade.id),
       text: facade.name,
