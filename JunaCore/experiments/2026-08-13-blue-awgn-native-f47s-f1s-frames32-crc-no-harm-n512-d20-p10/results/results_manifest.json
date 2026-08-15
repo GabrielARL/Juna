@@ -35,7 +35,7 @@
   "frame_duration_budget_seconds": 1.0,
   "frame_duration_seconds": 0.8986624,
   "frame_samples": 4388,
-  "frame_trace_row_count": 30720,
+  "frame_trace_row_count": 36864,
   "frames_per_point": 32,
   "full_configuration": {
     "capture_scope": "Blue1-Blue4 hydrophones 1-3, first 47 seconds",
@@ -47,7 +47,7 @@
     "horizon": "fill",
     "nfft": 512,
     "partial_fft_parts": 4,
-    "receiver_policy": "five receivers, CRC-gated no-harm",
+    "receiver_policy": "six receivers, direct C+z plus CRC-gated no-harm",
     "seed": 4,
     "snr_db": "0:2:30"
   },
@@ -97,11 +97,13 @@
   },
   "receiver_policy": {
     "cwz_joint": "CRC-gated no-harm C+W+z",
+    "direct_cz": "direct ungated C+z gradient",
     "lite": "unchanged",
     "profiled_cz": "CRC-gated no-harm C+z"
   },
   "receivers": [
     "cwz_joint",
+    "direct_cz",
     "lite",
     "ofdm_fec",
     "pfft",
@@ -109,7 +111,7 @@
   ],
   "result_group": "blue_awgn_native",
   "result_scope": "Blue1-Blue4 native-bandwidth AWGN, hydrophones 1-3, first 47 seconds",
-  "row_count": 960,
+  "row_count": 1152,
   "schema_version": 1,
   "seed": 4,
   "selection_reason_counts": {
@@ -125,67 +127,67 @@
     }
   },
   "selection_trace_row_count": 12288,
-  "series_count": 60,
+  "series_count": 72,
   "sources": [
     {
       "path": "runs/blue1_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
-      "rows": 80,
-      "sha256": "1a916bd1d60abd265dc0cf939b97dbc9369473e582bfc3fd2b4b8d2e083eb3a7"
+      "rows": 96,
+      "sha256": "413f54c458a7ab9e67ef3af10f6b1e2ce137d101b65145b761bb3fd293fab632"
     },
     {
       "path": "runs/blue1_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
-      "rows": 80,
-      "sha256": "3444b437ee3d3a8cb7d82faf8278c93d7066332f57212e528fc00a866f889293"
+      "rows": 96,
+      "sha256": "55e82447d66aa47d50a2e9e40326018b5836f942314cd13b1be031b26b55c6eb"
     },
     {
       "path": "runs/blue1_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
-      "rows": 80,
-      "sha256": "bda80595b5104486783999610119a828fa5b873864632370be8acbef1a94029f"
+      "rows": 96,
+      "sha256": "9e39ada9423645028249ec782764eef8c3bf70601a4bb3c68aa3f1fe57335616"
     },
     {
       "path": "runs/blue2_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
-      "rows": 80,
-      "sha256": "767b67222e7aa93757a47c01fa5ac7be1c535e76a407d8c2519e8844cd423793"
+      "rows": 96,
+      "sha256": "13a2aa5f6a0fc798b79359ec9b0bf5118ba5352e4d2bae916321226d7ca601de"
     },
     {
       "path": "runs/blue2_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
-      "rows": 80,
-      "sha256": "fa0daf6546e97fc231330010f31481d11b97284eec5ece1e325cd586225066d5"
+      "rows": 96,
+      "sha256": "f564be06abc2a4af0d36c2dc0391022ad84bb5308484a611d5993493fad675bf"
     },
     {
       "path": "runs/blue2_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
-      "rows": 80,
-      "sha256": "0bf4008feab5e1bd01df9e8c870b49b8213a37dda6213b85986ddad17106a1aa"
+      "rows": 96,
+      "sha256": "d185d006fc7d82770386848bbb3ff63313b93ff1b43ed4b17f7bf308c0beac15"
     },
     {
       "path": "runs/blue3_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
-      "rows": 80,
-      "sha256": "f2ae59ffeaafff1b3dbadb1aeecc51f8317265ccbefb12272cbe3d2c20b9c0f1"
+      "rows": 96,
+      "sha256": "a56e7fe82a139102a19d131c85ab9572619c3ef0c620f334a4e2135a37e91cf6"
     },
     {
       "path": "runs/blue3_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
-      "rows": 80,
-      "sha256": "8ac980c5d8b048f768fa7702e1d053d602eb237b5efb567327659a5b136f4023"
+      "rows": 96,
+      "sha256": "c6cd2c5b0301333b6727ef0058a2129496f4a5dfac0243e2b9ec8f9190279655"
     },
     {
       "path": "runs/blue3_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
-      "rows": 80,
-      "sha256": "c88fe0dca608e1f765b65e3e9370f9934b7f4ff0ff6b86ec49cc6cc8f17a400a"
+      "rows": 96,
+      "sha256": "4f4f44799128945b18e744a8e0ed6e147a445f1c7b8a74fe0a6481d86803a309"
     },
     {
       "path": "runs/blue4_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
-      "rows": 80,
-      "sha256": "8cecf846ff33c644fb23a0805434f2b4c5d21cb7fa61c4b5b1942ea946bc14db"
+      "rows": 96,
+      "sha256": "3a7b740c797e94cc689967fc611c7f70a09aa32b8c48fc9b5c394a43aa592dce"
     },
     {
       "path": "runs/blue4_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
-      "rows": 80,
-      "sha256": "8403723f2f955b8b557fc98bcfc7c3859b2275b0d65b8ba6f76402351441acad"
+      "rows": 96,
+      "sha256": "573ddcd07a6795d3ec8daf69456709c0621a5b9241b2bc1318b91ff1c3da5846"
     },
     {
       "path": "runs/blue4_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
-      "rows": 80,
-      "sha256": "8e36d779c41424aa223c1878356e1c5ce27594e44171a5e732142d8ce1220cb7"
+      "rows": 96,
+      "sha256": "789330a222abf9b8b99c5088ecf0ea60857c9e1a515049e49462ed379ffb9d0d"
     }
   ],
   "sync_rate_adaptation": {
