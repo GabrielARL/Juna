@@ -1,0 +1,176 @@
+{
+  "capture_native": {
+    "captures": [
+      {
+        "bytes": 206147418,
+        "file": "blue_1.mat",
+        "sha256": "639830f78ea044b877284dc0058f1c25179ba2448c06f228c9f0a62d0b2162de"
+      },
+      {
+        "bytes": 206147418,
+        "file": "blue_2.mat",
+        "sha256": "a3b7452c6c999777b49e5b4ddb3ef113ba4f40ff2d1504847f6d4be63e6a4bee"
+      },
+      {
+        "bytes": 206147418,
+        "file": "blue_3.mat",
+        "sha256": "e126e95880513453722b8e9530bd55347fdb1605b76210f99375d1226b4acf9f"
+      },
+      {
+        "bytes": 206132594,
+        "file": "blue_4.mat",
+        "sha256": "24eaa514da13aff5b5f3f7f8c81eb0fd0dd664ee5ee009b450169c63999c766b"
+      }
+    ],
+    "center_frequency_hz": 13000.0,
+    "delay_grid_sample_rate_hz": 9765.625,
+    "modem_sample_rate_hz": 4882.8125,
+    "snapshot_rate_hz": 48.828125
+  },
+  "capture_time_seconds": [
+    0.0,
+    47.0
+  ],
+  "experiment_id": "2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n1536-cp64-r025-p6-8-dc14-kfill-pfft4",
+  "frame_duration_budget_seconds": 1.0,
+  "frame_duration_seconds": 0.7544832,
+  "frame_samples": 3684,
+  "frame_trace_row_count": 36864,
+  "frames_per_point": 32,
+  "full_configuration": {
+    "receiver_policy": "six receivers, direct C+z plus CRC-gated no-harm"
+  },
+  "geometry": {
+    "check_degree": "14",
+    "code_rate": "0.25",
+    "cp": "64",
+    "horizon": "0",
+    "inner_spacing": "8",
+    "nfft": "1536",
+    "outer_spacing": "6"
+  },
+  "geometry_display": {
+    "check_degree": "14",
+    "code_rate": "0.25",
+    "cp": "64",
+    "horizon": "fill",
+    "inner_spacing": "8",
+    "nfft": "1536",
+    "outer_spacing": "6",
+    "partial_fft_parts": "4"
+  },
+  "no_harm_rule": {
+    "crc_rescue": "return gradient only when its CRC is valid",
+    "implementation": "experiment-boundary instrumentation of the checked-in cz_crc_gate receiver; not the unpublished AWGN-022 wrapper",
+    "standard_crc_valid": "return standard without gradient rescue",
+    "standard_fallback": "return standard when rescue CRC is invalid"
+  },
+  "noise_model": {
+    "distribution": "proper-complex Gaussian",
+    "injection": "after measured replay, before receiver alignment",
+    "kind": "awgn"
+  },
+  "panel_count": 12,
+  "partial_fft_parts": 4,
+  "payload_bits_per_frame": 540,
+  "receiver_policy": {
+    "cwz_joint": "CRC-gated no-harm C+W+z",
+    "direct_cz": "direct ungated C+z gradient",
+    "lite": "unchanged",
+    "profiled_cz": "CRC-gated no-harm C+z"
+  },
+  "receivers": [
+    "cwz_joint",
+    "direct_cz",
+    "lite",
+    "ofdm_fec",
+    "pfft",
+    "profiled_cz"
+  ],
+  "result_group": "blue_awgn_native",
+  "result_scope": "Blue1-Blue4 native-bandwidth AWGN, hydrophones 1-3, first 47 seconds",
+  "row_count": 1152,
+  "schema_version": 1,
+  "seed": 4,
+  "selection_reason_counts": {
+    "cwz_joint": {
+      "standard_crc_valid": 1069,
+      "standard_fallback": 5075
+    },
+    "profiled_cz": {
+      "standard_crc_valid": 1069,
+      "standard_fallback": 5075
+    }
+  },
+  "selection_trace_row_count": 12288,
+  "series_count": 72,
+  "sources": [
+    {
+      "path": "runs/blue1_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "d1579cc2cb8ce3dae86ab24e58ad616cd82594d9620fe8f18ffa9527476083e2"
+    },
+    {
+      "path": "runs/blue1_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "8adb6a2b4a162905203b0749261fa9fe71a7c62b5f3018dcea01ce0d6a4c3c7c"
+    },
+    {
+      "path": "runs/blue1_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "6d257345db69d92a5990e649d94dcd8cd5626cec69ee85a2871b7eec18317d1c"
+    },
+    {
+      "path": "runs/blue2_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "814278152937a1897313e02ad50d1cbe57e6a1814d828795f89f8e3d2f72ff1b"
+    },
+    {
+      "path": "runs/blue2_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "8ada51cd81b3d896b4ac054281ed0d212af2c85d179cae05d5e5eefce7fd722c"
+    },
+    {
+      "path": "runs/blue2_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "5fae7872cf6a2e204ffd7a9c0bc75d30f7bedb583c4f693590a2378ebd457ec7"
+    },
+    {
+      "path": "runs/blue3_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "1f4e9343747a50b13cf1ef861add4bf596f8d4e3d2eb29145844a097e7a3a757"
+    },
+    {
+      "path": "runs/blue3_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "3d5cba94274da99ca1a472a3d597bcba14be3f4ceb37e3b1f7c5afedf922cc07"
+    },
+    {
+      "path": "runs/blue3_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "1b2adb071dea635545eb52489f000e1e110f089d86396eb2cab802a299ac3432"
+    },
+    {
+      "path": "runs/blue4_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "04766e68e2ffb229427fdaf9a7a7d1e74babf58e1de40446e8a4245221b3e81d"
+    },
+    {
+      "path": "runs/blue4_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "fffcfa6b6364db58097a1b3a9848ab0e376d28a0a3e508686253d7b00d1b449e"
+    },
+    {
+      "path": "runs/blue4_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "bfa8bd1500e6e3b81d8a5d1eb099ea54670e81039f52ad5b51d3f7c9dc3e5824"
+    }
+  ],
+  "sync_rate_adaptation": {
+    "blue_samples_per_burst": 1042,
+    "blue_total_sync_samples": 2084,
+    "policy": "preserve Red physical LFM duration at native Blue modem rate",
+    "red_modem_sample_rate_hz": 9600.0,
+    "red_samples_per_burst": 2048
+  }
+}
