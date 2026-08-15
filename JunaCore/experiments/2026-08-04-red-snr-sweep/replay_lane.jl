@@ -17,19 +17,21 @@ export ReplayCapture, align_to_reference, apply_capture, capture_from_dict,
 
 struct ReplayCapture
     h::Matrix{ComplexF64}       # oldest-delay to zero-delay tap x snapshot
-    phase::Vector{Float64}      # baseband phase track for that lane
+    phase::Vector{Float64}      # UACR theta_hat or phi_hat track for that lane
     fs::Float64
     fc::Float64
     step::Int
     receiver::Int
     name::String
+    tracking::Symbol            # :phase for theta_hat; :delay_phase for phi_hat
     function ReplayCapture(h::Matrix{ComplexF64},
                            phase::Vector{Float64},
                            fs::Float64,
                            fc::Float64,
                            step::Int,
                            receiver::Int,
-                           name::String)
+                           name::String,
+                           tracking::Symbol)
         size(h, 1) > 0 || throw(ArgumentError("replay capture needs at least one tap"))
         size(h, 2) > 0 || throw(ArgumentError("replay capture needs at least one snapshot"))
         isempty(phase) && throw(ArgumentError("replay capture phase track must not be empty"))
@@ -41,7 +43,9 @@ struct ReplayCapture
         all(x -> isfinite(real(x)) && isfinite(imag(x)), h) ||
             throw(ArgumentError("replay taps must be finite"))
         all(isfinite, phase) || throw(ArgumentError("replay phase must be finite"))
-        new(h, phase, fs, fc, step, receiver, name)
+        tracking in (:phase, :delay_phase) ||
+            throw(ArgumentError("replay tracking must be :phase or :delay_phase"))
+        new(h, phase, fs, fc, step, receiver, name, tracking)
     end
 end
 
@@ -51,11 +55,12 @@ function ReplayCapture(h::AbstractMatrix,
                        fc::Real,
                        step::Integer,
                        receiver::Integer,
-                       name::AbstractString)
+                       name::AbstractString;
+                       tracking::Symbol=:phase)
     h2 = Matrix{ComplexF64}(h)
     phase2 = Float64.(phase)
     ReplayCapture(h2, phase2, Float64(fs), Float64(fc), Int(step),
-                  Int(receiver), String(name))
+                  Int(receiver), String(name), tracking)
 end
 
 _has(data, key::String) = haskey(data, key) || haskey(data, Symbol(key))
@@ -102,7 +107,8 @@ function capture_from_dict(data;
     fc = _scalar(_get(params, "fc"), "params.fc")
     fs_time = _scalar(_get(params, "fs_time"), "params.fs_time")
     step = round(Int, fs / fs_time)
-    ReplayCapture(h, phase, fs, fc, step, rx, name)
+    tracking = phase_key == "phi_hat" ? :delay_phase : :phase
+    ReplayCapture(h, phase, fs, fc, step, rx, name; tracking=tracking)
 end
 
 function load_capture(path::AbstractString; receiver::Integer=1)
@@ -114,7 +120,76 @@ function load_capture(path::AbstractString; receiver::Integer=1)
     capture_from_dict(data; receiver=receiver, name=name)
 end
 
-# ReplayCh-compatible time-varying FIR interpolation for one selected lane.
+# Not-a-knot cubic-spline second derivatives on a unit-spaced sample grid.
+function _cubic_second_derivatives(values::AbstractVector{<:Complex})
+    n = length(values)
+    second = zeros(ComplexF64, n)
+    n <= 2 && return second
+    if n == 3
+        second .= values[3] - 2values[2] + values[1]
+        return second
+    end
+
+    second[2] = values[3] - 2values[2] + values[1]
+    second[n-1] = values[n] - 2values[n-1] + values[n-2]
+    unknowns = n - 4
+    if unknowns > 0
+        diagonal = fill(4.0, unknowns)
+        upper = fill(1.0, max(0, unknowns - 1))
+        lower = fill(1.0, max(0, unknowns - 1))
+        rhs = ComplexF64[
+            6 * (values[index+1] - 2values[index] + values[index-1])
+            for index in 3:n-2
+        ]
+        rhs[1] -= second[2]
+        rhs[end] -= second[n-1]
+        @inbounds for index in 2:unknowns
+            factor = lower[index-1] / diagonal[index-1]
+            diagonal[index] -= factor * upper[index-1]
+            rhs[index] -= factor * rhs[index-1]
+        end
+        solution = similar(rhs)
+        solution[end] = rhs[end] / diagonal[end]
+        @inbounds for index in unknowns-1:-1:1
+            solution[index] =
+                (rhs[index] - upper[index] * solution[index+1]) /
+                diagonal[index]
+        end
+        second[3:n-2] .= solution
+    end
+    second[1] = 2second[2] - second[3]
+    second[n] = 2second[n-1] - second[n-2]
+    second
+end
+
+function _cubic_time_warp(values::AbstractVector{<:Complex},
+                          offsets::AbstractVector{<:Real})
+    length(values) == length(offsets) ||
+        throw(DimensionMismatch("time-warp offsets must match replay output"))
+    n = length(values)
+    second = _cubic_second_derivatives(values)
+    warped = zeros(ComplexF64, n)
+    @inbounds for index in eachindex(warped)
+        position = index + offsets[index]
+        1 <= position <= n || continue
+        if position == n
+            warped[index] = values[n]
+            continue
+        end
+        lo = floor(Int, position)
+        fraction = position - lo
+        complement = 1 - fraction
+        warped[index] =
+            complement * values[lo] + fraction * values[lo+1] +
+            ((complement^3 - complement) * second[lo] +
+             (fraction^3 - fraction) * second[lo+1]) / 6
+    end
+    warped
+end
+
+# UACR-compatible time-varying FIR interpolation for one selected lane.
+# theta_hat restores phase only. phi_hat restores phase and the corresponding
+# delay drift phi_hat/(2*pi*fc) through cubic time interpolation.
 function apply_capture(capture::ReplayCapture,
                        input::AbstractVector{<:Number};
                        snapshot::Integer=1)
@@ -126,6 +201,8 @@ function apply_capture(capture::ReplayCapture,
     x = ComplexF64.(input)
     ntaps, nsnapshots = size(capture.h)
     output = zeros(ComplexF64, length(x) + ntaps - 1)
+    phase_track = Vector{Float64}(undef, length(output))
+    phase_start = (start - 1) * capture.step + 1
     @inbounds for output_idx in eachindex(output)
         offset = output_idx - 1
         snap = min(start + div(offset, capture.step), nsnapshots)
@@ -140,12 +217,13 @@ function apply_capture(capture::ReplayCapture,
                        alpha * capture.h[tap, next_snap]
             acc += response * x[input_idx]
         end
-        phase_idx = min(
-            (start - 1) * capture.step + offset + 1,
-            length(capture.phase))
-        output[output_idx] = acc * cis(capture.phase[phase_idx])
+        phase_idx = min(phase_start + offset, length(capture.phase))
+        phase_track[output_idx] = capture.phase[phase_idx]
+        output[output_idx] = acc * cis(phase_track[output_idx])
     end
-    output
+    capture.tracking === :phase && return output
+    drift_samples = phase_track .* (capture.fs / (2pi * capture.fc))
+    _cubic_time_warp(output, drift_samples)
 end
 
 function align_to_reference(received::AbstractVector{<:Number},
