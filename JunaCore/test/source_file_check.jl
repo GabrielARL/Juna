@@ -23,7 +23,7 @@ const PROV_PINNED = [
     ("src/Juna.jl",   # SRC-001a: approved Profiled C,z implementation closure
      "45634f3933f9fff511dde63f4990c52372430a4c51d244325fed72f5472434b0"),
     ("src/juna/common.jl",   # SRC-001a closure; retains Standard and initial-candidate naming
-     "bb3bcbb3f759865ef5b7aeb65f9bd0874a7d86553903f87c852df4b92a042257"),
+     "19a279f5219ee8361f1c1a9e95134238d90001e6de1e729ab15db894700d88fc"),
     ("src/juna/frame_wide_ldpc.jl",   # diverged: rpchan removal (CL-1/2/3); adaptive-lite removal; seed-to-initial-candidate rename (register CL-13, CL-15)
      "ebb65dc4a960316ca7caeb8d03873b2f2121adb30e5a3b905e4ea93f479822d2"),
     ("src/juna/lite.jl",   # diverged: seed-to-initial-candidate rename (register CL-13, CL-15)

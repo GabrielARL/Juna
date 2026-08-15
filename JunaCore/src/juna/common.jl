@@ -692,12 +692,28 @@ function Modulations.framepayloadbits(m::Modulation, fs::Real)
   capacity
 end
 
-# Deterministic baseband LFM (linear chirp) used as the per-frame sync pre/postamble.
+# Deterministic dual-slope baseband LFM used as the per-frame sync pre/postamble.
+# The opposite slopes make common delay cancel in the signed carrier-offset
+# estimate while retaining the existing total synchronization duration.
+function _sync_chirp(samples::Int, fs, direction::Real)
+  samples <= 0 && return ComplexF64[]
+  T = samples / fs
+  k = clamp(_SYNC_BW, 0.05, 1.0) * fs / T
+  ComplexF64[
+    cispi(direction * k * (n / fs - T / 2)^2) for n in 0:samples-1]
+end
+
+function _sync_components(m::Modulation, fs)
+  S = _synclen(m)
+  S == 0 && return ComplexF64[], ComplexF64[]
+  front = div(S, 2)
+  back = S - front
+  _sync_chirp(front, fs, 1.0), _sync_chirp(back, fs, -1.0)
+end
+
 function _sync_waveform(m::Modulation, fs)
-  S = _synclen(m); S == 0 && return ComplexF64[]
-  T = S / fs
-  k = clamp(_SYNC_BW, 0.05, 1.0) * fs / T         # sweep rate (Hz/s): sweeps _SYNC_BW·fs over T
-  ComplexF64[cispi(k * (n / fs - T / 2)^2) for n in 0:S-1]
+  front, back = _sync_components(m, fs)
+  vcat(front, back)
 end
 
 # |matched filter| of rx against the known sync, over every lag.
@@ -730,26 +746,123 @@ function _resample_to(x::AbstractVector{<:Complex}, target::Int)
   out
 end
 
-# Coarse Doppler from two sync peaks. `fs` defines sample time and the sync
-# waveform; the dimensionless observed/nominal spacing sets the resampling;
-# `fc` converts that spacing error to the reported CFO in hertz.
+# Sub-sample correlation peak inside a bounded acquisition window.
+function _sync_peak_near(correlation::AbstractVector{<:Real}, expected, radius::Int)
+  isempty(correlation) && return nothing
+  lo = max(1, floor(Int, expected - radius))
+  hi = min(length(correlation), ceil(Int, expected + radius))
+  lo <= hi || return nothing
+  peak = lo - 1 + argmax(@view correlation[lo:hi])
+  offset = 0.0
+  if 1 < peak < length(correlation)
+    left = correlation[peak - 1]
+    centre = correlation[peak]
+    right = correlation[peak + 1]
+    denominator = left - 2centre + right
+    abs(denominator) > eps(max(abs(centre), 1.0)) &&
+      (offset = clamp(0.5 * (left - right) / denominator, -0.5, 0.5))
+  end
+  peak + offset
+end
+
+function _scaled_segment(waveform::AbstractVector{<:Complex}, start, scale,
+                         samples::Int)
+  samples <= 0 && return ComplexF64[]
+  output = Vector{ComplexF64}(undef, samples)
+  @inbounds for index in 1:samples
+    position = start + (index - 1) * scale
+    lo = clamp(floor(Int, position), 1, length(waveform))
+    hi = min(lo + 1, length(waveform))
+    fraction = position - lo
+    output[index] = (1 - fraction) * waveform[lo] + fraction * waveform[hi]
+  end
+  output
+end
+
+function _sync_phase_rate(segment, reference, fs, scale)
+  length(segment) == length(reference) || return 0.0
+  length(segment) < 2 && return 0.0
+  dechirped = segment .* conj.(reference)
+  increment = sum(
+    @view(dechirped[2:end]) .* conj.(@view(dechirped[1:end-1])))
+  abs(increment) <= eps(Float64) && return 0.0
+  angle(increment) * fs / (2pi * scale)
+end
+
+function _sync_impairments(m::Modulation,
+                           waveform::AbstractVector{<:Complex}, fs, nblocks)
+  S = _synclen(m)
+  blocklen = _blocklen(m)
+  nominal_spacing = S + nblocks * blocklen
+  front, back = _sync_components(m, fs)
+  (isempty(front) || isempty(back)) && return 0.0, 1.0
+
+  radius = max(16, div(S, 4))
+  padding = zeros(ComplexF64, radius)
+  padded = vcat(padding, ComplexF64.(waveform), padding)
+  front_correlation = _matched_corr(padded, front)
+  back_correlation = _matched_corr(padded, back)
+  front_start = _sync_peak_near(
+    front_correlation, radius + 1, radius)
+  back_start = _sync_peak_near(
+    back_correlation, radius + 1 + length(front), radius)
+  repeated_front_start = _sync_peak_near(
+    front_correlation, radius + 1 + nominal_spacing, radius)
+  any(isnothing, (front_start, back_start, repeated_front_start)) &&
+    return 0.0, 1.0
+
+  first_front = front_start - radius
+  first_back = back_start - radius
+  second_front = repeated_front_start - radius
+  duration_scale = (second_front - first_front) / nominal_spacing
+  isfinite(duration_scale) && duration_scale > 0 || return 0.0, 1.0
+
+  # Opposite chirp slopes turn a common timing error into equal and opposite
+  # dechirped phase rates. Their mean is therefore the signed carrier offset.
+  common_start = (first_front + first_back -
+                  duration_scale * length(front)) / 2
+  received_front = _scaled_segment(
+    waveform, common_start, duration_scale, length(front))
+  received_back = _scaled_segment(
+    waveform, common_start + duration_scale * length(front),
+    duration_scale, length(back))
+  carrier_offset = (
+    _sync_phase_rate(received_front, front, fs, duration_scale) +
+    _sync_phase_rate(received_back, back, fs, duration_scale)) / 2
+  isfinite(carrier_offset) || return 0.0, duration_scale
+  carrier_offset, duration_scale
+end
+
+# Joint carrier-offset and duration acquisition. Carrier rotation is removed
+# before OFDM observations; front-sync spacing retains the independent coarse
+# duration correction.
 function _coarse_doppler(m::Modulation, waveform::AbstractVector{<:Complex}, fc, fs, nblocks)
+  _ = fc
   S = _synclen(m); blocklen = _blocklen(m)
   nominal_blocks = nblocks * blocklen
-  sync = _sync_waveform(m, fs)
-  corr = _matched_corr(waveform, sync)
-  length(corr) < 2 && return ComplexF64.(waveform), 0.0
-  half = max(1, div(length(corr), 2))
-  p1 = argmax(@view corr[1:half])                  # front sync start (1-based lag)
-  p2 = half + argmax(@view corr[half + 1:end])     # back  sync start
-  D0 = S + nominal_blocks                           # nominal start-to-start spacing
-  D  = p2 - p1
-  duration_scale = (D > 0 && D0 > 0) ? D / D0 : 1.0 # observed / nominal sync spacing
-  bstart = p1 + round(Int, duration_scale * S)       # block region sits between the (dilated) syncs
-  bstop  = p2 - 1
-  (bstart < 1 || bstop > length(waveform) || bstop <= bstart) && return ComplexF64.(waveform), 0.0
-  corrected = _resample_to(@view(waveform[bstart:bstop]), nominal_blocks)   # undo the dilation
-  corrected, (duration_scale - 1) * fc
+  D0 = S + nominal_blocks
+  carrier_offset, _ = _sync_impairments(m, waveform, fs, nblocks)
+  sample = collect(0:length(waveform)-1)
+  derotated = ComplexF64.(waveform) .*
+    cispi.(-2 * carrier_offset .* sample ./ fs)
+
+  front, _ = _sync_components(m, fs)
+  radius = max(16, div(S, 4))
+  padding = zeros(ComplexF64, radius)
+  correlation = _matched_corr(vcat(padding, derotated, padding), front)
+  p1 = _sync_peak_near(correlation, radius + 1, radius)
+  p2 = _sync_peak_near(correlation, radius + 1 + D0, radius)
+  (p1 === nothing || p2 === nothing) && return derotated, carrier_offset
+  p1 -= radius
+  p2 -= radius
+  D = p2 - p1
+  duration_scale = (D > 0 && D0 > 0) ? D / D0 : 1.0
+  bstart = round(Int, p1 + duration_scale * S)
+  bstop = round(Int, p2) - 1
+  (bstart < 1 || bstop > length(waveform) || bstop <= bstart) &&
+    return derotated, carrier_offset
+  corrected = _resample_to(@view(derotated[bstart:bstop]), nominal_blocks)
+  corrected, carrier_offset
 end
 
 

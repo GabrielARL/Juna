@@ -159,14 +159,18 @@
     {
       "id": "acquisition",
       "title": "Packet acquisition",
-      "detail": "LFM synchronization, guard handling, and partial-FFT branches.",
+      "detail": "LFM synchronization, signed carrier-offset correction, duration correction, guard handling, and partial-FFT branches.",
       "symbols": [
+        "_sync_chirp",
+        "_sync_components",
         "_sync_waveform",
+        "_sync_impairments",
         "_coarse_doppler",
         "_branch_observations"
       ],
       "suites": [
         "layout",
+        "acquisition-cfo",
         "interface",
         "contract"
       ],
