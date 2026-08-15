@@ -1,0 +1,11 @@
+campaign=N512-CRC-GATED-NO-HARM-FIRST47S
+experiment_id=2026-08-15-red-awgn-f47-f1-n512-p5-7-direct6
+channel=red1
+hydrophone=3
+aggregate_sha256=b0420a8ddc159e005e282070550f18d5c89268a0984d372e7eaf07347c9e7b18
+frame_trace_sha256=746c69ffaefa679305f48e723d2f862ee05940896daa9ff068a56cc3f5c6e1b8
+selection_trace_sha256=b858b5349a2b3c7e9ed346d0536e8733f13e5bef73c6b14d16cc23fb3c010c70
+aggregate_rows=96
+frame_trace_rows=3072
+selection_trace_rows=1024
+selection_rule=standard_crc_valid|crc_rescue|standard_fallback
