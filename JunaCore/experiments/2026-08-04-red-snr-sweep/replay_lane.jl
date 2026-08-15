@@ -140,7 +140,9 @@ function apply_capture(capture::ReplayCapture,
                        alpha * capture.h[tap, next_snap]
             acc += response * x[input_idx]
         end
-        phase_idx = min(start * capture.step + offset, length(capture.phase))
+        phase_idx = min(
+            (start - 1) * capture.step + offset + 1,
+            length(capture.phase))
         output[output_idx] = acc * cis(capture.phase[phase_idx])
     end
     output

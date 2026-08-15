@@ -56,6 +56,62 @@ end
     @test sum(abs2, aligned - payload) / sum(abs2, payload) <= 0.02
 end
 
+@testset "LFM acquisition removes linear carrier drift across a frame" begin
+    modem, fc, fs, payload, waveform = acquisition_fixture(nblocks=24)
+    duration = (length(waveform) - 1) / fs
+    start_hz = -10.0
+    stop_hz = 10.0
+    slope_hz_per_second = (stop_hz - start_hz) / duration
+    time = collect(0:length(waveform)-1) ./ fs
+    impaired = waveform .* cispi.(
+        2 .* (start_hz .* time .+
+              0.5 .* slope_hz_per_second .* time .^ 2))
+
+    corrected, estimated_hz = AcquisitionJuna._coarse_doppler(
+        modem, impaired, fc, fs, 24)
+    phase = sum(corrected .* conj.(payload))
+    aligned = corrected .* cis(-angle(phase))
+
+    @test length(corrected) == length(payload)
+    @test isfinite(estimated_hz)
+    @test sum(abs2, aligned - payload) / sum(abs2, payload) <= 0.02
+    @test abs(residual_frequency_hz(corrected, payload, fs)) <= 0.25
+end
+
+@testset "cyclic prefix tracks residual block carrier" begin
+    modem, _, _, _, _ = acquisition_fixture()
+    N = Int(modem.nc)
+    L = Int(modem.np)
+    symbol = ComplexF64[
+        cispi(2 * 0.071 * sample) for sample in 0:N-1]
+    block = vcat(symbol[end-L+1:end], symbol)
+    phase_per_sample = 2pi * 0.24 / N
+    impaired = block .* cis.(phase_per_sample .* (0:length(block)-1))
+    corrected = AcquisitionJuna._track_block_carrier(modem, impaired)
+    phase = sum(corrected .* conj.(block))
+    aligned = corrected .* cis(-angle(phase))
+
+    @test sum(abs2, aligned - block) / sum(abs2, block) <= 1e-12
+end
+
+@testset "acquisition rejects an implausible trailing-sync displacement" begin
+    modem, fc, fs, payload, waveform = acquisition_fixture(nblocks=24)
+    sync = AcquisitionJuna._sync_waveform(modem, fs)
+    payload_start = length(sync) + 1
+    payload_stop = payload_start + length(payload) - 1
+    displaced = vcat(
+        waveform[1:payload_stop], zeros(ComplexF64, 24), sync)
+
+    corrected, estimated_hz = AcquisitionJuna._coarse_doppler(
+        modem, displaced, fc, fs, 24)
+    phase = sum(corrected .* conj.(payload))
+    aligned = corrected .* cis(-angle(phase))
+
+    @test isfinite(estimated_hz)
+    @test length(corrected) == length(payload)
+    @test sum(abs2, aligned - payload) / sum(abs2, payload) <= 0.02
+end
+
 if abspath(PROGRAM_FILE) == @__FILE__
     println("JUNA acquisition CFO checks passed")
 end
