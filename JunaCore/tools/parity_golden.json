@@ -3,9 +3,11 @@
   "source_commit": "d49fff0127732af4fad3862628fd93a96e2e75e9",
   "julia_version": "1.12.6",
   "seed": 20260730,
+  "direct_cz_rescue": {"seed": 5, "snr_db": 4.0},
   "scenarios": {"clean": 0.0, "mild_noise": 0.05},
   "digests": {
     "conditioned_joint_cwz.compact": "4a6cbf2835af202f6569f609557f7b8dd89a2766b40ba721cd6f5cc6811adaab",
+    "direct_cz.compact": "bc74f684da3720e28dc9d1d75d3e5c5a46e2828c4ed7a6fe29a5ae0f24425835",
     "lite.clean": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27",
     "lite.mild_noise": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27",
     "partial-fft.clean": "512d7120619a5f9a488d9c6b239c40625bacd766f6c0d2e7881ac5dd85997e27",

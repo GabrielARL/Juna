@@ -538,6 +538,7 @@ def check():
             "JunaStandard", "JunaPartialFFT", "JunaLite",
             "JunaProfiledCzFrame", "JunaCrcProfiledCzFrame",
             "JunaCrcConditionedJointCwzFrame",
+            "JunaDirectCzFrame",
         }
         if {f["name"] for f in detail.get("facades", [])} != expected_facades:
             problems.append(
@@ -551,7 +552,8 @@ def check():
             ("JunaProfiledCzFrame", "profiled_cz"),
             ("JunaCrcProfiledCzFrame", "profiled_cz"),
             ("JunaCrcConditionedJointCwzFrame",
-             "conditioned_joint_cwz")):
+             "conditioned_joint_cwz"),
+            ("JunaDirectCzFrame", "direct_cz")):
         marker = f'{facade}: "{receiver_id}"'
         if marker not in source_js:
             problems.append(

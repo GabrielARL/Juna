@@ -1,0 +1,62 @@
+name: JunaCore CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: junacore-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+    working-directory: JunaCore
+
+jobs:
+  required-checks:
+    name: JunaCore required checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      JULIA_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Julia 1.12.6
+        uses: julia-actions/setup-julia@fa02766e078afaaf09b14210362cee14137e6a32 # v3.0.2
+        with:
+          version: "1.12.6"
+
+      - name: Check Google Chrome
+        run: google-chrome --version
+
+      - name: Instantiate package and load JunaCore
+        run: |
+          julia --startup-file=no --project=. -e 'using Pkg; Pkg.instantiate()'
+          julia --startup-file=no --project=. -e 'using JunaCore'
+
+      - name: Run Direct C,z tests
+        run: julia --startup-file=no --project=. test/runtests.jl direct-cz
+
+      - name: Run full package tests
+        run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.test()'
+
+      - name: Check fixed receiver parity
+        run: julia --startup-file=no --project=. tools/parity_check.jl
+
+      - name: Check explorer data contracts
+        run: python3 tools/explorer/explorer_contract.py
+
+      - name: Check explorer server contracts
+        run: python3 tools/explorer/server_contract.py
