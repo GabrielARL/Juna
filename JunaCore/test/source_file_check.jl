@@ -22,8 +22,8 @@ const PROV_PINNED = [
      "486b4ecc918c0b851d98900cc365904b1caca0b74efdcd3b6e60d5c5882a6255"),
     ("src/Juna.jl",   # SRC-001a: approved Profiled C,z implementation closure
      "45634f3933f9fff511dde63f4990c52372430a4c51d244325fed72f5472434b0"),
-    ("src/juna/common.jl",   # SRC-001a closure; phase-balanced residual carrier and duration acquisition
-     "e650f3d13dc0af44e47497eaba48252744349d060e4bead73ae2e24408db1836"),
+    ("src/juna/common.jl",   # SRC-001a closure; shared affine CP baseline/refinement map and repeated-sync carrier lattice
+     "f97179f54e12c9907ff96491905cf8e4cc2672ce233099374b7f246fcd2bd791"),
     ("src/juna/frame_wide_ldpc.jl",   # diverged: rpchan removal (CL-1/2/3); adaptive-lite removal; seed-to-initial-candidate rename (register CL-13, CL-15)
      "ebb65dc4a960316ca7caeb8d03873b2f2121adb30e5a3b905e4ea93f479822d2"),
     ("src/juna/lite.jl",   # diverged: seed-to-initial-candidate rename (register CL-13, CL-15)

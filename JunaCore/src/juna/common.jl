@@ -600,6 +600,9 @@ function demodulate_methods(m::Modulation, nbits, x, fc, fs)
     return _demodulate_guarded_physical_methods(m, nbits, x, fc, fs)
   nbits, waveform, code, layout, nblocks =
     _prepare_demodulation(m, nbits, x, fc, fs)
+  if m.sync
+    waveform, _ = _coarse_doppler(m, waveform, fc, fs, nblocks)
+  end
   _require_block_samples(m, waveform, nblocks)
 
   standard = Vector{Float64}(undef, Int(nbits))
@@ -730,6 +733,35 @@ function _matched_corr(rx::AbstractVector{<:Complex}, sync::AbstractVector{<:Com
     c[lag] = abs(acc)
   end
   c
+end
+
+# Normalized adjacent-product match of rx against a known synchronization
+# waveform. A constant carrier offset contributes only a common phase and
+# therefore does not reduce the magnitude, while zero energy and uncorrelated
+# noise remain close to zero.
+function _differential_corr(rx::AbstractVector{<:Complex},
+                            sync::AbstractVector{<:Complex})
+  S = length(sync); M = length(rx); L = M - S + 1
+  L <= 0 && return Float64[]
+  quality = zeros(Float64, L)
+  S < 2 && return quality
+  reference_increment = @view(sync[1:end-1]) .* conj.(@view(sync[2:end]))
+  @inbounds for lag in 1:L
+    increment = zero(ComplexF64)
+    left_power = 0.0
+    right_power = 0.0
+    for index in 1:S-1
+      left = rx[lag + index - 1]
+      right = rx[lag + index]
+      increment += right * conj(left) * reference_increment[index]
+      left_power += abs2(left)
+      right_power += abs2(right)
+    end
+    denominator = sqrt(left_power * right_power)
+    denominator > eps(Float64) &&
+      (quality[lag] = abs(increment) / denominator)
+  end
+  quality
 end
 
 # Linear-interpolation resample of x to exactly `target` samples (coarse timing fix; the CP absorbs residual).
@@ -912,6 +944,141 @@ function _cp_duration_fit(waveform, m::Modulation, nblocks::Int,
     for candidate in fine
   ]
   fine[argmax(fine_scores)]
+end
+
+# Mean normalized cyclic-prefix correspondence for one affine body map. The
+# support check is explicit because `_scaled_segment` deliberately clamps its
+# interpolation endpoints for older coarse-acquisition callers.
+function _affine_cp_body_score(waveform, m::Modulation, nblocks::Int,
+                               start, scale)
+  N = Int(m.nc)
+  L = Int(m.np)
+  blocks = Int(nblocks)
+  block_length = N + L
+  body_samples = blocks * block_length
+  (L > 0 && blocks >= 2 && body_samples > 0 &&
+   isfinite(start) && isfinite(scale) && scale > 0) || return -Inf
+  last_position = start + (body_samples - 1) * scale
+  (start >= 1 && last_position <= length(waveform)) || return -Inf
+
+  score = 0.0
+  @inbounds for block in 0:blocks-1
+    block_start = start + block * block_length * scale
+    correspondence = zero(ComplexF64)
+    prefix_energy = 0.0
+    tail_energy = 0.0
+    for sample in 0:L-1
+      prefix_position = block_start + sample * scale
+      prefix_lo = floor(Int, prefix_position)
+      prefix_hi = min(prefix_lo + 1, length(waveform))
+      prefix_fraction = prefix_position - prefix_lo
+      prefix = (1 - prefix_fraction) * waveform[prefix_lo] +
+        prefix_fraction * waveform[prefix_hi]
+
+      tail_position = block_start + (N + sample) * scale
+      tail_lo = floor(Int, tail_position)
+      tail_hi = min(tail_lo + 1, length(waveform))
+      tail_fraction = tail_position - tail_lo
+      tail = (1 - tail_fraction) * waveform[tail_lo] +
+        tail_fraction * waveform[tail_hi]
+
+      correspondence += tail * conj(prefix)
+      prefix_energy += abs2(prefix)
+      tail_energy += abs2(tail)
+    end
+    denominator = sqrt(prefix_energy * tail_energy)
+    denominator > eps(Float64) || return 0.0
+    score += abs(correspondence) / denominator
+  end
+  score / blocks
+end
+
+function _affine_cp_body_fit(waveform, m::Modulation, nblocks::Int,
+                             predicted_start; baseline_scale=1.0,
+                             scale_origin=0.0)
+  L = Int(m.np)
+  blocks = Int(nblocks)
+  (L > 0 && blocks >= 2 && isfinite(predicted_start) &&
+   isfinite(baseline_scale) && isfinite(scale_origin) &&
+   0.998 <= baseline_scale <= 1.002) || return nothing
+  radius = floor(Int, L / 4)
+  radius >= 1 || return nothing
+  baseline_score = _affine_cp_body_score(
+    waveform, m, blocks, predicted_start, baseline_scale)
+  isfinite(baseline_score) || return nothing
+
+  candidates = NamedTuple[]
+  function evaluate!(offset, scale)
+    start = predicted_start + offset +
+      (scale - baseline_scale) * scale_origin
+    score = _affine_cp_body_score(
+      waveform, m, blocks, start, scale)
+    isfinite(score) && push!(candidates, (
+      score=score,
+      start=Float64(start),
+      offset=Float64(offset),
+      scale=Float64(scale),
+    ))
+  end
+
+  # A CP/4 timing radius preserves a three-quarter-prefix overlap and avoids
+  # searching into the adjacent OFDM symbol. A small deterministic refinement
+  # avoids an exhaustive high-resolution two-dimensional scan.
+  for scale_index in 0:40, offset_index in 0:8radius
+    evaluate!(-radius + 0.25offset_index, 0.998 + 0.0001scale_index)
+  end
+  isempty(candidates) && return nothing
+  raw_best = candidates[argmax(item.score for item in candidates)]
+  for scale_index in -10:10, offset_index in -10:10
+    scale = clamp(raw_best.scale + 0.00001scale_index, 0.998, 1.002)
+    offset = clamp(raw_best.offset + 0.025offset_index, -radius, radius)
+    evaluate!(offset, scale)
+  end
+
+  best_score = maximum(item.score for item in candidates)
+  tolerance = eps(max(abs(best_score), 1.0))
+  tied = filter(item -> item.score >= best_score - tolerance, candidates)
+  selected = tied[argmin([
+    (abs(item.offset), item.scale, item.offset) for item in tied])]
+  # Independent complex samples have normalized correlation on the order of
+  # 1/sqrt(L). A two-unit finite-prefix margin prevents the bounded grid from
+  # turning short-prefix noise into timing evidence; long prefixes retain the
+  # fixed 0.2 credibility floor used by acquisition.
+  credibility_floor = max(0.2, 2 / sqrt(Float64(L)))
+  body_samples = blocks * _blocklen(m)
+  # The bounded search may refine a credible map only when its maximum is
+  # interior and improves CP correspondence by more than five percent. When it
+  # does not, retain the supported baseline map for carrier-candidate scoring;
+  # returning `nothing` here would mix candidate-specific timing back into the
+  # supposedly common CFO comparison.
+  if abs(selected.offset) < radius &&
+     selected.score >= credibility_floor &&
+     selected.score > 1.05baseline_score
+    body = _scaled_segment(
+      waveform, selected.start, selected.scale, body_samples)
+    return merge(selected, (
+      body=body, baseline_score=baseline_score, refined=true))
+  end
+  baseline_score >= credibility_floor || return nothing
+  baseline = (
+    score=Float64(baseline_score),
+    start=Float64(predicted_start),
+    offset=0.0,
+    scale=Float64(baseline_scale),
+  )
+  body = _scaled_segment(
+    waveform, baseline.start, baseline.scale, body_samples)
+  merge(baseline, (
+    body=body, baseline_score=baseline_score, refined=false))
+end
+
+function _derotate_affine_cp_body(fit, carrier_hz, fs)
+  body = copy(fit.body)
+  @inbounds for index in eachindex(body)
+    raw_sample = fit.start - 1 + (index - 1) * fit.scale
+    body[index] *= cispi(-2 * carrier_hz * raw_sample / Float64(fs))
+  end
+  body
 end
 
 function _sync_alias_score(waveform, front, back, center, scale, fs,
@@ -1146,17 +1313,219 @@ function _sync_impairments(m::Modulation,
     second_center=second_center)
 end
 
-# Joint carrier-offset and duration acquisition. Carrier rotation is removed
-# before OFDM observations; front-sync spacing retains the independent coarse
-# duration correction.
-function _coarse_doppler(m::Modulation, waveform::AbstractVector{<:Complex}, fc, fs, nblocks)
-  _ = fc
-  S = _synclen(m); blocklen = _blocklen(m)
-  nominal_blocks = nblocks * blocklen
-  impairments = _sync_impairments(m, waveform, fs, nblocks)
-  impairments.sync_reliable || throw(ArgumentError(
-    "synchronization waveform was not reliably detected"))
-  carrier_offset = (impairments.start_hz + impairments.stop_hz) / 2
+const _COARSE_CFO_BOUND_HZ = 15.0
+
+function _sync_body_observation(m::Modulation, waveform, fs, nblocks)
+  x = ComplexF64.(waveform)
+  sync = _sync_waveform(m, fs)
+  front, back = _sync_components(m, fs)
+  S = length(sync)
+  front_samples = length(front)
+  nominal_body = Int(nblocks) * _blocklen(m)
+  nominal_spacing = S + nominal_body
+  length(x) >= 2S + 1 || throw(ArgumentError(
+    "synchronization acquisition failed: received waveform is too short"))
+
+  full_correlation = _matched_corr(x, sync)
+  length(full_correlation) >= 2 || throw(ArgumentError(
+    "synchronization acquisition failed: synchronization signal is absent"))
+  first_half = max(1, div(length(full_correlation), 2))
+  approximate_start = argmax(@view full_correlation[1:first_half])
+
+  radius = max(16, div(S, 4))
+  padding = zeros(ComplexF64, radius)
+  padded = vcat(padding, x, padding)
+  front_correlation = _matched_corr(padded, front)
+  back_correlation = _matched_corr(padded, back)
+  front_differential = _differential_corr(padded, front)
+  back_differential = _differential_corr(padded, back)
+  expected_front = radius + approximate_start
+  first_front = _sync_peak_near(
+    front_correlation, expected_front, radius)
+  first_back = _sync_peak_near(
+    back_correlation, expected_front + front_samples, radius)
+  second_front = _sync_peak_near(
+    front_differential, expected_front + nominal_spacing, radius)
+  second_back = _sync_peak_near(
+    back_differential,
+    expected_front + nominal_spacing + front_samples, radius)
+  any(isnothing, (first_front, first_back, second_front, second_back)) &&
+    throw(ArgumentError(
+      "synchronization acquisition failed: dual-slope peaks are absent"))
+
+  differential_quality = minimum((
+    front_differential[round(Int, first_front)],
+    back_differential[round(Int, first_back)],
+    front_differential[round(Int, second_front)],
+    back_differential[round(Int, second_back)],
+  ))
+  isfinite(differential_quality) && differential_quality >= 0.1 ||
+    throw(ArgumentError(
+      "synchronization acquisition failed: repeated synchronization is not credible"))
+
+  first_front -= radius
+  first_back -= radius
+  second_front -= radius
+  second_back -= radius
+  first_start = (first_front + first_back - front_samples) / 2
+  second_start = (second_front + second_back - front_samples) / 2
+  measured_duration_scale = (second_start - first_start) / nominal_spacing
+  isfinite(measured_duration_scale) && 0.95 < measured_duration_scale < 1.05 ||
+    throw(ArgumentError(
+      "synchronization acquisition failed: implausible synchronization spacing"))
+  duration_reliable = _plausible_duration_scale(measured_duration_scale)
+  duration_scale = duration_reliable ? measured_duration_scale : 1.0
+  first_start = (first_front + first_back -
+                 duration_scale * front_samples) / 2
+  second_start = (second_front + second_back -
+                  duration_scale * front_samples) / 2
+  spacing = second_start - first_start
+  isfinite(spacing) && spacing > 0 || throw(ArgumentError(
+    "synchronization acquisition failed: invalid synchronization spacing"))
+
+  first_sync = _scaled_segment(x, first_start, duration_scale, S)
+  second_sync = _scaled_segment(x, second_start, duration_scale, S)
+  function dual_slope_rate(start)
+    received_front = _scaled_segment(
+      x, start, duration_scale, front_samples)
+    received_back = _scaled_segment(
+      x, start + duration_scale * front_samples,
+      duration_scale, length(back))
+    (_sync_phase_rate(received_front, front, fs, duration_scale) +
+     _sync_phase_rate(received_back, back, fs, duration_scale)) / 2
+  end
+  start_cfo = dual_slope_rate(first_start)
+  stop_cfo = dual_slope_rate(second_start)
+  dual_slope_cfo = (start_cfo + stop_cfo) / 2
+  function coherent_correlation(segment)
+    sum(segment[index] * conj(sync[index]) *
+        cispi(-2 * dual_slope_cfo * duration_scale *
+              (index - 1) / Float64(fs))
+        for index in eachindex(sync))
+  end
+  first_coherent = coherent_correlation(first_sync)
+  second_coherent = coherent_correlation(second_sync)
+  first_quality = abs(first_coherent) /
+    max(sqrt(sum(abs2, first_sync) * sum(abs2, sync)), eps(Float64))
+  second_quality = abs(second_coherent) /
+    max(sqrt(sum(abs2, second_sync) * sum(abs2, sync)), eps(Float64))
+  coherent_quality = min(first_quality, second_quality)
+
+  body_start = round(Int, first_start + duration_scale * S)
+  body_stop = duration_reliable ? round(Int, second_start) - 1 :
+    body_start + nominal_body - 1
+  body_start >= 1 && body_stop <= length(x) &&
+    body_stop > body_start || throw(ArgumentError(
+      "synchronization acquisition failed: OFDM body is incomplete"))
+  body = _resample_to(@view(x[body_start:body_stop]), nominal_body)
+  (
+    body=body,
+    pre_start=first_start,
+    post_start=second_start,
+    duration_scale=measured_duration_scale,
+    sync_phase=angle(second_coherent * conj(first_coherent)),
+    sync_spacing=spacing,
+    dual_slope_cfo=dual_slope_cfo,
+    start_cfo=start_cfo,
+    stop_cfo=stop_cfo,
+    quality=differential_quality,
+    differential_quality=differential_quality,
+    coherent_quality=coherent_quality,
+  )
+end
+
+function _pilot_cfo_score(m::Modulation, waveform, fs, nblocks)
+  N = Int(m.nc)
+  L = Int(m.np)
+  blocks = Int(nblocks)
+  layout = _layout(m, fs)
+  pilots = layout.pilot_idx
+  pilot_count = length(pilots)
+  pilot_count >= 3 || return (
+    temporal=Inf, causal=Inf, cp=Inf, cp_residual_hz=Inf)
+
+  responses = Matrix{ComplexF64}(undef, pilot_count, blocks)
+  chunk = Vector{ComplexF64}(undef, N)
+  @inbounds for block in 0:blocks-1
+    base = block * (N + L)
+    for sample in 0:N-1
+      chunk[sample + 1] = waveform[base + L + sample + 1]
+    end
+    fft!(chunk)
+    for position in eachindex(pilots)
+      responses[position, block + 1] =
+        chunk[pilots[position]] / layout.pilot_syms[position]
+    end
+  end
+
+  temporal = 0.0
+  temporal_pairs = 0
+  if blocks >= 2
+    @inbounds for first in 1:blocks-1, second in first+1:blocks
+      h1 = @view responses[:, first]
+      h2 = @view responses[:, second]
+      denominator = sum(abs2, h1) + sum(abs2, h2)
+      temporal += sum(abs2, h2 .- h1) /
+        max(denominator, eps(Float64))
+      temporal_pairs += 1
+    end
+    temporal /= temporal_pairs
+  end
+
+  max_delay = max(0, min(L - 1, pilot_count - 2))
+  design = Matrix{ComplexF64}(undef, pilot_count, max_delay + 1)
+  @inbounds for (row, carrier) in enumerate(pilots), delay in 0:max_delay
+    design[row, delay + 1] = cispi(-2 * (carrier - 1) * delay / N)
+  end
+  causal_residual = 0.0
+  causal_energy = 0.0
+  @inbounds for block in 1:blocks
+    response = @view responses[:, block]
+    fitted = design * (design \ response)
+    causal_residual += sum(abs2, response .- fitted)
+    causal_energy += sum(abs2, response)
+  end
+  causal = causal_residual / max(causal_energy, eps(Float64))
+
+  cp = 0.0
+  cp_residual_hz = 0.0
+  if L > 0
+    cp_sum = 0.0 + 0.0im
+    cp_samples = max(1, min(L, max(4, div(L, 8))))
+    @inbounds for block in 0:blocks-1
+      base = block * (N + L)
+      prefix = @view waveform[base + L - cp_samples + 1:base + L]
+      tail = @view waveform[
+        base + L + N - cp_samples + 1:base + L + N]
+      cp_sum += sum(tail .* conj.(prefix))
+    end
+    cp_phase = angle(cp_sum)
+    cp = abs(cp_phase) / pi
+    cp_residual_hz = cp_phase * Float64(fs) / (2pi * N)
+  end
+  (temporal=temporal, causal=causal, cp=cp,
+   cp_residual_hz=cp_residual_hz)
+end
+
+function _cfo_lattice(sync_phase, sync_spacing, fs)
+  sync_spacing > 0 || throw(ArgumentError(
+    "synchronization acquisition failed: invalid CFO lattice spacing"))
+  base = sync_phase * Float64(fs) / (2pi * sync_spacing)
+  spacing = Float64(fs) / sync_spacing
+  candidates = Float64[]
+  for alias in -64:64
+    candidate = base + alias * spacing
+    abs(candidate) <= _COARSE_CFO_BOUND_HZ && push!(candidates, candidate)
+  end
+  isempty(candidates) && throw(ArgumentError(
+    "synchronization acquisition failed: CFO lattice is empty"))
+  candidates, spacing
+end
+
+function _correct_acquired_body(m::Modulation, waveform, fs, nblocks,
+                                impairments)
+  S = _synclen(m)
+  nominal_blocks = Int(nblocks) * _blocklen(m)
   center_span = impairments.second_center - impairments.first_center
   drift_per_sample = center_span > 0 ?
     (impairments.stop_hz - impairments.start_hz) / center_span : 0.0
@@ -1166,16 +1535,107 @@ function _coarse_doppler(m::Modulation, waveform::AbstractVector{<:Complex}, fc,
   derotated = ComplexF64.(waveform) .*
     cispi.(-2 .* (start_at_zero .* sample .+
                   0.5 .* drift_per_sample .* sample .^ 2) ./ fs)
-
   duration_scale = impairments.duration_reliable ?
     impairments.duration_scale : 1.0
   body_start = impairments.first_center + duration_scale * S / 2
   body_stop = body_start + (nominal_blocks - 1) * duration_scale
-  (body_start < 1 || body_stop > length(derotated)) &&
-    return derotated, carrier_offset
-  corrected = _scaled_segment(
+  (body_start < 1 || body_stop > length(derotated)) && return nothing
+  body = _scaled_segment(
     derotated, body_start, duration_scale, nominal_blocks)
-  corrected, carrier_offset
+  residual = (impairments.start_hz + impairments.stop_hz) / 2
+  (body=body, residual=residual)
+end
+
+# Repeated-sync phase supplies a bounded carrier-offset lattice. Every member
+# is evaluated on one carrier-invariant affine CP timing map, while complete-
+# frame derotation and synchronization reacquisition retain the repeated-sync
+# credibility check. Phase-sensitive outer-pilot response ranks the candidates,
+# and a causal-pilot-supported CP residual rejects an adjacent lattice alias.
+function _coarse_doppler(m::Modulation, waveform::AbstractVector{<:Complex}, fc, fs, nblocks)
+  _ = fc
+  blocks = Int(nblocks)
+  blocks > 0 || throw(ArgumentError(
+    "synchronization acquisition needs at least one OFDM block"))
+  initial = _sync_body_observation(m, waveform, fs, blocks)
+  candidates, lattice_spacing = _cfo_lattice(
+    initial.sync_phase, initial.sync_spacing, fs)
+  sync_scale = _plausible_duration_scale(initial.duration_scale) ?
+    initial.duration_scale : 1.0
+  predicted_body_start = initial.pre_start +
+    sync_scale * _synclen(m)
+  raw_fit = _affine_cp_body_fit(
+    waveform, m, blocks, predicted_body_start;
+    baseline_scale=sync_scale,
+    scale_origin=_synclen(m) / 2)
+  scored = NamedTuple[]
+  for candidate in candidates
+    derotated = ComplexF64.(waveform)
+    @inbounds for index in eachindex(derotated)
+      derotated[index] *= cispi(
+        -2 * candidate * (index - 1) / Float64(fs))
+    end
+    final = try
+      _sync_body_observation(m, derotated, fs, blocks)
+    catch error
+      error isa ArgumentError || rethrow()
+      continue
+    end
+    body = raw_fit === nothing ? final.body :
+      _derotate_affine_cp_body(raw_fit, candidate, fs)
+    metrics = _pilot_cfo_score(m, body, fs, blocks)
+    prior_distance = abs(initial.dual_slope_cfo) <= _COARSE_CFO_BOUND_HZ ?
+      abs(candidate - initial.dual_slope_cfo) /
+        max(lattice_spacing, eps(Float64)) : 0.0
+    score = blocks >= 2 ?
+      metrics.temporal + 0.02metrics.cp^2 + 0.005prior_distance^2 :
+      metrics.causal + 0.05metrics.cp^2 + 0.005prior_distance^2
+    isfinite(score) && isfinite(final.coherent_quality) && push!(scored, (
+      candidate=candidate,
+      cfo=candidate,
+      score=score,
+      quality=final.coherent_quality,
+      causal=metrics.causal,
+      cp_residual_hz=metrics.cp_residual_hz,
+      body=body,
+    ))
+  end
+  isempty(scored) && throw(ArgumentError(
+    "synchronization acquisition failed: no carrier candidate retains credible synchronization"))
+  if Int(m.np) > 0 && minimum(item.causal for item in scored) <= 0.1
+    compatible = filter(
+      item -> abs(item.cp_residual_hz) <=
+        0.5lattice_spacing + eps(Float64),
+      scored,
+    )
+    isempty(compatible) || (scored = compatible)
+  end
+  strongest_quality = maximum(item.quality for item in scored)
+  strongest_quality > 0 || throw(ArgumentError(
+    "synchronization acquisition failed: no positive-quality carrier candidate remains"))
+  credible = filter(
+    item -> item.quality >= 0.1strongest_quality, scored)
+  isempty(credible) && throw(ArgumentError(
+    "synchronization acquisition failed: no finite-quality carrier candidate remains"))
+  best_score = minimum(item.score for item in credible)
+  score_tolerance = max(1e-6, 1e-3abs(best_score))
+  tied = filter(
+    item -> item.score <= best_score + score_tolerance, credible)
+  selected = tied[argmax(item.quality for item in tied)]
+  raw_fit !== nothing && raw_fit.refined &&
+    return selected.body, selected.cfo
+  derotated = ComplexF64.(waveform)
+  @inbounds for index in eachindex(derotated)
+    derotated[index] *= cispi(
+      -2 * selected.candidate * (index - 1) / Float64(fs))
+  end
+  impairments = _sync_impairments(m, derotated, fs, blocks)
+  if impairments.sync_reliable
+    corrected = _correct_acquired_body(
+      m, derotated, fs, blocks, impairments)
+    corrected !== nothing && return (
+      corrected.body, selected.candidate + corrected.residual)
+  end
+  selected.body, selected.cfo
 end
 
 

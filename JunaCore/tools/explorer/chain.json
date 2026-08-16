@@ -159,21 +159,29 @@
     {
       "id": "acquisition",
       "title": "Packet acquisition",
-      "detail": "Dual-slope LFM synchronization, normalized sync reliability, phase-balanced leading/trailing carrier and duration fitting, guarded cyclic-prefix duration and carrier-alias resolution, signed carrier-drift correction, synchronization-gated cyclic-prefix block tracking, guard handling, and partial-FFT branches.",
+      "detail": "Dual-slope LFM synchronization with carrier-invariant differential credibility, a supported cyclic-prefix baseline timing map shared at the same raw sample coordinates by every carrier candidate, bounded affine refinement only when cyclic-prefix correspondence improves by more than five percent, repeated-sync carrier lattice, full-frame candidate derotation and reacquisition, outer-pilot scoring with causal-pilot-supported cyclic-prefix alias compatibility, signed carrier-drift correction, synchronization-gated cyclic-prefix block tracking, guard handling, and partial-FFT branches.",
       "symbols": [
         "_sync_chirp",
         "_sync_components",
         "_sync_waveform",
         "_sync_carrier_offset",
+        "_differential_corr",
         "_sync_match_score",
         "_sync_phase_balance",
         "_balanced_sync_fit",
         "_cp_duration_score",
         "_cp_duration_fit",
+        "_affine_cp_body_score",
+        "_affine_cp_body_fit",
+        "_derotate_affine_cp_body",
         "_sync_alias_score",
         "_cp_carrier_fit",
         "_sync_impairments",
         "_plausible_duration_scale",
+        "_sync_body_observation",
+        "_pilot_cfo_score",
+        "_cfo_lattice",
+        "_correct_acquired_body",
         "_coarse_doppler",
         "_track_block_carrier",
         "_branch_observations"
@@ -181,6 +189,7 @@
       "suites": [
         "layout",
         "acquisition-cfo",
+        "replay-uacr",
         "interface",
         "contract"
       ],
