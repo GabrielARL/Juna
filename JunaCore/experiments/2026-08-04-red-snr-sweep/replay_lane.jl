@@ -13,10 +13,11 @@ module ReplayLane
 import MAT
 
 export ReplayCapture, align_to_reference, apply_capture, capture_from_dict,
-       load_capture
+       capture_snapshot_limit, load_capture
 
 struct ReplayCapture
     h::Matrix{ComplexF64}       # oldest-delay to zero-delay tap x snapshot
+    h_second::Matrix{ComplexF64} # cached not-a-knot spline derivatives
     phase::Vector{Float64}      # UACR theta_hat or phi_hat track for that lane
     fs::Float64
     fc::Float64
@@ -45,7 +46,11 @@ struct ReplayCapture
         all(isfinite, phase) || throw(ArgumentError("replay phase must be finite"))
         tracking in (:phase, :delay_phase) ||
             throw(ArgumentError("replay tracking must be :phase or :delay_phase"))
-        new(h, phase, fs, fc, step, receiver, name, tracking)
+        h_second = similar(h)
+        @inbounds for tap in axes(h, 1)
+            h_second[tap, :] .= _cubic_second_derivatives(@view h[tap, :])
+        end
+        new(h, h_second, phase, fs, fc, step, receiver, name, tracking)
     end
 end
 
@@ -167,24 +172,54 @@ function _cubic_time_warp(values::AbstractVector{<:Complex},
     length(values) == length(offsets) ||
         throw(DimensionMismatch("time-warp offsets must match replay output"))
     n = length(values)
+    positions = Float64[index + offsets[index] for index in eachindex(values)]
+    _cubic_interpolate(values, positions)
+end
+
+function _cubic_value(values::AbstractVector{<:Complex},
+                      second::AbstractVector{<:Complex}, position::Real)
+    n = length(values)
+    1 <= position <= n || return 0.0 + 0.0im
+    position == n && return ComplexF64(values[n])
+    lo = floor(Int, position)
+    fraction = position - lo
+    complement = 1 - fraction
+    complement * values[lo] + fraction * values[lo+1] +
+        ((complement^3 - complement) * second[lo] +
+         (fraction^3 - fraction) * second[lo+1]) / 6
+end
+
+
+function _cubic_interpolate(values::AbstractVector{<:Complex},
+                            positions::AbstractVector{<:Real})
+    isempty(values) && throw(ArgumentError("cubic source must not be empty"))
     second = _cubic_second_derivatives(values)
-    warped = zeros(ComplexF64, n)
-    @inbounds for index in eachindex(warped)
-        position = index + offsets[index]
-        1 <= position <= n || continue
-        if position == n
-            warped[index] = values[n]
-            continue
-        end
-        lo = floor(Int, position)
-        fraction = position - lo
-        complement = 1 - fraction
-        warped[index] =
-            complement * values[lo] + fraction * values[lo+1] +
-            ((complement^3 - complement) * second[lo] +
-             (fraction^3 - fraction) * second[lo+1]) / 6
-    end
-    warped
+    ComplexF64[_cubic_value(values, second, position) for position in positions]
+end
+
+
+function capture_snapshot_limit(capture::ReplayCapture,
+                                input_samples::Integer)
+    samples = Int(input_samples)
+    samples > 0 || throw(ArgumentError("replay input length must be positive"))
+    ntaps, nsnapshots = size(capture.h)
+    output_samples = samples + ntaps
+    convolved_samples = output_samples - 1
+
+    # The official replay evaluates h_hat on the fs_time grid with a cubic
+    # spline and zero-fills outside that grid. Published packet positions must
+    # nevertheless stay entirely inside measured tap support.
+    last_tap_offset = convolved_samples - 1
+    tap_limit = floor(Int, nsnapshots - last_tap_offset / capture.step)
+
+    # phi_hat supplies one additional sample for its delay-warp coordinates;
+    # theta_hat is consumed only for the nonzero convolution samples.
+    phase_samples = capture.tracking === :delay_phase ?
+        output_samples : convolved_samples
+    last_phase_offset = phase_samples - 1
+    phase_limit = fld(length(capture.phase) - 1 - last_phase_offset,
+                      capture.step) + 1
+    max(0, min(tap_limit, phase_limit))
 end
 
 # UACR-compatible time-varying FIR interpolation for one selected lane.
@@ -200,25 +235,43 @@ function apply_capture(capture::ReplayCapture,
 
     x = ComplexF64.(input)
     ntaps, nsnapshots = size(capture.h)
-    output = zeros(ComplexF64, length(x) + ntaps - 1)
-    phase_track = Vector{Float64}(undef, length(output))
+    # Match uwa_channels.replay exactly: T+L output samples, with T+L-1
+    # convolution samples and one trailing zero used by phi_hat's time warp.
+    output = zeros(ComplexF64, length(x) + ntaps)
+    convolved_samples = length(output) - 1
+    phase_samples = capture.tracking === :delay_phase ?
+        length(output) : convolved_samples
     phase_start = (start - 1) * capture.step + 1
-    @inbounds for output_idx in eachindex(output)
+    phase_stop = phase_start + phase_samples - 1
+    phase_stop <= length(capture.phase) || throw(ArgumentError(
+        "snapshot $start needs phase samples $phase_start:$phase_stop, " *
+        "but the capture has only $(length(capture.phase))"))
+    phase_track = capture.phase[phase_start:phase_stop]
+    @inbounds for output_idx in 1:convolved_samples
         offset = output_idx - 1
-        snap = min(start + div(offset, capture.step), nsnapshots)
-        next_snap = min(snap + 1, nsnapshots)
-        alpha = mod(offset, capture.step) / capture.step
+        snapshot_position = start + offset / capture.step
+        1 <= snapshot_position <= nsnapshots || continue
+        last_snapshot = snapshot_position == nsnapshots
+        lo = last_snapshot ? nsnapshots : floor(Int, snapshot_position)
+        fraction = last_snapshot ? 0.0 : snapshot_position - lo
+        complement = 1 - fraction
+        second_lo_weight = (complement^3 - complement) / 6
+        second_hi_weight = (fraction^3 - fraction) / 6
         base = output_idx - ntaps
         acc = 0.0 + 0.0im
         for tap in 1:ntaps
             input_idx = base + tap
             1 <= input_idx <= length(x) || continue
-            response = (1 - alpha) * capture.h[tap, snap] +
-                       alpha * capture.h[tap, next_snap]
+            response = if last_snapshot
+                capture.h[tap, nsnapshots]
+            else
+                complement * capture.h[tap, lo] +
+                fraction * capture.h[tap, lo + 1] +
+                second_lo_weight * capture.h_second[tap, lo] +
+                second_hi_weight * capture.h_second[tap, lo + 1]
+            end
             acc += response * x[input_idx]
         end
-        phase_idx = min(phase_start + offset, length(capture.phase))
-        phase_track[output_idx] = capture.phase[phase_idx]
         output[output_idx] = acc * cis(phase_track[output_idx])
     end
     capture.tracking === :phase && return output

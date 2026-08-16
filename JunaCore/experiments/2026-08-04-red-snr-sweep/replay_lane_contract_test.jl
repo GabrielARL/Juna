@@ -16,6 +16,49 @@ using .ReplayLane
     @test output[2] ≈ cis(phase[(2 - 1) * step + 2])
 end
 
+@testset "UACR tap evolution uses not-a-knot cubic interpolation" begin
+    step = 4
+    snapshot_values = ComplexF64[(index - 1)^3 for index in 1:6]
+    taps = reshape(snapshot_values, 1, :)
+    phase = zeros(Float64, 64)
+    capture = ReplayCapture(taps, phase, 16.0, 100.0, step, 1, "cubic")
+    output = apply_capture(capture, ones(ComplexF64, 9); snapshot=2)
+
+    positions = 1 .+ (0:8) ./ step
+    @test output[1:9] ≈
+        ComplexF64[position^3 for position in positions] atol=1e-10
+    @test output[end] == 0
+end
+
+@testset "UACR support is zero-filled and phase bounds are strict" begin
+    taps = ComplexF64[1 2]
+    phase = zeros(Float64, 16)
+    capture = ReplayCapture(taps, phase, 10.0, 100.0, 1, 1, "support")
+    output = apply_capture(capture, ones(ComplexF64, 4); snapshot=2)
+
+    @test output[1] ≈ 2.0 + 0im
+    @test output[2:end] == zeros(ComplexF64, length(output) - 1)
+
+    short_phase = ReplayCapture(
+        ones(ComplexF64, 1, 8), zeros(Float64, 2),
+        10.0, 100.0, 1, 1, "short-phase")
+    @test_throws ArgumentError apply_capture(
+        short_phase, ones(ComplexF64, 3))
+end
+
+@testset "tracking-specific packet guards retain complete UACR support" begin
+    taps = ones(ComplexF64, 2, 10)
+    phase = zeros(Float64, 9)
+    theta = ReplayCapture(
+        taps, phase, 10.0, 100.0, 2, 1, "theta"; tracking=:phase)
+    phi = ReplayCapture(
+        taps, phase, 10.0, 100.0, 2, 1, "phi"; tracking=:delay_phase)
+
+    @test capture_snapshot_limit(theta, 4) == 3
+    @test capture_snapshot_limit(phi, 4) == 2
+    @test length(apply_capture(theta, ones(ComplexF64, 4))) == 6
+end
+
 @testset "UACR phi_hat applies phase and delay while theta_hat is phase-only" begin
     fs = 10.0
     fc = 10.0

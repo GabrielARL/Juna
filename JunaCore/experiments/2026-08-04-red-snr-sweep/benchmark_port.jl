@@ -17,7 +17,7 @@ using Statistics
 import SignalAnalysis
 include(joinpath(@__DIR__, "replay_lane.jl"))
 using .ReplayLane: ReplayCapture, align_to_reference, apply_capture,
-                   capture_from_dict, load_capture
+                   capture_from_dict, capture_snapshot_limit, load_capture
 const Juna = JunaCore.Juna
 const LDPC = JunaCore.LDPC
 const Modulations = JunaCore.Modulations
@@ -431,14 +431,10 @@ function _capture_position_limit(capture::ReplayCapture,
     rate = Float64(modem_fs)
     isfinite(rate) && rate > 0 || throw(ArgumentError("modem fs must be positive"))
     channel_samples = ceil(Int, waveform_length * capture.fs / rate)
-    output_samples = channel_samples + size(capture.h, 1) - 1
-    last_offset = output_samples - 1
-    # Keep both the interpolated tap snapshot and phase index away from their
-    # clamp-to-last fallbacks. Every reported packet must use a fully observed
-    # capture segment rather than silently extending its tail.
-    last_tap_snapshot = size(capture.h, 2) - div(last_offset, capture.step) - 1
-    last_phase_snapshot = div(length(capture.phase) - last_offset, capture.step)
-    stop = min(last_tap_snapshot, last_phase_snapshot)
+    # Delegate the tracking-specific UACR bounds. phi_hat needs one more phase
+    # sample than theta_hat for its delay-warp coordinates, and both modes must
+    # remain inside measured cubic tap support.
+    stop = capture_snapshot_limit(capture, channel_samples)
     stop >= 1 || throw(ArgumentError("capture is too short for one waveform"))
     channel_samples, stop
 end
