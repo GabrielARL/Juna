@@ -238,6 +238,17 @@ JCM-027a, JCM-046a, and JCM-052d were approved together. JCM-027 is no longer
 outside the merge scope under JCM-028 once its style dependency and eight builds
 have been verified.
 
+## Codex decisions
+
+Codex identifiers use the `CX` prefix. CX-1 through CX-9 are reserved by the
+integration worktree. Next free Codex identifier: **CX-13**.
+
+| ID | State | Decision. |
+|---|---|---|
+| CX-10 | approved | Add the repository's first GitHub Actions workflow at `.github/workflows/junacore-ci.yml`. Run it on pull requests, pushes to `main`, and manual dispatch with read-only contents permission, cancellation of superseded runs, `ubuntu-24.04`, one Julia thread, one OpenBLAS thread, and Julia 1.12.6 to match the tracked manifest. Pin `actions/checkout` v7.0.1 and `julia-actions/setup-julia` v3.0.2 by immutable commit SHA. User: "fix them, run them, i approve all". |
+| CX-11 | approved | Make the workflow one atomic required-check job with named steps for package instantiate/load, the dedicated `direct-cz` suite, full `Pkg.test()`, fixed receiver parity, the explorer data contract, and the explorer server contract. Check for the runner's real Google Chrome before the server contract. The dedicated suite also runs inside `Pkg.test()`; the deliberate duplicate gives Direct $C,z$ explicit CI visibility while proving it remains registered in the full suite. User: "fix them, run them, i approve all". |
+| CX-12 | approved | Add a ninth keyed parity case, `direct_cz.compact`, to `tools/parity_check.jl` and `tools/parity_golden.json`. Use the existing deterministic compact frame parameters and seed; hash only decoded hard decisions and source bits, and separately assert stable trace facts for both the passing-CRC short circuit and a zero-input failed-CRC rescue with one accepted joint $C,z$ step. Do not hash floating-point losses or gradients. Keep all eight existing keyed digests unchanged. Final implementation also hashes a deterministic 4 dB, seed-5 public rescue in which Standard fails CRC and Direct $C,z$ passes and is selected; this closes the review finding that the first draft hashed only Standard output. User: "fix them, run them, i approve all". |
+
 ## Claude decisions
 
 Claude's identifiers use the `CL` prefix so two agents cannot allocate the
