@@ -13,7 +13,7 @@ module ReplayLane
 import MAT
 
 export ReplayCapture, align_to_reference, apply_capture, capture_from_dict,
-       capture_snapshot_limit, load_capture
+       capture_snapshot_limit, load_capture, replay_support
 
 struct ReplayCapture
     h::Matrix{ComplexF64}       # oldest-delay to zero-delay tap x snapshot
@@ -173,7 +173,67 @@ function _cubic_time_warp(values::AbstractVector{<:Complex},
         throw(DimensionMismatch("time-warp offsets must match replay output"))
     n = length(values)
     positions = Float64[index + offsets[index] for index in eachindex(values)]
+    all(diff(positions) .> 0) || throw(ArgumentError(
+        "UACR delay warp coordinates must be strictly increasing"))
     _cubic_interpolate(values, positions)
+end
+
+function _time_warp_plan(offsets::AbstractVector{<:Real})
+    isempty(offsets) && throw(ArgumentError(
+        "UACR delay warp needs at least one coordinate"))
+    all(isfinite, offsets) || throw(ArgumentError(
+        "UACR delay warp offsets must be finite"))
+    n = length(offsets)
+    nominal_coordinates = Float64[
+        index + offsets[index] for index in eachindex(offsets)
+    ]
+    all(diff(nominal_coordinates) .> 0) || throw(ArgumentError(
+        "UACR delay warp coordinates must be strictly increasing"))
+
+    # A positive delay coordinate moves source energy toward the beginning of
+    # the returned waveform; a negative coordinate moves it toward the end.
+    # Preserve both boundaries with the smallest whole-sample guards that
+    # cover the measured phi_hat excursion instead of relying on zero-filled
+    # extrapolation to discard the shifted energy.
+    pre_guard = max(0, ceil(Int, maximum(offsets)))
+    post_guard = max(0, ceil(Int, -minimum(offsets)))
+    timeline = collect((1 - pre_guard):(n + post_guard))
+    extended_offsets = Float64[
+        time < 1 ? offsets[1] :
+        (time > n ? offsets[end] : offsets[time]) for time in timeline
+    ]
+    coordinates = Float64.(timeline) .+ extended_offsets
+    all(diff(coordinates) .> 0) || throw(ArgumentError(
+        "UACR guarded delay warp coordinates must be strictly increasing"))
+
+    # One zero-valued cubic node on either side makes the interpolation domain
+    # explicit. Every requested coordinate is checked against that domain;
+    # replay never depends on implicit spline extrapolation.
+    source_start = floor(Int, min(1.0, minimum(coordinates))) - 1
+    source_stop = ceil(Int, max(Float64(n), maximum(coordinates))) + 1
+    (
+        pre_guard=pre_guard,
+        post_guard=post_guard,
+        timeline=timeline,
+        coordinates=coordinates,
+        source_start=source_start,
+        source_stop=source_stop,
+    )
+end
+
+function _guarded_cubic_time_warp(values::AbstractVector{<:Complex},
+                                  offsets::AbstractVector{<:Real})
+    length(values) == length(offsets) ||
+        throw(DimensionMismatch("time-warp offsets must match replay output"))
+    plan = _time_warp_plan(offsets)
+    source = zeros(ComplexF64, plan.source_stop - plan.source_start + 1)
+    @inbounds for time in eachindex(values)
+        source[time - plan.source_start + 1] = values[time]
+    end
+    positions = plan.coordinates .- plan.source_start .+ 1
+    all((1 .<= positions) .& (positions .<= length(source))) || throw(ArgumentError(
+        "UACR guarded delay warp exceeds explicit source support"))
+    _cubic_interpolate(source, positions), plan
 end
 
 function _cubic_value(values::AbstractVector{<:Complex},
@@ -222,6 +282,81 @@ function capture_snapshot_limit(capture::ReplayCapture,
     max(0, min(tap_limit, phase_limit))
 end
 
+function replay_support(capture::ReplayCapture,
+                        input_samples::Integer;
+                        snapshot::Integer=1)
+    samples = Int(input_samples)
+    samples > 0 || throw(ArgumentError("replay input length must be positive"))
+    start = Int(snapshot)
+    start >= 1 || throw(ArgumentError("replay snapshot must be positive"))
+    ntaps, nsnapshots = size(capture.h)
+    nominal_output_samples = samples + ntaps
+    convolved_samples = nominal_output_samples - 1
+    last_tap_offset = convolved_samples - 1
+    tap_snapshot_stop = start + last_tap_offset / capture.step
+    start <= nsnapshots && tap_snapshot_stop <= nsnapshots ||
+        throw(ArgumentError(
+            "snapshot $start needs tap support through snapshot " *
+            "$(tap_snapshot_stop), but the capture has only $nsnapshots"))
+
+    phase_samples = capture.tracking === :delay_phase ?
+        nominal_output_samples : convolved_samples
+    phase_sample_start = (start - 1) * capture.step + 1
+    phase_sample_stop = phase_sample_start + phase_samples - 1
+    phase_sample_stop <= length(capture.phase) || throw(ArgumentError(
+        "snapshot $start needs phase samples " *
+        "$phase_sample_start:$phase_sample_stop, but the capture has only " *
+        "$(length(capture.phase))"))
+
+    if capture.tracking === :delay_phase
+        phase_track = @view capture.phase[phase_sample_start:phase_sample_stop]
+        offsets = phase_track .* (capture.fs / (2pi * capture.fc))
+        plan = _time_warp_plan(offsets)
+        pre_guard_samples = plan.pre_guard
+        post_guard_samples = plan.post_guard
+        guarded_output_samples = length(plan.timeline)
+        warp_coordinate_min = minimum(plan.coordinates)
+        warp_coordinate_max = maximum(plan.coordinates)
+        warp_source_start = plan.source_start
+        warp_source_stop = plan.source_stop
+    else
+        pre_guard_samples = 0
+        post_guard_samples = 0
+        guarded_output_samples = nominal_output_samples
+        warp_coordinate_min = 1.0
+        warp_coordinate_max = Float64(nominal_output_samples)
+        warp_source_start = 1
+        warp_source_stop = nominal_output_samples
+    end
+
+    (
+        snapshot_index=start,
+        tracking=capture.tracking,
+        input_samples=samples,
+        tap_count=ntaps,
+        tap_snapshot_start=Float64(start),
+        tap_snapshot_stop,
+        tap_snapshot_limit=nsnapshots,
+        phase_sample_start,
+        phase_sample_stop,
+        phase_sample_limit=length(capture.phase),
+        nominal_output_samples,
+        convolved_samples,
+        pre_guard_samples,
+        post_guard_samples,
+        guarded_output_samples,
+        nominal_output_start_index=pre_guard_samples + 1,
+        nominal_output_stop_index=pre_guard_samples + nominal_output_samples,
+        warp_coordinate_min,
+        warp_coordinate_max,
+        warp_source_start,
+        warp_source_stop,
+        warp_monotonic=true,
+        replay_support_start_seconds=(phase_sample_start - 1) / capture.fs,
+        replay_support_end_seconds=(phase_sample_stop - 1) / capture.fs,
+    )
+end
+
 # UACR-compatible time-varying FIR interpolation for one selected lane.
 # theta_hat restores phase only. phi_hat restores phase and the corresponding
 # delay drift phi_hat/(2*pi*fc) through cubic time interpolation.
@@ -230,8 +365,7 @@ function apply_capture(capture::ReplayCapture,
                        snapshot::Integer=1)
     isempty(input) && throw(ArgumentError("replay input must not be empty"))
     start = Int(snapshot)
-    1 <= start <= size(capture.h, 2) ||
-        throw(ArgumentError("snapshot $start is outside 1:$(size(capture.h, 2))"))
+    support = replay_support(capture, length(input); snapshot=start)
 
     x = ComplexF64.(input)
     ntaps, nsnapshots = size(capture.h)
@@ -239,18 +373,11 @@ function apply_capture(capture::ReplayCapture,
     # convolution samples and one trailing zero used by phi_hat's time warp.
     output = zeros(ComplexF64, length(x) + ntaps)
     convolved_samples = length(output) - 1
-    phase_samples = capture.tracking === :delay_phase ?
-        length(output) : convolved_samples
-    phase_start = (start - 1) * capture.step + 1
-    phase_stop = phase_start + phase_samples - 1
-    phase_stop <= length(capture.phase) || throw(ArgumentError(
-        "snapshot $start needs phase samples $phase_start:$phase_stop, " *
-        "but the capture has only $(length(capture.phase))"))
-    phase_track = capture.phase[phase_start:phase_stop]
+    phase_track = capture.phase[
+        support.phase_sample_start:support.phase_sample_stop]
     @inbounds for output_idx in 1:convolved_samples
         offset = output_idx - 1
         snapshot_position = start + offset / capture.step
-        1 <= snapshot_position <= nsnapshots || continue
         last_snapshot = snapshot_position == nsnapshots
         lo = last_snapshot ? nsnapshots : floor(Int, snapshot_position)
         fraction = last_snapshot ? 0.0 : snapshot_position - lo
@@ -276,7 +403,12 @@ function apply_capture(capture::ReplayCapture,
     end
     capture.tracking === :phase && return output
     drift_samples = phase_track .* (capture.fs / (2pi * capture.fc))
-    _cubic_time_warp(output, drift_samples)
+    warped, plan = _guarded_cubic_time_warp(output, drift_samples)
+    (plan.pre_guard == support.pre_guard_samples &&
+     plan.post_guard == support.post_guard_samples &&
+     length(warped) == support.guarded_output_samples) || error(
+        "UACR replay-support evidence differs from applied guard plan")
+    warped
 end
 
 function align_to_reference(received::AbstractVector{<:Number},
