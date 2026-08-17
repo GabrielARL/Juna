@@ -682,15 +682,31 @@ end
 
 function _frame_static_trace(m::Modulation, code::_Code, layout::_Layout,
                              observations, profile::Symbol)
-  equalized = _frame_independent_equalized(
+  initial_equalized = _frame_independent_equalized(
     m, layout, observations, profile)
-  candidate = _frame_candidate(m, code, layout, equalized)
+  initial_candidate = _frame_candidate(m, code, layout, initial_equalized)
+  best = initial_candidate
+  best_equalized = initial_equalized
+  if profile === _MODE_STANDARD &&
+     _uses_qpsk_phase_state_equalizer(m, layout)
+    phase_equalized = zeros(ComplexF64, Int(m.nc), size(observations, 3))
+    @inbounds for block in axes(observations, 3)
+      raw = _sum_branches(@view observations[:, :, block])
+      phase_equalized[:, block] .=
+        _qpsk_phase_state_equalize(m, layout, raw)
+    end
+    phase_candidate = _frame_candidate(m, code, layout, phase_equalized)
+    if _juna_better(best, phase_candidate)
+      best = phase_candidate
+      best_equalized = phase_equalized
+    end
+  end
   (
     profile=profile,
-    initial_candidate=candidate,
-    best=candidate,
-    initial_candidate_equalized=equalized,
-    best_equalized=equalized,
+    initial_candidate,
+    best,
+    initial_candidate_equalized=initial_equalized,
+    best_equalized,
     selected_iteration=0,
     data_anchor_counts=Int[],
   )

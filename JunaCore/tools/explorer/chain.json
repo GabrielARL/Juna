@@ -199,9 +199,11 @@
     {
       "id": "standard",
       "title": "One-tap pilot-interpolated equalization + FEC",
-      "detail": "Pilot-interpolated one-tap equalization produces the Standard baseline candidate and FEC result, with no partial-FFT combining or refinement.",
+      "detail": "Pilot-interpolated one-tap equalization produces the Standard baseline candidate. For frame-wide QPSK with outer-pilot gaps of at least 16 active tones, a magnitude-weighted four-state phase candidate resolves data-observable pi/2 ambiguity against the same outer pilots; FEC deterministically keeps the better candidate. The path uses no partial-FFT combining or iterative refinement.",
       "symbols": [
-        "_standard_candidate"
+        "_standard_candidate",
+        "_frame_static_trace",
+        "_qpsk_phase_state_equalize"
       ],
       "suites": [
         "pfft",
@@ -209,7 +211,7 @@
         "contract"
       ],
       "kind": "initial",
-      "evidence": "behavioral"
+      "evidence": "direct"
     },
     {
       "id": "initial-candidate",

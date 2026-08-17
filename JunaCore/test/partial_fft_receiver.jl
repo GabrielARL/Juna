@@ -93,6 +93,46 @@ end
         @test count((standard_metrics .> 0) .!= bits) > 0
     end
 
+    @testset "sparse QPSK pilots resolve channel-phase quadrants" begin
+        m = PfftJuna.FrameWideLDPCModulation(
+            nc=512, np=64, bpc=2, pilot_ratio=1 / 20,
+            inner_pilot_ratio=1 / 20, frame_receiver=:standard)
+        layout = PfftJuna._layout(m, PFFT_FS)
+        raw = zeros(ComplexF64, Int(m.nc))
+        expected = Dict{Int,ComplexF64}()
+        pilot_symbol = Dict(
+            carrier => layout.pilot_syms[index]
+            for (index, carrier) in pairs(layout.pilot_idx))
+        invsqrt2 = inv(sqrt(2.0))
+        for (rank, carrier) in pairs(layout.active)
+            symbol = if haskey(pilot_symbol, carrier)
+                pilot_symbol[carrier]
+            else
+                ComplexF64(isodd(7rank + 1) ? -1 : 1,
+                           isodd(count_ones(11rank + 3)) ? -1 : 1) * invsqrt2
+            end
+            bin = carrier - 1
+            channel = 0.86cis(-2pi * bin * 31 / Int(m.nc)) +
+                      0.44cis(-2pi * bin * 7 / Int(m.nc) + 0.37)
+            raw[carrier] = channel * symbol
+            expected[carrier] = symbol
+        end
+
+        baseline = PfftJuna._residual_pilot_equalize(m, layout, copy(raw))
+        recovered = PfftJuna._qpsk_phase_state_equalize(
+            m, layout, copy(raw))
+        baseline_errors = count(layout.data_idx) do carrier
+            signbit(real(baseline[carrier])) != signbit(real(expected[carrier])) ||
+            signbit(imag(baseline[carrier])) != signbit(imag(expected[carrier]))
+        end
+        recovered_errors = count(layout.data_idx) do carrier
+            signbit(real(recovered[carrier])) != signbit(real(expected[carrier])) ||
+            signbit(imag(recovered[carrier])) != signbit(imag(expected[carrier]))
+        end
+        @test baseline_errors > 0
+        @test recovered_errors == 0
+    end
+
     @testset "lite refinement builds on the pfft initial candidate and never falls behind it" begin
         pfft = PfftJuna.PartialFFTModulation()
         lite = PfftJuna.LiteModulation()

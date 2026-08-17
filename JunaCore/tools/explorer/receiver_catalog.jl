@@ -20,7 +20,7 @@ const RECEIVERS = [
      role = "baseline",
      specific_suite_exemption =
         "standard-specific behavior is covered by the shared baseline suite",
-     purpose = "One-tap pilot-interpolated OFDM equalization followed by FEC."),
+     purpose = "Pilot-interpolated OFDM equalization followed by FEC, with a sparse-QPSK phase-state candidate selected only when it improves the frame decode."),
     (id = "partial-fft",
      display_name = "Partial-FFT + FEC",
      facade = "JunaPartialFFT",

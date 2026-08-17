@@ -2419,6 +2419,100 @@ function _residual_pilot_equalize(m::Modulation, layout::_Layout, carriers)
   equalized
 end
 
+# QPSK removes the unknown data symbol after a fourth power:
+# `-(H[k]X[k])^4 == H[k]^4`.  Sparse outer-pilot combs can therefore recover
+# the channel phase modulo pi/2 on every active carrier.  A four-state dynamic
+# program resolves those quadrants against the known pilots while weighting
+# discontinuities by received magnitude, so a quadrant transition is cheapest
+# at a physical channel null instead of being spread across an under-sampled
+# pilot interval.
+function _qpsk_phase_state_equalize(m::Modulation, layout::_Layout, carriers)
+  _bpc(m) == 2 || throw(ArgumentError(
+    "phase-state equalization requires QPSK"))
+  length(layout.pilot_idx) >= 2 || throw(ArgumentError(
+    "phase-state equalization requires at least two outer pilots"))
+  raw = carriers isa Vector{ComplexF64} ? copy(carriers) :
+    ComplexF64.(carriers)
+  nfft = Int(m.nc)
+  signed_bin(carrier) = begin
+    bin = carrier - 1
+    bin <= nfft ÷ 2 ? bin : bin - nfft
+  end
+  ordered = sort(layout.active; by=signed_bin)
+  nactive = length(ordered)
+  pilot_symbols = zeros(ComplexF64, nfft)
+  ispilot = falses(nfft)
+  @inbounds for index in eachindex(layout.pilot_idx)
+    carrier = layout.pilot_idx[index]
+    ispilot[carrier] = true
+    pilot_symbols[carrier] = layout.pilot_syms[index]
+  end
+
+  phases = Matrix{Float64}(undef, nactive, 4)
+  allowed = trues(nactive, 4)
+  amplitude = Vector{Float64}(undef, nactive)
+  @inbounds for (position, carrier) in pairs(ordered)
+    amplitude[position] = abs(raw[carrier])
+    if ispilot[carrier]
+      phases[position, :] .= angle(raw[carrier] / pilot_symbols[carrier])
+      allowed[position, 2:4] .= false
+    else
+      base = angle(-(raw[carrier]^4)) / 4
+      for quadrant in 0:3
+        phases[position, quadrant + 1] = base + quadrant * (pi / 2)
+      end
+    end
+  end
+
+  amplitude_scale = max(median(amplitude), eps(Float64))
+  cost = fill(Inf, nactive, 4)
+  parent = zeros(UInt8, nactive, 4)
+  @inbounds for state in 1:4
+    allowed[1, state] && (cost[1, state] = 0.0)
+  end
+  @inbounds for position in 2:nactive
+    transition_amplitude = min(
+      amplitude[position - 1], amplitude[position]) / amplitude_scale
+    transition_weight = transition_amplitude^2
+    for state in 1:4
+      allowed[position, state] || continue
+      for previous in 1:4
+        isfinite(cost[position - 1, previous]) || continue
+        phase_delta = angle(cis(
+          phases[position, state] - phases[position - 1, previous]))
+        candidate = cost[position - 1, previous] +
+          transition_weight * phase_delta^2
+        if candidate < cost[position, state]
+          cost[position, state] = candidate
+          parent[position, state] = UInt8(previous)
+        end
+      end
+    end
+  end
+
+  state = argmin(@view cost[end, :])
+  selected_phase = Vector{Float64}(undef, nactive)
+  @inbounds for position in nactive:-1:1
+    selected_phase[position] = phases[position, state]
+    position > 1 && (state = Int(parent[position, state]))
+  end
+  equalized = copy(raw)
+  @inbounds for (position, carrier) in pairs(ordered)
+    response = max(amplitude[position], eps(Float64)) *
+      cis(selected_phase[position])
+    equalized[carrier] /= response
+  end
+  equalized
+end
+
+function _uses_qpsk_phase_state_equalizer(m::Modulation, layout::_Layout)
+  _bpc(m) == 2 || return false
+  length(layout.pilot_idx) >= 2 || return false
+  pilot_positions = sort([
+    layout.active_rank[k] for k in layout.pilot_idx])
+  maximum(diff(pilot_positions); init=0) >= 16
+end
+
 function _sum_branches(yparts)
   P, N = size(yparts)
   carriers = Vector{ComplexF64}(undef, N)
