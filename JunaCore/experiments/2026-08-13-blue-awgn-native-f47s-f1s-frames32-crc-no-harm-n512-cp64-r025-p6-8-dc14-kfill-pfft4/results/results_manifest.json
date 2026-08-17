@@ -1,4 +1,6 @@
 {
+  "acquisition_source_commit": "5e518a4e62bb29df654f42b2b37d25c49d2c2524",
+  "acquisition_source_sha256": "3679bf6f490dda5d307924405f0b404e8c7147b15603625c8daa252889c0e243",
   "capture_native": {
     "captures": [
       {
@@ -31,6 +33,22 @@
     0.0,
     47.0
   ],
+  "cfo_rerun": {
+    "blue1_preserved": true,
+    "channels": [
+      "blue2",
+      "blue3",
+      "blue4"
+    ],
+    "completed_utc": "2026-08-17T06:16:31.871109+00:00",
+    "high_snr_ofdm_ber_max": 0.015581955922865013,
+    "hydrophones": [
+      1,
+      2,
+      3
+    ],
+    "path_count": 9
+  },
   "experiment_id": "2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n512-cp64-r025-p6-8-dc14-kfill-pfft4",
   "frame_duration_budget_seconds": 1.0,
   "frame_duration_seconds": 0.8986624,
@@ -95,13 +113,13 @@
   "selection_reason_counts": {
     "cwz_joint": {
       "crc_rescue": 2,
-      "standard_crc_valid": 709,
-      "standard_fallback": 5433
+      "standard_crc_valid": 1976,
+      "standard_fallback": 4166
     },
     "profiled_cz": {
-      "crc_rescue": 1,
-      "standard_crc_valid": 709,
-      "standard_fallback": 5434
+      "crc_rescue": 2,
+      "standard_crc_valid": 1976,
+      "standard_fallback": 4166
     }
   },
   "selection_trace_row_count": 12288,
@@ -125,47 +143,47 @@
     {
       "path": "runs/blue2_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "6c1b61fddc489be84c08612802f7115942c4b16b7a79ab4573d4132ac7244015"
+      "sha256": "93493ae06e8565ee675834a18f65f27b1ee8e0a379b6871a97df7f8f158ffa68"
     },
     {
       "path": "runs/blue2_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "fa4f6fd4c327e3d9d69a99021edddba5cbb28776e5019c3be77b19199c893233"
+      "sha256": "79e8258cd512e16dc3ec7ae2199399b4ee7e5bb4841ff4184799495ba24a15bf"
     },
     {
       "path": "runs/blue2_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "55e33437e80914c7509701090c770e61bf73abba0874e39449f3cd4d464e00a8"
+      "sha256": "0234f5764bfcef8945456518a19cf451a3c11ddb99593fe02befd6a5f3061398"
     },
     {
       "path": "runs/blue3_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "d4ed13df65927887a84f988589f508c6a2d5ff8742a58318e39176a2fcbb0a24"
+      "sha256": "beeb6c8bd438268049183c9c5423740405eada02f24c3a4909e13d9f00ed3eb8"
     },
     {
       "path": "runs/blue3_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "4bf35433bcc9fb56266516d1b3c79803444a976647f2ebbb1da852b15b193c0b"
+      "sha256": "3e7f9804dc72d650da66d0c00cfe35ce0e228c07aa9fbe806f292cb1895fb540"
     },
     {
       "path": "runs/blue3_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "d2a32c3346443763cbfd14c6d7bc434a307ab4cc465af95e82b63d01297f60be"
+      "sha256": "7e74e1af7ba30a3e141f6aff2bc60bb7e62336d3ab8a407dbc86c2a21f915d48"
     },
     {
       "path": "runs/blue4_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "950082d817ff7cfac9ddf3f4e751e19d3e9e251120ddd38bb43d63f4ff9b480d"
+      "sha256": "c08352183aaadac277d71d079e88157654bac2a07dcb63b9351ed51a35c111e9"
     },
     {
       "path": "runs/blue4_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "a276f8da67f3e9c1ef872c49a622dad66477eb5431a7df8dce7256f479c7156b"
+      "sha256": "c9f788c43c99d1eccc7e2b94e628e6bfccc99c2ca6f5b045128de9eaefe2b7f6"
     },
     {
       "path": "runs/blue4_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "19227154d19f56d1728d14a22635bf40e7b3bfa4687e26bfc1f7a5135b56a841"
+      "sha256": "3d7eb342ef613a873f90f483189029991678d8e6133a3ed144858a93f251c5b7"
     }
   ],
   "sync_rate_adaptation": {

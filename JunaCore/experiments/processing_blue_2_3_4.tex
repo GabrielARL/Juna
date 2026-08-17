@@ -1,0 +1,191 @@
+\documentclass[11pt]{article}
+\usepackage[margin=25mm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{xurl}
+
+\title{Processing Blue 2, 3, and 4}
+\date{17 August 2026}
+
+\begin{document}
+\maketitle
+
+\section{Capture data}
+
+The underwater acoustic channel exhibits extended multipath and rapid time
+variation.  We process the native Blue 2, Blue 3, and Blue 4 captures without
+changing their measured channel records.
+
+Each capture has three hydrophone signals.  The modem sampling rate is
+4882.8125 samples/s, the center frequency is 13 kHz, and the snapshot rate is
+48.828125 snapshots/s.  We use the first 47 s of each capture.
+
+We verify the capture files against the secure hash algorithm (SHA-256) values
+before processing.  The full values recorded in the result manifest are:
+
+\begin{center}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Capture & Bytes & SHA-256 \\
+\midrule
+\texttt{blue\_2.mat} & 206147418 &
+\url{a3b7452c6c999777b49e5b4ddb3ef113ba4f40ff2d1504847f6d4be63e6a4bee} \\
+\texttt{blue\_3.mat} & 206147418 &
+\url{e126e95880513453722b8e9530bd55347fdb1605b76210f99375d1226b4acf9f} \\
+\texttt{blue\_4.mat} & 206132594 &
+\url{24eaa514da13aff5b5f3f7f8c81eb0fd0dd664ee5ee009b450169c63999c766b} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Replay}
+
+The measured channel replay applies the measured phase and delay records to
+the transmitted waveform.  The \texttt{theta\_hat} record applies phase,
+whereas the \texttt{phi\_hat} record applies phase and delay.
+
+We use guarded cubic interpolation for the delay record.  The replay retains
+boundary samples with adaptive guards, requires all samples to remain inside
+the measured channel and tracking support, and rejects non-monotone time maps.
+
+We add independent proper-complex additive white Gaussian noise after the
+measured replay and before receiver alignment.  Hence the signal-to-noise
+power ratio does not alter the measured channel record.
+
+\section{Acquisition}
+
+The synchronization waveform occurs before and after the orthogonal frequency
+division multiplexing (OFDM) body.  We require both occurrences and both chirp
+components to provide credible synchronization evidence.
+
+We use the opposite chirp slopes to separate carrier offset from duration
+scale.  We reject a zero-energy waveform, missing peaks, implausible spacing,
+an incomplete OFDM body, and carrier candidates that do not retain credible
+synchronization.
+
+The phase difference between the repeated synchronization waveforms defines a
+bounded carrier-offset set between $-15$ Hz and 15 Hz.  We compare the
+candidates using one common cyclic-prefix timing map, outer-pilot response, and
+the cyclic-prefix residual.
+
+We remove the selected carrier rotation over the complete waveform and then
+repeat synchronization.  This order prevents a candidate-specific timing
+change from deciding the carrier offset.
+
+\section{Standard receiver}
+
+Sparse quadrature phase shift keying (QPSK) pilots may not describe a phase
+change between adjacent pilots.  However, the fourth power removes the unknown
+QPSK data symbol and gives the channel phase modulo $\pi/2$ at every active
+carrier.
+
+We resolve the four possible phase states against the known outer pilots.  The
+transition cost is weighted by received magnitude, so a phase transition costs
+less at a channel null than at a strong carrier.
+
+We apply this candidate only to frame-wide QPSK with at least two outer pilots
+and a maximum pilot gap of at least 16 active carriers.  Forward error
+correction (FEC) keeps the better of this candidate and the pilot-interpolated
+candidate.
+
+Although this change improves the Standard OFDM and FEC result, it is not used
+by the partial-FFT or iterative receiver paths.  Their results must therefore
+be checked separately and must not be inferred from the Standard result.
+
+\section{Configuration}
+
+The completed configuration uses $N=512$, a cyclic prefix of 64 samples, code
+rate 0.25, outer-pilot spacing 6, inner-pilot spacing 8, check degree 14, and
+four partial-FFT parts.  The horizon is filled by the available frame budget.
+
+We use signal-to-noise power ratios from 0 dB to 30 dB in 2 dB steps, random
+number generator seed 4, and 32 frames at each point.  Each frame contains 726
+payload bits.
+
+The frame contains 4388 samples and lasts 0.8986624 s.  This duration is within
+the one-second frame budget at the native modem sampling rate.
+
+We ran six receivers: \texttt{cwz\_joint}, \texttt{direct\_cz},
+\texttt{lite}, \texttt{ofdm\_fec}, \texttt{pfft}, and
+\texttt{profiled\_cz}.  The two cyclic redundancy check (CRC) paths return the
+gradient result only when its CRC is valid.
+
+We reran only Blue 2, Blue 3, and Blue 4, with three hydrophones for each
+capture.  The three Blue 1 paths were retained and their files were checked
+against the SHA-256 values recorded before the rerun.
+
+\section{Validation}
+
+The completed result records source commit
+\texttt{5e518a4e62bb29df654f42b2b37d25c49d2c2524} and acquisition source SHA-256
+\url{3679bf6f490dda5d307924405f0b404e8c7147b15603625c8daa252889c0e243}.
+
+We require 12 path contracts, 1152 aggregate rows, 36864 frame-trace rows,
+12288 selection-trace rows, 12 panels, and 72 receiver series.  Each refreshed
+Blue 2--Blue 4 path contains 96 aggregate rows, 3072 frame rows, and 1024
+selection rows.
+
+We also require every refreshed path to have a Standard OFDM bit error rate
+(BER) below 0.1 at 30 dB.  The maximum measured value over the nine paths is
+0.0155819559, and all four worker error files are empty.
+
+We include only a configuration with its completion marker and successful
+independent validation.  Results from configurations still being processed are
+not included in this note.
+
+\section{Results}
+
+Table~\ref{tab:ber30} gives the measured BER at 30 dB for the nine refreshed
+paths.  A table entry of zero denotes no observed errors in 23232 payload bits;
+it does not denote zero error probability.
+
+\begin{table}[htbp]
+\centering
+\caption{Measured BER at 30 dB for the completed $N=512$ configuration.}
+\label{tab:ber30}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}llrrrrrr@{}}
+\toprule
+Capture & Hydrophone & \texttt{cwz\_joint} & \texttt{direct\_cz} &
+\texttt{lite} & \texttt{ofdm\_fec} & \texttt{pfft} &
+\texttt{profiled\_cz} \\
+\midrule
+Blue 2 & 1 & 0.000129 & 0.000129 & 0.000129 & 0 & 0.058196 & 0.000129 \\
+Blue 2 & 2 & 0.008781 & 0.009900 & 0.008781 & 0 & 0.073218 & 0.008781 \\
+Blue 2 & 3 & 0.000043 & 0.000043 & 0.000043 & 0 & 0.077565 & 0.000043 \\
+Blue 3 & 1 & 0.380811 & 0.410253 & 0.380811 & 0 & 0.404787 & 0.380811 \\
+Blue 3 & 2 & 0.389032 & 0.413137 & 0.389032 & 0 & 0.401946 & 0.389032 \\
+Blue 3 & 3 & 0.380467 & 0.409392 & 0.380467 & 0 & 0.398244 & 0.380467 \\
+Blue 4 & 1 & 0.184100 & 0.206999 & 0.184100 & 0 & 0.281939 & 0.184100 \\
+Blue 4 & 2 & 0.156207 & 0.177514 & 0.156207 & 0.015582 & 0.269628 & 0.156207 \\
+Blue 4 & 3 & 0.168991 & 0.187457 & 0.168991 & 0 & 0.300749 & 0.168991 \\
+\bottomrule
+\end{tabular}
+}
+\end{table}
+
+The Standard OFDM result satisfies the stated 30 dB validation condition on
+all nine refreshed paths.  However, the other receiver results remain poor on
+Blue 3 and Blue 4 under this completed configuration.
+
+Hence this evidence validates the Standard receiver result for the stated
+condition.  It does not validate the partial-FFT, Direct C,z, JUNA-Lite, or
+CRC-gated receiver results on Blue 3 and Blue 4.
+
+\section{Sources}
+
+We obtained the processing behavior from
+\path{JunaCore/src/juna/common.jl},
+\path{JunaCore/src/juna/frame_wide_ldpc.jl}, and
+\path{JunaCore/tools/explorer/chain.json}.  We obtained the configuration and
+counts from the completed result manifest and the 12 path contracts.
+
+We checked completion with
+\path{JunaCore/bench/validate_blue_native_awgn_direct_cz_extension.py} and
+\path{JunaCore/bench/validate_blue_cfofix_channels234.py}.  The full measured
+BER values are stored in the completed aggregate CSV file.
+
+\end{document}
