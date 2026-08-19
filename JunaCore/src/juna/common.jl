@@ -789,13 +789,249 @@ function _sync_phase_rate(segment, reference, fs, scale)
   angle(increment) * fs / (2pi * scale)
 end
 
+function _sync_carrier_offset(waveform, front, back, start, scale, fs)
+  received_front = _scaled_segment(
+    waveform, start, scale, length(front))
+  received_back = _scaled_segment(
+    waveform, start + scale * length(front), scale, length(back))
+  (_sync_phase_rate(received_front, front, fs, scale) +
+   _sync_phase_rate(received_back, back, fs, scale)) / 2
+end
+
+function _sync_match_score(waveform, reference, start)
+  first = round(Int, start)
+  last = first + length(reference) - 1
+  (first < 1 || last > length(waveform) || isempty(reference)) && return 0.0
+  segment = @view waveform[first:last]
+  denominator = sqrt(sum(abs2, segment) * sum(abs2, reference))
+  denominator > eps(Float64) || return 0.0
+  abs(sum(segment .* conj.(reference))) / denominator
+end
+
+function _sync_phase_balance(waveform, front, back, start, scale, fs)
+  received_front = _scaled_segment(
+    waveform, start, scale, length(front))
+  received_back = _scaled_segment(
+    waveform, start + scale * length(front), scale, length(back))
+  front_hz = _sync_phase_rate(received_front, front, fs, scale)
+  back_hz = _sync_phase_rate(received_back, back, fs, scale)
+  front_hz - back_hz, (front_hz + back_hz) / 2
+end
+
+function _balanced_sync_fit(waveform, front, back, center, scale, fs)
+  sync_length = length(front) + length(back)
+  base = center - scale * sync_length / 2
+  starts = collect(range(base - 2, base + 2; length=81))
+  differences = Float64[
+    first(_sync_phase_balance(
+      waveform, front, back, start, scale, fs)) for start in starts
+  ]
+
+  crossing = nothing
+  crossing_distance = Inf
+  @inbounds for index in 1:length(starts)-1
+    left = differences[index]
+    right = differences[index + 1]
+    if left == 0 || signbit(left) != signbit(right)
+      distance = abs((starts[index] + starts[index + 1]) / 2 - base)
+      if distance < crossing_distance
+        crossing = index
+        crossing_distance = distance
+      end
+    end
+  end
+
+  fitted_start = if crossing === nothing
+    starts[argmin(abs.(differences))]
+  else
+    left_start = starts[crossing]
+    right_start = starts[crossing + 1]
+    left_difference = differences[crossing]
+    for _ in 1:30
+      midpoint = (left_start + right_start) / 2
+      midpoint_difference = first(_sync_phase_balance(
+        waveform, front, back, midpoint, scale, fs))
+      if midpoint_difference == 0
+        left_start = midpoint
+        right_start = midpoint
+        break
+      elseif signbit(left_difference) != signbit(midpoint_difference)
+        right_start = midpoint
+      else
+        left_start = midpoint
+        left_difference = midpoint_difference
+      end
+    end
+    (left_start + right_start) / 2
+  end
+  _, carrier_hz = _sync_phase_balance(
+    waveform, front, back, fitted_start, scale, fs)
+  fitted_start, carrier_hz
+end
+
+function _cp_duration_score(waveform, m::Modulation, nblocks::Int,
+                            first_center, scale)
+  N = Int(m.nc)
+  L = Int(m.np)
+  S = _synclen(m)
+  (L > 0 && nblocks > 0 && isfinite(scale) && scale > 0) || return 0.0
+  block_length = N + L
+  body_start = first_center + scale * S / 2
+  score = 0.0
+  @inbounds for block in 0:nblocks-1
+    start = body_start + block * block_length * scale
+    prefix = _scaled_segment(waveform, start, scale, L)
+    tail = _scaled_segment(waveform, start + N * scale, scale, L)
+    denominator = sqrt(sum(abs2, prefix) * sum(abs2, tail))
+    denominator > eps(Float64) || return 0.0
+    score += abs(sum(tail .* conj.(prefix))) / denominator
+  end
+  score / nblocks
+end
+
+function _cp_duration_fit(waveform, m::Modulation, nblocks::Int,
+                          first_center, scale)
+  current_score = _cp_duration_score(
+    waveform, m, nblocks, first_center, scale)
+  unity_score = _cp_duration_score(
+    waveform, m, nblocks, first_center, 1.0)
+  # The sync peaks remain the primary clock estimate. Invoke the more costly
+  # CP search only when their scale visibly destroys the repeated prefix. This
+  # catches multipath-biased chirp peaks without fitting ordinary CP noise.
+  (unity_score >= 0.2 && unity_score > 1.05 * current_score) || return scale
+  coarse = collect(range(0.998, 1.002; length=81))
+  coarse_scores = Float64[
+    _cp_duration_score(waveform, m, nblocks, first_center, candidate)
+    for candidate in coarse
+  ]
+  best = coarse[argmax(coarse_scores)]
+  fine = collect(range(max(0.998, best - 5e-5),
+                       min(1.002, best + 5e-5); length=21))
+  fine_scores = Float64[
+    _cp_duration_score(waveform, m, nblocks, first_center, candidate)
+    for candidate in fine
+  ]
+  fine[argmax(fine_scores)]
+end
+
+function _sync_alias_score(waveform, front, back, center, scale, fs,
+                           carrier_hz)
+  sync_length = length(front) + length(back)
+  base = center - scale * sync_length / 2
+  best = 0.0
+  @inbounds for start in range(base - 8, base + 8; length=33)
+    received_front = _scaled_segment(
+      waveform, start, scale, length(front))
+    received_back = _scaled_segment(
+      waveform, start + scale * length(front), scale, length(back))
+    front_time = (start - 1 .+ scale .* (0:length(front)-1)) ./ fs
+    back_time = (start - 1 + scale * length(front) .+
+                 scale .* (0:length(back)-1)) ./ fs
+    received_front .*= cispi.(-2 .* carrier_hz .* front_time)
+    received_back .*= cispi.(-2 .* carrier_hz .* back_time)
+    front_denominator = sqrt(
+      sum(abs2, received_front) * sum(abs2, front))
+    back_denominator = sqrt(
+      sum(abs2, received_back) * sum(abs2, back))
+    (front_denominator > eps(Float64) &&
+     back_denominator > eps(Float64)) || continue
+    score = (abs(sum(received_front .* conj.(front))) /
+             front_denominator +
+             abs(sum(received_back .* conj.(back))) /
+             back_denominator) / 2
+    best = max(best, score)
+  end
+  best
+end
+
+function _cp_carrier_fit(waveform, m::Modulation, nblocks::Int,
+                         first_center, second_center, scale, fs,
+                         front, back, sync_start_hz, sync_stop_hz)
+  N = Int(m.nc)
+  L = Int(m.np)
+  # Below N=512 the subcarrier spacing is already far wider than the carrier
+  # offsets admitted by acquisition, so CP alias resolution is unnecessary.
+  (N >= 512 && L > 0 && nblocks >= 2) || return nothing
+  S = _synclen(m)
+  block_length = N + L
+  body_start = first_center + scale * S / 2
+  spacing_hz = fs / (N * scale)
+  cp_hz = Float64[]
+  cp_centers = Float64[]
+  units = ComplexF64[]
+  @inbounds for block in 0:nblocks-1
+    start = body_start + block * block_length * scale
+    prefix = _scaled_segment(waveform, start, scale, L)
+    tail = _scaled_segment(waveform, start + N * scale, scale, L)
+    increment = sum(tail .* conj.(prefix))
+    abs(increment) > eps(Float64) || return nothing
+    push!(units, increment / abs(increment))
+    push!(cp_hz, angle(increment) * fs / (2pi * N * scale))
+    push!(cp_centers, start + scale * (L + N / 2))
+  end
+  confidence = abs(sum(units)) / length(units)
+  confidence >= 0.75 || return nothing
+
+  # Unwrap the per-block principal estimates before fitting the slow carrier
+  # trajectory. The remaining whole-subcarrier alias is chosen from the dual
+  # syncs, with a direct correlation tie-break at the half-bin boundary.
+  unwrapped = copy(cp_hz)
+  @inbounds for index in 2:length(unwrapped)
+    unwrapped[index] += spacing_hz * round(
+      (unwrapped[index - 1] - unwrapped[index]) / spacing_hz)
+  end
+  relative_mean = mean(unwrapped)
+  sync_mean = (sync_start_hz + sync_stop_hz) / 2
+  centre_alias = round(Int, (sync_mean - relative_mean) / spacing_hz)
+  aliases = [centre_alias - 1, centre_alias, centre_alias + 1]
+  candidates = relative_mean .+ aliases .* spacing_hz
+  distances = abs.(candidates .- sync_mean)
+  order = sortperm(distances)
+  selected = candidates[first(order)]
+  if distances[first(order)] > 0.4 * spacing_hz
+    # Multipath can place the sync-only estimate almost exactly between two
+    # aliases. Score just those adjacent hypotheses against both dual-slope
+    # syncs rather than guessing from rounding direction.
+    contenders = order[1:2]
+    scores = Float64[
+      (_sync_alias_score(
+         waveform, front, back, first_center, scale, fs,
+         candidates[index]) +
+       _sync_alias_score(
+         waveform, front, back, second_center, scale, fs,
+         candidates[index])) / 2
+      for index in contenders
+    ]
+    best = argmax(scores)
+    maximum(scores) >= 1.05 * minimum(scores) &&
+      (selected = candidates[contenders[best]])
+  end
+
+  xmean = mean(cp_centers)
+  denominator = sum(abs2, cp_centers .- xmean)
+  slope = denominator > eps(Float64) ?
+    sum((cp_centers .- xmean) .* (unwrapped .- relative_mean)) /
+      denominator : 0.0
+  alias_offset = selected - relative_mean
+  fitted_start = relative_mean + slope * (first_center - xmean) + alias_offset
+  fitted_stop = relative_mean + slope * (second_center - xmean) + alias_offset
+  (start_hz=fitted_start, stop_hz=fitted_stop)
+end
+
+_plausible_duration_scale(scale) =
+  isfinite(scale) && scale > 0 && abs(scale - 1) <= 0.002
+
 function _sync_impairments(m::Modulation,
                            waveform::AbstractVector{<:Complex}, fs, nblocks)
   S = _synclen(m)
   blocklen = _blocklen(m)
   nominal_spacing = S + nblocks * blocklen
   front, back = _sync_components(m, fs)
-  (isempty(front) || isempty(back)) && return 0.0, 1.0
+  default = (
+    start_hz=0.0, stop_hz=0.0, duration_scale=1.0,
+    sync_reliable=false, duration_reliable=false,
+    first_center=1.0, second_center=Float64(max(2, nominal_spacing + 1)))
+  (isempty(front) || isempty(back)) && return default
 
   radius = max(16, div(S, 4))
   padding = zeros(ComplexF64, radius)
@@ -804,33 +1040,110 @@ function _sync_impairments(m::Modulation,
   back_correlation = _matched_corr(padded, back)
   front_start = _sync_peak_near(
     front_correlation, radius + 1, radius)
-  back_start = _sync_peak_near(
-    back_correlation, radius + 1 + length(front), radius)
   repeated_front_start = _sync_peak_near(
     front_correlation, radius + 1 + nominal_spacing, radius)
-  any(isnothing, (front_start, back_start, repeated_front_start)) &&
-    return 0.0, 1.0
+  any(isnothing, (front_start, repeated_front_start)) && return default
 
   first_front = front_start - radius
-  first_back = back_start - radius
   second_front = repeated_front_start - radius
-  duration_scale = (second_front - first_front) / nominal_spacing
-  isfinite(duration_scale) && duration_scale > 0 || return 0.0, 1.0
+  measured_scale = (second_front - first_front) / nominal_spacing
+  scale_plausible = _plausible_duration_scale(measured_scale)
+  pairing_scale = scale_plausible ?
+    measured_scale : 1.0
+  component_radius = max(4, ceil(Int, 0.02 * length(front)))
+  back_start = _sync_peak_near(
+    back_correlation,
+    front_start + pairing_scale * length(front), component_radius)
+  repeated_back_start = _sync_peak_near(
+    back_correlation,
+    repeated_front_start + pairing_scale * length(front), component_radius)
+  any(isnothing, (back_start, repeated_back_start)) && return default
+  sync_reliable = minimum((
+    _sync_match_score(padded, front, front_start),
+    _sync_match_score(padded, back, back_start),
+    _sync_match_score(padded, front, repeated_front_start),
+    _sync_match_score(padded, back, repeated_back_start),
+  )) >= 0.1
+  sync_reliable || return default
+  first_back = back_start - radius
+  second_back = repeated_back_start - radius
+
+  # A carrier offset displaces the up- and down-chirp peaks in opposite
+  # directions. Average both components at both frame ends before measuring
+  # duration, so constant carrier and linear drift do not masquerade as clock
+  # scale. The front-only estimate above is used only to pair the components.
+  paired_scale = ((second_front + second_back) -
+                  (first_front + first_back)) / (2 * nominal_spacing)
+  scale_plausible = _plausible_duration_scale(paired_scale)
+  pairing_scale = scale_plausible ? paired_scale : 1.0
 
   # Opposite chirp slopes turn a common timing error into equal and opposite
-  # dechirped phase rates. Their mean is therefore the signed carrier offset.
-  common_start = (first_front + first_back -
-                  duration_scale * length(front)) / 2
-  received_front = _scaled_segment(
-    waveform, common_start, duration_scale, length(front))
-  received_back = _scaled_segment(
-    waveform, common_start + duration_scale * length(front),
-    duration_scale, length(back))
-  carrier_offset = (
-    _sync_phase_rate(received_front, front, fs, duration_scale) +
-    _sync_phase_rate(received_back, back, fs, duration_scale)) / 2
-  isfinite(carrier_offset) || return 0.0, duration_scale
-  carrier_offset, duration_scale
+  # dechirped phase rates. Their mean is therefore the local signed carrier
+  # offset. Measuring both syncs also exposes linear carrier drift across a
+  # long frame instead of forcing the leading estimate over the whole frame.
+  first_start = (first_front + first_back -
+                 pairing_scale * length(front)) / 2
+  second_start = (second_front + second_back -
+                  pairing_scale * length(front)) / 2
+  first_center = first_start + pairing_scale * S / 2
+  second_center = second_start + pairing_scale * S / 2
+  duration_scale = scale_plausible ? pairing_scale : 1.0
+  start_hz = 0.0
+  stop_hz = 0.0
+  if scale_plausible
+    for _ in 1:6
+      first_start, start_hz = _balanced_sync_fit(
+        waveform, front, back, first_center, duration_scale, fs)
+      second_start, stop_hz = _balanced_sync_fit(
+        waveform, front, back, second_center, duration_scale, fs)
+      refined_scale = (second_start - first_start) / nominal_spacing
+      _plausible_duration_scale(refined_scale) || break
+      converged = abs(refined_scale - duration_scale) <= 1e-10
+      duration_scale = refined_scale
+      converged && break
+    end
+    first_start, start_hz = _balanced_sync_fit(
+      waveform, front, back, first_center, duration_scale, fs)
+    second_start, stop_hz = _balanced_sync_fit(
+      waveform, front, back, second_center, duration_scale, fs)
+    first_center = first_start + duration_scale * S / 2
+    second_center = second_start + duration_scale * S / 2
+    cp_scale = _cp_duration_fit(
+      waveform, m, nblocks, first_center, duration_scale)
+    if cp_scale != duration_scale
+      duration_scale = cp_scale
+      first_start, start_hz = _balanced_sync_fit(
+        waveform, front, back, first_center, duration_scale, fs)
+      second_start, stop_hz = _balanced_sync_fit(
+        waveform, front, back, second_center, duration_scale, fs)
+      first_center = first_start + duration_scale * S / 2
+      second_center = second_start + duration_scale * S / 2
+    end
+    cp_carrier = _cp_carrier_fit(
+      waveform, m, nblocks, first_center, second_center, duration_scale, fs,
+      front, back, start_hz, stop_hz)
+    if cp_carrier !== nothing
+      start_hz = cp_carrier.start_hz
+      stop_hz = cp_carrier.stop_hz
+    end
+  else
+    first_start = first_center - duration_scale * S / 2
+    second_start = second_center - duration_scale * S / 2
+    start_hz = _sync_carrier_offset(
+      waveform, front, back, first_start, duration_scale, fs)
+    stop_hz = _sync_carrier_offset(
+      waveform, front, back, second_start, duration_scale, fs)
+  end
+  duration_reliable = scale_plausible
+  (isfinite(start_hz) && isfinite(stop_hz)) || return (
+    start_hz=0.0, stop_hz=0.0, duration_scale=duration_scale,
+    sync_reliable=false, duration_reliable=false,
+    first_center=first_center,
+    second_center=second_center)
+  (
+    start_hz, stop_hz, duration_scale, sync_reliable, duration_reliable,
+    first_center=first_center,
+    second_center=second_center)
 end
 
 # Joint carrier-offset and duration acquisition. Carrier rotation is removed
@@ -840,28 +1153,28 @@ function _coarse_doppler(m::Modulation, waveform::AbstractVector{<:Complex}, fc,
   _ = fc
   S = _synclen(m); blocklen = _blocklen(m)
   nominal_blocks = nblocks * blocklen
-  D0 = S + nominal_blocks
-  carrier_offset, _ = _sync_impairments(m, waveform, fs, nblocks)
+  impairments = _sync_impairments(m, waveform, fs, nblocks)
+  impairments.sync_reliable || throw(ArgumentError(
+    "synchronization waveform was not reliably detected"))
+  carrier_offset = (impairments.start_hz + impairments.stop_hz) / 2
+  center_span = impairments.second_center - impairments.first_center
+  drift_per_sample = center_span > 0 ?
+    (impairments.stop_hz - impairments.start_hz) / center_span : 0.0
+  start_at_zero = impairments.start_hz -
+    drift_per_sample * (impairments.first_center - 1)
   sample = collect(0:length(waveform)-1)
   derotated = ComplexF64.(waveform) .*
-    cispi.(-2 * carrier_offset .* sample ./ fs)
+    cispi.(-2 .* (start_at_zero .* sample .+
+                  0.5 .* drift_per_sample .* sample .^ 2) ./ fs)
 
-  front, _ = _sync_components(m, fs)
-  radius = max(16, div(S, 4))
-  padding = zeros(ComplexF64, radius)
-  correlation = _matched_corr(vcat(padding, derotated, padding), front)
-  p1 = _sync_peak_near(correlation, radius + 1, radius)
-  p2 = _sync_peak_near(correlation, radius + 1 + D0, radius)
-  (p1 === nothing || p2 === nothing) && return derotated, carrier_offset
-  p1 -= radius
-  p2 -= radius
-  D = p2 - p1
-  duration_scale = (D > 0 && D0 > 0) ? D / D0 : 1.0
-  bstart = round(Int, p1 + duration_scale * S)
-  bstop = round(Int, p2) - 1
-  (bstart < 1 || bstop > length(waveform) || bstop <= bstart) &&
+  duration_scale = impairments.duration_reliable ?
+    impairments.duration_scale : 1.0
+  body_start = impairments.first_center + duration_scale * S / 2
+  body_stop = body_start + (nominal_blocks - 1) * duration_scale
+  (body_start < 1 || body_stop > length(derotated)) &&
     return derotated, carrier_offset
-  corrected = _resample_to(@view(derotated[bstart:bstop]), nominal_blocks)
+  corrected = _scaled_segment(
+    derotated, body_start, duration_scale, nominal_blocks)
   corrected, carrier_offset
 end
 
@@ -1486,18 +1799,32 @@ _bpsk_symbol(bit::Bool) = bit ? ComplexF64(-1.0, 0.0) : ComplexF64(1.0, 0.0)
 function _branch_observations(m::Modulation, waveform)
   N = Int(m.nc)
   L = Int(m.np)
+  tracked = m.sync ? _track_block_carrier(m, waveform) : waveform
   yparts = Matrix{ComplexF64}(undef, m.partial_fft_parts, N)
   chunk = zeros(ComplexF64, N)
 
   for p in 1:m.partial_fft_parts
     lo, hi = _part_bounds(N, m.partial_fft_parts, p)
     fill!(chunk, 0.0 + 0.0im)
-    @views chunk[lo:hi] .= waveform[L+lo:L+hi]
+    @views chunk[lo:hi] .= tracked[L+lo:L+hi]
     fft!(chunk)
     @views yparts[p, :] .= chunk
   end
 
   yparts
+end
+
+function _track_block_carrier(m::Modulation, waveform)
+  N = Int(m.nc)
+  L = Int(m.np)
+  (L <= 0 || length(waveform) < N + L) && return ComplexF64.(waveform)
+  increment = sum(
+    @view(waveform[N+1:N+L]) .*
+    conj.(@view(waveform[1:L])))
+  abs(increment) <= eps(Float64) && return ComplexF64.(waveform)
+  phase_per_sample = angle(increment) / N
+  sample = collect(0:length(waveform)-1)
+  ComplexF64.(waveform) .* cis.(-phase_per_sample .* sample)
 end
 
 function _equalize_from_targets(m::Modulation, yparts, layout::_Layout, target_idx, targets;
