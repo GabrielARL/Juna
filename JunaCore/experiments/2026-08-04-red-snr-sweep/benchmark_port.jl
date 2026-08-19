@@ -17,7 +17,8 @@ using Statistics
 import SignalAnalysis
 include(joinpath(@__DIR__, "replay_lane.jl"))
 using .ReplayLane: ReplayCapture, align_to_reference, apply_capture,
-                   capture_from_dict, load_capture
+                   capture_from_dict, load_capture, replay_snapshot_bounds,
+                   replay_support
 const Juna = JunaCore.Juna
 const LDPC = JunaCore.LDPC
 const Modulations = JunaCore.Modulations
@@ -27,7 +28,8 @@ const Modulations = JunaCore.Modulations
 function replay_at_modem_rate(capture::ReplayCapture,
                               transmitted::AbstractVector{<:Number};
                               snapshot::Integer=1,
-                              modem_fs::Real)
+                              modem_fs::Real,
+                              return_support::Bool=false)
     isempty(transmitted) && throw(ArgumentError("replay input must not be empty"))
     modem_rate = Float64(modem_fs)
     isfinite(modem_rate) && modem_rate > 0 ||
@@ -36,11 +38,38 @@ function replay_at_modem_rate(capture::ReplayCapture,
         vec(SignalAnalysis.resample(
             ComplexF64.(transmitted), capture.fs / modem_rate; dims=1,
         ))
-    channel_output = apply_capture(capture, channel_input; snapshot=snapshot)
-    modem_rate == capture.fs && return channel_output
-    vec(SignalAnalysis.resample(
-        channel_output, modem_rate / capture.fs; dims=1,
+    applied = apply_capture(
+        capture, channel_input; snapshot=snapshot, return_support=true)
+    waveform = modem_rate == capture.fs ? applied.waveform :
+        vec(SignalAnalysis.resample(
+            applied.waveform, modem_rate / capture.fs; dims=1,
+        ))
+    support = _output_replay_support(
+        applied.replay_support, length(waveform), modem_rate, capture.fs)
+    return_support ? (waveform=waveform, replay_support=support) : waveform
+end
+
+function _output_replay_support(support, output_samples::Integer,
+                                output_rate::Real, capture_rate::Real)
+    nominal_output_samples = ceil(Int,
+        support.nominal_samples * Float64(output_rate) / Float64(capture_rate))
+    merge(support, (
+        capture_output_samples=support.output_samples,
+        output_samples=Int(output_samples),
+        nominal_output_samples=nominal_output_samples,
+        output_sample_rate=Float64(output_rate),
     ))
+end
+
+function _nominal_replay_power(result)
+    waveform = ComplexF64.(result.waveform)
+    nominal_samples = Int(result.replay_support.nominal_output_samples)
+    nominal_samples > 0 || throw(ArgumentError(
+        "nominal replay duration must contain at least one output sample"))
+    power = sum(abs2, waveform) / nominal_samples
+    isfinite(power) && power >= 0 || throw(ArgumentError(
+        "nominal replay power must be finite and nonnegative"))
+    power
 end
 # D3 (revised): verbatim passband replay adapter from
 # replay_coupled_segment.jl - rrcos interpolation, upconversion, analytic
@@ -50,7 +79,8 @@ function replay_passband_at_modem_rate(
         transmitted::AbstractVector{<:Number};
         snapshot::Integer=1,
         modem_fs::Real,
-        passband_oversample::Integer=12)
+        passband_oversample::Integer=12,
+        return_support::Bool=false)
     isempty(transmitted) && throw(ArgumentError("replay input must not be empty"))
     modem_rate = Float64(modem_fs)
     isfinite(modem_rate) && modem_rate > 0 ||
@@ -73,12 +103,12 @@ function replay_passband_at_modem_rate(
     channel_input = vec(SignalAnalysis.resample(
         mixed, capture.fs / passband_rate; dims=1,
     ))
-    channel_output = apply_capture(
-        capture, channel_input; snapshot=snapshot,
+    applied = apply_capture(
+        capture, channel_input; snapshot=snapshot, return_support=true,
     )
 
     remodulated = vec(SignalAnalysis.resample(
-        channel_output, passband_rate / capture.fs; dims=1,
+        applied.waveform, passband_rate / capture.fs; dims=1,
     ))
     @inbounds for n in eachindex(remodulated)
         remodulated[n] *= cispi(2 * capture.fc * (n - 1) / passband_rate)
@@ -87,7 +117,10 @@ function replay_passband_at_modem_rate(
     recovered = SignalAnalysis.downconvert(
         received_passband, oversample, capture.fc, pulse,
     )
-    ComplexF64.(vec(SignalAnalysis.samples(recovered)))
+    waveform = ComplexF64.(vec(SignalAnalysis.samples(recovered)))
+    support = _output_replay_support(
+        applied.replay_support, length(waveform), modem_rate, capture.fs)
+    return_support ? (waveform=waveform, replay_support=support) : waveform
 end
 _frame_feedback_diagnostics(args...; kwargs...) =
     error("frame diagnostics not ported (D2)")
@@ -170,6 +203,39 @@ function select_modem_profile(value)
 end
 
 _uses_passband_replay(profile) = profile.passband_oversample > 1
+
+const _REPLAY_CHANNEL_INPUT_LENGTH_CACHE = Dict{Tuple,Int}()
+const _REPLAY_CHANNEL_INPUT_LENGTH_LOCK = ReentrantLock()
+
+function _replay_channel_input_samples(
+        capture::ReplayCapture, transmitted::AbstractVector{<:Number},
+        modem_fs::Real, profile)
+    modem_rate = Float64(modem_fs)
+    oversample = Int(profile.passband_oversample)
+    key = (length(transmitted), modem_rate, capture.fs, capture.fc, oversample)
+    lock(_REPLAY_CHANNEL_INPUT_LENGTH_LOCK) do
+        get!(_REPLAY_CHANNEL_INPUT_LENGTH_CACHE, key) do
+            if !_uses_passband_replay(profile)
+                modem_rate == capture.fs && return length(transmitted)
+                return length(vec(SignalAnalysis.resample(
+                    zeros(ComplexF64, length(transmitted)),
+                    capture.fs / modem_rate; dims=1,
+                )))
+            end
+            pulse = SignalAnalysis.rrcosfir(0.25, oversample)
+            baseband = SignalAnalysis.signal(
+                zeros(ComplexF64, length(transmitted)), modem_rate)
+            passband = SignalAnalysis.upconvert(
+                baseband, oversample, capture.fc, pulse)
+            passband_rate = Float64(SignalAnalysis.framerate(passband))
+            mixed = ComplexF64.(SignalAnalysis.samples(
+                SignalAnalysis.analytic(passband)))
+            length(vec(SignalAnalysis.resample(
+                mixed, capture.fs / passband_rate; dims=1,
+            )))
+        end
+    end
+end
 
 function _wilson_interval(successes::Integer, trials::Integer;
                           z::Real=1.959963984540054)
@@ -280,6 +346,8 @@ function _compact_capture_digest(capture::ReplayCapture)
     write(io, Float64(capture.fs))
     write(io, Float64(capture.fc))
     write(io, Int64(capture.step))
+    write(io, String(capture.tracking))
+    write(io, UInt8(0))
     write(io, Int64(size(capture.h, 1)))
     write(io, Int64(size(capture.h, 2)))
     write(io, Int64(length(capture.phase)))
@@ -408,52 +476,70 @@ function _add_awgn_recorded(signal::AbstractVector{<:Number}, snr_db::Real,
 end
 
 function _snapshot_positions(capture::ReplayCapture, packets::Integer,
-                             waveform_length::Integer, modem_fs::Real)
+                             waveform_length::Integer, modem_fs::Real;
+                             channel_input_samples=nothing)
     count = Int(packets)
     count > 0 || throw(ArgumentError("packets must be positive"))
     waveform_length > 0 || throw(ArgumentError("waveform length must be positive"))
     rate = Float64(modem_fs)
     isfinite(rate) && rate > 0 || throw(ArgumentError("modem fs must be positive"))
-    channel_samples, stop = _capture_position_limit(
-        capture, waveform_length, rate)
-    count <= stop || throw(ArgumentError(
-        "capture has only $stop distinct packet positions, requested $count"))
-    packets == 1 && return [1]
-    positions = round.(Int, range(1, stop; length=count))
+    channel_samples, bounds = _capture_position_bounds(
+        capture, waveform_length, rate; channel_input_samples)
+    available = bounds.last - bounds.first + 1
+    count <= available || throw(ArgumentError(
+        "capture has only $available distinct supported packet positions, " *
+        "requested $count"))
+    packets == 1 && return [bounds.first]
+    positions = round.(Int, range(bounds.first, bounds.last; length=count))
     allunique(positions) || throw(ArgumentError("packet positions are not distinct"))
+    for position in positions
+        replay_support(capture, channel_samples; snapshot=position)
+    end
     positions
+end
+
+function _capture_position_bounds(capture::ReplayCapture,
+                                  waveform_length::Integer,
+                                  modem_fs::Real;
+                                  channel_input_samples=nothing)
+    waveform_length > 0 || throw(ArgumentError("waveform length must be positive"))
+    rate = Float64(modem_fs)
+    isfinite(rate) && rate > 0 || throw(ArgumentError("modem fs must be positive"))
+    channel_samples = channel_input_samples === nothing ?
+        ceil(Int, waveform_length * capture.fs / rate) :
+        Int(channel_input_samples)
+    channel_samples > 0 || throw(ArgumentError(
+        "channel input sample count must be positive"))
+    bounds = replay_snapshot_bounds(capture, channel_samples)
+    channel_samples, bounds
 end
 
 function _capture_position_limit(capture::ReplayCapture,
                                  waveform_length::Integer,
-                                 modem_fs::Real)
-    waveform_length > 0 || throw(ArgumentError("waveform length must be positive"))
-    rate = Float64(modem_fs)
-    isfinite(rate) && rate > 0 || throw(ArgumentError("modem fs must be positive"))
-    channel_samples = ceil(Int, waveform_length * capture.fs / rate)
-    output_samples = channel_samples + size(capture.h, 1) - 1
-    last_offset = output_samples - 1
-    # Keep both the interpolated tap snapshot and phase index away from their
-    # clamp-to-last fallbacks. Every reported packet must use a fully observed
-    # capture segment rather than silently extending its tail.
-    last_tap_snapshot = size(capture.h, 2) - div(last_offset, capture.step) - 1
-    last_phase_snapshot = div(length(capture.phase) - last_offset, capture.step)
-    stop = min(last_tap_snapshot, last_phase_snapshot)
-    stop >= 1 || throw(ArgumentError("capture is too short for one waveform"))
-    channel_samples, stop
+                                 modem_fs::Real;
+                                 channel_input_samples=nothing)
+    channel_samples, bounds = _capture_position_bounds(
+        capture, waveform_length, modem_fs; channel_input_samples)
+    channel_samples, bounds.last
 end
 
 function _full_capture_positions(capture::ReplayCapture,
                                  waveform_length::Integer,
-                                 modem_fs::Real)
-    channel_samples, stop = _capture_position_limit(
-        capture, waveform_length, modem_fs)
-    count = fld((stop - 1) * capture.step, channel_samples) + 1
+                                 modem_fs::Real;
+                                 channel_input_samples=nothing)
+    channel_samples, bounds = _capture_position_bounds(
+        capture, waveform_length, modem_fs; channel_input_samples)
+    count = fld((bounds.last - bounds.first) * capture.step,
+                channel_samples) + 1
     positions = unique(round.(Int,
-        1 .+ (0:(count - 1)) .* (channel_samples / capture.step)))
+        bounds.first .+ (0:(count - 1)) .*
+        (channel_samples / capture.step)))
     isempty(positions) && throw(ArgumentError("capture has no complete block positions"))
-    last(positions) <= stop ||
+    last(positions) <= bounds.last ||
         throw(ArgumentError("full-capture position exceeds channel support"))
+    for position in positions
+        replay_support(capture, channel_samples; snapshot=position)
+    end
     positions
 end
 function _configure_pilot_budget!(receiver, pilot_ratio)
@@ -1323,26 +1409,36 @@ function benchmark_frame_capture(capture::ReplayCapture;
             receivers, warm_waveform, payload_per_frame, fc, fs)
     end
 
+    channel_input_samples = _replay_channel_input_samples(
+        capture, warm_waveform, fs, profile)
     snapshots = if full_capture
         frame_seed_function === nothing || throw(ArgumentError(
             "seeded replay positions are incompatible with full_capture"))
-        _full_capture_positions(capture, length(warm_waveform), fs)
+        _full_capture_positions(
+            capture, length(warm_waveform), fs; channel_input_samples)
     elseif frame_seed_function === nothing
-        _snapshot_positions(capture, frames, length(warm_waveform), fs)
+        _snapshot_positions(
+            capture, frames, length(warm_waveform), fs;
+            channel_input_samples)
     else
-        _, stop = _capture_position_limit(
-            capture, length(warm_waveform), fs)
-        Int(frames) <= stop || throw(ArgumentError(
-            "capture has only $stop seeded replay positions, requested $frames"))
+        _, bounds = _capture_position_bounds(
+            capture, length(warm_waveform), fs; channel_input_samples)
+        available = bounds.last - bounds.first + 1
+        Int(frames) <= available || throw(ArgumentError(
+            "capture has only $available seeded replay positions, " *
+            "requested $frames"))
         selected = Int[]
         occupied = Set{Int}()
         for frame in 1:Int(frames)
             candidate = rand(
                 MersenneTwister(Int(frame_seed_function(frame, :replay))),
-                1:stop)
+                bounds.first:bounds.last)
             while candidate in occupied
-                candidate = candidate == stop ? 1 : candidate + 1
+                candidate = candidate == bounds.last ?
+                    bounds.first : candidate + 1
             end
+            replay_support(
+                capture, channel_input_samples; snapshot=candidate)
             push!(selected, candidate)
             push!(occupied, candidate)
         end
@@ -1371,7 +1467,7 @@ function benchmark_frame_capture(capture::ReplayCapture;
         "replay source digest must not be empty"))
     replay_capture_digest = _stable_digest((
         capture_source_digest, capture.name, capture.receiver,
-        capture.fs, capture.fc, capture.step, size(capture.h),
+        capture.tracking, capture.fs, capture.fc, capture.step, size(capture.h),
         length(capture.phase)))
     reference_powers = if common_noise_reference_power !== nothing
         power = Float64(common_noise_reference_power)
@@ -1393,13 +1489,14 @@ function benchmark_frame_capture(capture::ReplayCapture;
                     replay_passband_at_modem_rate(
                         capture, canonical_reference_waveform; snapshot,
                         modem_fs=fs,
-                        passband_oversample=profile.passband_oversample)
+                        passband_oversample=profile.passband_oversample,
+                        return_support=true)
                 else
                     replay_at_modem_rate(
                         capture, canonical_reference_waveform;
-                        snapshot, modem_fs=fs)
+                        snapshot, modem_fs=fs, return_support=true)
                 end
-                power = sum(abs2, reference) / length(reference)
+                power = _nominal_replay_power(reference)
                 isfinite(power) && power > 0 || throw(ArgumentError(
                     "canonical received noise reference has invalid power"))
                 power
@@ -1432,23 +1529,28 @@ function benchmark_frame_capture(capture::ReplayCapture;
         payload = rand(payload_rng, Bool, payload_per_frame)
         transmitted = Modulations.modulate(
             transmitter, payload, fc, fs)
-        replayed = if _uses_passband_replay(profile)
+        replay_result = if _uses_passband_replay(profile)
             replay_passband_at_modem_rate(
                 capture, transmitted; snapshot=snapshots[frame], modem_fs=fs,
                 passband_oversample=profile.passband_oversample,
+                return_support=true,
             )
         else
             replay_at_modem_rate(
-                capture, transmitted; snapshot=snapshots[frame], modem_fs=fs)
+                capture, transmitted; snapshot=snapshots[frame], modem_fs=fs,
+                return_support=true)
         end
+        replayed = replay_result.waveform
+        replay_power = reference_powers[frame] === nothing ?
+            _nominal_replay_power(replay_result) : reference_powers[frame]
         recorded_awgn = frame_seed_function === nothing ? nothing :
             _add_awgn_recorded(
                 replayed, snr_db, noise_rng;
-                reference_power=reference_powers[frame])
+                reference_power=replay_power)
         noisy = recorded_awgn === nothing ?
             _add_awgn(
                 replayed, snr_db, noise_rng;
-                reference_power=reference_powers[frame]) :
+                reference_power=replay_power) :
             recorded_awgn.noisy
         received = _uses_passband_replay(profile) ? noisy : align_to_reference(
             noisy, transmitted; max_lag=length(noisy) - length(transmitted),
@@ -1457,8 +1559,18 @@ function benchmark_frame_capture(capture::ReplayCapture;
         additive_noise = recorded_awgn === nothing ?
             noisy .- replayed : recorded_awgn.noise
         noise_digest = _digest_complex(additive_noise)
+        support = replay_result.replay_support
+        replay_support_digest = _stable_digest((
+            support.tracking, support.q0, support.nominal_samples,
+            support.output_samples, support.left_guard, support.right_guard,
+            support.phase_start_index, support.phase_stop_index,
+            support.tap_snapshot_start, support.tap_snapshot_stop,
+            support.delay_samples_min, support.delay_samples_max,
+            support.map_min, support.map_max,
+            support.nominal_output_samples, support.output_sample_rate))
         replay_digest = _stable_digest((
-            replay_capture_digest, snapshots[frame], replay_seed))
+            replay_capture_digest, snapshots[frame], replay_seed,
+            replay_support_digest))
         transmitted_digest = _digest_complex(transmitted)
         received_digest = _digest_complex(received)
         workload_digest = _digest_workload(
@@ -1764,6 +1876,18 @@ function benchmark_frame_capture(capture::ReplayCapture;
                 realized_outer_pilot_fraction=realized_outer_pilot_fraction,
                 realized_inner_pilot_fraction=realized_inner_pilot_fraction,
                 snapshot_index=snapshots[frame],
+                replay_tracking=String(support.tracking),
+                replay_q0=support.q0,
+                replay_left_guard=support.left_guard,
+                replay_right_guard=support.right_guard,
+                replay_phase_start_index=support.phase_start_index,
+                replay_phase_stop_index=support.phase_stop_index,
+                replay_tap_snapshot_start=support.tap_snapshot_start,
+                replay_tap_snapshot_stop=support.tap_snapshot_stop,
+                replay_nominal_samples=support.nominal_samples,
+                replay_output_samples=support.output_samples,
+                replay_nominal_output_samples=support.nominal_output_samples,
+                replay_support_digest,
                 payload_seed,
                 noise_seed,
                 replay_seed,
