@@ -1,4 +1,6 @@
 {
+  "acquisition_source_commit": "14082c19df4c7b5a43ef78f17ec14040687eaf76",
+  "acquisition_source_sha256": "e650f3d13dc0af44e47497eaba48252744349d060e4bead73ae2e24408db1836",
   "capture_native": {
     "captures": [
       {
@@ -31,6 +33,36 @@
     0.0,
     47.0
   ],
+  "cfo_rerun": {
+    "blue1_preserved": true,
+    "channels": [
+      "blue2",
+      "blue3",
+      "blue4"
+    ],
+    "completed_utc": "2026-08-20T06:07:47.693054+00:00",
+    "gate": {
+      "failures": [
+        {
+          "ber": 0.16671849087893864,
+          "path": "blue3_hydrophone1"
+        },
+        {
+          "ber": 0.10826077943615257,
+          "path": "blue3_hydrophone2"
+        }
+      ],
+      "limit": 0.1,
+      "mode": "record_only"
+    },
+    "high_snr_ofdm_ber_max": 0.16671849087893864,
+    "hydrophones": [
+      1,
+      2,
+      3
+    ],
+    "path_count": 9
+  },
   "experiment_id": "2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n1536-d20-p10",
   "frame_duration_budget_seconds": 1.0,
   "frame_duration_seconds": 0.7544832,
@@ -116,13 +148,14 @@
   "seed": 4,
   "selection_reason_counts": {
     "cwz_joint": {
-      "crc_rescue": 1,
-      "standard_crc_valid": 997,
-      "standard_fallback": 5146
+      "crc_rescue": 5,
+      "standard_crc_valid": 3261,
+      "standard_fallback": 2878
     },
     "profiled_cz": {
-      "standard_crc_valid": 997,
-      "standard_fallback": 5147
+      "crc_rescue": 4,
+      "standard_crc_valid": 3261,
+      "standard_fallback": 2879
     }
   },
   "selection_trace_row_count": 12288,
@@ -146,47 +179,47 @@
     {
       "path": "runs/blue2_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "bea4609831e7c4aad52c880ac15906004d6e1c7c61c499ba8f45d246c15546b0"
+      "sha256": "8747a2387ed2bada32e62198a8825103e61f3697bf61b881d20b8d2267169b5a"
     },
     {
       "path": "runs/blue2_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "bea6ef41e1205f0d4648abd7a3e72b68ff34cdb7929fddcf6255151061592291"
+      "sha256": "2aaaeba6f64d8760b82d1ca243d306166f5e4b7ed4a54e537ea5ea024f348a8d"
     },
     {
       "path": "runs/blue2_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "3d2d528220d8e6aa0d62bb387aaa0bf62d22ab63b7d4b32260097e84f5fc830b"
+      "sha256": "6312105ff6eaac8efbd0403c2a172662ccea2735bea99968b4a28b0f44b0f1fb"
     },
     {
       "path": "runs/blue3_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "ceabc47fbd15cdf0976042a2bd2779f66596ef4c1d758177e63e542229b2c11e"
+      "sha256": "469dc833f66a4956b073fb93cc8c39dbc853f14b865d8593f548eedb4f8df14e"
     },
     {
       "path": "runs/blue3_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "4c21fef0db198380d70abef036a07d99274b13bdd5917c3ce34a9258c3d9ee52"
+      "sha256": "ffd10ce0154409f74dbc8d2e594e9e95001f522a6caef92259b515a70e72a63b"
     },
     {
       "path": "runs/blue3_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "a19f7af0e6d3a15ad3f38c287673b47669098d15800b2034772d4533cbc1c923"
+      "sha256": "de5ab83a479d1d95645ab5c6b363d91c2d02e494db9e3e1a7d546e24ac68408e"
     },
     {
       "path": "runs/blue4_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "c7df76e95afde8d817492ed7c0055de069d4d49169ab67d0632bb4294170002a"
+      "sha256": "e7ffb40fa3f92096cab50597a8002f2a0794d1cac070156faabc87d19852c362"
     },
     {
       "path": "runs/blue4_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "a56bf60613c95a874c10d3dcaa0850e8bcca5e6699d742d6bc7ce65da211ab96"
+      "sha256": "3b8c734743bf021ad9c1700b170115d83206bcca6f00e27663bc3318973cace1"
     },
     {
       "path": "runs/blue4_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "b7d343a816a36f0d7bc152e7c642865c039144b6c847f038b6a508a13ebf4374"
+      "sha256": "96896942c02a78419b77518218cbcee335007abd86f7077ffe07aa7a1e991bbb"
     }
   ],
   "sync_rate_adaptation": {

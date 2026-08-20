@@ -1,4 +1,6 @@
 {
+  "acquisition_source_commit": "14082c19df4c7b5a43ef78f17ec14040687eaf76",
+  "acquisition_source_sha256": "e650f3d13dc0af44e47497eaba48252744349d060e4bead73ae2e24408db1836",
   "capture_native": {
     "captures": [
       {
@@ -31,6 +33,64 @@
     0.0,
     47.0
   ],
+  "cfo_rerun": {
+    "blue1_preserved": true,
+    "channels": [
+      "blue2",
+      "blue3",
+      "blue4"
+    ],
+    "completed_utc": "2026-08-20T09:14:45.264742+00:00",
+    "gate": {
+      "failures": [
+        {
+          "ber": 0.2951599326599327,
+          "path": "blue2_hydrophone1"
+        },
+        {
+          "ber": 0.280976430976431,
+          "path": "blue2_hydrophone2"
+        },
+        {
+          "ber": 0.2646885521885522,
+          "path": "blue2_hydrophone3"
+        },
+        {
+          "ber": 0.4102272727272727,
+          "path": "blue3_hydrophone1"
+        },
+        {
+          "ber": 0.4353956228956229,
+          "path": "blue3_hydrophone2"
+        },
+        {
+          "ber": 0.30252525252525253,
+          "path": "blue3_hydrophone3"
+        },
+        {
+          "ber": 0.3063552188552189,
+          "path": "blue4_hydrophone1"
+        },
+        {
+          "ber": 0.31734006734006737,
+          "path": "blue4_hydrophone2"
+        },
+        {
+          "ber": 0.3335016835016835,
+          "path": "blue4_hydrophone3"
+        }
+      ],
+      "limit": 0.1,
+      "mode": "record_only"
+    },
+    "high_snr_ofdm_ber_max": 0.4353956228956229,
+    "hydrophones": [
+      1,
+      2,
+      3
+    ],
+    "path_count": 9
+  },
   "experiment_id": "2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n4096-d30-p7",
   "frame_duration_budget_seconds": 1.28,
   "frame_duration_seconds": 1.2787712,
@@ -116,14 +176,14 @@
   "seed": 4,
   "selection_reason_counts": {
     "cwz_joint": {
-      "crc_rescue": 1,
-      "standard_crc_valid": 725,
-      "standard_fallback": 5418
+      "crc_rescue": 3,
+      "standard_crc_valid": 2537,
+      "standard_fallback": 3604
     },
     "profiled_cz": {
-      "crc_rescue": 1,
-      "standard_crc_valid": 725,
-      "standard_fallback": 5418
+      "crc_rescue": 2,
+      "standard_crc_valid": 2537,
+      "standard_fallback": 3605
     }
   },
   "selection_trace_row_count": 12288,
@@ -147,47 +207,47 @@
     {
       "path": "runs/blue2_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "b1f4e735483dcac634c00363add310fa39351805e49ac2c114a109a2485f5505"
+      "sha256": "089b128e073899d6dd9f65c2e40bf560b2d267db9d30240b1c60f17b8c783bda"
     },
     {
       "path": "runs/blue2_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "946d9f79cc1930ca09b3def9415324a0a386765877ed954b1847df65f51a8afe"
+      "sha256": "d28caa693727d69de5fe3af594b9f86727920d6a247a56c52a9d717e4ad0342f"
     },
     {
       "path": "runs/blue2_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "9a24b3ac7a5d4856be24eb06ee8acd9f9a5f8a45fe0ba761cb2bb471cd3d1007"
+      "sha256": "0f147000e735a64d17dbab01cd31c0074339ef705a16cf4c7e02557895a3d568"
     },
     {
       "path": "runs/blue3_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "aa0048e4d6368aae77584d6d57bf7d460fcf2b422b093d2bbad6e65e1236183b"
+      "sha256": "9060c621ef124d0db020a3a4b1fb2e18522cd5c57319487866c5c3c6e5be47a0"
     },
     {
       "path": "runs/blue3_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "e0dc507cc83be36bbbd8046e245a9a4dabe1fc6964786c08fe8d4eae54b338ae"
+      "sha256": "3add6704e958ca5d8418ff3bc7081eac3b86bbf5b80650933ba107a64ee51ecf"
     },
     {
       "path": "runs/blue3_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "bd129e5795a075224feffa9c37eff06b0a301a9b615d4ccb2474aea3cc71157e"
+      "sha256": "28b46b9be26a6745eac6ee5ab0c60ea9137248499e314494be47521415eb000b"
     },
     {
       "path": "runs/blue4_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "84e0ac0b87fe41bcac6fab400fe919ec247fc45cbfe3952e8bb024c5db1289f8"
+      "sha256": "cfe05369642957230dac1828647cb117258294526a1ab6ee4688d646c5b8a427"
     },
     {
       "path": "runs/blue4_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "b475e391e16bb68cab6eba1b14ac9e9833f901f396317c32a9b198593c9acdf9"
+      "sha256": "f006eff59426e1f883652ea41461b7fb75cfad0c47bff6e502e7f49482285470"
     },
     {
       "path": "runs/blue4_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "d73244d8740ceec1d4d7d2f817b4bab40b885685fb6b60312e7e956b5755eda7"
+      "sha256": "3e3dcd58ae1f10fe19ae69e0ecd1ff64ead4e9261890f3fc0af939afe1e2f648"
     }
   ],
   "sync_rate_adaptation": {

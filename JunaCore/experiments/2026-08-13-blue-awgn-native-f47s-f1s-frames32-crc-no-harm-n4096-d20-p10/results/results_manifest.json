@@ -1,4 +1,6 @@
 {
+  "acquisition_source_commit": "14082c19df4c7b5a43ef78f17ec14040687eaf76",
+  "acquisition_source_sha256": "e650f3d13dc0af44e47497eaba48252744349d060e4bead73ae2e24408db1836",
   "capture_native": {
     "captures": [
       {
@@ -31,6 +33,64 @@
     0.0,
     47.0
   ],
+  "cfo_rerun": {
+    "blue1_preserved": true,
+    "channels": [
+      "blue2",
+      "blue3",
+      "blue4"
+    ],
+    "completed_utc": "2026-08-20T08:38:14.301079+00:00",
+    "gate": {
+      "failures": [
+        {
+          "ber": 0.2649580792682927,
+          "path": "blue2_hydrophone1"
+        },
+        {
+          "ber": 0.24022484756097562,
+          "path": "blue2_hydrophone2"
+        },
+        {
+          "ber": 0.3011623475609756,
+          "path": "blue2_hydrophone3"
+        },
+        {
+          "ber": 0.38279344512195124,
+          "path": "blue3_hydrophone1"
+        },
+        {
+          "ber": 0.39083460365853656,
+          "path": "blue3_hydrophone2"
+        },
+        {
+          "ber": 0.34988567073170734,
+          "path": "blue3_hydrophone3"
+        },
+        {
+          "ber": 0.2569359756097561,
+          "path": "blue4_hydrophone1"
+        },
+        {
+          "ber": 0.30417301829268295,
+          "path": "blue4_hydrophone2"
+        },
+        {
+          "ber": 0.2973513719512195,
+          "path": "blue4_hydrophone3"
+        }
+      ],
+      "limit": 0.1,
+      "mode": "record_only"
+    },
+    "high_snr_ofdm_ber_max": 0.39083460365853656,
+    "hydrophones": [
+      1,
+      2,
+      3
+    ],
+    "path_count": 9
+  },
   "experiment_id": "2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n4096-d20-p10",
   "frame_duration_budget_seconds": 1.28,
   "frame_duration_seconds": 1.2787712,
@@ -116,14 +176,14 @@
   "seed": 4,
   "selection_reason_counts": {
     "cwz_joint": {
-      "crc_rescue": 2,
-      "standard_crc_valid": 699,
-      "standard_fallback": 5443
+      "crc_rescue": 3,
+      "standard_crc_valid": 2487,
+      "standard_fallback": 3654
     },
     "profiled_cz": {
-      "crc_rescue": 4,
-      "standard_crc_valid": 699,
-      "standard_fallback": 5441
+      "crc_rescue": 5,
+      "standard_crc_valid": 2487,
+      "standard_fallback": 3652
     }
   },
   "selection_trace_row_count": 12288,
@@ -147,47 +207,47 @@
     {
       "path": "runs/blue2_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "1774ddbb492d1e518a803788efd1cd0565c0d82576b0b578c22696ab66ab18e0"
+      "sha256": "b733b72a3d59b4ce159374b99831f598273b5794b5e2382e4e72e936059bf058"
     },
     {
       "path": "runs/blue2_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "658bcd276b26853678034e1e48d15dda4363efdcfae0671f15b3a5074383974c"
+      "sha256": "3cb512f5751edbf0a675c62dbfc07f4bf625ad201a019f8833b4ac66a9b9a5a2"
     },
     {
       "path": "runs/blue2_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "1df9b971b454fbccfd9d276b82489ff2877f5f8a633b3aa34173aa4fd646efa2"
+      "sha256": "f3a6134f73058f621e67f324a271f8e724c8279718e65262ef45afedf46b26fe"
     },
     {
       "path": "runs/blue3_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "05a074b37ecb0ffcf5b2be8fdcd7bba01ae6d04c276b9580c3e04eadb23efa36"
+      "sha256": "796471176645056cc003686bc22c702256781fe169af046baeacdd444dd60765"
     },
     {
       "path": "runs/blue3_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "5ea7cb92f0e627343cb8fe261cf3c436ba7a40e74aaa5312337e7d27abb1cf96"
+      "sha256": "16815bc446f8f582dea5f2c91071b161f67fac04d7a127c209b80109eeae6dfc"
     },
     {
       "path": "runs/blue3_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "777f3e353eff9b10f6ca8f4f63a7894405668872a1ad7a566cb982b1fc00d82f"
+      "sha256": "15083041f59bc0e35c1d4970b7262e95ef592148816be149a96b0e287baba758"
     },
     {
       "path": "runs/blue4_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "3e9cf0bdb1ea9948bb2a2c7233ad3de97fa8654b09af4a12fc9094c489637a9c"
+      "sha256": "5ba60f241cd2fd477b1418fae4a77157e3f584722368bc7bd3fc408dc6863de4"
     },
     {
       "path": "runs/blue4_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "f423ac7021787e864b8d43cd04bedace0ebb330421cc61ba0624846b11e06438"
+      "sha256": "22a8a90b187e06f002324d802a0f08a287c64cce63eee1f2d85c4db6f3ed43c2"
     },
     {
       "path": "runs/blue4_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "ec24bb8fd64c180d78a86df482103590525cf7184d7b06247d5f89dfecdf4a0a"
+      "sha256": "fa6347d95abcc078d55c128d62194bfab817fef92b63f1c9b49ad3c5ca6a0fac"
     }
   ],
   "sync_rate_adaptation": {

@@ -1,4 +1,6 @@
 {
+  "acquisition_source_commit": "14082c19df4c7b5a43ef78f17ec14040687eaf76",
+  "acquisition_source_sha256": "e650f3d13dc0af44e47497eaba48252744349d060e4bead73ae2e24408db1836",
   "capture_native": {
     "captures": [
       {
@@ -31,6 +33,32 @@
     0.0,
     47.0
   ],
+  "cfo_rerun": {
+    "blue1_preserved": true,
+    "channels": [
+      "blue2",
+      "blue3",
+      "blue4"
+    ],
+    "completed_utc": "2026-08-20T05:33:54.329518+00:00",
+    "gate": {
+      "failures": [
+        {
+          "ber": 0.14033564814814814,
+          "path": "blue3_hydrophone1"
+        }
+      ],
+      "limit": 0.1,
+      "mode": "record_only"
+    },
+    "high_snr_ofdm_ber_max": 0.14033564814814814,
+    "hydrophones": [
+      1,
+      2,
+      3
+    ],
+    "path_count": 9
+  },
   "experiment_id": "2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n1536-cp64-r025-p6-8-dc14-kfill-pfft4",
   "frame_duration_budget_seconds": 1.0,
   "frame_duration_seconds": 0.7544832,
@@ -94,12 +122,14 @@
   "seed": 4,
   "selection_reason_counts": {
     "cwz_joint": {
-      "standard_crc_valid": 1069,
-      "standard_fallback": 5075
+      "crc_rescue": 8,
+      "standard_crc_valid": 3717,
+      "standard_fallback": 2419
     },
     "profiled_cz": {
-      "standard_crc_valid": 1069,
-      "standard_fallback": 5075
+      "crc_rescue": 8,
+      "standard_crc_valid": 3717,
+      "standard_fallback": 2419
     }
   },
   "selection_trace_row_count": 12288,
@@ -123,47 +153,47 @@
     {
       "path": "runs/blue2_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "814278152937a1897313e02ad50d1cbe57e6a1814d828795f89f8e3d2f72ff1b"
+      "sha256": "6c347e087550f2b83f231802af41fdf860cc21b75cfcc4d5d961bb8b71e7cacd"
     },
     {
       "path": "runs/blue2_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "8ada51cd81b3d896b4ac054281ed0d212af2c85d179cae05d5e5eefce7fd722c"
+      "sha256": "800211c371101f125dfbe095b362e67119a1fe54d14e74bc4c45ecd23c297e13"
     },
     {
       "path": "runs/blue2_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "5fae7872cf6a2e204ffd7a9c0bc75d30f7bedb583c4f693590a2378ebd457ec7"
+      "sha256": "b207cfd6ad4148ed2e6542571b51cff35d65ef10003bcdfebd511a74c92bb531"
     },
     {
       "path": "runs/blue3_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "1f4e9343747a50b13cf1ef861add4bf596f8d4e3d2eb29145844a097e7a3a757"
+      "sha256": "59ff93d9da7ba3981e83c006f6de53581141c3d64ed8e9312deb3416df9f693d"
     },
     {
       "path": "runs/blue3_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "3d5cba94274da99ca1a472a3d597bcba14be3f4ceb37e3b1f7c5afedf922cc07"
+      "sha256": "83f89cbd34b2cc392831148758b62b3e8925712ba2bd84bced96202277ca8e5e"
     },
     {
       "path": "runs/blue3_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "1b2adb071dea635545eb52489f000e1e110f089d86396eb2cab802a299ac3432"
+      "sha256": "ebae4add1a23a5c8011478f9269dad6679b55079c36224d95bb5e14db0f9b16a"
     },
     {
       "path": "runs/blue4_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "04766e68e2ffb229427fdaf9a7a7d1e74babf58e1de40446e8a4245221b3e81d"
+      "sha256": "209b52b041e0307765344668e5a55e72ec8ff1869d3838f43710c84278fd8bc9"
     },
     {
       "path": "runs/blue4_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "fffcfa6b6364db58097a1b3a9848ab0e376d28a0a3e508686253d7b00d1b449e"
+      "sha256": "5b3956b2fc16527a7feb0993666068957784e358443346417ef682e97b2030c1"
     },
     {
       "path": "runs/blue4_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "bfa8bd1500e6e3b81d8a5d1eb099ea54670e81039f52ad5b51d3f7c9dc3e5824"
+      "sha256": "852edf8e9d51b6f18675c792bd55a0d1a56c61e4521aab4dd4aed20c901b1068"
     }
   ],
   "sync_rate_adaptation": {

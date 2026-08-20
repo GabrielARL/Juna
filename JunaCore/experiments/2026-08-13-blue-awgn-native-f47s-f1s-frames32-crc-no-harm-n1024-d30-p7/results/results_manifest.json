@@ -1,4 +1,6 @@
 {
+  "acquisition_source_commit": "14082c19df4c7b5a43ef78f17ec14040687eaf76",
+  "acquisition_source_sha256": "e650f3d13dc0af44e47497eaba48252744349d060e4bead73ae2e24408db1836",
   "capture_native": {
     "captures": [
       {
@@ -31,6 +33,27 @@
     0.0,
     47.0
   ],
+  "cfo_rerun": {
+    "blue1_preserved": true,
+    "channels": [
+      "blue2",
+      "blue3",
+      "blue4"
+    ],
+    "completed_utc": "2026-08-20T05:19:53.311359+00:00",
+    "gate": {
+      "failures": [],
+      "limit": 0.1,
+      "mode": "record_only"
+    },
+    "high_snr_ofdm_ber_max": 0.023726060191518468,
+    "hydrophones": [
+      1,
+      2,
+      3
+    ],
+    "path_count": 9
+  },
   "experiment_id": "2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n1024-d30-p7",
   "frame_duration_budget_seconds": 1.0,
   "frame_duration_seconds": 0.872448,
@@ -116,12 +139,14 @@
   "seed": 4,
   "selection_reason_counts": {
     "cwz_joint": {
-      "standard_crc_valid": 1057,
-      "standard_fallback": 5087
+      "crc_rescue": 2,
+      "standard_crc_valid": 3432,
+      "standard_fallback": 2710
     },
     "profiled_cz": {
-      "standard_crc_valid": 1057,
-      "standard_fallback": 5087
+      "crc_rescue": 2,
+      "standard_crc_valid": 3432,
+      "standard_fallback": 2710
     }
   },
   "selection_trace_row_count": 12288,
@@ -145,47 +170,47 @@
     {
       "path": "runs/blue2_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "e0c55d4d6c3421df7c868f51ff12d6f9af2f614e02659540b3ea735bbf68fe75"
+      "sha256": "9117249c4d392765ebd05e45b984d442a4748a96bef072b4e958ebe2b163eb6c"
     },
     {
       "path": "runs/blue2_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "cd66c30f1512c57bd4b5f61571e26cc988c89dc03d92f61338f7980d785d74f4"
+      "sha256": "98aa423708bd873a1725e4b124407d33757ea9cdf61b379b8e9c8e7ae53686fc"
     },
     {
       "path": "runs/blue2_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "1ee9227976526a6068f268440a718b10fa2664a947e9b670152516ba0167b6fc"
+      "sha256": "91f09a4de9b6734d79f93137ac77c20eb01ba9aff210491f411237dbda61f124"
     },
     {
       "path": "runs/blue3_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "f375ef381b55d3f789783d947d978077e3a1e8e464e19911b7be4d2d8356a576"
+      "sha256": "8f7f3b4458cbe49dfefa7fec2f6e3798eba640ca571dd18ff682dc7b9f3927fb"
     },
     {
       "path": "runs/blue3_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "abe0c6b6a7788b6f41f62b83e284d5e59f4e3f5dc7317f491ce1bcc24b323021"
+      "sha256": "78c84c8f8684378ac6ef2e9b64458bf497d04c45d60dd2f4f8461f07d9b39e7e"
     },
     {
       "path": "runs/blue3_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "f565e402f53a488df9b34b5f6093774e397ba2c7fe72d63f1a5192ce9554f855"
+      "sha256": "47f67638dab59efbb6d97f11a65196a2979a24b15cd43c6f3cbb821974b8f3c0"
     },
     {
       "path": "runs/blue4_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "f861fd4047fa2a9cdecb65cb74bd9d10edb0e85fc761c2c333b6c703ea575160"
+      "sha256": "df1a34c030098be2c8ba35d0775489456d0ae2880ce61ab21c731b0b7f40d6a2"
     },
     {
       "path": "runs/blue4_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "9d0ebf779f0c2f25b90090abe46ea1f36eae8e59ecafe26760980594b2ea01bb"
+      "sha256": "bb5065ea727039c12d14957e6dda89cb4de622aea7c28a6c50dc42a129acb2d5"
     },
     {
       "path": "runs/blue4_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "5f897244737739f1ec9e69175d245eb90db3fd319ea031e0667d59bd7ace0516"
+      "sha256": "d6c47af53a0e7f99f5be87addbba7a0ff8d01260f314a63574bfaf99780a6a64"
     }
   ],
   "sync_rate_adaptation": {
