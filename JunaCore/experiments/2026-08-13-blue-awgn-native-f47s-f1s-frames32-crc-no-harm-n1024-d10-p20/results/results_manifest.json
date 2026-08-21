@@ -93,6 +93,14 @@
     "seed": 4,
     "snr_db": "0:2:30"
   },
+  "gate": {
+    "failures": [],
+    "high_snr_ofdm_ber_max": 0.05263704318936877,
+    "limit": 0.1,
+    "mode": "record_only",
+    "path_count": 12,
+    "source_commit": "bf4452ef6f14ac89cef6370d1f9f874e8316fecd"
+  },
   "geometry": {
     "check_degree": "14",
     "code_rate": "0.25",
