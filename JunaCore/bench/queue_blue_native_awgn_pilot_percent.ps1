@@ -11,7 +11,7 @@ $builder = Join-Path $PSScriptRoot `
 $validator = Join-Path $PSScriptRoot `
     'validate_blue_native_awgn_direct_cz_extension.py'
 $renderer = Join-Path $PSScriptRoot 'build_blue_native_awgn_view.py'
-$spacingByPercent = @{ 10 = 20; 20 = 10; 30 = 7 }
+$spacingByPercent = @{ 10 = 20; 14 = 14; 20 = 10; 30 = 7; 60 = 3 }
 $nfftValues = @(1024, 1536, 4096)
 if (-not [string]::IsNullOrWhiteSpace(
         $env:JUNA_BLUE_NATIVE_NFFT_SEQUENCE)) {
@@ -26,7 +26,7 @@ if (-not [string]::IsNullOrWhiteSpace(
         ForEach-Object { [int]$_.Trim() })
 }
 if ($percentValues.Count -eq 0 -or
-        @($percentValues | Where-Object { $_ -notin @(10, 20, 30) }).Count -gt 0) {
+        @($percentValues | Where-Object { $_ -notin @(10, 14, 20, 30, 60) }).Count -gt 0) {
     throw 'invalid native-Blue percent sequence'
 }
 if ($nfftValues.Count -eq 0 -or

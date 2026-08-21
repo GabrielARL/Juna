@@ -31,7 +31,8 @@ const EXPECTED_EXPERIMENT_ID =
     "n$(NFFT)-d$(REQUESTED_PERCENT)-p$(SPACING)" * ID_SUFFIX
 NFFT in (512, 1024, 1152, 1200, 1280, 1344, 1408, 1536, 2048, 4096) ||
     error("unsupported native-Blue pilot-density N")
-REQUESTED_PERCENT in (10, 20, 30) || error("unsupported pilot density")
+REQUESTED_PERCENT in (10, 14, 20, 30, 60) ||
+    error("unsupported pilot density")
 
 function nearest_spacing(requested_total_percent::Int)
     half_density = requested_total_percent / 200

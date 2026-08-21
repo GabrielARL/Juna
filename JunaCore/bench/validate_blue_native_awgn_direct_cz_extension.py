@@ -49,7 +49,7 @@ def main():
     require(NFFT in (512, 1024, 1152, 1200, 1280, 1344, 1408, 1536, 2048, 4096), "unsupported N")
     require(MODE in ("density", "baseline"), "unsupported experiment mode")
     if MODE == "density":
-        require(REQUESTED_PERCENT in (10, 20, 30), "unsupported percentage")
+        require(REQUESTED_PERCENT in (10, 14, 20, 30, 60), "unsupported percentage")
         require(OUTER_SPACING == INNER_SPACING ==
                 nearest_spacing(REQUESTED_PERCENT),
                 "50/50 nearest spacing differs")
