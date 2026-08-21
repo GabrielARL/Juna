@@ -1,0 +1,186 @@
+{
+  "capture_native": {
+    "captures": [
+      {
+        "bytes": 206147418,
+        "file": "blue_1.mat",
+        "sha256": "639830f78ea044b877284dc0058f1c25179ba2448c06f228c9f0a62d0b2162de"
+      },
+      {
+        "bytes": 206147418,
+        "file": "blue_2.mat",
+        "sha256": "a3b7452c6c999777b49e5b4ddb3ef113ba4f40ff2d1504847f6d4be63e6a4bee"
+      },
+      {
+        "bytes": 206147418,
+        "file": "blue_3.mat",
+        "sha256": "e126e95880513453722b8e9530bd55347fdb1605b76210f99375d1226b4acf9f"
+      },
+      {
+        "bytes": 206132594,
+        "file": "blue_4.mat",
+        "sha256": "24eaa514da13aff5b5f3f7f8c81eb0fd0dd664ee5ee009b450169c63999c766b"
+      }
+    ],
+    "center_frequency_hz": 13000.0,
+    "delay_grid_sample_rate_hz": 9765.625,
+    "modem_sample_rate_hz": 4882.8125,
+    "snapshot_rate_hz": 48.828125
+  },
+  "capture_time_seconds": [
+    0.0,
+    47.0
+  ],
+  "experiment_id": "2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n1024-cp352-r025-p6-8-dc14-kfill-pfft4",
+  "frame_duration_budget_seconds": 1.0,
+  "frame_duration_seconds": 0.9904128,
+  "frame_samples": 4836,
+  "frame_trace_row_count": 36864,
+  "frames_per_point": 32,
+  "full_configuration": {
+    "receiver_policy": "six receivers, direct C+z plus CRC-gated no-harm"
+  },
+  "gate": {
+    "failures": [],
+    "high_snr_ofdm_ber_max": 0.08918732782369146,
+    "limit": 0.1,
+    "mode": "record_only",
+    "path_count": 12,
+    "source_commit": "c7742f389cc55c2c7ffb0512d1ac4a6d7a9113e9"
+  },
+  "geometry": {
+    "check_degree": "14",
+    "code_rate": "0.25",
+    "cp": 352,
+    "horizon": "0",
+    "inner_spacing": "8",
+    "nfft": 1024,
+    "outer_spacing": "6"
+  },
+  "geometry_display": {
+    "check_degree": "14",
+    "code_rate": "0.25",
+    "cp": 352,
+    "horizon": "fill",
+    "inner_spacing": "8",
+    "nfft": 1024,
+    "outer_spacing": "6",
+    "partial_fft_parts": "4"
+  },
+  "no_harm_rule": {
+    "crc_rescue": "return gradient only when its CRC is valid",
+    "implementation": "experiment-boundary instrumentation of the checked-in cz_crc_gate receiver; not the unpublished AWGN-022 wrapper",
+    "standard_crc_valid": "return standard without gradient rescue",
+    "standard_fallback": "return standard when rescue CRC is invalid"
+  },
+  "noise_model": {
+    "distribution": "proper-complex Gaussian",
+    "injection": "after measured replay, before receiver alignment",
+    "kind": "awgn"
+  },
+  "panel_count": 12,
+  "partial_fft_parts": 4,
+  "payload_bits_per_frame": 726,
+  "receiver_policy": {
+    "cwz_joint": "CRC-gated no-harm C+W+z",
+    "direct_cz": "direct ungated C+z gradient",
+    "lite": "unchanged",
+    "profiled_cz": "CRC-gated no-harm C+z"
+  },
+  "receivers": [
+    "cwz_joint",
+    "direct_cz",
+    "lite",
+    "ofdm_fec",
+    "pfft",
+    "profiled_cz"
+  ],
+  "result_group": "blue_awgn_native",
+  "result_scope": "Blue1-Blue4 native-bandwidth AWGN, hydrophones 1-3, first 47 seconds",
+  "row_count": 1152,
+  "schema_version": 1,
+  "seed": 4,
+  "selection_reason_counts": {
+    "cwz_joint": {
+      "crc_rescue": 1,
+      "standard_crc_valid": 3396,
+      "standard_fallback": 2747
+    },
+    "profiled_cz": {
+      "crc_rescue": 1,
+      "standard_crc_valid": 3396,
+      "standard_fallback": 2747
+    }
+  },
+  "selection_trace_row_count": 12288,
+  "series_count": 72,
+  "sources": [
+    {
+      "path": "runs/blue1_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "d6964015cd9356677c8cd208c868fb6e5ddaed6e647bf36d352404ab64bf03c4"
+    },
+    {
+      "path": "runs/blue1_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "1387ec013c4c6fbdac012237a66ccae27e102b730dbaeff2fb0ec4102b4b1151"
+    },
+    {
+      "path": "runs/blue1_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "aff8f4ee4c38e3e0eec6a89ef846ec4271b9ed5b5b83f9e886d3e8a1f993678a"
+    },
+    {
+      "path": "runs/blue2_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "14adddd47c57ce5b357e58d2907c32f62960653616b01312d2e2df67db744a74"
+    },
+    {
+      "path": "runs/blue2_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "bc4c162e32e30be4fa5b4a40548c7f7bf463439bc4437c27e1524db0f2d80126"
+    },
+    {
+      "path": "runs/blue2_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "acbbd1b032d6e7d46287d82c6baeaff8042a9cbd24ae77545fa222e2d2d877c8"
+    },
+    {
+      "path": "runs/blue3_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "b55ab6c2b278338338c103b3a01e5a9820bdd3b83ec7023c8f2853a07cca95a8"
+    },
+    {
+      "path": "runs/blue3_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "e178b8b082e2a225392d3358a8cd7793a153579592c7cede5822b270afa20bfb"
+    },
+    {
+      "path": "runs/blue3_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "2904e12c7b221a2c310abf9866ac869b415a6e5c3d50eb7782edfd645e4c4486"
+    },
+    {
+      "path": "runs/blue4_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "db5f42774a4bdd6ebdc0d0c8c4a86b3a86912cd357a99ddb183c2b34431f256b"
+    },
+    {
+      "path": "runs/blue4_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "2368249efeaa8fc34f643b826879f62b3c5844d7bdeebf52aea504681591ffd7"
+    },
+    {
+      "path": "runs/blue4_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
+      "rows": 96,
+      "sha256": "32322a3ea1041d090fbb32efef493857305bafc8b004e69e2c1258f8dfd5eb06"
+    }
+  ],
+  "sync_rate_adaptation": {
+    "blue_samples_per_burst": 1042,
+    "blue_total_sync_samples": 2084,
+    "policy": "preserve Red physical LFM duration at native Blue modem rate",
+    "red_modem_sample_rate_hz": 9600.0,
+    "red_samples_per_burst": 2048
+  }
+}

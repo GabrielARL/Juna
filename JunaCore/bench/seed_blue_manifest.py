@@ -15,11 +15,12 @@ DROP = ("cfo_rerun", "blue1_refresh", "gate",
 
 
 def main():
-    if len(sys.argv) != 6:
+    if len(sys.argv) not in (6, 7):
         raise SystemExit("usage: seed_blue_manifest.py TEMPLATE TARGET "
-                         "NFFT PAYLOAD_BITS FRAME_SAMPLES")
+                         "NFFT PAYLOAD_BITS FRAME_SAMPLES [CP]")
     template, target = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
     nfft, payload, samples = int(sys.argv[3]), int(sys.argv[4]), int(sys.argv[5])
+    cp = int(sys.argv[6]) if len(sys.argv) == 7 else None
     src = os.path.join(template, "results", "results_manifest.json")
     dst = os.path.join(target, "results", "results_manifest.json")
     if not os.path.isfile(src):
@@ -37,6 +38,8 @@ def main():
     for block in ("geometry", "geometry_display", "full_configuration"):
         if block in manifest and "nfft" in manifest[block]:
             manifest[block]["nfft"] = nfft
+        if cp is not None and block in manifest and "cp" in manifest[block]:
+            manifest[block]["cp"] = cp
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     with open(dst, "w", encoding="utf-8", newline="\n") as handle:
         json.dump(manifest, handle, indent=2, sort_keys=True)

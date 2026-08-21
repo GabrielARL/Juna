@@ -15,9 +15,14 @@ REQUESTED_PERCENT = int(os.environ.get(
 SPACING = int(os.environ.get("JUNA_BLUE_NATIVE_SPACING", "0"))
 OUTER_SPACING = int(os.environ.get(
     "JUNA_BLUE_NATIVE_OUTER_SPACING", str(SPACING)))
+BLUE_CP = int(os.environ.get("JUNA_BLUE_NATIVE_CP", "64"))
+BLUE_SEED = int(os.environ.get("JUNA_BLUE_NATIVE_SEED", "4"))
 INNER_SPACING = int(os.environ.get(
     "JUNA_BLUE_NATIVE_INNER_SPACING", str(SPACING)))
 FRAME_BUDGET = float(os.environ["JUNA_BLUE_NATIVE_FRAME_BUDGET"])
+BLUE_ID_SUFFIX = (("" if BLUE_SEED == 4 else f"-s{BLUE_SEED}")
+                  + ("" if FRAME_BUDGET == 1.0
+                     else "-b" + str(FRAME_BUDGET).replace(".", "p")))
 PATHS = {(f"blue{channel}", lane)
          for channel in range(1, 5) for lane in range(1, 4)}
 RECEIVERS = {
@@ -56,8 +61,11 @@ def main():
     else:
         require((OUTER_SPACING, INNER_SPACING) == (6, 8),
                 "baseline spacing differs")
-    expected_budget = 1.28 if MODE == "density" and NFFT == 4096 else 1.0
-    require(FRAME_BUDGET == expected_budget, "frame budget differs")
+    if MODE == "density" and NFFT == 4096:
+        require(FRAME_BUDGET == 1.28, "frame budget differs")
+    else:
+        require(FRAME_BUDGET in (0.7, 0.8, 1.0, 1.1, 1.3),
+                "frame budget differs")
     experiment_id = if_density = (
         "2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-"
         f"n{NFFT}-d{REQUESTED_PERCENT}-p{SPACING}"
@@ -65,7 +73,7 @@ def main():
     if MODE == "baseline":
         experiment_id = (
             "2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-"
-            f"n{NFFT}-cp64-r025-p6-8-dc14-kfill-pfft4"
+            f"n{NFFT}-cp{BLUE_CP}-r025-p6-8-dc14-kfill-pfft4{BLUE_ID_SUFFIX}"
         )
     package = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     experiment = (os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else
@@ -85,8 +93,8 @@ def main():
     require({float(row["snr_db"]) for row in rows} == SNRS,
             "SNR set differs")
     exact = {
-        "seed": "4", "frames": "32", "noise_model": "awgn",
-        "nfft": str(NFFT), "cp": "64", "code_rate": "0.25",
+        "seed": str(BLUE_SEED), "frames": "32", "noise_model": "awgn",
+        "nfft": str(NFFT), "cp": str(BLUE_CP), "code_rate": "0.25",
         "outer_spacing": str(OUTER_SPACING),
         "inner_spacing": str(INNER_SPACING),
         "check_degree": "14", "horizon": "0",
