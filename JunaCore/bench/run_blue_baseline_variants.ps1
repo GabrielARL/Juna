@@ -61,7 +61,7 @@ foreach ($c in $configs) {
             if ($len -gt 0 -or -not $ok) { $failed += $w.Name; if (Test-Path $w.Stderr) { Get-Content -LiteralPath $w.Stderr -Tail 40 } }
         }
         if ($failed.Count -gt 0) { Write-Output "BASELINE_SKIP label=$($c.label) reason=workers_failed:$($failed -join ',')"; continue }
-        & python $seeder "$repo\JunaCore\experiments\2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n1024-cp64-r025-p6-8-dc14-kfill-pfft4" $experiment $nfft ([int]$c.payload) ([int]$c.samples) $cp
+        & python $seeder "$repo\JunaCore\experiments\2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n1024-cp64-r025-p6-8-dc14-kfill-pfft4" $experiment $nfft ([int]$c.payload) ([int]$c.samples) $cp $seed
         if ($LASTEXITCODE -ne 0) { Write-Output "BASELINE_SKIP label=$($c.label) reason=seed_exit_$LASTEXITCODE"; continue }
         & python $builder $experiment
         if ($LASTEXITCODE -ne 0) { Write-Output "BASELINE_SKIP label=$($c.label) reason=build_exit_$LASTEXITCODE"; continue }
