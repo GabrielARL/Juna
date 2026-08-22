@@ -1,4 +1,6 @@
 {
+  "acquisition_source_commit": "261a4418327b2bbef77eeaad9e621d280f4617d3",
+  "acquisition_source_sha256": "e650f3d13dc0af44e47497eaba48252744349d060e4bead73ae2e24408db1836",
   "capture_native": {
     "captures": [
       {
@@ -31,6 +33,22 @@
     0.0,
     47.0
   ],
+  "cfo_rerun": {
+    "blue1_preserved": true,
+    "channels": [
+      "blue2",
+      "blue3",
+      "blue4"
+    ],
+    "completed_utc": "2026-08-19T11:47:15.849882+00:00",
+    "high_snr_ofdm_ber_max": 0.014505853994490359,
+    "hydrophones": [
+      1,
+      2,
+      3
+    ],
+    "path_count": 9
+  },
   "experiment_id": "2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n512-cp64-r025-p6-8-dc14-kfill-pfft4",
   "frame_duration_budget_seconds": 1.0,
   "frame_duration_seconds": 0.8986624,
@@ -94,14 +112,14 @@
   "seed": 4,
   "selection_reason_counts": {
     "cwz_joint": {
-      "crc_rescue": 2,
-      "standard_crc_valid": 709,
-      "standard_fallback": 5433
+      "crc_rescue": 1,
+      "standard_crc_valid": 1995,
+      "standard_fallback": 4148
     },
     "profiled_cz": {
       "crc_rescue": 1,
-      "standard_crc_valid": 709,
-      "standard_fallback": 5434
+      "standard_crc_valid": 1995,
+      "standard_fallback": 4148
     }
   },
   "selection_trace_row_count": 12288,
@@ -125,47 +143,47 @@
     {
       "path": "runs/blue2_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "6c1b61fddc489be84c08612802f7115942c4b16b7a79ab4573d4132ac7244015"
+      "sha256": "d8a83a7c1323146370df697482df544177432b96b3ea1e293ced8aa268e25287"
     },
     {
       "path": "runs/blue2_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "fa4f6fd4c327e3d9d69a99021edddba5cbb28776e5019c3be77b19199c893233"
+      "sha256": "f976d0ccae7fdde5d4f8798dc992960d292c454c3bc76856ae4f6a94915dbad2"
     },
     {
       "path": "runs/blue2_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "55e33437e80914c7509701090c770e61bf73abba0874e39449f3cd4d464e00a8"
+      "sha256": "61f6e1509a756c4d6e5c0eaf2bdfe39e96983494beffb33c6d044e5663af43f8"
     },
     {
       "path": "runs/blue3_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "d4ed13df65927887a84f988589f508c6a2d5ff8742a58318e39176a2fcbb0a24"
+      "sha256": "253d22176866351bf37ca0b2cbcf78b2ac817f50e72d942676a70ddb0323ab5d"
     },
     {
       "path": "runs/blue3_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "4bf35433bcc9fb56266516d1b3c79803444a976647f2ebbb1da852b15b193c0b"
+      "sha256": "1c19d5090a86e01dd2e709e057334760d0fff00be6e25665529ff8a0094316db"
     },
     {
       "path": "runs/blue3_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "d2a32c3346443763cbfd14c6d7bc434a307ab4cc465af95e82b63d01297f60be"
+      "sha256": "0c360e73a46832d077405173f9134e73c00683a37cf1c847efa08fb5661c1df1"
     },
     {
       "path": "runs/blue4_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "950082d817ff7cfac9ddf3f4e751e19d3e9e251120ddd38bb43d63f4ff9b480d"
+      "sha256": "a913351ef3126d942ce81a6c4b7a8feb135ed1274596db1dd59f67e349aee543"
     },
     {
       "path": "runs/blue4_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "a276f8da67f3e9c1ef872c49a622dad66477eb5431a7df8dce7256f479c7156b"
+      "sha256": "bf201c338ba6526418d7fe160d21557afba06b2919b0b858622e94de8faf5f28"
     },
     {
       "path": "runs/blue4_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "19227154d19f56d1728d14a22635bf40e7b3bfa4687e26bfc1f7a5135b56a841"
+      "sha256": "8ea03658a63350ba9c00a6f34c0baa31854d9e7e0809ab3d02a66bb66802fe30"
     }
   ],
   "sync_rate_adaptation": {

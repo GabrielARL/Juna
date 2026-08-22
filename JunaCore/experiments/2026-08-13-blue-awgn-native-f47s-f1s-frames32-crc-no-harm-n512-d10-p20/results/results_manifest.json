@@ -116,13 +116,14 @@
   "seed": 4,
   "selection_reason_counts": {
     "cwz_joint": {
-      "standard_crc_valid": 4,
-      "standard_fallback": 6140
+      "crc_rescue": 3,
+      "standard_crc_valid": 203,
+      "standard_fallback": 5938
     },
     "profiled_cz": {
       "crc_rescue": 1,
-      "standard_crc_valid": 4,
-      "standard_fallback": 6139
+      "standard_crc_valid": 203,
+      "standard_fallback": 5940
     }
   },
   "selection_trace_row_count": 12288,
@@ -146,47 +147,47 @@
     {
       "path": "runs/blue2_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "88a12621e3f3fd982260ad0f7c5c9a8c0146e70c579b54dcd1f9b4ae2b3251e4"
+      "sha256": "8f4f933dfefe7c998c5ad34e859087a2394cfec2b2892fbcc84b2800f5f8f713"
     },
     {
       "path": "runs/blue2_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "9b954ac4f149dd0096a756dc4fdb1d947b102ae230a83aae7c8d1bebb7b6abb5"
+      "sha256": "b16d0ff91a581fb83ab2246901bcd399f12019ed0aa1e82e7208b169c0543ee4"
     },
     {
       "path": "runs/blue2_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "75669c94caf55cfebd14c3e853db7150dea549039d0ad9dda942b725608990f8"
+      "sha256": "768a489e5032b5c4a79a90a1217d1964326ffe8ec9bf590c9096b5a2ec447dc0"
     },
     {
       "path": "runs/blue3_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "7ed48cb1553c640703750b6d4cfe5c8357c2424f7bdfc65098810cff222dd6f9"
+      "sha256": "6fa14712c2804f353fb9de4de38587f3a2decd34349cb402d38eaeaec0c69018"
     },
     {
       "path": "runs/blue3_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "bfaac16e85d223d91343c1e182063a5cd75afdd243f0103686e141b50752ea59"
+      "sha256": "3e894f2fe02d0da598f0effd8c03153ddbfd0ac8186633573697b2657fa82a53"
     },
     {
       "path": "runs/blue3_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "128164a0a249dc75bf86f6fea80ba187060e500a95c06a2d571bf84c969de97d"
+      "sha256": "e07bfb1ca0cc38c5c4240f186b585f439e68b76d63372ddf25158a6dff49cf48"
     },
     {
       "path": "runs/blue4_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "a1478a58f54941f5d77b30a5bca7952aa63e2c6993d63cbed5303479cdc2fa5f"
+      "sha256": "f265ae41f24758e755d193c9ddb277fca4fb3f2aaf20ee9e9979a6903e850418"
     },
     {
       "path": "runs/blue4_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "16db67067ef803d1c32dbaa8ed23d5cfcc4bcf0358758e40e750a0bcee489f3b"
+      "sha256": "f63628b97443f10b29d6cde28d2b135dac33a26dc7a0f5e3be78a558a92d1247"
     },
     {
       "path": "runs/blue4_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "3ab50cb4b5039c5f45e7f620dae4ec1d8e689b0ce6dc8e33266d90b774318043"
+      "sha256": "51139bcd858f5a1c406f870e38ba5c95cc43e2dccceaad86b32593342619b28b"
     }
   ],
   "sync_rate_adaptation": {
