@@ -1,6 +1,6 @@
 ---
 name: mandar
-description: Write or rewrite technical documents (papers, notes, tutorials, slide decks) in Mandar Chitre's writing style, using only vocabulary taken from source documents. Use when asked to write, rewrite, restyle, or review any manuscript, note, or deck in this project, or when asked to match the house style.
+description: Write or rewrite technical documents (papers, notes, tutorials, slide decks) in Mandar Chitre's writing style, using only vocabulary taken from source documents, and answer in plain words a newcomer can follow with no invented terms. Use when asked to write, rewrite, restyle, or review any manuscript, note, or deck in this project, when asked to match the house style, and before sending any reply that explains results, numbers, or terms to the user.
 ---
 
 # Writing in the house style
@@ -27,10 +27,11 @@ authority for style.
 
 ---
 
-## THE THREE HARD RULES
+## THE FOUR HARD RULES
 
 These are not preferences. A document that breaks one of them is not
-finished, however good it reads.
+finished, however good it reads. R1, R2 and R4 govern replies in the chat
+as well as documents; R3 governs edits to documents.
 
 ### R1. Use only words that appear in the source material
 
@@ -85,6 +86,69 @@ again more plainly. Only after the user agrees do you edit.
 This applies to wording changes only. It applies **doubly** to anything
 that changes a technical claim, a number, or a description of what the code
 does — those follow the disagreement protocol in `AGENTS.md` as well.
+
+### R4. Every reply is written in plain words a newcomer can follow
+
+This rule governs what you say back to the user, not only what you write
+into a document. A reply is where an invented word is born, and it is where
+a reader is quietly left behind. Both faults cost more in a reply than in a
+paper, because nobody proofreads a reply.
+
+**1. No word of your own making.** R1 and R2 bind a reply exactly as they
+bind a document. If something needs a name and no source gives one,
+describe it instead. *"The receiver that fits the combining weights to the
+pilots and then decodes"* is longer than any label you could invent, and it
+cannot be misread. Where a name is genuinely unavoidable and it is not the
+user's, not in a source, and not a symbol in the code, mark it in the
+sentence where it first appears: *"(my word, not yours)"*.
+
+**2. Write for someone who has not read the paper.** Assume the reader has
+finished one course in communications and nothing more. In practice:
+
+- Expand every abbreviation the first time it appears **in that reply**.
+  Once per reply, not once per conversation — a reply is read on its own.
+- Say what a quantity is before you give its value, and give its units.
+- When a term of the field is unavoidable, put its meaning in the same
+  sentence the first time: *"residual Doppler, the frequency shift still
+  left after the receiver has corrected the coarse one"*.
+- Say what a statistic means when you quote one. A number like a rank
+  correlation is not self-explaining.
+
+**3. One idea per sentence, and the ordinary word over the technical one.**
+If an everyday word carries the meaning, use it. Keep replies to sentences
+of about twenty-five words — shorter than the thirty-five a document
+allows.
+
+| Do not write | Write |
+|---|---|
+| the axis exhibits low sensitivity on this path | on this path the choice barely changes the result |
+| pre-decoder soft symbols, unexplained | pre-decoder soft symbols — the soft estimate of each carrier that is handed to the decoder |
+| rho = +0.839 | the two quantities rank in nearly the same order: Spearman's rho is +0.839, where +1 is a perfect match and 0 is none |
+| dynamic non-diagonality, used as if established | how much energy residual Doppler spills from one carrier into its neighbours |
+| the payoff is 0.0461 | choosing the better receiver is worth 0.0461 bit/s/Hz here, about 60 percent above what OFDM+LDPC reaches |
+
+**The test.** Could a student who has just finished one course in
+communications, and who has not read this project's papers, follow the
+reply from the first line to the last without stopping to look something
+up? If not, the reply is not finished.
+
+**If the user says he does not understand, this rule was broken.** Repair
+it by cutting and by plainer words. Never by adding more evidence — see
+*When he says he is lost*.
+
+---
+
+## BEFORE SENDING A REPLY
+
+1. Is every term in it traceable to a source, the code, or the user's own
+   words — or marked *(my word, not yours)*?
+2. Is every abbreviation expanded in this reply?
+3. Does every number carry its units and a phrase saying what it measures?
+4. Is any sentence longer than about twenty-five words, or carrying two
+   ideas?
+5. Grep the banned-words list against the reply, not only the document.
+6. Read it once as someone who has not seen the papers. Where would that
+   reader stop? Fix that place.
 
 ---
 
