@@ -1,0 +1,46 @@
+{
+  "approval_id": "JCM-385",
+  "correction_approval_id": "JCM-386",
+  "superseded_result_sha256": "681add3a01a8a2e928c458b1221f7fb61fc7ba2d5618629ae12a14c7385dbfcb",
+  "status": "complete",
+  "illustration_only": true,
+  "not_general_evidence": true,
+  "scope": "red1-h1-blue1-h1-n512-n1024",
+  "frames_per_condition": 1,
+  "snr_db": 20,
+  "seed": 4,
+  "noise_pairing": "shared across receivers within each condition; not byte-identical across configurations",
+  "blue_replay_note": "Blue 1 was preserved by the later acquisition-CFO refresh",
+  "source": {
+    "worktree": "/home/gabiel/Documents/GitHub/Juna-worktrees/codex-direct-cz-ci",
+    "commit": "827bbb217e717291090b014b8aba8ea2df4c6dbf",
+    "acquisition_base_commit": "261a4418327b2bbef77eeaad9e621d280f4617d3",
+    "clean": true,
+    "juna_core_path": "/home/gabiel/Documents/GitHub/Juna-worktrees/codex-direct-cz-ci/JunaCore"
+  },
+  "direct_receiver_identity": {
+    "public_constructor": "JunaCore.JunaDirectCzFrame.Modulation",
+    "concrete_receiver_type": "JunaCore.Juna.DirectCzFrameModulation",
+    "descriptor_profile": "lite",
+    "decode_adapter": "frame_decode_function",
+    "objective_identity": "direct_cz_frame",
+    "trace_accessor": "JunaCore.Juna._direct_cz_last_trace",
+    "source_path": "/home/gabiel/Documents/GitHub/Juna-worktrees/codex-direct-cz-ci/JunaCore/src/juna/direct_cz_frame.jl",
+    "source_sha256": "6004c01aac1d98c685f204ac4b065e91af0d6307940dab9444a0b8014d8e7342"
+  },
+  "inputs": {
+    "benchmark_port": {"path": "/home/gabiel/Documents/GitHub/Juna-worktrees/codex-direct-cz-ci/JunaCore/experiments/2026-08-04-red-snr-sweep/benchmark_port.jl", "sha256": "404685dcb0b98c5667b5391fdb8ee211f970db16880b5d566f9cd38a2b4b6ee8"},
+    "replay_lane": {"path": "/home/gabiel/Documents/GitHub/Juna-worktrees/codex-direct-cz-ci/JunaCore/experiments/2026-08-04-red-snr-sweep/replay_lane.jl", "sha256": "78f9e16f1cedd7512ae88c77de23022b2f506939fccfe723dea75d7c9fac31cf"},
+    "red_mat": {"path": "/home/gabiel/Documents/GitHub/Juna/JunaCore/experiments/2026-08-01-red-lite-search/data/red_1.mat", "sha256": "09556b49e453a351f72b5c71435aab0048f68a80ab3b926ca4353dab47e89c45"},
+    "blue_mat": {"path": "/home/gabiel/Documents/GitHub/replaychan/data/blue_1.mat", "sha256": "639830f78ea044b877284dc0058f1c25179ba2448c06f228c9f0a62d0b2162de"},
+    "direct_cz_source": {"path": "/home/gabiel/Documents/GitHub/Juna-worktrees/codex-direct-cz-ci/JunaCore/src/juna/direct_cz_frame.jl", "sha256": "6004c01aac1d98c685f204ac4b065e91af0d6307940dab9444a0b8014d8e7342"}
+  },
+  "outputs": {
+    "runner_sha256": "543d581278fd35fe3286ebe3292faf00aa0d393e3f394f13f16a379480d96550",
+    "frame_results": {
+      "path": "/home/gabiel/Documents/GitHub/Juna/JunaCore/experiments/2026-08-23-jcm385-one-frame-demo/frame_results.csv",
+      "sha256": "8719d0ba0ba1c1757e273da4832cf17d76d069f80b93b93b75fb3ae6e5aca3b6",
+      "rows": 20
+    }
+  }
+}
