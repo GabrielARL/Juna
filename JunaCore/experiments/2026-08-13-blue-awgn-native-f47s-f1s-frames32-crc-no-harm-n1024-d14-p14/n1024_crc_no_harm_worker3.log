@@ -1,0 +1,56 @@
+N1024_CRC_NO_HARM_START paths=3 2026-08-21T16:55:17.552
+PATH_START blue1 hydrophone 3 2026-08-21T16:55:17.554
+SNR_VALID blue1 hydrophone 3 snr=0 2026-08-21T16:56:34.312
+SNR_VALID blue1 hydrophone 3 snr=2 2026-08-21T16:57:03.646
+SNR_VALID blue1 hydrophone 3 snr=4 2026-08-21T16:57:33.023
+SNR_VALID blue1 hydrophone 3 snr=6 2026-08-21T16:58:01.034
+SNR_VALID blue1 hydrophone 3 snr=8 2026-08-21T16:58:29.899
+SNR_VALID blue1 hydrophone 3 snr=10 2026-08-21T16:58:57.440
+SNR_VALID blue1 hydrophone 3 snr=12 2026-08-21T16:59:24.131
+SNR_VALID blue1 hydrophone 3 snr=14 2026-08-21T18:11:51.962
+SNR_VALID blue1 hydrophone 3 snr=16 2026-08-21T18:12:34.534
+SNR_VALID blue1 hydrophone 3 snr=18 2026-08-21T18:13:04.970
+SNR_VALID blue1 hydrophone 3 snr=20 2026-08-21T18:13:34.282
+SNR_VALID blue1 hydrophone 3 snr=22 2026-08-21T18:13:59.968
+SNR_VALID blue1 hydrophone 3 snr=24 2026-08-21T18:14:27.719
+SNR_VALID blue1 hydrophone 3 snr=26 2026-08-21T18:14:51.499
+SNR_VALID blue1 hydrophone 3 snr=28 2026-08-21T18:15:16.764
+SNR_VALID blue1 hydrophone 3 snr=30 2026-08-21T18:15:39.950
+PATH_VALID blue1 hydrophone 3 2026-08-21T18:15:42.359
+PATH_START blue3 hydrophone 1 2026-08-21T18:15:42.898
+SNR_VALID blue3 hydrophone 1 snr=0 2026-08-21T18:16:11.068
+SNR_VALID blue3 hydrophone 1 snr=2 2026-08-21T18:16:39.416
+SNR_VALID blue3 hydrophone 1 snr=4 2026-08-21T18:17:09.148
+SNR_VALID blue3 hydrophone 1 snr=6 2026-08-21T18:17:40.286
+SNR_VALID blue3 hydrophone 1 snr=8 2026-08-21T18:18:09.726
+SNR_VALID blue3 hydrophone 1 snr=10 2026-08-21T18:18:39.753
+SNR_VALID blue3 hydrophone 1 snr=12 2026-08-21T18:19:07.857
+SNR_VALID blue3 hydrophone 1 snr=14 2026-08-21T18:19:34.068
+SNR_VALID blue3 hydrophone 1 snr=16 2026-08-21T18:19:59.108
+SNR_VALID blue3 hydrophone 1 snr=18 2026-08-21T18:20:24.139
+SNR_VALID blue3 hydrophone 1 snr=20 2026-08-21T18:20:48.965
+SNR_VALID blue3 hydrophone 1 snr=22 2026-08-21T18:21:13.862
+SNR_VALID blue3 hydrophone 1 snr=24 2026-08-21T18:21:39.976
+SNR_VALID blue3 hydrophone 1 snr=26 2026-08-21T18:22:06.058
+SNR_VALID blue3 hydrophone 1 snr=28 2026-08-21T18:22:32.262
+SNR_VALID blue3 hydrophone 1 snr=30 2026-08-21T18:22:57.942
+PATH_VALID blue3 hydrophone 1 2026-08-21T18:22:59.135
+PATH_START blue4 hydrophone 2 2026-08-21T18:22:59.652
+SNR_VALID blue4 hydrophone 2 snr=0 2026-08-21T18:23:30.793
+SNR_VALID blue4 hydrophone 2 snr=2 2026-08-21T18:23:59.632
+SNR_VALID blue4 hydrophone 2 snr=4 2026-08-21T18:24:28.084
+SNR_VALID blue4 hydrophone 2 snr=6 2026-08-21T18:24:57.277
+SNR_VALID blue4 hydrophone 2 snr=8 2026-08-21T18:25:26.244
+SNR_VALID blue4 hydrophone 2 snr=10 2026-08-21T18:25:54.075
+SNR_VALID blue4 hydrophone 2 snr=12 2026-08-21T18:26:21.428
+SNR_VALID blue4 hydrophone 2 snr=14 2026-08-21T18:26:49.351
+SNR_VALID blue4 hydrophone 2 snr=16 2026-08-21T18:27:15.733
+SNR_VALID blue4 hydrophone 2 snr=18 2026-08-21T18:27:41.149
+SNR_VALID blue4 hydrophone 2 snr=20 2026-08-21T18:28:06.781
+SNR_VALID blue4 hydrophone 2 snr=22 2026-08-21T18:28:31.620
+SNR_VALID blue4 hydrophone 2 snr=24 2026-08-21T18:28:55.320
+SNR_VALID blue4 hydrophone 2 snr=26 2026-08-21T18:29:21.596
+SNR_VALID blue4 hydrophone 2 snr=28 2026-08-21T18:29:42.548
+SNR_VALID blue4 hydrophone 2 snr=30 2026-08-21T18:29:56.934
+PATH_VALID blue4 hydrophone 2 2026-08-21T18:29:57.372
+N1024_CRC_NO_HARM_COMPUTE_COMPLETE paths=3 2026-08-21T18:29:57.700

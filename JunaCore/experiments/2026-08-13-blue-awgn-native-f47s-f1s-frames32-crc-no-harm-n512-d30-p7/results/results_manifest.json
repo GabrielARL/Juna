@@ -1,4 +1,6 @@
 {
+  "acquisition_source_commit": "14082c19df4c7b5a43ef78f17ec14040687eaf76",
+  "acquisition_source_sha256": "e650f3d13dc0af44e47497eaba48252744349d060e4bead73ae2e24408db1836",
   "capture_native": {
     "captures": [
       {
@@ -31,6 +33,27 @@
     0.0,
     47.0
   ],
+  "cfo_rerun": {
+    "blue1_preserved": true,
+    "channels": [
+      "blue2",
+      "blue3",
+      "blue4"
+    ],
+    "completed_utc": "2026-08-20T04:05:05.445986+00:00",
+    "gate": {
+      "failures": [],
+      "limit": 0.1,
+      "mode": "record_only"
+    },
+    "high_snr_ofdm_ber_max": 0.030214088397790054,
+    "hydrophones": [
+      1,
+      2,
+      3
+    ],
+    "path_count": 9
+  },
   "experiment_id": "2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n512-d30-p7",
   "frame_duration_budget_seconds": 1.0,
   "frame_duration_seconds": 0.8986624,
@@ -116,14 +139,14 @@
   "seed": 4,
   "selection_reason_counts": {
     "cwz_joint": {
-      "crc_rescue": 2,
-      "standard_crc_valid": 446,
-      "standard_fallback": 5696
+      "crc_rescue": 4,
+      "standard_crc_valid": 1307,
+      "standard_fallback": 4833
     },
     "profiled_cz": {
       "crc_rescue": 3,
-      "standard_crc_valid": 446,
-      "standard_fallback": 5695
+      "standard_crc_valid": 1307,
+      "standard_fallback": 4834
     }
   },
   "selection_trace_row_count": 12288,
@@ -147,47 +170,47 @@
     {
       "path": "runs/blue2_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "e2a097113a0a26397c890b132151eb7c57ab23c9fc9718469f2f21cfc2128803"
+      "sha256": "a133b4afa7a7cc66af7d9cb8e43f22f7f0612862cbbb2344230dbe389666f2c0"
     },
     {
       "path": "runs/blue2_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "ef8e864648725d6bc3ee23eb8666bfea3e91b3a7e31db80245f82a060a7a70e0"
+      "sha256": "b2db9c3caf86a03d61d51abab39784f7ac27011454757ab7f2b58ea67436b5d4"
     },
     {
       "path": "runs/blue2_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "51938761a503116b4658fe9004a17e982dea25c69509425826979fd6e2051c11"
+      "sha256": "fa17d3c21e4f608a9a7d24401699f4a8d638eb03e9fea1d32ff52150f4609b05"
     },
     {
       "path": "runs/blue3_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "c50728fb61b131bf79452c0dc5cb349e1d2b7786e91195cd31c84f49cfb0edb4"
+      "sha256": "edc50aa5440c7df42d4f8f332a04d4a31f33dd7cd63829b71e895a071683100b"
     },
     {
       "path": "runs/blue3_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "3d18e0c926a019be7948805a8bc2859dd9f233a9a73ee69d5f8168b0bd9e0f89"
+      "sha256": "92dc092756cc12971d07766958d3baa08e5d43a85259f7b3721f10c82dbab67d"
     },
     {
       "path": "runs/blue3_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "44437569740276313be912dc674205f23b0cdf39f9d4243cd4857f8dc899ad89"
+      "sha256": "679da90104ba73957d2f8007cee749c66003c1db6334b3880a4f411539fb71b8"
     },
     {
       "path": "runs/blue4_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "7a754e19c1f40124ba20823baff0905c28066059ccc91273a341670e35ce47e2"
+      "sha256": "619a99d6330b3788d0823e7777a0b0fddfd7a8ad0991d3f46f290cfe3171ce5f"
     },
     {
       "path": "runs/blue4_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "5bd143fb1e918fc5513dc39152239f422eb448bddea53f447684ade630e6e89a"
+      "sha256": "fabdef51a07fc7580efee48b0e5ae68a77a49b2b75c1b4f36cac73287890ad8f"
     },
     {
       "path": "runs/blue4_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "b45658e865cd8e392392cca89069d9ccc7c977387c49872d2a915fef64124628"
+      "sha256": "d60b752565ccee3eee63fff5fb0590e73c5772d39a0d0ca365953cf04d95c95f"
     }
   ],
   "sync_rate_adaptation": {

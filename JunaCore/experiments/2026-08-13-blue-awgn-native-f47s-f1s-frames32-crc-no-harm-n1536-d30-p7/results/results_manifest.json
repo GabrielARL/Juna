@@ -1,4 +1,6 @@
 {
+  "acquisition_source_commit": "14082c19df4c7b5a43ef78f17ec14040687eaf76",
+  "acquisition_source_sha256": "e650f3d13dc0af44e47497eaba48252744349d060e4bead73ae2e24408db1836",
   "capture_native": {
     "captures": [
       {
@@ -31,6 +33,32 @@
     0.0,
     47.0
   ],
+  "cfo_rerun": {
+    "blue1_preserved": true,
+    "channels": [
+      "blue2",
+      "blue3",
+      "blue4"
+    ],
+    "completed_utc": "2026-08-20T06:22:03.270658+00:00",
+    "gate": {
+      "failures": [
+        {
+          "ber": 0.1407967032967033,
+          "path": "blue3_hydrophone1"
+        }
+      ],
+      "limit": 0.1,
+      "mode": "record_only"
+    },
+    "high_snr_ofdm_ber_max": 0.1407967032967033,
+    "hydrophones": [
+      1,
+      2,
+      3
+    ],
+    "path_count": 9
+  },
   "experiment_id": "2026-08-13-blue-awgn-native-f47s-f1s-frames32-crc-no-harm-n1536-d30-p7",
   "frame_duration_budget_seconds": 1.0,
   "frame_duration_seconds": 0.7544832,
@@ -116,14 +144,14 @@
   "seed": 4,
   "selection_reason_counts": {
     "cwz_joint": {
-      "crc_rescue": 6,
-      "standard_crc_valid": 1079,
-      "standard_fallback": 5059
+      "crc_rescue": 5,
+      "standard_crc_valid": 3765,
+      "standard_fallback": 2374
     },
     "profiled_cz": {
-      "crc_rescue": 3,
-      "standard_crc_valid": 1079,
-      "standard_fallback": 5062
+      "crc_rescue": 5,
+      "standard_crc_valid": 3765,
+      "standard_fallback": 2374
     }
   },
   "selection_trace_row_count": 12288,
@@ -147,47 +175,47 @@
     {
       "path": "runs/blue2_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "c73a3f303ccdaa5a4ca6f9de9f764f45cf29e4d7a748edb5c07b098553f44089"
+      "sha256": "50150b4f8c7b01841f0b77637d0ff33bad7da3f28e9857046472e15942512e54"
     },
     {
       "path": "runs/blue2_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "8bf740621e3b1919648ef39a913148c9241adf5bb0895b05b39cef1a8b9780be"
+      "sha256": "027aad146dbede5344ea2e7b0887a103b172d5f8040b57e36036a61d4c1323dd"
     },
     {
       "path": "runs/blue2_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "caac3d3b00b79eb0636b5985ba5c18174901f070dd754c6b322afc1e12a46926"
+      "sha256": "dcfb1c12ab942c2c6cc8364b507088a363f8bcd00fe1d3a02b053a7506d437f9"
     },
     {
       "path": "runs/blue3_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "8eac9eea7632b0623d52aec63e1891f4fefbdb8c0466dce3632d2aefb1068632"
+      "sha256": "1e306527f7cb1138f73e8ef57255bc4ffdc5949383cc3c9413290bfa9fd73369"
     },
     {
       "path": "runs/blue3_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "d1ec7f72d669e0ad0926c5934d2bb5448b61ad634f1052ed6da0ff1535ee4915"
+      "sha256": "c19b857252455554ff758aeab8035bc90d19efe6286b6d6b79df1e72ad0169da"
     },
     {
       "path": "runs/blue3_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "1df581ee532b2d64823d4f6a00b65b2810bcfca794d73ee5cd3bad064e46d90b"
+      "sha256": "18f2759eb05faeb12c5c82ec6b848d7170def6b5815838c76d3c45e41c1ee2c2"
     },
     {
       "path": "runs/blue4_hydrophone1/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "240164218ee075b2693f6b537a3bdf636c9f21ed5bcdf50b8d3e9f93e93e10ba"
+      "sha256": "6860e284c64f471f9fe1263ce0de567439ea09b7411238f40a4efcdf1d5e26fa"
     },
     {
       "path": "runs/blue4_hydrophone2/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "009a30132db4a4e793788cc478dde69c4390bd9de83820bb5aa1bec107755db6"
+      "sha256": "8c3c15c894d92936b6610dd860f2b210b6389719fd0110c25d19dd3d6966d9e3"
     },
     {
       "path": "runs/blue4_hydrophone3/blue_snr_sweep_awgn_native_first47s_frames32_configuration.csv",
       "rows": 96,
-      "sha256": "9bbc5dd7b8901d82cce14744b750a2cb1fa03bc073a96085845003108d86a700"
+      "sha256": "57460d1ec9df68602e9263c183ac9bd7bc336ce16187ea80f67c8180fdedcd5b"
     }
   ],
   "sync_rate_adaptation": {
